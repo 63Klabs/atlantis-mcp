@@ -1,0 +1,28 @@
+# Ignore the git, ve, and zip files and directories
+.*
+*.zip
+venv*
+.venv*
+.ve*
+
+# Ignore program and OS files
+.vscode
+*.DS_Store
+*desktop.ini
+package-lock.json
+
+# If you need to remove .DS_Store
+# find . -name .DS_Store -print0 | xargs -0 git rm -f --ignore-unmatch
+
+# Ignore Generated
+node_modules/
+application-infrastructure/src/coverage/
+package-lock.json
+__pycache__/
+*.py[cod]
+
+# Exceptions
+!.gitignore
+!.github
+!.nvmrc
+!.kiro

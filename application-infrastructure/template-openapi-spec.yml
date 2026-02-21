@@ -1,0 +1,107 @@
+openapi: '3.0.0'
+info:
+  title: "Web Service API"
+  description: "An API"
+  version: "0.1"
+  contact:
+    name: "Your Name"
+    url: "https://example.com"
+    email: "contact@example.com"
+  license:
+    name: "CC Attribution-ShareAlike 4.0 (CC BY-SA 4.0)"
+    url: "https://example.com"
+
+# =============================================================================
+
+paths: 
+
+  /api/example/:
+    get:
+      description: "GET API Example"
+      # parameters:
+      #   - $ref: '#/components/parameters/someParameter'
+      responses:
+        $ref: '#/components/schemas/DataResponses'
+      x-amazon-apigateway-integration: # This is always the same
+        httpMethod: post
+        type: aws_proxy
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AppFunction.Arn}/invocations
+
+  /api/example/{id}:
+    get:
+      description: "GET API Example by ID"
+      parameters:
+        - name: id
+          in: path
+          description: "Example Resource ID"
+          required: false
+          schema:
+            type: string
+      responses:
+        $ref: '#/components/schemas/DataResponses'
+      x-amazon-apigateway-integration: # This is always the same
+        httpMethod: post
+        type: aws_proxy
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AppFunction.Arn}/invocations
+
+
+# =============================================================================
+
+components:
+
+  # ---------------------------------------------------------------------------
+
+  parameters:
+
+    someParameter:
+      name: someParameter
+      in: query
+      description: "A sample parameter"
+      required: false
+      schema:
+        type: string
+        example: "exampleValue"
+
+  # ---------------------------------------------------------------------------
+
+  schemas:
+
+    # Top level
+
+    DataResponses:
+      '200':
+        description: "Response OK"
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResponseObject'
+      '304':
+        $ref: '#/components/schemas/304'
+      '403':
+        $ref: '#/components/schemas/403'
+
+    # Non 200 Status Codes
+
+    '304':
+      description: "Not Modified"
+      content:
+        text/plain:
+          schema:
+            title: Not Modified
+            type: string
+    '403':
+      description: Not Authorized.
+      content:
+        text/plain:
+          schema:
+            title: Not authorized
+            type: string
+
+    # Fragments
+
+    ResponseObject:
+      type: object
+      title: A response object
+      description: "A response object containing data"

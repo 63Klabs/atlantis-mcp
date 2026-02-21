@@ -1,0 +1,33 @@
+{
+  "Parameters": {
+    "UserAgent": "Web Service - $STAGE_ID$",
+    "ApiPathBase": "$PROJECT_ID$-$STAGE_ID$",
+    "FunctionMaxMemoryInMB": "2048",
+    "FunctionTimeOutInSeconds": "10",
+    "ApiGatewayLoggingEnabled": "FALSE",
+    "CacheDataS3BucketName": "",
+    "CacheDataDynamoDbTableName": ""
+  },
+  "Tags": {
+
+    "Application":"Web Service API",
+    "Name":"Web Service API $PREFIX$-$PROJECT_ID$",
+    "Project": "Web Service API",
+    "Owner": "teamlead@yourorg.com",
+    "Creator":"you@yourorg.com",
+    "CostCenter":"7G",
+    "Department": "Web Applications",
+
+    "Provisioner": "CloudFormation",
+    "DeployedUsing": "CodePipeline",
+    "Atlantis": "application-infrastructure",
+    "atlantis:Prefix": "$PREFIX$",
+    "atlantis:Application": "$PREFIX$-$PROJECT_ID$",
+    "atlantis:ApplicationDeploymentId": "$PREFIX$-$PROJECT_ID$-$STAGE_ID$",
+    "Repository": "$REPOSITORY$",
+    "RepositoryBranch": "$REPOSITORY$:$REPOSITORY_BRANCH$",
+    "Environment": "$DEPLOY_ENVIRONMENT$",
+    "Stage": "$STAGE_ID$",
+    "AlarmNotificationEmail": "$ALARM_NOTIFICATION_EMAIL$"
+  }
+}

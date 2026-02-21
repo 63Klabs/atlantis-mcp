@@ -1,0 +1,737 @@
+# This file is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, 
+# either express or implied. See the License for the specific language governing permissions 
+# and limitations under the License.
+#
+# Atlantis for AWS SAM Deployments
+# Starter 02 - API Gateway and Lambda using Cache-Data (NodeJS)
+# Author: Chad Kluck - 63klabs.net
+# Version: v2.0.5/2026-01-07
+
+# Documentation, Issues/Feature Requests, Latest Updates, and Security Reports on GitHub:
+# https://github.com/63Klabs/atlantis-starter-02-apigw-lambda-cache-data-nodejs
+
+# Creates a web service using API Gateway and Lambda using NodeJS and 63klabs/cache-data
+# This template is designed to be used with 63KLabs Atlantis for automated deployments.
+
+# USE WITH:
+# - Atlantis pipeline/pipeline-template.yml
+
+AWSTemplateFormatVersion: "2010-09-09"
+Transform:  AWS::Serverless-2016-10-31
+Description: "A web service using API Gateway, Lambda, Cache, NodeJS - atlantis-starter-02-apigw-lambda-cache-data-nodejs"
+
+# =============================================================================
+# META DATA
+# -----------------------------------------------------------------------------
+# https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-cloudformation-interface.html
+# 
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - 
+        Label:
+          default: "Application Resource Naming"
+        Parameters:
+          - Prefix
+          - ProjectId
+          - StageId
+          - S3BucketNameOrgPrefix
+          - RolePath
+          - PermissionsBoundaryArn
+          - ParameterStoreHierarchy
+      -
+        Label:
+          default: "Deployment Environment Information"
+        Parameters:
+          - DeployEnvironment
+          - DeployRole
+          - FunctionGradualDeploymentType
+          - AlarmNotificationEmail
+      -
+        Label:
+          default: "Lambda Function Settings"
+        Parameters:
+          - FunctionTimeOutInSeconds
+          - FunctionMaxMemoryInMB
+          - FunctionArchitecture
+      -
+        Label:
+          default: "Application Parameters"
+        Parameters:
+          - ApiPathBase
+          - UserAgent
+          - LogRetentionInDaysForPROD
+          - LogRetentionInDaysForDEVTEST
+          - ApiGatewayLoggingEnabled
+      -
+        Label:
+          default: "Cache-Data Settings"
+        Parameters:
+          - CacheDataDynamoDbTableName
+          - CacheDataS3BucketName
+          - CacheDataTimeZoneForInterval
+
+# =============================================================================
+# PARAMETERS
+# -----------------------------------------------------------------------------
+# https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/parameters-section-structure.html
+#
+
+Parameters:
+
+  # ---------------------------------------------------------------------------
+  # Application Resource Naming
+
+  Prefix:
+    Type: String
+    Description: "Prefix pre-pended to all resources. This can be thought of as a Name Space used to identify ownership/access for teams, departments, etc. For example, resources named ws-* could belong to the web service team and could have IAM permissions to allow access to other ws-* resources. The Prefix must have a corresponding CloudFormation Service Role. Short, descriptive 2-6 character values work best. Due to resource naming length restrictions, length of Prefix + Project ID should not exceed 28 characters. Resources are named <Prefix>-<ProjectId>-<StageId>-<ResourceId>"
+    Default: "acme" 
+    AllowedPattern: "^[a-z][a-z0-9-]{0,6}[a-z0-9]$"
+    MinLength: 2
+    MaxLength: 8
+    ConstraintDescription: "2 to 8 characters. Lower case alphanumeric and dashes. Must start with a letter and end with a letter or number. Length of Prefix + Project ID should not exceed 28 characters."
+
+  ProjectId:
+    Type: String
+    Description: "This is the Project or Application Identifier. If you receive 'S3 bucket name too long' errors during stack creation, then you must shorten the Project ID or use an S3 Org Prefix. Due to resource naming length restrictions, length of Prefix + Project ID should not exceed 28 characters. Resources are named <Prefix>-<ProjectId>-<StageId>-<ResourceId>"
+    AllowedPattern: "^[a-z][a-z0-9-]{0,24}[a-z0-9]$"
+    MinLength: 2
+    MaxLength: 26
+    ConstraintDescription: "Minimum of 2 characters (suggested maximum of 20). Lower case alphanumeric and dashes. Must start with a letter and end with a letter or number. Length of Prefix + Project ID should not exceed 28 characters."
+
+  StageId:
+    Type: String
+    Description: "This is an alias for the branch. It does not need to match CodeCommitBranch or DeployEnvironment. Due to resource naming restrictions you can use this to provide shorter names without special characters that are allowed in branch names. For example if you have a 'test/feature-98' branch, you could use 'tf98' as the StageId. Resources are named <Prefix>-<ProjectId>-<StageId>-<ResourceId>"
+    AllowedPattern: "^[a-z][a-z0-9-]{0,6}[a-z0-9]$"
+    MinLength: 2
+    MaxLength: 8
+    ConstraintDescription: "2 to 8 characters. Lower case alphanumeric and dashes. Must start with a letter and end with a letter or number."
+
+  S3BucketNameOrgPrefix:
+    Type: String
+    Description: "By default, to enforce uniqueness, buckets include account and region in the bucket name. However, due to character limits, you can specify your own S3 prefix (like an org code). This will be used in addition to the Prefix entered above. Note that this length is shared with the recommended length of 20 characters for Resource Identifiers. So if you have a 10 character S3BucketNameOrgPrefix, you are limited to 10 characters for your bucket name identifier in your templates. Buckets are named <Prefix>-<Region>-<AccountId>-<ProjectId>-<StageId>-<ResourceId> or <S3OrgPrefix>-<Prefix>-<ProjectId>-<StageId>-<ResourceId>"
+    Default: ""
+    AllowedPattern: "^[a-z0-9][a-z0-9-]{0,18}[a-z0-9]$|^$"
+    ConstraintDescription: "May be empty or 2 to 20 characters (8 or less recommended). Lower case alphanumeric and dashes. Must start and end with a letter or number."
+
+  RolePath:
+    Type: String
+    Description: "Path to use for IAM Roles and Policies. You may wish to separate out your applications from users, or create seperate paths per prefix or application. Specific paths may required by permission boundaries. Ex: /ws-hello-world-test/ or /app_role/"
+    Default: "/"
+    AllowedPattern: "^\\/([a-zA-Z0-9-_]+[\\/])+$|^\\/$"
+    ConstraintDescription: "May only contain alphanumeric characters, forward slashes, underscores, and dashes. Must begin and end with a slash."
+
+  ParameterStoreHierarchy:
+    Type: String
+    Description: "Parameters specific to the application may be organized within a hierarchy based on your organizational or operations structure. For example, /Finance/ops/ for this value would then generate /Finance/ops/<DeployEnvironment>/<Prefix>-<ProjectId>-<StageId>/<parameterName>. Must either be a single '/' or begin and end with a '/'."
+    Default: "/"
+    AllowedPattern: "^\\/([a-zA-Z0-9_.\\-]*[\\/])+$|^\\/$"
+    ConstraintDescription: "Must only contain alpha-numeric, dashes, underscores, or slashes. Must be a single slash or begin and end with a slash. (/Finance/, /Finance/ops/, or /)"
+
+  PermissionsBoundaryArn:
+    Type: String
+    Description: "Permissions Boundary is a policy attached to a role to further restrict the permissions of the role. Your organization may or may not require boundaries. If left empty, no permissions boundary will be used."
+    Default: ""
+    AllowedPattern: "^$|^arn:aws:iam::\\d{12}:policy\\/[\\w+=,.@\\-\\/]*[\\w+=,.@\\-]+$"
+    ConstraintDescription: "Must be empty or a valid IAM Policy ARN in the format: arn:aws:iam::{account_id}:policy/{policy_name}"
+
+  # ---------------------------------------------------------------------------
+  # Deployment Environment Identification
+
+  DeployEnvironment:
+    Type: String
+    Description: "What deploy/testing environment will this run under? An environment can contain multiple stages (for example 'test' and 't98' would be in 'TEST' environment, and 'beta' and 'prod' stages would deploy to 'PROD'). Utilize this environment variable to determine your tests, app logging levels, and conditionals in the template. For example, PROD will use gradual deployment while DEV and TEST is AllAtOnce. Other resources, such as dashboards and alarms  (which cost money) could be created in PROD and not DEV or TEST. Suggested use: DEV for local SAM deployment, TEST for test/QA deployments, PROD for stage, beta, and main/prod deployments."
+    Default: "PROD"
+    AllowedValues: ["DEV", "TEST", "PROD"]
+    ConstraintDescription: "Must specify DEV, TEST, or PROD."
+
+  DeployRole:
+    Type: String
+    Description: "IAM role to allow AWS CodeDeploy to manage deployment of AWS Lambda functions"
+    AllowedPattern: "^arn:aws:iam::\\d{12}:role/[\\w+=,.@\\-\\/]*[\\w+=,.@\\-\\/]{1}$"
+    ConstraintDescription: "A valid IAM role ARN"
+
+  FunctionGradualDeploymentType:
+    Type: String
+    Description: "For production environments, what method do you want to use to gradually deploy before rolling back in case of errors. Note that when 'DeployEnvironment' is TEST or DEV, gradual deploy will not be enabled and will be same as All At Once"
+    Default: "Linear10PercentEvery3Minutes"
+    AllowedValues:
+      - "Canary10Percent5Minutes" # Canary = First 10%, then after x minutes, full 90% (full deploy after x minutes)
+      - "Canary10Percent10Minutes"
+      - "Canary10Percent15Minutes"
+      - "Canary10Percent30Minutes"
+      - "Linear10PercentEvery1Minute" # Linear = Total of 10 deploys every x minutes: 10%, wait x minutes, another 10%, wait, 10%.... (full deploy after 10 * x minutes)
+      - "Linear10PercentEvery2Minutes"
+      - "Linear10PercentEvery3Minutes"
+      - "Linear10PercentEvery10Minutes"
+      - "AllAtOnce" # All at once. Recommended only for TEST and DEV environments.
+
+  AlarmNotificationEmail:
+    Type: String
+    Description: "Email address to send notifications to when alarms are triggered. Be sure to check the inbox as you will need to confirm the subscription."
+    AllowedPattern: "^[\\w\\-\\.]+@([\\w\\-]+\\.)+[\\w\\-]{2,4}$"
+    ConstraintDescription: "A valid email address"
+
+  # ---------------------------------------------------------------------------
+  # Lambda Function Settings
+
+  FunctionTimeOutInSeconds:
+    Type: Number
+    Description: "Time out in seconds for the Lambda function. API Gateway times out after 30 seconds. This web service is ideal for requests that can complete in less than 10 seconds"
+    Default: 10
+    MinValue: 3
+    MaxValue: 30
+
+  FunctionMaxMemoryInMB:
+    Type: Number
+    Description: "If you are handling large responses, you will need to increase the size. Monitor CloudWatch logs. 1024 MB is a good starting point for most API web service applications."
+    Default: 1024 # 1 GB
+    MinValue: 512 # 512 MB
+    MaxValue: 10240 # 10 GB
+    ConstraintDescription: "Must be between 512 and 1024 MB (10 GB). 1024 MB is a good starting point for most API web service applications."
+
+  FunctionArchitecture:
+    Type: String
+    Description: "The instruction set architecture for the Lambda function. Lambda functions support x86_64 and arm64 architectures. arm64 has better processing than default x86_64 - but the layers and binaries you use must support it."
+    Default: "arm64"
+    AllowedValues: ["x86_64", "arm64"]
+
+  # ---------------------------------------------------------------------------
+  # Application Parameters
+
+  ApiPathBase:
+    Type: String
+    Description: "The path API Gateway uses as the first segment in the invoked Uniform Resource Identifier (URI). Since API Gateway generates random characters for the domain, it can be helpful to use this in identifying applications and stages. If a custom domain is used it can be masked and hidden from visitors. For example: xyz08ryz.apigateway.aws.com/pets or xyz08ryz.apigateway.aws.com/myapp or xyz08ryz.apigateway.aws.com/myapp-test. It is recommended you set this in the template-config.json file and allow the stage to be dynamically appended."
+    Default: "api"
+    AllowedPattern: ^[a-z0-9]([a-z0-9-_]*[a-z0-9])?$
+    MaxLength: 128
+    MinLength: 1
+    ConstraintDescription: "1-128 lowercase alpha numeric, hyphens, and underscores. Must begin and end with an alphanumeric character."
+
+  UserAgent:
+    Type: String
+    Description: "User Agent string to use when accessing remote services"
+    Default: "Web Service"
+
+  LogRetentionInDaysForPROD:
+    Type: Number
+    Description: "How long should CloudWatch logs be kept in a PRODUCTION environment?"
+    Default: 180
+    AllowedValues: [1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653]
+
+  LogRetentionInDaysForDEVTEST:
+    Type: Number
+    Description: "How long should CloudWatch logs be kept in a DEV or TEST environment?"
+    Default: 7
+    AllowedValues: [1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653]
+
+  ApiGatewayLoggingEnabled:
+    Type: String
+    Description: "An administrator must enable API Gateway logging account-wide prior to setting this to TRUE. See https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-logging.html"
+    Default: "FALSE"
+    AllowedValues: ["TRUE", "FALSE"]
+
+  # ---------------------------------------------------------------------------
+  # Cache-Data Parameters
+  # Most of these parameters are passed to Lambda Environment Variables
+  # From: https://www.npmjs.com/package/@63klabs/cache-data
+
+  CacheDataDynamoDbTableName:
+    Type: String
+    Description: "The DynamoDb table name to use for caching data. This is used by the 63klabs/cache-data package. If left blank, it will use the imported value from the Cache Data storage stack output."
+    Default: ""
+    AllowedPattern: "^[a-zA-Z0-9_.-]{3,255}$|^$"
+    ConstraintDescription: "Blank to use ImportedValue, otherwise: Must be between 3 and 255 characters. Can contain alphanumeric characters, underscores, dashes, and periods."
+  
+  CacheDataS3BucketName:
+    Type: String
+    Description: "The S3 bucket name to use for caching data. This is used by the 63klabs/cache-data package. If left blank, it will use the imported value from the Cache Data storage stack output."
+    Default: ""
+    AllowedPattern: "^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$|^$"
+    ConstraintDescription: "Blank to use ImportedValue, otherwise: Must be between 3 and 63 characters. Lower case alphanumeric and dashes. Must start and end with a letter or number."
+
+  CacheDataTimeZoneForInterval:
+    Type: String
+    Description: "Cache-Data may expire using an interval such as every four, six, twelve, ... hours on the hour starting at midnight. What timezone holds the midnight to calculate from?"
+    Default: "Etc/UTC"
+    AllowedValues: ["Etc/UTC", "America/Puerto_Rico", "America/New_York", "America/Indianapolis", "America/Chicago", "America/Denver", "America/Phoenix", "America/Los_Angeles", "America/Anchorage", "Pacific/Honolulu"] # https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+    ConstraintDescription: "Common examples for United States of America. Accepted values can be changed in the template for your region."
+
+# =============================================================================
+# MAPPINGS
+# -----------------------------------------------------------------------------
+# https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/mappings-section-structure.html
+#
+
+Mappings:
+
+  # Add/Change to your regions as needed
+  # These accounts and layers are AWS Managed so you can trust them - They are not some random accounts
+  # https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Lambda-Insights-extension-versions.html
+  LambdaInsightsX86:
+    us-east-1:
+      ExtArn: "arn:aws:lambda:us-east-1:580247275435:layer:LambdaInsightsExtension:64"
+    us-east-2:
+      ExtArn: "arn:aws:lambda:us-east-2:580247275435:layer:LambdaInsightsExtension:64"
+    us-west-1:
+      ExtArn: "arn:aws:lambda:us-west-1:580247275435:layer:LambdaInsightsExtension:64"
+    us-west-2:
+      ExtArn: "arn:aws:lambda:us-west-2:580247275435:layer:LambdaInsightsExtension:64"
+
+  LambdaInsightsArm:
+    us-east-1:
+      ExtArn: "arn:aws:lambda:us-east-1:580247275435:layer:LambdaInsightsExtension-Arm64:31"
+    us-east-2:
+      ExtArn: "arn:aws:lambda:us-east-2:580247275435:layer:LambdaInsightsExtension-Arm64:33"
+    us-west-1:
+      ExtArn: "arn:aws:lambda:us-west-1:580247275435:layer:LambdaInsightsExtension-Arm64:29"
+    us-west-2:
+      ExtArn: "arn:aws:lambda:us-west-2:580247275435:layer:LambdaInsightsExtension-Arm64:31"
+
+  # Add/Change to your regions as needed
+  # These accounts and layers are AWS Managed so you can trust them - They are not some random accounts
+  # https://docs.aws.amazon.com/systems-manager/latest/userguide/ps-integration-lambda-extensions.html#ps-integration-lambda-extensions-add
+  LambdaParamSecretsX86:
+    us-east-1:
+      ExtArn: "arn:aws:lambda:us-east-1:177933569100:layer:AWS-Parameters-and-Secrets-Lambda-Extension:61"
+    us-east-2:
+      ExtArn: "arn:aws:lambda:us-east-2:590474943231:layer:AWS-Parameters-and-Secrets-Lambda-Extension:67"
+    us-west-1:
+      ExtArn: "arn:aws:lambda:us-west-1:997803712105:layer:AWS-Parameters-and-Secrets-Lambda-Extension:59"
+    us-west-2:
+      ExtArn: "arn:aws:lambda:us-west-2:345057560386:layer:AWS-Parameters-and-Secrets-Lambda-Extension:61"
+
+  LambdaParamSecretsArm:
+    us-east-1:
+      ExtArn: "arn:aws:lambda:us-east-1:177933569100:layer:AWS-Parameters-and-Secrets-Lambda-Extension-Arm64:61"
+    us-east-2:
+      ExtArn: "arn:aws:lambda:us-east-2:590474943231:layer:AWS-Parameters-and-Secrets-Lambda-Extension-Arm64:67"
+    us-west-1:
+      ExtArn: "arn:aws:lambda:us-west-1:997803712105:layer:AWS-Parameters-and-Secrets-Lambda-Extension-Arm64:56"
+    us-west-2:
+      ExtArn: "arn:aws:lambda:us-west-2:345057560386:layer:AWS-Parameters-and-Secrets-Lambda-Extension-Arm64:61"
+
+# =============================================================================
+# CONDITIONS
+# -----------------------------------------------------------------------------
+# https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/intrinsic-function-reference-conditions.html
+#
+
+Conditions:
+  IsProduction: !Equals [!Ref DeployEnvironment, "PROD"]
+  # IsNotProduction: !Not [!Equals [!Ref DeployEnvironment, "PROD"]]
+  # IsTest: !Equals [!Ref DeployEnvironment, "TEST"]
+  # IsDevelopment: !Equals [!Ref DeployEnvironment, "DEV"]
+  IsNotDevelopment: !Not [!Equals [!Ref DeployEnvironment, "DEV"]]
+  CreateProdResources: !Equals [!Ref DeployEnvironment, "PROD"]
+  # CreateTestResources: !Equals [!Ref DeployEnvironment, "TEST"]
+  # CreateDevResources: !Equals [!Ref DeployEnvironment, "DEV"]
+  # UseS3BucketNameOrgPrefix: !Not [!Equals [!Ref S3BucketNameOrgPrefix, ""]]
+  CreateAlarms: !Equals [!Ref DeployEnvironment, "PROD"] # !Equals ["ALWAYS", "ALWAYS"] # Option if you want to ALWAYS create an alarm or only in PROD. Alarms cost money so you may only want them in Prod (or temporarily in test)
+  HasPermissionsBoundaryArn: !Not [!Equals [!Ref PermissionsBoundaryArn, ""]]
+  IsArmArch: !Equals [!Ref FunctionArchitecture, "arm64"]
+  ApiGatewayLoggingIsEnabled: !Equals [!Ref ApiGatewayLoggingEnabled, "TRUE"]
+  HasCacheDataDynamoDbTableName: !Not [!Equals [!Ref CacheDataDynamoDbTableName, ""]]
+  HasCacheDataS3BucketName: !Not [!Equals [!Ref CacheDataS3BucketName, ""]]
+  HasCacheDataStorageStack: !Not [!And [!Condition HasCacheDataDynamoDbTableName, !Condition HasCacheDataS3BucketName]]
+
+# =============================================================================
+# GLOBALS
+# -----------------------------------------------------------------------------
+# https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-specification-template-anatomy-globals.html
+#
+
+Globals:
+  Api:
+    OpenApiVersion: 3.0.0 # Prevents extra stage called Stage in API Gateway https://www.internetkatta.com/how-to-prevent-aws-sam-from-creating-the-default-stage-in-api-gateway-stage
+    PropagateTags: True
+    TracingEnabled: !If [ IsNotDevelopment, True,  False] # X-Ray
+
+  Function:
+    PropagateTags: True
+    Tracing: !If [ IsNotDevelopment, "Active", !Ref 'AWS::NoValue'] # X-Ray
+
+  # StateMachine:
+  #   PropagateTags: True
+
+# =============================================================================
+# RESOURCES
+# -----------------------------------------------------------------------------
+# https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/resources-section-structure.html  
+#
+
+Resources:
+
+  # ---------------------------------------------------------------------------
+  # API Gateway
+  # https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-resource-api.html#sam-api-minimumcompressionsize
+
+  # -- API Gateway --
+  WebApi:
+    Type: AWS::Serverless::Api 
+    Properties: 
+      Name: !Sub '${Prefix}-${ProjectId}-${StageId}-WebApi'
+      StageName: !Ref ApiPathBase
+
+      Cors: # Accepted methods are okay from any origin. Our lambda function will handle complex origins for GET and POST requests.
+        AllowMethods: "'GET,OPTIONS'" # Add additional methods such as POST, PUT, DELETE here
+        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+        AllowOrigin: "'*'"
+        MaxAge: "'86400'" # This is just for the max age of CORS
+
+      DefinitionBody:
+        "Fn::Transform":
+          Name: "AWS::Include"
+          Parameters:
+            Location: ./template-openapi-spec.yml
+
+      # -- The following adds two levels of logging to API Gateway --
+      # -- However, an account admin will need to add a service role to allow API Gateway to write to CloudWatch logs --
+      # -- See https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-logging.html --
+
+      # Add API Gateway logging configuration
+      AccessLogSetting: !If
+        - ApiGatewayLoggingIsEnabled
+        - DestinationArn: !GetAtt ApiGatewayAccessLogGroup.Arn
+          Format: '{"requestId":"$context.requestId", "extendedRequestId":"$context.extendedRequestId", "ip":"$context.identity.sourceIp", "caller":"$context.identity.caller", "user":"$context.identity.user", "requestTime":"$context.requestTime", "httpMethod":"$context.httpMethod", "path":"$context.path", "resourcePath":"$context.resourcePath", "routeKey":"$context.routeKey", "status":"$context.status", "protocol":"$context.protocol", "responseLength":"$context.responseLength", "integrationError":"$context.integrationErrorMessage", "authorizerError":"$context.authorizer.error", "authorizerStatus":"$context.authorizer.status", "authorizerLatency":"$context.authorizer.latency"}'
+        - !Ref 'AWS::NoValue'
+      
+      # Add execution logging to CloudWatch
+      MethodSettings: !If
+        - ApiGatewayLoggingIsEnabled
+        - - LoggingLevel: !If [IsProduction, 'ERROR', 'INFO']
+            ResourcePath: '/*'
+            HttpMethod: '*'
+            DataTraceEnabled: !If [IsProduction, False, True]
+            MetricsEnabled: True
+        - !Ref 'AWS::NoValue'
+  
+  # Add CloudWatch Log Group for API Gateway Access Logs
+  ApiGatewayAccessLogGroup:
+    Type: AWS::Logs::LogGroup
+    Condition: ApiGatewayLoggingIsEnabled
+    DeletionPolicy: !If [IsProduction, Retain, Delete]
+    UpdateReplacePolicy: Retain
+    Properties:
+      LogGroupName: !Sub '/aws/apigateway/${Prefix}-${ProjectId}-${StageId}-WebApi-access-logs'
+      RetentionInDays: !If [ IsProduction, !Ref LogRetentionInDaysForPROD,  !Ref LogRetentionInDaysForDEVTEST]
+
+  # Add CloudWatch Log Group for API Gateway Execution Logs
+  ApiGatewayExecutionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Condition: ApiGatewayLoggingIsEnabled
+    DeletionPolicy: !If [IsProduction, Retain, Delete]
+    UpdateReplacePolicy: Retain
+    Properties:
+      LogGroupName: !Sub 'API-Gateway-Execution-Logs_${WebApi}/${ApiPathBase}' # AWS default
+      RetentionInDays: !If [ IsProduction, !Ref LogRetentionInDaysForPROD,  !Ref LogRetentionInDaysForDEVTEST]
+
+  # ---------------------------------------------------------------------------
+  # Lambda
+  # https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-resource-function.html
+  #
+
+  AppFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${Prefix}-${ProjectId}-${StageId}-AppFunction'
+      Description: "Web Service to provide access to APIs"
+
+      VersionDescription: "Web Service Version Notes" # Use this To Overcome AliasLive Update Errors - Rarely need to update
+      AutoPublishCodeSha256: "20260107T150600" # Use this To Overcome AliasLive Update Errors - Rarely need to update
+      AutoPublishAlias: live
+
+      DeploymentPreference:
+        Enabled: !If [ IsProduction, True,  False] #Gradual deployment only if in production so DEV and TEST aren't hindered
+        Type: !If [ IsProduction, !Ref FunctionGradualDeploymentType, "AllAtOnce"]
+        Role: !Ref DeployRole
+        Alarms:
+          Fn::If:
+            - CreateAlarms
+            - - !Ref AppFunctionErrorsAlarm
+            - - !Ref 'AWS::NoValue'
+
+      CodeUri: src/
+      Handler: index.handler
+      Runtime: nodejs24.x # https://docs.aws.amazon.com/lambda/latest/dg/lambda-runtimes.html
+      Architectures:
+        - !Ref FunctionArchitecture # arm64 has better processing than default x86_64 - but layers and binaries must support
+      Timeout: !Ref FunctionTimeOutInSeconds
+      MemorySize: !Ref FunctionMaxMemoryInMB
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+      Layers:
+        # Lambda Insights and Param Secrets - ARN is Mapped in as they vary by region and architecture - Update regions and versions in Mapping section
+        - !If
+          - IsArmArch
+          - !FindInMap [LambdaInsightsArm, !Ref 'AWS::Region', ExtArn]
+          - !FindInMap [LambdaInsightsX86, !Ref 'AWS::Region', ExtArn]
+        - !If
+          - IsArmArch
+          - !FindInMap [LambdaParamSecretsArm, !Ref 'AWS::Region', ExtArn]
+          - !FindInMap [LambdaParamSecretsX86, !Ref 'AWS::Region', ExtArn]
+
+      Environment:
+        Variables:
+          userAgentIdentifier: !Ref UserAgent
+          lambdaTimeoutInSeconds: !Ref FunctionTimeOutInSeconds # so we can calculate any external connection timeout in our code: 
+
+          NODE_ENV: "production" # We treat everything that is not local development as production
+          DEPLOY_ENVIRONMENT: !Ref DeployEnvironment # PROD, TEST, DEV - a different category of environment
+          LOG_LEVEL: !If [ IsProduction, "INFO", "DEBUG"] # 0-2 (ERROR, WARN, INFO) for prod, 3-5 (MSG, DIAG, DEBUG) for non-prod
+          PARAM_STORE_PATH: !Ref ParameterStoreHierarchy # SSM Parameter store can use a hierarchy to organize your apps parameters
+
+          PARAMETERS_SECRETS_EXTENSION_LOG_LEVEL: !If [ IsProduction, "INFO", "DEBUG"] # 'DEBUG', 'WARN', 'ERROR', 'NONE', 'INFO'
+          AWS_LAMBDA_LOG_LEVEL: !If [ IsProduction, "INFO", "DEBUG"] # 'DEBUG', 'WARN', 'ERROR', 'INFO' - 'CRITICAL' and 'SILENT' are not currently recognized by Cache Data logging
+          AWS_LAMBDA_LOG_FORMAT: 'text'
+
+          # Cache-Data Settings
+          # If you do not provide these environment variables, cache-data will use the default values (shown below)
+          # CACHE_DATA_DYNAMO_DB_TABLE and CACHE_DATA_S3_BUCKET are required for cache-data to work
+          # See https://github.com/63Klabs/cache-data/blob/main/docs/00-example-implementation/example-template-lambda-function.yml
+          # -- Optional --
+          CACHE_DATA_TIME_ZONE_FOR_INTERVAL: !Ref CacheDataTimeZoneForInterval # Cache-Data may expire using an interval such as every four, six, twelve, ... hours on the hour starting at midnight. What timezone holds the midnight to calculate from?
+          CACHE_DATA_AWS_X_RAY_ON: true # (default is false) Enable X-Ray tracing for Cache-Data 
+          CACHE_DATA_USE_TOOLS_HASH_METHOD: true # (default is false) Use the tools.hash method for generating the URI ID to identify cached requests
+          # -- Required --
+          CACHE_DATA_DYNAMO_DB_TABLE: !If 
+            - HasCacheDataDynamoDbTableName
+            - !Ref CacheDataDynamoDbTableName
+            - Fn::ImportValue:
+                'Fn::Sub': '${Prefix}-CacheDataDynamoDbTable' # relies on the Cache Data storage stack output
+          CACHE_DATA_S3_BUCKET: !If 
+            - HasCacheDataS3BucketName
+            - !Ref CacheDataS3BucketName
+            - Fn::ImportValue:
+                'Fn::Sub': '${Prefix}-CacheDataS3Bucket' # relies on the Cache Data storage stack output
+
+      Events:
+        GetApiData:
+          Type: Api
+          Properties:
+            Path: /api/example
+            Method: get
+            RestApiId: !Ref WebApi
+        GetById:
+          Type: Api
+          Properties:
+            Path: /api/example/{id}
+            Method: get
+            RestApiId: !Ref WebApi
+
+  # -- LambdaFunction Execution Role --
+  #    These are the resources your Lambda function needs access to Logs, SSM Parameters, DynamoDb, S3, etc.
+  #    Define specific actions such as get/put (read/write)
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${Prefix}-${ProjectId}-${StageId}-ExecutionRole"
+      Description: "IAM Role that allows the Lambda permission to execute and access resources"
+      Path: !Ref RolePath
+      PermissionsBoundary: !If [HasPermissionsBoundaryArn, !Ref PermissionsBoundaryArn, !Ref 'AWS::NoValue' ]
+
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: [lambda.amazonaws.com]
+          Action: sts:AssumeRole
+
+      # Lambda Insights, XRay, and Cache Data have already prepared policies
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/CloudWatchLambdaInsightsExecutionRolePolicy'
+        - 'arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess'
+        - Fn::If:
+          - HasCacheDataStorageStack
+          - Fn::ImportValue:
+              'Fn::Sub': '${Prefix}-CacheDataManagedLambdaExecutionRolePolicy' # relies on the Cache Data storage stack output
+          - !Ref 'AWS::NoValue' # If supplying your own Bucket or Table then you will need to supply your own statements to the execution role (see below)
+
+      Policies:
+      - PolicyName: LambdaResourceAccessPolicies
+        PolicyDocument:
+          Statement:
+
+          - Sid: LambdaAccessToWriteLogs
+            Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            Effect: Allow
+            Resource: !GetAtt AppLogGroup.Arn
+
+          - Sid: LambdaAccessToSSMParameters
+            Action:
+            - ssm:DescribeParameters
+            - ssm:GetParameters
+            - ssm:GetParameter
+            - ssm:GetParametersByPath
+            Effect: Allow
+            Resource: 
+            - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${ParameterStoreHierarchy}*"
+
+          # access to cache-data is provided through the Cache-Data managed policy
+          # If you are not using the managed policy provided by a Cache-Data Stack then
+          # You would need to add the S3 and DynamoDb statements here.
+          # See: https://github.com/63Klabs/cache-data/blob/main/docs/00-example-implementation/example-template-lambda-function.yml
+
+  # -- Lambda permissions allowing API Gateway to Execute it --
+  #    For gradual deployments to work properly, API Gateway needs permission to invoke both:
+  #    1. $LATEST version (new code during deployment)
+  #    2. :live alias (stable version during traffic shifting)
+  #    Without both permissions, gradual deployments (in production) will fail with permission errors
+
+  # Permission for API Gateway to invoke the $LATEST version of the Lambda function
+  # This is used in all environments and during gradual deployments for new code
+  ConfigLambdaPermission:
+    Type: "AWS::Lambda::Permission"
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Sub "${AppFunction}"  # References $LATEST by default
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebApi}/*"
+
+  # Permission for API Gateway to invoke the :live alias of the Lambda function
+  # Only created in production where gradual deployments are enabled
+  # During gradual deployment, traffic shifts from :live alias to $LATEST version
+  ConfigLambdaPermissionLive:
+    Type: "AWS::Lambda::Permission"
+    Condition: IsProduction  # Only needed in production for gradual deployments
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref AppFunction.Alias # live
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebApi}/*"
+
+  # -- Log Group with a retention policy --
+
+  AppLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: !If [IsProduction, Retain, Delete]
+    UpdateReplacePolicy: Retain
+    Properties: 
+      LogGroupName: !Sub '/aws/lambda/${Prefix}-${ProjectId}-${StageId}-AppFunction' # Avoid circular reference !Sub "/aws/lambda/${AppFunction}"
+      RetentionInDays: !If [ IsProduction, !Ref LogRetentionInDaysForPROD,  !Ref LogRetentionInDaysForDEVTEST]
+
+  # ---------------------------------------------------------------------------
+  # CloudWatch Alarms and Dashboards
+
+  # -- Lambda Function Error Alarm --
+
+  AppFunctionErrorsAlarm:
+    Type: "AWS::CloudWatch::Alarm"
+    Condition: CreateAlarms # Either PROD or ALWAYS - Check Conditions
+    Properties:
+      AlarmDescription: Lambda Function Error > 1
+      MetricName: Errors
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 1
+      Period: 900
+      EvaluationPeriods: 1
+      TreatMissingData: notBreaching
+      Namespace: AWS/Lambda
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref AppFunction
+      AlarmActions:
+        - Ref: AppFunctionErrorAlarmNotification
+
+  # -- Lambda Function Notification for Error Alarm --
+
+  AppFunctionErrorAlarmNotification:
+      Type: AWS::SNS::Topic
+      Condition: CreateAlarms # Either PROD or ALWAYS - Check Conditions
+      Properties: 
+        DisplayName: !Sub 'AWS-Alarm-${Prefix}-${ProjectId}-${StageId}'
+        FifoTopic: false
+        Subscription:
+          - Endpoint: !Ref AlarmNotificationEmail
+            Protocol: 'email'
+
+  # -- ApiGateway Error Alarm --
+
+  ApiGatewayErrorsAlarm:
+    Type: "AWS::CloudWatch::Alarm"
+    Condition: CreateAlarms # Either PROD or ALWAYS - Check Conditions
+    Properties:
+      AlarmDescription: API Gateway Error > 1
+      MetricName: Errors
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 1
+      Period: 900
+      EvaluationPeriods: 1
+      TreatMissingData: notBreaching
+      Namespace: AWS/ApiGateway
+      Dimensions:
+        - Name: ApiName
+          Value: !Ref WebApi
+      AlarmActions:
+        - Ref: ApiGatewayErrorAlarmNotification
+
+  # -- ApiGateway Notification for Error Alarm --
+
+  ApiGatewayErrorAlarmNotification:
+      Type: AWS::SNS::Topic
+      Condition: CreateAlarms # Either PROD or ALWAYS - Check Conditions
+      Properties: 
+        DisplayName: !Sub 'AWS-Alarm-${Prefix}-${ProjectId}-${StageId}'
+        FifoTopic: false
+        Subscription:
+          - Endpoint: !Ref AlarmNotificationEmail
+            Protocol: 'email'
+  
+  # -- CloudWatch Dashboard --
+
+  Fn::Transform:
+    Name: AWS::Include
+    Parameters:
+      Location: ./template-dashboard.yml
+      
+# =============================================================================
+# OUTPUTS
+# -----------------------------------------------------------------------------
+# https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/outputs-section-structure.html
+#
+# Place anything interesting that you would like to quickly refer to in 
+# your cloudformation OUTPUT section. Test URLs, direct links to resources, etc
+#
+
+Outputs:
+
+  # -- Endpoint examples
+  ApiEndpoint:
+    Description: "Endpoint URL"
+    Value: !Sub "https://${WebApi}.execute-api.${AWS::Region}.amazonaws.com/${ApiPathBase}/api/example/" # change to your endpoint
+
+  # -- CloudWatch Log Groups
+  CloudWatchLambdaExecutionLogGroup:
+    Description: "Cloud Watch Log Group for Lambda Execution Logs"
+    Value: !Sub "https://console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#logStream:group=%2Faws%2Flambda%2F${AppFunction}"
+
+  CloudWatchApiGatewayExecutionLogGroup:
+    Condition: ApiGatewayLoggingIsEnabled
+    Description: "Cloud Watch Log Group for API Gateway Execution Logs"
+    Value: !Sub "https://console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#logStream:group=%2Faws%2Fapigateway%2FAPI-Gateway-Execution-Logs_${WebApi}/${ApiPathBase}"
+
+  CloudWatchApiGatewayAccessLogGroup:
+    Condition: ApiGatewayLoggingIsEnabled
+    Description: "Cloud Watch Log Group for API Gateway Access Logs"
+    Value: !Sub "https://console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#logStream:group=%2Faws%2Fapigateway%2F${Prefix}-${ProjectId}-${StageId}-WebApi-access-logs"
+
+  CloudWatchDashboard:
+    Condition: CreateProdResources
+    Description: "Cloud Watch Dashboard (for production environments only)"
+    Value: !Sub 'https://console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=${Prefix}-${ProjectId}-${StageId}-Dashboard'
+
+  # -- Resource quick links
+  LambdaWebConsole:
+    Description: "Lambda Web Console"
+    Value: !Sub "https://console.aws.amazon.com/lambda/home?region=${AWS::Region}#/functions/${AppFunction}?tab=code"
+
+  ParameterStore:
+    Description: "SSM Parameter Store"
+    Value: !Sub "https://${AWS::Region}.console.aws.amazon.com/systems-manager/parameters/?region=${AWS::Region}&tab=Table#list_parameter_filters=Name:Contains:${ParameterStoreHierarchy}"

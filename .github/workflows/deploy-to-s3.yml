@@ -1,0 +1,38 @@
+name: Deploy Release to S3
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_RELEASE_ACCT }}:role/github-actions-role
+          aws-region: ${{ secrets.AWS_RELEASE_REGION }}
+
+      - name: Copy release to S3
+        env:
+          AWS_RELEASE_BUCKET: ${{ vars.AWS_RELEASE_BUCKET }}
+          AWS_RELEASE_BUCKET_APP_STARTER_PATH: ${{ vars.AWS_RELEASE_BUCKET_APP_STARTER_PATH }}
+        run: |
+          # Create the name of the zip file by taking github.repository from the context removing the owner, and the "atlantis-starter-" from front
+          export ZIP_FILE_NAME=${GITHUB_REPOSITORY#*atlantis-starter-}
+          
+          # Create a zip of the release - we'll rename it during upload
+          zip -r release.zip . -x "*.git/*" "*.DS_Store" "*.env" "*.vscode/*" "*__pycache__/*" "*node_modules/*" # since we running from a repo this should not be an issue, but we'll exclude just in case
+
+          
+          # Copy to S3
+          aws s3 cp release.zip "s3://${AWS_RELEASE_BUCKET}${AWS_RELEASE_BUCKET_APP_STARTER_PATH}${ZIP_FILE_NAME}.zip"

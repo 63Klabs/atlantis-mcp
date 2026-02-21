@@ -1,0 +1,444 @@
+Dashboard:
+  Type: AWS::CloudWatch::Dashboard
+  Condition: CreateProdResources
+  Properties:
+    DashboardName: 
+      Fn::Sub: '${Prefix}-${ProjectId}-${StageId}-Dashboard'
+    DashboardBody: 
+      Fn::Sub: 
+        |
+        {
+            "widgets": [
+                {
+                    "type": "text",
+                    "x": 0,
+                    "y": 0,
+                    "width": 24,
+                    "height": 2,
+                    "properties": {
+                        "markdown": "# ${Prefix}-${ProjectId}-${StageId}-Dashboard"
+                    }
+                },
+                {
+                    "type": "metric",
+                    "x": 0,
+                    "y": 2,
+                    "width": 6,
+                    "height": 7,
+                    "properties": {
+                        "metrics": [
+                            [ "AWS/Lambda", "Invocations", "FunctionName", "${AppFunction}", { "id": "m2", "color": "#1f77b4", "region": "${AWS::Region}" } ],
+                            [ "AWS/Lambda", "Errors", "FunctionName", "${AppFunction}", { "id": "m4", "color": "#d62728", "region": "${AWS::Region}" } ]
+                        ],
+                        "view": "timeSeries",
+                        "stacked": false,
+                        "region": "${AWS::Region}",
+                        "title": "Invocations",
+                        "period": 300,
+                        "stat": "Sum"
+                    }
+                },
+                {
+                    "type": "metric",
+                    "x": 12,
+                    "y": 2,
+                    "width": 6,
+                    "height": 7,
+                    "properties": {
+                        "metrics": [
+                            [ "AWS/Lambda", "Duration", "FunctionName", "${AppFunction}", { "id": "m1", "color": "#ff7f0e", "region": "${AWS::Region}" } ],
+                            [ "...", { "id": "m2", "stat": "Maximum", "color": "#d62728", "region": "${AWS::Region}" } ],
+                            [ "...", { "id": "m3", "stat": "Minimum", "color": "#2ca02c", "region": "${AWS::Region}" } ]
+                        ],
+                        "view": "timeSeries",
+                        "stacked": false,
+                        "region": "${AWS::Region}",
+                        "title": "Avg Duration",
+                        "period": 300,
+                        "stat": "Average"
+                    }
+                },
+                {
+                    "type": "metric",
+                    "x": 6,
+                    "y": 2,
+                    "width": 6,
+                    "height": 7,
+                    "properties": {
+                        "metrics": [
+                            [ "AWS/Lambda", "ConcurrentExecutions", "FunctionName", "${AppFunction}", { "region": "${AWS::Region}" } ]
+                        ],
+                        "view": "timeSeries",
+                        "stacked": false,
+                        "region": "${AWS::Region}",
+                        "title": "Concurrent Executions",
+                        "period": 300,
+                        "stat": "Average"
+                    }
+                },
+                {
+                    "type": "metric",
+                    "x": 0,
+                    "y": 9,
+                    "width": 6,
+                    "height": 7,
+                    "properties": {
+                        "metrics": [
+                            [ "AWS/Lambda", "Errors", "FunctionName", "${AppFunction}", { "id": "m4", "visible": true, "stat": "Sum", "color": "#d62728", "region": "${AWS::Region}" } ]
+                        ],
+                        "view": "timeSeries",
+                        "stacked": false,
+                        "region": "${AWS::Region}",
+                        "title": "Lambda Errors",
+                        "period": 300,
+                        "stat": "Average"
+                    }
+                },
+                {
+                    "type": "metric",
+                    "x": 6,
+                    "y": 9,
+                    "width": 6,
+                    "height": 7,
+                    "properties": {
+                        "metrics": [
+                            [ "AWS/ApiGateway", "5XXError", "ApiName", "${Prefix}-${ProjectId}-${StageId}-WebApi", { "color": "#d62728", "region": "${AWS::Region}" } ],
+                            [ "AWS/ApiGateway", "4XXError", "ApiName", "${Prefix}-${ProjectId}-${StageId}-WebApi", { "color": "#9467bd", "region": "${AWS::Region}" } ]
+                        ],
+                        "view": "timeSeries",
+                        "stacked": false,
+                        "region": "${AWS::Region}",
+                        "stat": "Sum",
+                        "period": 300,
+                        "title": "API Gateway Errors"
+                    }
+                },
+                {
+                    "type": "metric",
+                    "x": 12,
+                    "y": 9,
+                    "width": 6,
+                    "height": 7,
+                    "properties": {
+                        "view": "timeSeries",
+                        "stacked": false,
+                        "metrics": [
+                            [ "AWS/ApiGateway", "Latency", "ApiName", "${Prefix}-${ProjectId}-${StageId}-WebApi", { "region": "${AWS::Region}" } ]
+                        ],
+                        "region": "${AWS::Region}",
+                        "period": 300,
+                        "title": "API Gateway Latency"
+                    }
+                },
+                {
+                    "type": "metric",
+                    "x": 18,
+                    "y": 2,
+                    "width": 6,
+                    "height": 5,
+                    "properties": {
+                        "metrics": [
+                            [ "AWS/Lambda", "Invocations", "FunctionName", "${AppFunction}", { "id": "m2", "color": "#1f77b4", "region": "${AWS::Region}" } ],
+                            [ "AWS/Lambda", "Errors", "FunctionName", "${AppFunction}", { "id": "m4", "color": "#d62728", "region": "${AWS::Region}" } ]
+                        ],
+                        "view": "singleValue",
+                        "stacked": false,
+                        "region": "${AWS::Region}",
+                        "title": "Lambda Invocations",
+                        "period": 3600,
+                        "stat": "Sum",
+                        "setPeriodToTimeRange": true,
+                        "sparkline": false,
+                        "trend": false
+                    }
+                },
+                {
+                    "type": "metric",
+                    "x": 18,
+                    "y": 9,
+                    "width": 6,
+                    "height": 5,
+                    "properties": {
+                        "metrics": [
+                            [ "AWS/ApiGateway", "4XXError", "ApiName", "${Prefix}-${ProjectId}-${StageId}-WebApi", { "id": "m2", "color": "#9467bd", "region": "${AWS::Region}" } ],
+                            [ ".", "5XXError", ".", ".", { "id": "m4", "color": "#d62728", "region": "${AWS::Region}" } ]
+                        ],
+                        "view": "singleValue",
+                        "stacked": false,
+                        "region": "${AWS::Region}",
+                        "title": "API Gateway Error Responses",
+                        "period": 3600,
+                        "stat": "Sum",
+                        "setPeriodToTimeRange": true,
+                        "sparkline": false,
+                        "trend": false
+                    }
+                },
+                {
+                    "type": "alarm",
+                    "x": 18,
+                    "y": 12,
+                    "width": 6,
+                    "height": 4,
+                    "properties": {
+                        "title": "Alarms",
+                        "alarms": [
+                            "arn:aws:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:${AppFunctionErrorsAlarm}",
+                            "arn:aws:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:${ApiGatewayErrorsAlarm}"
+                        ]
+                    }
+                },
+                {
+                    "type": "log",
+                    "x": 0,
+                    "y": 16,
+                    "width": 24,
+                    "height": 3,
+                    "properties": {
+                        "query": "SOURCE '/aws/lambda/${AppFunction}' | filter @type = \"REPORT\"\n| stats max(@memorySize / 1024 / 1024) as provisonedMemoryMB,\n    min(@maxMemoryUsed / 1024 / 1024) as smallestMemoryRequestMB,\n    avg(@maxMemoryUsed / 1024 / 1024) as avgMemoryUsedMB,\n    max(@maxMemoryUsed / 1024 / 1024) as maxMemoryUsedMB,\n    provisonedMemoryMB - maxMemoryUsedMB as overProvisionedMB",
+                        "region": "${AWS::Region}",
+                        "title": "Memory",
+                        "view": "table"
+                    }
+                },
+                {
+                    "type": "log",
+                    "x": 0,
+                    "y": 19,
+                    "width": 24,
+                    "height": 3,
+                    "properties": {
+                        "query": "SOURCE '/aws/lambda/${AppFunction}' | filter @type=\"REPORT\"\n| fields (@duration<50) as R50,\n  (@duration>=50 and @duration<100) as R50_100,\n  (@duration>=100 and @duration<250) as R100_250,\n  (@duration>=250 and @duration<500) as R250_500,\n  (@duration>=500 and @duration<750) as R500_750,\n  (@duration>=750 and @duration<1000) as R750_1000,\n  (@duration>=1000 and @duration<=2000) as R1000_2000,\n  (@duration>=2000 and @duration<=3000) as R2000_3000,\n  (@duration>=3000 and @duration<=4000) as R3000_4000,\n  (@duration>=4000 and @duration<=5000) as R4000_5000,\n  (@duration>=5000 and @duration<=6000) as R5000_6000,\n  (@duration>=6000 and @duration<=7000) as R6000_7000,\n  (@duration>=7000 and @duration<=8000) as R7000_8000,\n  (@duration>=8000 and @duration<=9000) as R8000_9000,\n  (@duration>=9000 and @duration<=10000) as R9000_10000,\n  (@duration>10000) as R10000\n| stats min(@duration) as minDur,\n  avg(@duration) as avgDur,\n  max(@duration) as maxDur,\n  sum(R50) as D50ms,\n  sum(R50_100) as D50_100ms,\n  sum(R100_250) as D100_250ms,\n  sum(R250_500) as D250_500ms,\n  sum(R500_750) as D500_750ms,\n  sum(R750_1000) as D750_1000ms,\n  sum(R1000_2000) as D1_2s,\n  sum(R2000_3000) as D2_3s,\n  sum(R3000_4000) as D3_4s,\n  sum(R4000_5000) as D4_5s,\n  sum(R5000_6000) as D5_6s,\n  sum(R6000_7000) as D6_7s,\n  sum(R7000_8000) as D7_8s,\n  sum(R8000_9000) as D8_9s,\n  sum(R9000_10000) as D9_10s,\n  sum(R10000) as D10s",
+                        "region": "${AWS::Region}",
+                        "title": "Durations",
+                        "view": "table"
+                    }
+                },
+                {
+                    "type": "log",
+                    "x": 0,
+                    "y": 22,
+                    "width": 24,
+                    "height": 6,
+                    "properties": {
+                        "query": "SOURCE '/aws/lambda/${AppFunction}' | fields @timestamp as ts, @message\n| sort ts desc\n| limit 500\n| PARSE @message \"[*] * | * | * | * | * | * | * | * | * | * | * | * | *\" as loggingType, statusCode, bytes, contentType, execTime, clientIP, userAgent, origin, referrer, resource, queryKeys, pathLog, queryLog, key\n| FILTER loggingType = \"RESPONSE\"\n| DISPLAY ts, statusCode, bytes, execTime, clientIP, userAgent, origin, referrer, resource, queryKeys, pathLog, queryLog, key",
+                        "region": "${AWS::Region}",
+                        "stacked": false,
+                        "view": "table",
+                        "title": "Response Log"
+                    }
+                },
+                {
+                    "type": "log",
+                    "x": 0,
+                    "y": 28,
+                    "width": 24,
+                    "height": 6,
+                    "properties": {
+                        "query": "SOURCE '/aws/lambda/${AppFunction}' | fields @timestamp as ts, @requestId, @message, @logStream as logStream\n| sort ts desc\n| limit 500\n| PARSE @message \"[*] *\" as loggingType, loggingMessage\n| FILTER (loggingType = \"ERROR\" or loggingType = \"WARN\" or @message like \"Task timed out\")\n| DISPLAY ts, logStream, loggingType, loggingMessage",
+                        "region": "${AWS::Region}",
+                        "stacked": false,
+                        "title": "Error and Warning Log",
+                        "view": "table"
+                    }
+                },
+                {
+                    "type": "text",
+                    "x": 0,
+                    "y": 34,
+                    "width": 24,
+                    "height": 3,
+                    "properties": {
+                        "markdown": "## Endpoint Cache\n\nCalls to external endpoints are cached internally.\n\nAdjust the cache policies to utilize the cache more or less often depending upon the update frequency of the data, the importance of changes being reflected in the cache, and to avoid external API limits."
+                    }
+                },
+                {
+                    "height": 6,
+                    "width": 18,
+                    "y": 36,
+                    "x": 0,
+                    "type": "log",
+                    "properties": {
+                        "query": "SOURCE '/aws/lambda/${AppFunction}' | fields @timestamp as ts, @message\n| limit 500\n| PARSE @message \"[*] * | * | * | *\" as loggingType, id, endpoint, result, execTime\n| FILTER (loggingType = \"CACHE\")\n| stats count(*) as requests, min(execTime) as min_ms, ceil(avg(execTime)) as avg_ms, max(execTime) as max_ms by endpoint\n| sort requests desc\n",
+                        "region": "${AWS::Region}",
+                        "stacked": false,
+                        "title": "Endpoint Request Log",
+                        "view": "table"
+                    }
+                },
+                {
+                    "height": 9,
+                    "width": 21,
+                    "y": 42,
+                    "x": 0,
+                    "type": "log",
+                    "properties": {
+                        "query": "SOURCE '/aws/lambda/${AppFunction}' | fields @timestamp as ts, @message\n| limit 500\n| PARSE @message \"[*] * | * | * | *\" as loggingType, id, endpoint, result, execTime\n| FILTER (loggingType = \"CACHE\")\n| stats count(*) as requests, min(execTime) as min_ms, ceil(avg(execTime)) as avg_ms, max(execTime) as max_ms by endpoint, result\n| sort endpoint asc, result asc",
+                        "region": "${AWS::Region}",
+                        "stacked": false,
+                        "title": "Endpoint Cache Utilization",
+                        "view": "table"
+                    }
+                },
+                {
+                    "height": 6,
+                    "width": 12,
+                    "y": 51,
+                    "x": 0,
+                    "type": "log",
+                    "properties": {
+                        "query": "SOURCE '/aws/lambda/${AppFunction}' | fields @timestamp as ts, @message\n| limit 500\n| PARSE @message \"[*] * | * | * | *\" as loggingType, id, endpoint, result, execTime\n| FILTER (loggingType = \"CACHE\")\n| stats count(*) as requests, min(execTime) as min_ms, ceil(avg(execTime)) as avg_ms, max(execTime) as max_ms by result\n| sort requests desc\n",
+                        "region": "${AWS::Region}",
+                        "stacked": false,
+                        "title": "Cache Utilization",
+                        "view": "table"
+                    }
+                },
+                {
+                    "height": 6,
+                    "width": 12,
+                    "y": 51,
+                    "x": 12,
+                    "type": "log",
+                    "properties": {
+                        "query": "SOURCE '/aws/lambda/${AppFunction}' | fields @timestamp as ts, @message\n| limit 10\n| PARSE @message \"[*] * | * | * | *\" as loggingType, id, endpoint, result, execTime\n| FILTER (loggingType = \"CACHE\")\n| stats count(*) as requests by result\n| sort result asc\n",
+                        "region": "${AWS::Region}",
+                        "stacked": false,
+                        "title": "Cache Utilization Visual",
+                        "view": "pie"
+                    }
+                },
+                {
+                    "height": 3,
+                    "width": 24,
+                    "y": 57,
+                    "x": 0,
+                    "type": "text",
+                    "properties": {
+                        "markdown": "## Cold Starts\n\n\nA cold start is when a Lambda function is loaded for execution. After execution, the Lambda function will reside in memory for up to 45 minutes waiting for additional executions.\n\n\nCold starts will occur for each new concurrent execution and after a Lambda function has been dormant for a period of time."
+                    }
+                },
+                {
+                    "height": 3,
+                    "width": 24,
+                    "y": 60,
+                    "x": 0,
+                    "type": "log",
+                    "properties": {
+                        "query": "SOURCE '/aws/lambda/${AppFunction}' | filter @type=\"REPORT\"\n| fields @initDuration\n| stats min(@duration) as minDur,\n  avg(@initDuration) as avgDur,\n  max(@initDuration) as maxDur,\n  count(@initDuration) as num",
+                        "region": "${AWS::Region}",
+                        "stacked": false,
+                        "title": "Cold Starts",
+                        "view": "table"
+                    }
+                },
+                {
+                    "height": 6,
+                    "width": 18,
+                    "y": 63,
+                    "x": 0,
+                    "type": "log",
+                    "properties": {
+                        "query": "SOURCE '/aws/lambda/${AppFunction}' | fields @timestamp as ts, @message, @logStream as logStream\n| sort ts desc\n| limit 100\n| PARSE @message \"[*] *\" as loggingType, ms\n| FILTER (loggingType = \"COLDSTART\")\n| DISPLAY ts, ms, logStream",
+                        "region": "${AWS::Region}",
+                        "stacked": false,
+                        "title": "Init after Cold Start",
+                        "view": "table"
+                    }
+                },
+                {
+                    "height": 2,
+                    "width": 24,
+                    "y": 69,
+                    "x": 0,
+                    "type": "text",
+                    "properties": {
+                        "markdown": "## Request Information"
+                    }
+                },
+                {
+                    "height": 4,
+                    "width": 12,
+                    "y": 71,
+                    "x": 0,
+                    "type": "log",
+                    "properties": {
+                        "query": "SOURCE '/aws/lambda/${AppFunction}' | fields @timestamp as ts, @message\n| limit 500\n| PARSE @message \"[*] * | * | * | * | * | * | * | * | * | * | * | * | *\" as loggingType, statusCode, bytes, contentType, execTime, clientIP, userAgent, origin, referrer, resource, queryKeys, pathLog, queryLog, key\n| FILTER (loggingType = \"RESPONSE\")\n| stats count(*) as requests, min(execTime) as min_ms, ceil(avg(execTime)) as avg_ms, max(execTime) as max_ms by resource\n| sort resource desc\n",
+                        "region": "${AWS::Region}",
+                        "stacked": false,
+                        "title": "Routes",
+                        "view": "table"
+                    }
+                },
+                {
+                    "height": 4,
+                    "width": 12,
+                    "y": 75,
+                    "x": 0,
+                    "type": "log",
+                    "properties": {
+                        "query": "SOURCE '/aws/lambda/${AppFunction}' | fields @timestamp as ts, @message\n| limit 500\n| PARSE @message \"[*] * | * | * | * | * | * | * | * | * | * | * | * | *\" as loggingType, statusCode, bytes, contentType, execTime, clientIP, userAgent, origin, referrer, resource, queryKeys, pathLog, queryLog, key\n| FILTER (loggingType = \"RESPONSE\")\n| stats count(*) as requests, min(execTime) as min_ms, ceil(avg(execTime)) as avg_ms, max(execTime) as max_ms by pathLog\n| sort pathLog desc\n",
+                        "region": "${AWS::Region}",
+                        "stacked": false,
+                        "title": "Routes with Path Values",
+                        "view": "table"
+                    }
+                },
+                {
+                    "height": 4,
+                    "width": 12,
+                    "y": 79,
+                    "x": 0,
+                    "type": "log",
+                    "properties": {
+                        "query": "SOURCE '/aws/lambda/${AppFunction}' | fields @timestamp as ts, @message\n| limit 500\n| PARSE @message \"[*] * | * | * | * | * | * | * | * | * | * | * | * | *\" as loggingType, statusCode, bytes, contentType, execTime, clientIP, userAgent, origin, referrer, resource, queryKeys, pathLog, queryLog, key\n| FILTER (loggingType = \"RESPONSE\")\n| stats count(*) as requests, min(execTime) as min_ms, ceil(avg(execTime)) as avg_ms, max(execTime) as max_ms by resource, queryKeys\n| sort resource asc, queryKeys asc\n",
+                        "region": "${AWS::Region}",
+                        "stacked": false,
+                        "title": "Routes and Query Keys",
+                        "view": "table"
+                    }
+                },
+                {
+                    "height": 4,
+                    "width": 12,
+                    "y": 83,
+                    "x": 0,
+                    "type": "log",
+                    "properties": {
+                        "query": "SOURCE '/aws/lambda/${AppFunction}' | fields @timestamp as ts, @message\n| limit 500\n| PARSE @message \"[*] * | * | * | * | * | * | * | * | * | * | * | * | *\" as loggingType, statusCode, bytes, contentType, execTime, clientIP, userAgent, origin, referrer, resource, queryKeys, pathLog, queryLog, key\n| FILTER (loggingType = \"RESPONSE\")\n| stats count(*) as requests, min(execTime) as min_ms, ceil(avg(execTime)) as avg_ms, max(execTime) as max_ms by pathLog, queryLog\n| sort pathLog asc, queryLog asc\n",
+                        "region": "${AWS::Region}",
+                        "stacked": false,
+                        "title": "Routes and Query Keys Values",
+                        "view": "table"
+                    }
+                },
+                {
+                    "height": 6,
+                    "width": 12,
+                    "y": 71,
+                    "x": 12,
+                    "type": "log",
+                    "properties": {
+                        "query": "SOURCE '/aws/lambda/${AppFunction}' | fields @timestamp as ts, @message\n| limit 500\n| PARSE @message \"[*] * | * | * | * | * | * | * | * | * | * | * | * | *\" as loggingType, statusCode, bytes, contentType, execTime, clientIP, userAgent, origin, referrer, resource, queryKeys, pathLog, queryLog, key\n| FILTER (loggingType = \"RESPONSE\")\n| stats count(*) as requests by resource\n| sort requests asc\n",
+                        "region": "${AWS::Region}",
+                        "stacked": false,
+                        "title": "Routes Visual",
+                        "view": "pie"
+                    }
+                },
+                {
+                    "height": 4,
+                    "width": 12,
+                    "y": 85,
+                    "x": 12,
+                    "type": "log",
+                    "properties": {
+                        "query": "SOURCE '/aws/lambda/${AppFunction}' | fields @timestamp as ts, @message\n| limit 500\n| PARSE @message \"[*] * | * | * | * | * | * | * | * | * | * | * | * | *\" as loggingType, statusCode, bytes, contentType, execTime, clientIP, userAgent, origin, referrer, resource, queryKeys, pathLog, queryLog, key\n| FILTER (loggingType = \"RESPONSE\")\n| stats count(*) as requests by key\n| sort requests desc\n",
+                        "region": "${AWS::Region}",
+                        "stacked": false,
+                        "title": "API Keys",
+                        "view": "table"
+                    }
+                }
+            ]
+        }

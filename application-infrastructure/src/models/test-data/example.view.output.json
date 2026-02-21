@@ -1,0 +1,23 @@
+{
+  "count": 15,
+  "items": [
+    { "id": "G-cea73c4b", "display_name": "Falken's Maze" },
+    { "id": "G-8f494e5b", "display_name": "Black Jack" },
+    { "id": "G-4a09ad1c", "display_name": "Gin Rummy" },
+    { "id": "G-73b8058c", "display_name": "Hearts" },
+    { "id": "G-f1cf6201", "display_name": "Bridge" },
+    { "id": "G-fd325ad0", "display_name": "Checkers" },
+    { "id": "G-c170b666", "display_name": "Chess" },
+    { "id": "G-0ac0647a", "display_name": "Poker" },
+    { "id": "G-c12ac225", "display_name": "Fighter Combat" },
+    { "id": "G-7fb4f254", "display_name": "Guerrilla Engagement" },
+    { "id": "G-f07993c7", "display_name": "Desert Warfare" },
+    { "id": "G-03cbb530", "display_name": "Air-To-Ground Actions" },
+    { "id": "G-603f6cd0", "display_name": "Theaterwide Tactical Warfare" },
+    {
+      "id": "G-2e22e975",
+      "display_name": "Theaterwide Biotoxic and Chemical Warfare"
+    },
+    { "id": "G-dd2ea1b3", "display_name": "Global Thermonuclear War" }
+  ]
+}

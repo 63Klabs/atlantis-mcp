@@ -1,0 +1,5 @@
+{
+	"errorExpirationInSeconds": 300,
+	"routeExpirationInSeconds": 3600,
+	"externalRequestHeadroomInMs": 8000
+}
