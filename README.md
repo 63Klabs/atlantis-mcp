@@ -32,6 +32,6 @@ The [Application Structure README](./application-infrastructure/README-Applicati
 
 ## AI Context
 
-See [AI_CONTEXT.md](AI_CONTEXT.md) for important context and guidelines for AI-generated code in this repository.
+See [AGENT.md](AGENT.md) for important context and guidelines for AI-generated code in this repository.
 
 The context file is also helpful (and perhaps essential) for HUMANS developing within the application's structured platform as well.
