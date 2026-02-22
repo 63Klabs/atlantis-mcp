@@ -28,14 +28,14 @@ You can have multiple services in this script.
 */
 
 const { // uncomment cache{ ... } to use caching
-	// cache: { 
-	// 	CacheableDataAccess 
-	// },
+	cache: { 
+	 	CacheableDataAccess 
+	},
 	tools: {
 		DebugAndLog,
 		Timer
 	},
-	endpoint // simple connections without using DAO
+	// endpoint // simple connections without using DAO
 } = require("@63klabs/cache-data");
 
 /* Instead of hardcoding the connection object properties used by endpoint.get you can use a central configuration */
@@ -68,11 +68,11 @@ exports.fetch = async (query) => {
 			Simple GET request using endpoint.get() with complete URI (no caching)
 			*/
 
-			const response = await endpoint.get({ 
-				uri: "https://api.chadkluck.net/games" 
-			});
+			// const response = await endpoint.get({ 
+			// 	uri: "https://api.chadkluck.net/games" 
+			// });
 
-			data = response.body;
+			// data = response.body;
 
 			/* 
 			-- EXAMPLE 2: ------------------------------------------------------
@@ -112,17 +112,17 @@ exports.fetch = async (query) => {
 			caching and ExampleDAO for advanced api handling 
 			*/
 			
-			// const { conn, cacheProfile } = Config.getConnCacheProfile('games', 'default');
+			const { conn, cacheProfile } = Config.getConnCacheProfile('games', 'default');
 
-			// /* Send request through CacheableDataAccess to utilize caching */
-			// const cacheObj = await CacheableDataAccess.getData(
-			// 	cacheProfile, 
-			// 	ExampleDao.get, // use endpoint.get if not using a DAO - NOTE: do not use () we are passing the function, not executing it!
-			// 	conn,
-			// 	query // set to null if you are not passing any extra data to the DAO
-			// );
+			/* Send request through CacheableDataAccess to utilize caching */
+			const cacheObj = await CacheableDataAccess.getData(
+				cacheProfile, 
+				ExampleDao.get, // use endpoint.get if not using a DAO - NOTE: do not use () we are passing the function, not executing it!
+				conn,
+				query // set to null if you are not passing any extra data to the DAO
+			);
 
-			// data = cacheObj.getBody(true);
+			data = cacheObj.getBody(true);
 
 		} catch (error) {
 			DebugAndLog.error(`${logIdentifier}: Error: ${error.message}`, error.stack);
