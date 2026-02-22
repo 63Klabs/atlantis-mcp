@@ -1,4 +1,4 @@
-# Initial MCP Build
+# Initial MCP Plan
 
 We are building an MCP server for the 63Klabs Atlantis Templates and Scripts Platform.
 
@@ -25,7 +25,11 @@ It is a control plane that makes Atlantis templates, scripts, and patterns AI-co
 
 The Atlantis Platform is maintained by 63Klabs for use by other organizations. All repositories are open source and available either as a service from 63Klabs (copied from public repositories or public S3 buckets), or can be internally hosted within an organization.
 
+Since this is a large project, we will implement this in phases. The initial phase (this spec) will focus on discovery, architectural decisions, and planning the phases. We will not write code at this point. Instructions for providing phase documentation will follow later in this spec.
+
 ## The 6 Main Components of the @63Klabs GitHub collection
+
+Background
 
 The 5 main components are a CloudFormation template library, a SAM Configuration repository, starter code for serverless projects, documentation and tutorials, and a @63klabs/cache-data npm repository.
 
@@ -175,11 +179,14 @@ ChatGPT ideas:
 - [Part-4](./ChatGPT-idea-part-4.md)
 - [Part-5](./ChatGPT-idea-part-5.md)
 
+Some of the initial ideas mention multiple Lambda functions, however, it might be easier to maintain a single lambda function since the Atlantis implementation with cache-data makes it easier to separate into modules. However, if the actions the function is is performing deserve different execution role privileges then multiple lambda functions should be used. For example, separate read-only lambda functions from lambda functions that are provided CRUD access. Or, when a lambda function accesses a vastly different set of AWS resources. Or when a lambda function provides a completely different service (user sign up vs proxy to read only resources)
+
+Also authentication will be required for extended access. Public, non-authenticated access should be allowed with rate limiting applied. I want the rate limiting to not be hard coded, instead it should be provided as a parameter to the application stack so it can be adjusted. 
+
+Authenticated access should use Cognito. 
+
 ## Questions, Clarifications, and SPEC structure
 
-Before begining the spec driven workflow, ask the user any clarifying questions in a document called `SPEC-QUESTIONS.md`. This will allow Kiro to provide options, recommendations, and reasoning to the user for each question.
+Before beginning the spec driven workflow, ask the user any clarifying questions in a document called `SPEC-QUESTIONS.md`. This will allow Kiro to provide options, recommendations, and reasoning to the user for each question.
 
-This project is large, and may be divided up into multiple phases, each requiring it's own spec-driven workflow which as each prior requirement-design-tasks are executed, may change the subsequent phase. Instead of planning every detail of each phase, plan a phased approach and breifly outline the purpose of each phase. This outline can serve as the starting `SPEC.md` for that phase which will feed into the spec-driven workflow for that phase. Each phase should be given it's own specs directory such as `0-0-1-initial-mcp-build-phase-2` and `0-0-1-initial-mcp-build-phase-3` etc.
-
-
-
+This project is large, and may be divided up into multiple phases, each requiring it's own spec-driven workflow which as each prior requirement-design-tasks are executed, may change the subsequent phase. Instead of planning every detail of each phase, plan a phased approach and breifly outline the purpose of each phase. This outline can serve as the starting `SPEC.md` for that phase which will feed into the spec-driven workflow for that phase. Each phase should be given it's own specs directory such as `0-0-1-initial-mcp-build-phase-1` and `0-0-1-initial-mcp-build-phase-2` etc.
