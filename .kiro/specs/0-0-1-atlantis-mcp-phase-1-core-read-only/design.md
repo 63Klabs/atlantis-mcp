@@ -392,7 +392,7 @@ const list = async (options = {}) => {
 
   // Define fetch function for cache miss
   const fetchFunction = async (connection, opts) => {
-    return await Models.S3Templates.list(connection);
+    return await Models.S3Templates.list(connection, opts);
   };
   
   // Use cache-data pass-through caching
@@ -400,7 +400,7 @@ const list = async (options = {}) => {
     cacheProfile,
     fetchFunction,
     conn,
-    null,
+    {}, // can be used in the future to pass application credentials, timestamps, functions, etc that should not be included in the cache-key.
   );
   
   return result.body;
@@ -425,9 +425,10 @@ const get = async (options = {}) => {
   conn.parameters = {category, templateName, version, versionId};
   
   const fetchFunction = async (connection, opts) => {
-    const template = await Models.S3Templates.get(connection);
+    const template = await Models.S3Templates.get(connection, opts);
     if (!template) {
-      const error = new Error(`Template not found: ${connection?.parameters?.category}/${connection?.parameters?.templateName}${(connection?.parameters?.version ? `:${connection?.parameters?.version}` : '')}${(connection?.parameters?.versionId ? `?${connection?.parameters?.versionId}` : '')}`);
+      const p = ("parameters" in connection ? connection.parameters : {});
+      const error = new Error(`Template not found: ${p?.category}/${p?.templateName}${(p?.version ? `:${p?.version}` : '')}${(p?.versionId ? `?${p?.versionId}` : '')}`);
       error.code = 'TEMPLATE_NOT_FOUND';
       throw error;
     }
@@ -438,7 +439,7 @@ const get = async (options = {}) => {
     cacheProfile,
     fetchFunction,
     conn,
-    null,
+    {}, // can be used in the future to pass application credentials, timestamps, functions, etc that should not be included in the cache-key.
   );
   
   return result.body;
@@ -474,19 +475,20 @@ const { AWS } = require('@63klabs/cache-data').tools;
 
 /**
  * List all templates from S3 bucket
- * @param {Object} conn - Connection object with host (bucket) and path (prefix) and parameters
- * @param {string} conn.host - The S3 bucket name
- * @param {string} conn.path - The S3 object key prefix
- * @param {string} conn.parameters.category - Template category
- * @param {string} conn.parameters.version - Template version
- * @param {string} conn.parameters.versionId - S3 Object Version of Template
+ * @param {Object} connection - Connection object with host (bucket) and path (prefix) and parameters
+ * @param {string} connection.host - The S3 bucket name
+ * @param {string} connection.path - The S3 object key prefix
+ * @param {string} connection.parameters.category - Template category
+ * @param {string} connection.parameters.version - Template version
+ * @param {string} connection.parameters.versionId - S3 Object Version of Template
+ * @param {string} options - Reserved for future use. options is not used in the cache key and can be used to pass functions, confing, context, and supplemental data that is not integral to the cache.
  * @returns {Promise<Array>} Array of template metadata
  */
-const list = async (conn, options = {}) => {
-  const { category, version, versionId } = conn.parameters;
+const list = async (connection, options = {}) => {
+  const { category, version, versionId } = connection.parameters;
   
-  const bucket = conn.host;
-  const prefix = conn.path;
+  const bucket = connection.host;
+  const prefix = connection.path;
   
   // List objects in S3
   const params = {
@@ -510,16 +512,17 @@ const list = async (conn, options = {}) => {
 
 /**
  * Get specific template from S3
- * @param {string} conn.parameters.category - Template category
- * @param {string} conn.parameters.templateName - Template name
- * @param {string} conn.parameters.version - Template version
- * @param {string} conn.parameters.versionId - S3 object versionId for template
+ * @param {string} connection.parameters.category - Template category
+ * @param {string} connection.parameters.templateName - Template name
+ * @param {string} connection.parameters.version - Template version
+ * @param {string} connection.parameters.versionId - S3 object versionId for template
+ * @param {string} options - Reserved for future use. options is not used in the cache key and can be used to pass functions, confing, context, and supplemental data that is not integral to the cache.
  * @returns {Promise<Object>} Template details
  */
-const get = async (conn, options) => {
-  const {category, templateName, version, versionId} = conn.parameters;
-  const bucket = conn.host;
-  const key = buildTemplateKey(category, templateName);
+const get = async (connection, options = {}) => {
+  const {category, templateName, version, versionId} = connection.parameters;
+  const bucket = connection.host;
+  const key = buildTemplateKey(connection.path, category, templateName);
   
   const s3 = AWS.s3;
   
@@ -673,12 +676,11 @@ module.exports = { successResponse, errorResponse };
 {
   name: string,              // Starter name (e.g., "atlantis-starter-02")
   description: string,       // Short description
-  language: string,          // "Node.js" or "Python"
-  githubUrl: string,        // GitHub repository URL
-  features: Array<string>,  // List of features
-  hasCacheData: boolean,    // Includes cache-data integration
-  readme: string,           // README content (markdown)
-  latestRelease: {          // Latest release information
+  languages: Array<string>,  // "Node.js", "Python"
+  githubUrl: string,         // GitHub repository URL
+  features: Array<string>,   // List of features
+  readme: string,            // README content (markdown)
+  latestRelease: {           // Latest release information
     version: string,
     releaseDate: string,
     notes: string
@@ -748,9 +750,7 @@ module.exports = { successResponse, errorResponse };
 ```javascript
 {
   templateName: string,     // Template name
-  currentVersion: string,   // Current version
   latestVersion: string,    // Latest available version
-  updateAvailable: boolean, // Whether update is available
   releaseDate: string,      // Latest version release date
   changelogSummary: string, // Summary of changes
   breakingChanges: boolean, // Whether update has breaking changes
@@ -768,8 +768,8 @@ const { tools: {DebugAndLog} } = require("@63klabs/cache-data");
 const connections = [
   {
     name: "s3-templates",
-    host: process.env.TEMPLATE_S3_BUCKET,
-    path: "/atlantis/templates/v2",
+    host: process.env.ATLANTIS_S3_BUCKETS.split(','),
+    path: `${process.env.ATLANTIS_S3_PREFIX}$/templates/v2`,
     cache: [
       {
         profile: "templates-list",
@@ -795,8 +795,8 @@ const connections = [
   },
     {
     name: "s3-app-starters",
-    host: process.env.TEMPLATE_S3_BUCKET,
-    path: "/atlantis/app-starters/v2",
+    host: process.env.ATLANTIS_S3_BUCKETS.split(','),
+    path: `${process.env.ATLANTIS_S3_PREFIX}$/app-starters/v2`,
     cache: [
       {
         profile: "app-starters-list",
@@ -823,7 +823,7 @@ const connections = [
   {
     name: "github-api",
     host: "api.github.com",
-    path: "/repos/63Klabs",
+    path: "/repos",
     cache: [
       {
         profile: "repo-metadata",
@@ -894,55 +894,82 @@ module.exports = connections;
 ### Config Initialization (src/config/index.js)
 
 ```javascript
-const { Config: CacheDataConfig } = require('@63klabs/cache-data');
-const connections = require('./connections');
 
-let initialized = false;
-let initPromise = null;
+const { 
+	cache: {
+		Cache,
+		CacheableDataAccess
+	},
+	tools: {
+		DebugAndLog,
+		Timer,
+		CachedParameterSecrets,
+		CachedSSMParameter,
+		_ConfigSuperClass,
+		ClientRequest,
+		Response,
+		Connections
+	} 
+} = require("@63klabs/cache-data");
 
-/**
- * Initialize configuration (async, called during cold start)
- * @returns {Promise<void>}
- */
-const init = async () => {
-  if (initialized) {
-    return;
-  }
-  
-  if (initPromise) {
-    return initPromise;
-  }
-  
-  initPromise = (async () => {
-    // Initialize cache-data
-    // Cache-data automatically reads from Lambda environment variables:
-    // - CACHE_DATA_DYNAMO_DB_TABLE
-    // - CACHE_DATA_S3_BUCKET
-    // - CACHE_DATA_TIME_ZONE_FOR_INTERVAL
-    await CacheDataConfig.init();
-    
-    // Load connections
-    CacheDataConfig.setConnections(connections);
-    
-    // Load SSM parameters if needed
-    // const githubToken = await getSSMParameter('/atlantis-mcp/github-token');
-    
-    initialized = true;
-  })();
-  
-  return initPromise;
-};
+const settings = require("./settings.json");
+const validations = require("./validations.js");
+const connections = require("./connections.js");
 
 /**
- * Get connection by name
- * @param {string} name - Connection name
- * @returns {Object} Connection object
+ * Extends tools._ConfigSuperClass
+ * Used to create a custom Config interface
  */
-const getConnection = (name) => {
-  return connections.find(c => c.name === name);
+class Config extends _ConfigSuperClass {
+
+	/**
+	 * This is custom initialization code for the application. Depending 
+	 * upon needs, the _init functions from the super class may be used
+	 * as needed. Init is async, and a promise is stored, allowing the 
+	 * lambda function to wait until the promise is finished.
+	 */
+	static async init() {
+		
+		_ConfigSuperClass._promise = new Promise(async (resolve, reject) => {
+
+			const timerConfigInit = new Timer("timerConfigInit", true);
+				
+			try {
+
+				ClientRequest.init( { validations } );
+				Response.init( { settings } );
+				_ConfigSuperClass._connections = new Connections(connections);
+
+				// Cache settings
+				Cache.init({
+					secureDataKey: new CachedSSMParameter(process.env.PARAM_STORE_PATH+'CacheData_SecureDataKey', {refreshAfter: 43200}), // 12 hours
+				});
+
+				DebugAndLog.debug("Cache: ", Cache.info());
+				
+				resolve(true);
+			} catch (error) {
+				DebugAndLog.error(`Could not initialize Config ${error.message}`, error.stack);
+				reject(false);
+			} finally {
+				timerConfigInit.stop();
+			};
+			
+		});
+
+	};
+
+	static async prime() {
+		return Promise.all([
+			CacheableDataAccess.prime(),
+			CachedParameterSecrets.prime()
+		]);
+	};
 };
 
-module.exports = { init, getConnection };
+module.exports = {
+	Config
+};
 ```
 
 
@@ -984,12 +1011,16 @@ Each MCP tool is defined with JSON Schema for inputs and outputs:
     properties: {
       category: {
         type: "string",
-        enum: ["Storage", "Network", "Pipeline", "Service Role"],
+        enum: ["storage", "network", "pipeline", "service-role"],
         description: "Filter templates by category"
       },
       version: {
         type: "string",
-        description: "Filter by version: 'latest', specific version (e.g., '1.3.5'), or 'all'"
+        description: "Filter by version: 'latest', specific version (e.g., 'v1.3.5/2026-09-25'), or 'all'"
+      },
+      versionId: {
+        type: "string",
+        description: "Filter by versionId"
       }
     }
   },
@@ -1021,6 +1052,10 @@ Each MCP tool is defined with JSON Schema for inputs and outputs:
       version: {
         type: "string",
         description: "Template version (default: 'latest')"
+      },
+      versionId: {
+        type: "string",
+        description: "Filter by versionId"
       }
     },
     required: ["templateName"]
@@ -1881,27 +1916,32 @@ Parameters:
     MinValue: 10
     MaxValue: 10000
     
-  TemplateS3Bucket:
+  AtlantisS3Buckets:
     Type: String
     Description: "S3 bucket containing CloudFormation templates"
-    Default: "63klabs-atlantis-templates"
+    Default: "63klabs"
     
-  TemplateS3Prefix:
+  AtlantisS3Prefix:
     Type: String
-    Description: "S3 key prefix for templates"
-    Default: "templates/"
+    Description: "S3 key prefix for templates and app starters"
+    Default: "atlantis/"
+
+  AtlantisGitHubUserOrgs:
+    Type: String
+    Description: "GitHub Users and Organizations to include."
+    Default: "63klabs"
     
-  TemplateCacheTTL:
+  AtlantisTemplateCacheTTL:
     Type: Number
     Description: "Cache TTL for template metadata (seconds)"
     Default: 3600  # 1 hour
     
-  StarterCacheTTL:
+  AtlantisStarterCacheTTL:
     Type: Number
     Description: "Cache TTL for starter metadata (seconds)"
     Default: 3600  # 1 hour
     
-  DocumentationCacheTTL:
+  AtlantisDocumentationCacheTTL:
     Type: Number
     Description: "Cache TTL for documentation index (seconds)"
     Default: 21600  # 6 hours
@@ -1938,11 +1978,12 @@ MCPReadFunction:
         LOG_LEVEL: !If [IsProduction, "INFO", "DEBUG"]
         
         # Template configuration
-        TEMPLATE_S3_BUCKET: !Ref TemplateS3Bucket
-        TEMPLATE_S3_PREFIX: !Ref TemplateS3Prefix
-        TEMPLATE_CACHE_TTL: !Ref TemplateCacheTTL
-        STARTER_CACHE_TTL: !Ref StarterCacheTTL
-        DOCUMENTATION_CACHE_TTL: !Ref DocumentationCacheTTL
+        ATLANTIS_S3_BUCKETS: !Ref AtlantisS3Buckets
+        ATLANTIS_S3_PREFIX: !Ref AtlantisS3Prefix
+        ATLANTIS_GITHUB_USER_ORGS: !Ref AtlantisGitHubUserOrgs
+        ATLANTIS_TEMPLATE_CACHE_TTL: !Ref AtlantisTemplateCacheTTL
+        ATLANTIS_STARTER_CACHE_TTL: !Ref AtlantisStarterCacheTTL
+        ATLANTIS_DOCUMENTATION_CACHE_TTL: !Ref AtlantisDocumentationCacheTTL
         
         # Naming convention (from template parameters)
         NAMING_PREFIX: !Ref Prefix
@@ -2027,14 +2068,14 @@ MCPReadLambdaExecutionRole:
                 - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${ParameterStoreHierarchy}*"
             
             # S3 Template Bucket (read-only)
-            - Sid: LambdaAccessToTemplateS3Bucket
+            - Sid: LambdaAccessToAtlantisS3Bucket
               Effect: Allow
               Action:
                 - s3:GetObject
                 - s3:ListBucket
               Resource:
-                - !Sub "arn:aws:s3:::${TemplateS3Bucket}"
-                - !Sub "arn:aws:s3:::${TemplateS3Bucket}/${TemplateS3Prefix}*"
+                - !Sub "arn:aws:s3:::${AtlantisS3Bucket}"
+                - !Sub "arn:aws:s3:::${AtlantisS3Bucket}/${AtlantisS3Prefix}*"
             
             # NO write permissions (S3 PutObject, DynamoDB write, etc.)
             # Write operations reserved for Phase 2 Write Lambda
@@ -2570,11 +2611,11 @@ Environment:
     LOG_LEVEL: !If [IsProduction, "INFO", "DEBUG"]
     
     # MCP-specific
-    TEMPLATE_S3_BUCKET: !Ref TemplateS3Bucket
-    TEMPLATE_S3_PREFIX: !Ref TemplateS3Prefix
-    TEMPLATE_CACHE_TTL: !Ref TemplateCacheTTL
-    STARTER_CACHE_TTL: !Ref StarterCacheTTL
-    DOCUMENTATION_CACHE_TTL: !Ref DocumentationCacheTTL
+    ATLANTIS_S3_BUCKETS: !Ref AtlantisS3Buckets
+    ATLANTIS_S3_PREFIX: !Ref AtlantisS3Prefix
+    ATLANTIS_TEMPLATE_CACHE_TTL: !Ref AtlantisTemplateCacheTTL
+    ATLANTIS_STARTER_CACHE_TTL: !Ref AtlantisStarterCacheTTL
+    ATLANTIS_DOCUMENTATION_CACHE_TTL: !Ref AtlantisDocumentationCacheTTL
     
     # Naming convention
     NAMING_PREFIX: !Ref Prefix
@@ -3048,19 +3089,20 @@ aws lambda update-alias \
 
 **template.yml Parameters**:
 - Add `PublicRateLimit`
-- Add `TemplateS3Bucket`
-- Add `TemplateS3Prefix`
-- Add `TemplateCacheTTL`
-- Add `StarterCacheTTL`
-- Add `DocumentationCacheTTL`
+- Add `AtlantisS3Buckets`
+- Add `AtlantisS3Prefix`
+- Add `AtlantisTemplateCacheTTL`
+- Add `AtlantisStarterCacheTTL`
+- Add `AtlantisDocumentationCacheTTL`
 - Add `GitHubTokenParameter`
 
 **Environment Variables**:
-- Add `TEMPLATE_S3_BUCKET`
-- Add `TEMPLATE_S3_PREFIX`
-- Add `TEMPLATE_CACHE_TTL`
-- Add `STARTER_CACHE_TTL`
-- Add `DOCUMENTATION_CACHE_TTL`
+- Add `ATLANTIS_S3_BUCKETS`
+- Add `ATLANTIS_S3_PREFIX`
+- Add `ATLANTIS_GITHUB_USER_ORGS`
+- Add `ATLANTIS_TEMPLATE_CACHE_TTL`
+- Add `ATLANTIS_STARTER_CACHE_TTL`
+- Add `ATLANTIS_DOCUMENTATION_CACHE_TTL`
 - Add `NAMING_PREFIX`
 - Add `NAMING_PROJECT_ID`
 - Add `NAMING_STAGE_ID`

@@ -102,7 +102,7 @@ Other details of the SAM config repo are not relevant at this stage of the Initi
 
 These repositories provide information about using the Atlantis Platform. They also provide sample code to extend projects created from starter code.
 
-### Starter Code
+### App Starters
 
 - `atlantis-starter-00-basic-apigw-lambda-nodejs`
 - `atlantis-starter-01-basic-apigw-lambda-py`
