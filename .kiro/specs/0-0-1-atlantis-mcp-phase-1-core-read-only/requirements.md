@@ -31,7 +31,7 @@ The MCP server follows Atlantis deployment patterns, using the atlantis-starter-
 - **Repository_Type**: GitHub custom property or CodeCommit tag identifying repository purpose (documentation, app-starter, templates, management, package, mcp)
 - **Human_Readable_Version**: Template version in format vX.X.X/YYYY-MM-DD appearing in template comments
 - **S3_VersionId**: S3 bucket versioning identifier for tracking template history
-- **Bucket_Priority**: Order of S3 buckets to search, determined by bucket order in configuration or atlantis-mcp:IndexPriority tag
+- **Bucket_Priority**: Order of S3 buckets to search, determined by bucket order in configuration or atlantis-mcp:IndexPriority tag - **TODO CHANGE**: Bucket Priority is established by the order of buckets in the comma delimited value passed to the CloudFormation template (and passed on to Lambda). The atlantis-mcp:IndexPriority tag is per-bucket for the **Namespace** within each bucket. (Note, this is stated correctly in Requirement 4)
 - **Sidecar_Metadata**: JSON file stored alongside app starter ZIP files containing metadata (e.g., startername.json)
 - **Brown_Out_Support**: Capability to return partial data when some data sources fail while continuing to serve available data
 
@@ -140,13 +140,13 @@ The MCP server follows Atlantis deployment patterns, using the atlantis-starter-
 1. THE MCP_Server SHALL query GitHub custom property `atlantis_repository-type` for each repository
 2. THE atlantis_repository-type custom property SHALL support values: documentation, app-starter, templates, management, package, mcp
 3. THE MCP_Server SHALL use GitHub Repository Properties API to retrieve custom properties
-4. WHEN atlantis_repository-type custom property is not set, THE MCP_Server SHALL fall back to repository name patterns
-5. THE name pattern fallback SHALL identify app-starter repositories by name containing "starter"
-6. THE name pattern fallback SHALL identify SAM config repositories by name containing "sam-config"
+4. WHEN atlantis_repository-type custom property is not set, THE MCP_Server SHALL fall back to repository name patterns - **CHANGE** the absence of atlantis_repository-type property should be used to EXCLUDE repos. This makes inclusion by the org deliberate
+5. THE name pattern fallback SHALL identify app-starter repositories by name containing "starter" - **TODO CHANGE** no fallbacks
+6. THE name pattern fallback SHALL identify SAM config repositories by name containing "sam-config" - **TODO CHANGE** no fallbacks
 7. THE MCP_Server SHALL filter repositories by atlantis_repository-type when listing starters
 8. THE MCP_Server SHALL filter repositories by atlantis_repository-type when searching documentation
 9. THE MCP_Server SHALL document how organizations should set up custom properties on their repositories
-10. THE MCP_Server SHALL support organizations that do not use custom properties through name pattern fallback
+10. THE MCP_Server SHALL support organizations that do not use custom properties through name pattern fallback - **TODO CHANGE** no fallbacks
 
 ### Requirement 7: S3 Namespace Discovery and Indexing
 
@@ -197,7 +197,7 @@ The MCP server follows Atlantis deployment patterns, using the atlantis-starter-
 7. THE list_template_history tool SHALL include author and date information for each version
 8. THE list_template_history tool SHALL parse version information from template content for each version
 9. WHEN a template has no version history (single version), THE list_template_history tool SHALL return the current version only
-10. THE MCP_Server SHALL cache version lists using Cache_Data_Package with short TTL (5 minutes)
+10. THE MCP_Server SHALL cache version lists using Cache_Data_Package with short TTL (5 minutes) - **TODO CHANGE** 60 minutes
 
 ### Requirement 10: Template Categories Including Modules
 
@@ -225,7 +225,7 @@ The MCP server follows Atlantis deployment patterns, using the atlantis-starter-
 1. THE MCP_Server SHALL support Sidecar_Metadata files stored as `{appName}.json` alongside `{appName}.zip` in S3
 2. THE Sidecar_Metadata file SHALL contain: name, description, language, framework, features, prerequisites, author, license
 3. THE get_starter_info tool SHALL read Sidecar_Metadata from S3 when available
-4. WHEN Sidecar_Metadata is not available, THE get_starter_info tool SHALL fall back to GitHub repository metadata
+4. WHEN Sidecar_Metadata is not available, THE get_starter_info tool SHALL fall back to GitHub repository metadata **TODO CHANGE** - without a sidecar we won't know what github repo to use. Sure we know the name, but what user/org? So if no sidecar, we don't include. This allows orgs to be intentional about including. We should issue a warning if no sidecar found. Skip and do not extract zip.
 5. THE MCP_Server SHALL prefer Sidecar_Metadata over GitHub metadata when both are available
 6. THE MCP_Server SHALL document how to generate Sidecar_Metadata files during CI/CD deployment
 7. THE documentation SHALL include a Python script for generating Sidecar_Metadata from GitHub repository
@@ -310,9 +310,9 @@ The MCP server follows Atlantis deployment patterns, using the atlantis-starter-
 8. THE list_starters tool SHALL aggregate starters from all configured S3 buckets and GitHub users/orgs
 9. THE MCP_Server SHALL provide a get_starter_info tool that retrieves detailed information about a specific starter
 10. THE get_starter_info tool SHALL prefer Sidecar_Metadata from S3 over GitHub_Metadata when both are available
-11. THE get_starter_info tool SHALL use GitHub_Metadata API to retrieve README content, latest release, and repository statistics when Sidecar_Metadata is unavailable
+11. THE get_starter_info tool SHALL use GitHub_Metadata API to retrieve README content, latest release, and repository statistics when Sidecar_Metadata is unavailable **TODO CHANGE** - without a sidecar we won't know what github repo to use. Sure we know the name, but what user/org? So if no sidecar, we don't include. This allows orgs to be intentional about including. We should issue a warning if no sidecar found. Skip and do not extract zip.
 12. THE get_starter_info tool SHALL filter GitHub repositories by custom property `atlantis_repository-type: app-starter`
-13. THE get_starter_info tool SHALL fall back to repository name patterns (containing "starter") when custom property is not set
+13. THE get_starter_info tool SHALL fall back to repository name patterns (containing "starter") when custom property is not set **TODO CHANGE** We are going to make custom properties intentional so repos can be excluded by org
 14. THE get_starter_info tool SHALL return example code snippets from the starter repository
 15. WHEN a starter repository is private, THE get_starter_info tool SHALL indicate authentication is required for full access
 16. THE MCP_Server SHALL cache starter metadata using Cache_Data_Package with configurable TTL
@@ -350,7 +350,7 @@ The MCP server follows Atlantis deployment patterns, using the atlantis-starter-
 #### Acceptance Criteria
 
 1. THE MCP_Server SHALL provide a validate_naming tool that validates resource names against the Naming_Convention
-2. THE validate_naming tool SHALL validate the pattern `<Prefix>-<ProjectId>-<StageId>-<ResourceName>`
+2. THE validate_naming tool SHALL validate the pattern `<Prefix>-<ProjectId>-<StageId>-<ResourceName>` **TODO UPDATE** S3 buckets follow a different naming pattern, `<orgPrefix>-<Prefix>-<ProjectId>-<StageId>-<Region>-<AccountId>` where orgPrefix and StageId are optional. `<orgPrefix>-<Prefix>-<ProjectId>-<StageId>-<ResourceName>` is also accepted for S3 where orgPrefix and StageId is optional. HOWEVER StageId is never optional in Application templates, but is is optional in High Level templates since some resources may be shared (such as DynamoDB tables, S3 buckets). `<orgPrefix>-<Prefix>-<ProjectId>-<StageId>-<Region>-<AccountId>` is preferred for S3 buckets (with orgPrefix and Stageid optional)
 3. THE validate_naming tool SHALL verify Prefix (established in template.yaml)
 4. THE validate_naming tool SHALL verify ProjectId (established in template.yaml)
 5. THE validate_naming tool SHALL verify StageId matches allowed values (established in template.yaml)
@@ -374,7 +374,7 @@ The MCP server follows Atlantis deployment patterns, using the atlantis-starter-
 6. THE check_template_updates tool SHALL support checking multiple templates in a single request
 7. THE check_template_updates tool SHALL indicate breaking changes in version updates
 8. THE check_template_updates tool SHALL provide migration guide links for breaking changes
-9. THE MCP_Server SHALL cache version information using Cache_Data_Package with short TTL (5 minutes)
+9. THE MCP_Server SHALL cache version information using Cache_Data_Package with short TTL (5 minutes) **TODO CHANGE** 60 minutes
 10. WHEN a template name is invalid, THE check_template_updates tool SHALL return available template names
 
 ### Requirement 19: Caching Strategy
@@ -393,7 +393,8 @@ The MCP server follows Atlantis deployment patterns, using the atlantis-starter-
 8. THE MCP_Server SHALL allow different TTL values for different resource types (configurable via deployment parameters)
 9. THE MCP_Server SHALL include bucket name and Namespace in cache keys to differentiate results from different sources
 10. THE MCP_Server SHALL include GitHub user/org in cache keys to differentiate results from different sources
-11. THE MCP_Server SHALL support downstream caching for processed data (e.g., indexed code patterns cached separately from raw templates)
+11. THE MCP_Server SHALL support downstream caching for processed data (e.g., indexed code patterns cached separately from raw templates) 
+**TODO UPDATE** All TTLs should be stored in settings.js in a ttl property within settings. For example settings.ttl.fullTemplateContent and set by the environment variable from deployment.
 
 ### Requirement 20: GitHub Integration
 
@@ -442,13 +443,13 @@ The MCP server follows Atlantis deployment patterns, using the atlantis-starter-
 1. THE MCP_Server SHALL log all requests to CloudWatch with timestamp, IP address, tool name, and execution time
 2. THE MCP_Server SHALL log all errors with stack traces and request context
 3. WHEN S3 operations fail, THE MCP_Server SHALL log the bucket name, key, and error details
-4. WHEN GitHub API operations fail, THE MCP_Server SHALL log the repository, endpoint, and error details
+4. WHEN GitHub API operations fail, THE MCP_Server SHALL log the repository, endpoint, and error details **TODO CHANGE** Include user/org as well
 5. THE MCP_Server SHALL return user-friendly error messages that do not expose internal implementation details
-6. THE MCP_Server SHALL categorize errors as client errors (4xx) or server errors (5xx)
+6. THE MCP_Server SHALL categorize errors as client errors (4xx) or server errors (5xx) **TODO CHANGE** The MCP_Server, when returning an error handled by the Lambda function should utilize the base resposnes provided by the 63klabs/cache-data package.
 7. THE MCP_Server SHALL include request IDs in all error responses for correlation with logs
 8. THE MCP_Server SHALL emit CloudWatch metrics for error rates, latency, and cache performance
 9. THE MCP_Server SHALL implement structured logging with consistent log format
-10. THE MCP_Server SHALL support configurable log levels (ERROR, WARN, INFO, DEBUG) via environment variables
+10. THE MCP_Server SHALL support configurable log levels (ERROR, WARN, INFO, DEBUG) via environment variables **TODO CHANGE** Cache data already implements this. Use DebugAndLog.error, DebugAndLog.warn, info, debug, diag as needed from the cache-data package.
 11. THE MCP_Server SHALL use DebugAndLog.error for fatal errors that prevent all data retrieval
 12. THE MCP_Server SHALL use DebugAndLog.warn for non-fatal errors where partial data is available (Brown_Out_Support)
 13. THE MCP_Server SHALL log which specific bucket/org failed for troubleshooting without exposing sensitive information
@@ -473,6 +474,7 @@ The MCP server follows Atlantis deployment patterns, using the atlantis-starter-
 12. THE MCP_Server SHALL validate all parameters during CloudFormation stack creation
 13. THE MCP_Server SHALL split comma-delimited AtlantisS3Buckets into an array in Lambda environment
 14. THE MCP_Server SHALL split comma-delimited AtlantisGitHubUserOrgs into an array in Lambda environment
+**TODO UPDATE** These should be included in settings.js, and organized as properties and sub properties within settings in an organized manner
 
 ### Requirement 24: Documentation
 
@@ -482,7 +484,7 @@ The MCP server follows Atlantis deployment patterns, using the atlantis-starter-
 
 1. THE MCP_Server SHALL provide end-user documentation for developers using MCP in IDEs, CLI, or AI agents
 2. THE end-user documentation SHALL include examples of each MCP tool with sample inputs and outputs
-3. THE end-user documentation SHALL include integration guides for popular AI assistants (Claude, ChatGPT, Cursor)
+3. THE end-user documentation SHALL include integration guides for popular AI assistants (Claude, ChatGPT, Cursor) **TODO UPDATE** Inclue Kiro and Amazon Q Developer
 4. THE MCP_Server SHALL provide organizational documentation for self-hosting and installation
 5. THE organizational documentation SHALL include deployment instructions using SAM configuration repository
 6. THE organizational documentation SHALL include configuration reference for all CloudFormation parameters
@@ -514,8 +516,8 @@ The MCP server follows Atlantis deployment patterns, using the atlantis-starter-
 10. THE unit tests SHALL verify multiple S3 bucket and GitHub org handling
 11. THE unit tests SHALL verify Namespace discovery and priority ordering
 12. THE unit tests SHALL verify template version handling (both Human_Readable_Version and S3_VersionId)
-13. THE unit tests SHALL verify Sidecar_Metadata reading and fallback to GitHub metadata
-14. THE unit tests SHALL verify GitHub custom property filtering and name pattern fallback
+13. THE unit tests SHALL verify Sidecar_Metadata reading and fallback to GitHub metadata **TODO CHANGE** we aren't going to fall back if no sidecar
+14. THE unit tests SHALL verify GitHub custom property filtering and name pattern fallback **TODO CHANGE** We aren't going to fall back if no custom property
 15. THE MCP_Server SHALL include integration tests for MCP protocol compliance (deferred to Phase 2)
 16. THE MCP_Server SHALL achieve minimum 80% code coverage for Phase 1 functionality
 
