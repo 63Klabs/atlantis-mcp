@@ -16,7 +16,7 @@ const {
 	} 
 } = require("@63klabs/cache-data");
 
-const settings = require("./settings.json");
+const settings = require("./settings.js");
 const validations = require("./validations.js");
 const connections = require("./connections.js");
 
