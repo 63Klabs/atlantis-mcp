@@ -1917,7 +1917,7 @@ Parameters:
     MaxValue: 10000
     
   AtlantisS3Buckets:
-    Type: CommaDelimitedList
+    Type: String
     Description: "S3 bucket containing CloudFormation templates"
     Default: "63klabs"
     
@@ -1927,7 +1927,7 @@ Parameters:
     Default: "atlantis/"
 
   AtlantisGitHubUserOrgs:
-    Type: CommaDelimitedList
+    Type: String
     Description: "GitHub Users and Organizations to include."
     Default: "63klabs"
     
