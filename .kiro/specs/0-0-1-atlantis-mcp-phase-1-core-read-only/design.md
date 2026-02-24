@@ -10,29 +10,42 @@ This phase establishes the foundational infrastructure using the atlantis-starte
 
 1. **Serverless-First Architecture**: Leverage AWS Lambda, API Gateway, and managed services for scalability and cost efficiency
 2. **Security by Design**: Separate read and write operations into different Lambda functions with least-privilege IAM permissions
-3. **Performance Through Caching**: Use multi-tier caching (in-memory, DynamoDB, S3) via cache-data package
+3. **Performance Through Caching**: Use multi-tier caching (in-memory, DynamoDB, S3) via cache-data package with downstream caching support
 4. **Protocol Compliance**: Fully implement MCP protocol v1.0 with JSON Schema validation
 5. **Operational Excellence**: Comprehensive logging, monitoring, and error handling for production readiness
+6. **Multi-Source Support**: Aggregate data from multiple S3 buckets and GitHub organizations with priority ordering
+7. **Brown-Out Resilience**: Continue operation and return partial data when some sources fail
+8. **Code Pattern Discovery**: Index and search code patterns from templates and starters alongside documentation
 
 ### Phase 1 Scope
 
 Phase 1 focuses exclusively on read-only operations with public access:
 
 **In Scope:**
-- Template discovery and retrieval (list_templates, get_template)
+- Template discovery and retrieval (list_templates, get_template, list_template_versions, list_template_history)
+- Template category discovery (list_categories)
 - Starter code discovery (list_starters, get_starter_info)
-- Documentation search (search_documentation)
+- Documentation and code pattern search (search_documentation)
 - Naming convention validation (validate_naming)
 - Template update checking (check_template_updates)
+- Multiple S3 bucket support with namespace discovery and priority ordering
+- Multiple GitHub user/org support with priority ordering
+- GitHub custom properties for repository filtering
+- Template versioning with dual identifiers (Human_Readable_Version and S3_VersionId)
+- App starter sidecar metadata files
+- Code pattern indexing from templates and starters
+- Brown-out support for partial data when sources fail
 - Public access with rate limiting
 - MCP protocol implementation
-- Caching strategy with configurable TTLs
+- Caching strategy with configurable TTLs and downstream caching
 
 **Out of Scope (Future Phases):**
 - Write operations (repository creation, template modification)
 - Authentication and authorization
 - User-specific features
 - Advanced AI integration (code generation, automated deployments)
+- CodeCommit repository support
+- Template version comparison tool
 
 ## Architecture
 
@@ -61,8 +74,8 @@ graph TB
         end
 
         subgraph "Data Sources"
-            S3Templates[S3<br/>Template Bucket<br/>CloudFormation Templates]
-            GitHub[GitHub API<br/>Repositories<br/>Documentation]
+            S3Multi[Multiple S3 Buckets<br/>Templates & Starters<br/>Priority Ordering]
+            GitHubMulti[Multiple GitHub Orgs<br/>Repositories<br/>Priority Ordering]
         end
 
         subgraph "Monitoring"
@@ -77,8 +90,8 @@ graph TB
     Lambda -->|Check| Memory
     Lambda -->|Check| DDB
     Lambda -->|Check| S3Cache
-    Lambda -->|Fetch| S3Templates
-    Lambda -->|Fetch| GitHub
+    Lambda -->|Fetch with Priority| S3Multi
+    Lambda -->|Fetch with Priority| GitHubMulti
     Lambda -->|Log| CW
     CW -->|Trigger| Alarms
 ```
@@ -370,25 +383,43 @@ const {
 		DebugAndLog,
 		Timer
 	}
-};
+} = require('@63klabs/cache-data');
 const Config = require('../config');
 const Models = require('../models');
 
 /**
- * List templates with caching
+ * List templates with caching and multi-bucket support
  * @param {Object} options - Filter options
  * @param {string} options.category - Template category (optional)
- * @param {string} options.version - Template version found in template comments eg v2.0.5/2026-01-07 (optional) 
+ * @param {string} options.version - Template version (Human_Readable_Version, optional) 
  * @param {string} options.versionId - S3 object Version Id (optional)
+ * @param {Array<string>} options.s3Buckets - Filter to specific buckets (optional, validated against settings)
  * @returns {Promise<Array>} Array of template metadata
  */
 const list = async (options = {}) => {
-  const { category, version, versionId } = options;
+  const { category, version, versionId, s3Buckets } = options;
   
   // Get connection and cache profile from config
   const { conn, cacheProfile } = Config.getConnCacheProfile('s3-templates', 'templates-list');
   
-  conn.parameters = {templateName, version, versionId};
+  // Determine which buckets to search (filtered or all)
+  let bucketsToSearch = s3Buckets;
+  if (!bucketsToSearch || bucketsToSearch.length === 0) {
+    bucketsToSearch = Config.settings().atlantisS3Buckets;
+  } else {
+    // Validate that requested buckets are in configured buckets
+    const validBuckets = Config.settings().atlantisS3Buckets;
+    bucketsToSearch = bucketsToSearch.filter(b => validBuckets.includes(b));
+    if (bucketsToSearch.length === 0) {
+      throw new Error('No valid S3 buckets specified');
+    }
+  }
+  
+  // Set host to array of buckets (used in cache key)
+  conn.host = bucketsToSearch;
+  
+  // Set parameters for cache key and DAO filtering
+  conn.parameters = { category, version, versionId };
 
   // Define fetch function for cache miss
   const fetchFunction = async (connection, opts) => {
@@ -400,35 +431,49 @@ const list = async (options = {}) => {
     cacheProfile,
     fetchFunction,
     conn,
-    {}, // can be used in the future to pass application credentials, timestamps, functions, etc that should not be included in the cache-key.
+    {}, // options: for functions, tokens, non-cache data
   );
   
   return result.body;
 };
 
 /**
- * Get specific template with caching
- * @param {string} options.category - Template category pipeline|service-role|storage|network
+ * Get specific template with caching and multi-bucket support
+ * @param {Object} options - Template identification
+ * @param {string} options.category - Template category
  * @param {string} options.templateName - Template name
- * @param {string} options.version - Template version found in template comments eg v2.0.5/2026-01-07 (optional) 
+ * @param {string} options.version - Template version (Human_Readable_Version, optional) 
  * @param {string} options.versionId - S3 object Version Id (optional)
+ * @param {Array<string>} options.s3Buckets - Filter to specific buckets (optional)
  * @returns {Promise<Object>} Template details
  */
 const get = async (options = {}) => {
-  const { category, templateName, version, versionId } = options;
+  const { category, templateName, version, versionId, s3Buckets } = options;
 
-  const { conn, cacheProfile } = Config.getConnCacheProfile('s3-templates', 'templates-list');
+  const { conn, cacheProfile } = Config.getConnCacheProfile('s3-templates', 'template-detail');
 
-  // the cacheProfile.pathId is for logging
-  cacheProfile.pathId = `${cacheProfile.pathId}:${conn.path}/${category}/${templateName}`;
-  // set parameters so we key the cache and provide a query
-  conn.parameters = {category, templateName, version, versionId};
+  // Determine which buckets to search
+  let bucketsToSearch = s3Buckets;
+  if (!bucketsToSearch || bucketsToSearch.length === 0) {
+    bucketsToSearch = Config.settings().atlantisS3Buckets;
+  } else {
+    const validBuckets = Config.settings().atlantisS3Buckets;
+    bucketsToSearch = bucketsToSearch.filter(b => validBuckets.includes(b));
+  }
+  
+  conn.host = bucketsToSearch;
+
+  // Update pathId for logging with specific template
+  cacheProfile.pathId = `${cacheProfile.pathId}:${category}/${templateName}`;
+  
+  // Set parameters for cache key and DAO query
+  conn.parameters = { category, templateName, version, versionId };
   
   const fetchFunction = async (connection, opts) => {
     const template = await Models.S3Templates.get(connection, opts);
     if (!template) {
-      const p = ("parameters" in connection ? connection.parameters : {});
-      const error = new Error(`Template not found: ${p?.category}/${p?.templateName}${(p?.version ? `:${p?.version}` : '')}${(p?.versionId ? `?${p?.versionId}` : '')}`);
+      const p = connection.parameters || {};
+      const error = new Error(`Template not found: ${p.category}/${p.templateName}${p.version ? `:${p.version}` : ''}${p.versionId ? `?versionId=${p.versionId}` : ''}`);
       error.code = 'TEMPLATE_NOT_FOUND';
       throw error;
     }
@@ -439,13 +484,52 @@ const get = async (options = {}) => {
     cacheProfile,
     fetchFunction,
     conn,
-    {}, // can be used in the future to pass application credentials, timestamps, functions, etc that should not be included in the cache-key.
+    {},
   );
   
   return result.body;
 };
 
-module.exports = { list, get };
+/**
+ * List all versions of a specific template
+ * @param {Object} options - Template identification
+ * @param {string} options.category - Template category
+ * @param {string} options.templateName - Template name
+ * @param {Array<string>} options.s3Buckets - Filter to specific buckets (optional)
+ * @returns {Promise<Object>} Template version history
+ */
+const listVersions = async (options = {}) => {
+  const { category, templateName, s3Buckets } = options;
+  
+  const { conn, cacheProfile } = Config.getConnCacheProfile('s3-templates', 'template-versions');
+  
+  // Determine which buckets to search
+  let bucketsToSearch = s3Buckets;
+  if (!bucketsToSearch || bucketsToSearch.length === 0) {
+    bucketsToSearch = Config.settings().atlantisS3Buckets;
+  } else {
+    const validBuckets = Config.settings().atlantisS3Buckets;
+    bucketsToSearch = bucketsToSearch.filter(b => validBuckets.includes(b));
+  }
+  
+  conn.host = bucketsToSearch;
+  conn.parameters = { category, templateName };
+  
+  const fetchFunction = async (connection, opts) => {
+    return await Models.S3Templates.listVersions(connection, opts);
+  };
+  
+  const result = await CacheableDataAccess.getData(
+    cacheProfile,
+    fetchFunction,
+    conn,
+    {},
+  );
+  
+  return result.body;
+};
+
+module.exports = { list, get, listVersions };
 ```
 
 **Service Design Patterns**:
@@ -471,103 +555,407 @@ module.exports = { list, get };
 
 **Example: S3 Templates DAO (src/models/s3-templates.js)**:
 ```javascript
-const { AWS } = require('@63klabs/cache-data').tools;
+const { AWS, DebugAndLog } = require('@63klabs/cache-data').tools;
+const Config = require('../config');
 
 /**
- * List all templates from S3 bucket
- * @param {Object} connection - Connection object with host (bucket) and path (prefix) and parameters
- * @param {string} connection.host - The S3 bucket name
- * @param {string} connection.path - The S3 object key prefix
- * @param {string} connection.parameters.category - Template category
- * @param {string} connection.parameters.version - Template version
- * @param {string} connection.parameters.versionId - S3 Object Version of Template
- * @param {string} options - Reserved for future use. options is not used in the cache key and can be used to pass functions, confing, context, and supplemental data that is not integral to the cache.
- * @returns {Promise<Array>} Array of template metadata
+ * List all templates from S3 buckets with brown-out support
+ * @param {Object} connection - Connection object
+ * @param {Array<string>|string} connection.host - S3 bucket name(s)
+ * @param {string} connection.path - S3 object key prefix (e.g., "templates/v2")
+ * @param {Object} connection.parameters - Query parameters
+ * @param {string} connection.parameters.category - Template category filter
+ * @param {string} connection.parameters.version - Human_Readable_Version filter
+ * @param {string} connection.parameters.versionId - S3 VersionId filter
+ * @param {Object} options - Reserved for future use (not in cache key)
+ * @returns {Promise<Object>} { templates: Array, errors: Array }
  */
 const list = async (connection, options = {}) => {
-  const { category, version, versionId } = connection.parameters;
+  const { category, version, versionId } = connection.parameters || {};
   
-  const bucket = connection.host;
-  const prefix = connection.path;
+  // Ensure host is an array
+  const buckets = Array.isArray(connection.host) ? connection.host : [connection.host];
   
-  // List objects in S3
-  const params = {
-    Bucket: bucket,
-    Prefix: prefix
+  const allTemplates = [];
+  const errors = [];
+  
+  // Iterate through buckets in priority order
+  for (const bucket of buckets) {
+    try {
+      // Check if bucket has atlantis-mcp:Allow=true tag
+      const allowAccess = await checkBucketAccess(bucket);
+      if (!allowAccess) {
+        DebugAndLog.warn(`Bucket ${bucket} does not have atlantis-mcp:Allow=true tag, skipping`);
+        errors.push({
+          source: bucket,
+          sourceType: 's3',
+          error: 'Bucket access not allowed',
+          timestamp: new Date().toISOString()
+        });
+        continue;
+      }
+      
+      // Get IndexPriority tag to determine which namespaces to index
+      const namespaces = await getIndexedNamespaces(bucket);
+      if (namespaces.length === 0) {
+        DebugAndLog.warn(`Bucket ${bucket} has no namespaces in IndexPriority tag, skipping`);
+        continue;
+      }
+      
+      // List templates from each namespace
+      for (const namespace of namespaces) {
+        const prefix = `${namespace}/${connection.path}`;
+        
+        const params = {
+          Bucket: bucket,
+          Prefix: prefix
+        };
+        
+        const s3 = AWS.s3;
+        const response = await s3.client.send(new (require('@aws-sdk/client-s3').ListObjectsV2Command)(params));
+        
+        // Parse template metadata from S3 keys
+        const templates = (response.Contents || [])
+          .filter(obj => obj.Key.endsWith('.yml') || obj.Key.endsWith('.yaml'))
+          .map(obj => parseTemplateMetadata(obj, bucket, namespace))
+          .filter(t => filterByCategory(t, category))
+          .filter(t => filterByVersion(t, version))
+          .filter(t => filterByVersionId(t, versionId));
+        
+        allTemplates.push(...templates);
+      }
+    } catch (error) {
+      // Brown-out support: log error but continue with other buckets
+      DebugAndLog.warn(`Failed to list templates from bucket ${bucket}: ${error.message}`);
+      errors.push({
+        source: bucket,
+        sourceType: 's3',
+        error: error.message,
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+  
+  // Deduplicate templates (first occurrence wins due to priority ordering)
+  const uniqueTemplates = deduplicateTemplates(allTemplates);
+  
+  return {
+    templates: uniqueTemplates,
+    errors: errors.length > 0 ? errors : undefined,
+    partialData: errors.length > 0
   };
-  
-  const s3 = AWS.s3;
-  const response = await s3.client.listObjectsV2(params);
-  
-  // Parse template metadata from S3 keys
-  const templates = response.Contents
-    .filter(obj => obj.Key.endsWith('.yml') || obj.Key.endsWith('.yaml'))
-    .map(obj => parseTemplateMetadata(obj))
-    .filter(t => filterByCategory(t, category))
-    .filter(t => filterByVersion(t, version))
-    .filter(t => filterByVersionId(t, versionId));
-  
-  return templates;
 };
 
 /**
- * Get specific template from S3
+ * Get specific template from S3 buckets with brown-out support
+ * @param {Object} connection - Connection object
+ * @param {Array<string>|string} connection.host - S3 bucket name(s)
+ * @param {string} connection.path - S3 object key prefix
+ * @param {Object} connection.parameters - Query parameters
  * @param {string} connection.parameters.category - Template category
  * @param {string} connection.parameters.templateName - Template name
- * @param {string} connection.parameters.version - Template version
- * @param {string} connection.parameters.versionId - S3 object versionId for template
- * @param {string} options - Reserved for future use. options is not used in the cache key and can be used to pass functions, confing, context, and supplemental data that is not integral to the cache.
- * @returns {Promise<Object>} Template details
+ * @param {string} connection.parameters.version - Human_Readable_Version (optional)
+ * @param {string} connection.parameters.versionId - S3 VersionId (optional)
+ * @param {Object} options - Reserved for future use
+ * @returns {Promise<Object>} Template details or null
  */
 const get = async (connection, options = {}) => {
-  const {category, templateName, version, versionId} = connection.parameters;
-  const bucket = connection.host;
-  const key = buildTemplateKey(connection.path, category, templateName);
+  const { category, templateName, version, versionId } = connection.parameters || {};
   
-  const s3 = AWS.s3;
+  const buckets = Array.isArray(connection.host) ? connection.host : [connection.host];
   
-  try {
-    const response = await s3.get({
-      Bucket: bucket,
-      Key: key
-    }); // TODO if versionId we need to get the object by S3 object's versionId
-    
-    const templateContent = response.Body.toString('utf-8');
-    const parsed = parseCloudFormationTemplate(templateContent);
-    
-    return {
-      name: templateName,
-      version: parsed.version,
-      versionId: versionId,
-      content: templateContent,
-      parameters: parsed.Parameters,
-      outputs: parsed.Outputs,
-      description: parsed.Description,
-      s3Path: `s3://${bucket}/${key}`
-    };
-  } catch (error) {
-    if (error.code === 'NoSuchKey') {
-      return null;
+  // Search buckets in priority order
+  for (const bucket of buckets) {
+    try {
+      const allowAccess = await checkBucketAccess(bucket);
+      if (!allowAccess) {
+        continue;
+      }
+      
+      const namespaces = await getIndexedNamespaces(bucket);
+      
+      // Search namespaces in priority order
+      for (const namespace of namespaces) {
+        const key = buildTemplateKey(namespace, connection.path, category, templateName);
+        
+        const s3 = AWS.s3;
+        
+        try {
+          const getParams = {
+            Bucket: bucket,
+            Key: key
+          };
+          
+          // If versionId specified, add it to params
+          if (versionId) {
+            getParams.VersionId = versionId;
+          }
+          
+          const response = await s3.get(getParams);
+          
+          const templateContent = response.Body.toString('utf-8');
+          const parsed = parseCloudFormationTemplate(templateContent);
+          
+          // If version specified, check if it matches
+          if (version && parsed.version !== version) {
+            continue; // Try next namespace/bucket
+          }
+          
+          return {
+            name: templateName,
+            version: parsed.version,
+            versionId: response.VersionId,
+            content: templateContent,
+            parameters: parsed.Parameters,
+            outputs: parsed.Outputs,
+            description: parsed.Description,
+            category: category,
+            namespace: namespace,
+            bucket: bucket,
+            s3Path: `s3://${bucket}/${key}`,
+            lastModified: response.LastModified,
+            size: response.ContentLength
+          };
+        } catch (error) {
+          if (error.name === 'NoSuchKey') {
+            continue; // Try next namespace/bucket
+          }
+          throw error;
+        }
+      }
+    } catch (error) {
+      DebugAndLog.warn(`Failed to get template from bucket ${bucket}: ${error.message}`);
+      // Continue to next bucket
     }
-    throw error;
+  }
+  
+  // Template not found in any bucket
+  return null;
+};
+
+/**
+ * List all versions of a specific template
+ * @param {Object} connection - Connection object
+ * @param {Object} options - Reserved for future use
+ * @returns {Promise<Object>} Version history
+ */
+const listVersions = async (connection, options = {}) => {
+  const { category, templateName } = connection.parameters || {};
+  
+  const buckets = Array.isArray(connection.host) ? connection.host : [connection.host];
+  
+  // Find the bucket/namespace where template exists
+  for (const bucket of buckets) {
+    try {
+      const allowAccess = await checkBucketAccess(bucket);
+      if (!allowAccess) continue;
+      
+      const namespaces = await getIndexedNamespaces(bucket);
+      
+      for (const namespace of namespaces) {
+        const key = buildTemplateKey(namespace, connection.path, category, templateName);
+        
+        const s3 = AWS.s3;
+        const { ListObjectVersionsCommand } = require('@aws-sdk/client-s3');
+        
+        const params = {
+          Bucket: bucket,
+          Prefix: key
+        };
+        
+        const response = await s3.client.send(new ListObjectVersionsCommand(params));
+        
+        if (!response.Versions || response.Versions.length === 0) {
+          continue;
+        }
+        
+        // Parse versions and extract metadata
+        const versions = await Promise.all(
+          response.Versions.map(async (v) => {
+            try {
+              // Get template content to extract Human_Readable_Version
+              const getParams = {
+                Bucket: bucket,
+                Key: key,
+                VersionId: v.VersionId
+              };
+              const content = await s3.get(getParams);
+              const parsed = parseCloudFormationTemplate(content.Body.toString('utf-8'));
+              
+              return {
+                version: parsed.version,
+                versionId: v.VersionId,
+                lastModified: v.LastModified,
+                size: v.Size,
+                author: parsed.author || 'Unknown',
+                isLatest: v.IsLatest
+              };
+            } catch (error) {
+              DebugAndLog.warn(`Failed to parse version ${v.VersionId}: ${error.message}`);
+              return null;
+            }
+          })
+        );
+        
+        return {
+          templateName,
+          category,
+          namespace,
+          bucket,
+          versions: versions.filter(v => v !== null).sort((a, b) => 
+            new Date(b.lastModified) - new Date(a.lastModified)
+          )
+        };
+      }
+    } catch (error) {
+      DebugAndLog.warn(`Failed to list versions from bucket ${bucket}: ${error.message}`);
+    }
+  }
+  
+  return { templateName, category, versions: [] };
+};
+
+/**
+ * Check if bucket has atlantis-mcp:Allow=true tag
+ */
+const checkBucketAccess = async (bucket) => {
+  try {
+    const s3 = AWS.s3;
+    const { GetBucketTaggingCommand } = require('@aws-sdk/client-s3');
+    const response = await s3.client.send(new GetBucketTaggingCommand({ Bucket: bucket }));
+    
+    const allowTag = response.TagSet?.find(tag => 
+      tag.Key === Config.settings().s3.allowTag
+    );
+    
+    return allowTag && allowTag.Value === 'true';
+  } catch (error) {
+    DebugAndLog.warn(`Failed to check bucket tags for ${bucket}: ${error.message}`);
+    return false;
   }
 };
 
 /**
- * Parse CloudFormation template YAML
- * @param {string} content - Template content
- * @returns {Object} Parsed template
+ * Get indexed namespaces from bucket IndexPriority tag
+ */
+const getIndexedNamespaces = async (bucket) => {
+  try {
+    const s3 = AWS.s3;
+    const { GetBucketTaggingCommand } = require('@aws-sdk/client-s3');
+    const response = await s3.client.send(new GetBucketTaggingCommand({ Bucket: bucket }));
+    
+    const priorityTag = response.TagSet?.find(tag => 
+      tag.Key === Config.settings().s3.indexPriorityTag
+    );
+    
+    if (!priorityTag) {
+      return [];
+    }
+    
+    // Parse comma-delimited list and return in priority order
+    return priorityTag.Value.split(',').map(ns => ns.trim()).filter(ns => ns.length > 0);
+  } catch (error) {
+    DebugAndLog.warn(`Failed to get IndexPriority tag for ${bucket}: ${error.message}`);
+    return [];
+  }
+};
+
+/**
+ * Build S3 key for template
+ */
+const buildTemplateKey = (namespace, basePath, category, templateName) => {
+  // Prefer .yml extension
+  return `${namespace}/${basePath}/${category}/${templateName}.yml`;
+};
+
+/**
+ * Parse CloudFormation template YAML and extract metadata
  */
 const parseCloudFormationTemplate = (content) => {
   const yaml = require('js-yaml');
-  // TODO: Grab version from first 30 lines which are commented out using the pattern: 
-  // # Version: vX.X.X/YYYY-MM-DD
-  // For example:
-  // # Version: v2.0.5/2026-01-07
-  return yaml.load(content);
+  const parsed = yaml.load(content);
+  
+  // Extract version from first 30 lines of comments
+  // Pattern: # Version: vX.X.X/YYYY-MM-DD
+  const lines = content.split('\n').slice(0, 30);
+  let version = 'unknown';
+  let author = 'Unknown';
+  
+  for (const line of lines) {
+    const versionMatch = line.match(/# Version:\s*(v[\d.]+\/\d{4}-\d{2}-\d{2})/);
+    if (versionMatch) {
+      version = versionMatch[1];
+    }
+    
+    const authorMatch = line.match(/# Author:\s*(.+)/);
+    if (authorMatch) {
+      author = authorMatch[1].trim();
+    }
+  }
+  
+  return {
+    ...parsed,
+    version,
+    author
+  };
 };
 
-module.exports = { list, get };
+/**
+ * Deduplicate templates by name (first occurrence wins)
+ */
+const deduplicateTemplates = (templates) => {
+  const seen = new Set();
+  return templates.filter(t => {
+    const key = `${t.category}/${t.name}`;
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+};
+
+/**
+ * Filter helpers
+ */
+const filterByCategory = (template, category) => {
+  return !category || template.category === category;
+};
+
+const filterByVersion = (template, version) => {
+  return !version || template.version === version;
+};
+
+const filterByVersionId = (template, versionId) => {
+  return !versionId || template.versionId === versionId;
+};
+
+/**
+ * Parse template metadata from S3 object
+ */
+const parseTemplateMetadata = (s3Object, bucket, namespace) => {
+  // Extract category and name from key
+  // Format: {namespace}/templates/v2/{category}/{templateName}.yml
+  const keyParts = s3Object.Key.split('/');
+  const category = keyParts[keyParts.length - 2];
+  const fileName = keyParts[keyParts.length - 1];
+  const name = fileName.replace(/\.(yml|yaml)$/, '');
+  
+  return {
+    name,
+    category,
+    namespace,
+    bucket,
+    s3Path: `s3://${bucket}/${s3Object.Key}`,
+    lastModified: s3Object.LastModified,
+    size: s3Object.Size,
+    // Version and versionId will be populated when template content is fetched
+    version: null,
+    versionId: s3Object.VersionId
+  };
+};
+
+module.exports = { list, get, listVersions };
 ```
 
 **DAO Design Patterns**:
@@ -648,11 +1036,13 @@ module.exports = { successResponse, errorResponse };
 ```javascript
 {
   name: string,              // Template name (e.g., "template-storage-s3-artifacts")
-  version: string,           // Version number (e.g., "v2.0.5/2026-01-07")
-  versionId: string,         // The S3 Object Version
-  category: string,          // Category: storage, network, pipeline, service-role
+  version: string,           // Human-readable version (e.g., "v2.0.5/2026-01-07")
+  versionId: string,         // S3 Object Version ID
+  category: string,          // Category: Storage, Network, Pipeline, Service Role, Modules
+  namespace: string,         // Namespace (e.g., "atlantis", "finance", "devops")
+  bucket: string,            // S3 bucket name
   description: string,       // Template description
-  s3Path: string,           // S3 URI (e.g., "s3://bucket/templates/...")
+  s3Path: string,           // S3 URI (e.g., "s3://bucket/namespace/templates/v2/...")
   lastModified: string,     // ISO 8601 timestamp
   size: number,             // File size in bytes
   parameters: Array<{       // CloudFormation parameters
@@ -676,9 +1066,17 @@ module.exports = { successResponse, errorResponse };
 {
   name: string,              // Starter name (e.g., "atlantis-starter-02")
   description: string,       // Short description
-  languages: Array<string>,  // "Node.js", "Python"
-  githubUrl: string,         // GitHub repository URL
+  language: string,          // "Node.js" or "Python"
+  framework: string,         // Framework name (e.g., "Express", "FastAPI")
   features: Array<string>,   // List of features
+  prerequisites: Array<string>, // Prerequisites for using starter
+  author: string,            // Author name
+  license: string,           // License type
+  namespace: string,         // Namespace (e.g., "atlantis", "finance")
+  bucket: string,            // S3 bucket name
+  githubUrl: string,         // GitHub repository URL
+  githubOrg: string,         // GitHub user/org name
+  repositoryType: string,    // From custom property: "app-starter"
   readme: string,            // README content (markdown)
   latestRelease: {           // Latest release information
     version: string,
@@ -689,7 +1087,8 @@ module.exports = { successResponse, errorResponse };
     stars: number,
     forks: number,
     lastUpdated: string
-  }
+  },
+  sidecarMetadata: boolean  // Whether metadata came from sidecar file
 }
 ```
 
@@ -702,13 +1101,22 @@ module.exports = { successResponse, errorResponse };
   excerpt: string,          // Relevant excerpt (200 chars)
   filePath: string,         // File path in repository
   githubUrl: string,        // Direct GitHub URL
-  type: string,             // guide, tutorial, reference, troubleshooting
+  type: string,             // documentation, template-pattern, code-example
+  subType: string,          // guide, tutorial, reference, troubleshooting, resource, function
   relevanceScore: number,   // 0-1 relevance score
-  repository: string,       // atlantis or atlantis-tutorials
+  repository: string,       // Repository name
+  repositoryType: string,   // From custom property: documentation, app-starter, templates, etc.
+  namespace: string,        // Namespace if from S3-indexed content
   codeExamples: Array<{     // Extracted code examples
     language: string,
-    code: string
-  }>
+    code: string,
+    lineNumbers: string     // e.g., "45-67"
+  }>,
+  context: {                // Additional context for code patterns
+    templateSection: string, // For templates: Metadata, Parameters, Resources, etc.
+    resourceType: string,    // For templates: AWS::S3::Bucket, etc.
+    functionName: string     // For code: function/method name
+  }
 }
 ```
 
@@ -750,11 +1158,89 @@ module.exports = { successResponse, errorResponse };
 ```javascript
 {
   templateName: string,     // Template name
-  latestVersion: string,    // Latest available version
+  currentVersion: string,   // Current version (Human_Readable_Version)
+  currentVersionId: string, // Current S3 VersionId
+  latestVersion: string,    // Latest available version (Human_Readable_Version)
+  latestVersionId: string,  // Latest S3 VersionId
   releaseDate: string,      // Latest version release date
   changelogSummary: string, // Summary of changes
   breakingChanges: boolean, // Whether update has breaking changes
-  migrationGuideUrl: string // URL to migration guide (if breaking)
+  migrationGuideUrl: string, // URL to migration guide (if breaking)
+  updateAvailable: boolean, // Whether an update is available
+  namespace: string,        // Namespace where latest version found
+  bucket: string            // Bucket where latest version found
+}
+```
+
+### Template Version History Model
+
+```javascript
+{
+  templateName: string,     // Template name
+  category: string,         // Template category
+  versions: Array<{         // All versions ordered by date (newest first)
+    version: string,        // Human-readable version (e.g., "v2.0.5/2026-01-07")
+    versionId: string,      // S3 VersionId
+    lastModified: string,   // ISO 8601 timestamp
+    size: number,           // File size in bytes
+    author: string,         // Extracted from template comments
+    isLatest: boolean       // Whether this is the latest version
+  }>,
+  namespace: string,        // Namespace
+  bucket: string            // S3 bucket
+}
+```
+
+### Template Category Model
+
+```javascript
+{
+  name: string,             // Category name: Storage, Network, Pipeline, Service Role, Modules
+  description: string,      // Category description
+  templateCount: number,    // Number of templates in this category
+  examples: Array<string>   // Example template names
+}
+```
+
+### Namespace Discovery Model
+
+```javascript
+{
+  namespace: string,        // Namespace name (e.g., "atlantis", "finance")
+  bucket: string,           // S3 bucket name
+  priority: number,         // Priority order (lower = higher priority)
+  templateCount: number,    // Number of templates in namespace
+  starterCount: number,     // Number of starters in namespace
+  indexed: boolean          // Whether namespace is in IndexPriority tag
+}
+```
+
+### Sidecar Metadata Model
+
+```javascript
+{
+  name: string,             // App starter name
+  description: string,      // Description
+  language: string,         // Programming language
+  framework: string,        // Framework name
+  features: Array<string>,  // List of features
+  prerequisites: Array<string>, // Prerequisites
+  author: string,           // Author
+  license: string,          // License type
+  repositoryType: string,   // From GitHub custom property
+  version: string,          // Version number
+  lastUpdated: string       // ISO 8601 timestamp
+}
+```
+
+### Brown-Out Error Model
+
+```javascript
+{
+  source: string,           // Source that failed: bucket name or GitHub org
+  sourceType: string,       // "s3" or "github"
+  error: string,            // User-friendly error message
+  timestamp: string         // ISO 8601 timestamp
 }
 ```
 
@@ -762,14 +1248,16 @@ module.exports = { successResponse, errorResponse };
 
 ### Connection Configuration (src/config/connections.js)
 
+**Note**: The `host` field in connections is set dynamically in services based on filtering. The connections define the base configuration, and services will set `conn.host` to the appropriate bucket(s) from `Config.settings().atlantisS3Buckets` based on optional filtering.
+
 ```javascript
 const { tools: {DebugAndLog} } = require("@63klabs/cache-data");
 
 const connections = [
   {
     name: "s3-templates",
-    host: process.env.ATLANTIS_S3_BUCKETS.split(','),
-    path: `${process.env.ATLANTIS_S3_PREFIX}$/templates/v2`,
+    host: null, // Set dynamically in service based on atlantisS3Buckets from settings
+    path: "templates/v2", // Namespace will be prepended in DAO
     cache: [
       {
         profile: "templates-list",
@@ -790,13 +1278,23 @@ const connections = [
         hostId: "s3-templates",
         pathId: "detail",
         encrypt: false
+      },
+      {
+        profile: "template-versions",
+        overrideOriginHeaderExpiration: true,
+        defaultExpirationInSeconds: (DebugAndLog.isProduction() ? (5 * 60) : (1 * 60)), // 5 min prod, 1 min test
+        expirationIsOnInterval: false,
+        headersToRetain: "",
+        hostId: "s3-templates",
+        pathId: "versions",
+        encrypt: false
       }
     ]
   },
-    {
+  {
     name: "s3-app-starters",
-    host: process.env.ATLANTIS_S3_BUCKETS.split(','),
-    path: `${process.env.ATLANTIS_S3_PREFIX}$/app-starters/v2`,
+    host: null, // Set dynamically in service based on atlantisS3Buckets from settings
+    path: "app-starters/v2", // Namespace will be prepended in DAO
     cache: [
       {
         profile: "app-starters-list",
@@ -809,7 +1307,7 @@ const connections = [
         encrypt: false
       },
       {
-        profile: "template-detail",
+        profile: "starter-detail",
         overrideOriginHeaderExpiration: true,
         defaultExpirationInSeconds: (DebugAndLog.isProduction() ? (24 * 60 * 60) : (5 * 60)), // 24 hours prod, 5 min test
         expirationIsOnInterval: false,
@@ -834,6 +1332,16 @@ const connections = [
         hostId: "github",
         pathId: "metadata",
         encrypt: false
+      },
+      {
+        profile: "repo-properties",
+        overrideOriginHeaderExpiration: true,
+        defaultExpirationInSeconds: (DebugAndLog.isProduction() ? (60 * 60) : (5 * 60)), // 1 hour prod, 5 min test
+        expirationIsOnInterval: false,
+        headersToRetain: "",
+        hostId: "github",
+        pathId: "properties",
+        encrypt: false
       }
     ]
   },
@@ -851,6 +1359,16 @@ const connections = [
         hostId: "docs",
         pathId: "index",
         encrypt: false
+      },
+      {
+        profile: "code-patterns",
+        overrideOriginHeaderExpiration: true,
+        defaultExpirationInSeconds: (DebugAndLog.isProduction() ? (6 * 60 * 60) : (5 * 60)), // 6 hours prod, 5 min test
+        expirationIsOnInterval: false,
+        headersToRetain: "",
+        hostId: "docs",
+        pathId: "patterns",
+        encrypt: false
       }
     ]
   }
@@ -867,26 +1385,97 @@ module.exports = connections;
 2. **DynamoDB Cache**: Shared across invocations, millisecond latency
 3. **S3 Cache**: For large objects, second latency
 
+**Downstream Caching Support**:
+- Cache-data supports caching processed data separately from source data
+- Example: Cache raw templates (Cache A) → process/index → cache indexed patterns (Cache B)
+- Each cache uses its own connection and cache profile configuration
+- Enables efficient multi-stage data processing with independent TTLs
+
 **TTL Configuration by Resource Type**:
 
 | Resource Type | Production TTL | Test TTL | Tier | Rationale |
 |--------------|----------------|----------|------|-----------|
 | Template List | 1 hour | 5 minutes | DynamoDB | Changes infrequently, small payload |
 | Template Detail | 24 hours | 5 minutes | S3 | Large YAML files, rarely change |
+| Template Versions | 5 minutes | 1 minute | DynamoDB | Frequently checked for updates |
 | Starter List | 1 hour | 5 minutes | DynamoDB | Changes infrequently, small payload |
 | Starter Detail | 30 minutes | 5 minutes | DynamoDB | GitHub data, moderate change rate |
 | Documentation Index | 6 hours | 5 minutes | DynamoDB | Large but compressible, daily updates |
-| Version Info | 5 minutes | 1 minute | In-Memory | Frequently checked, small payload |
+| Code Patterns | 6 hours | 5 minutes | DynamoDB | Indexed from templates/starters |
+| Namespace Discovery | 1 hour | 5 minutes | In-Memory | S3 bucket structure, rarely changes |
 
 **Cache Key Strategy**:
-- Use consistent key format: `{hostId}/{pathId}/{resourceId}/{version}`
-- Include version in key for template-specific caching
-- Use query parameters in key for filtered lists
-- Example: `s3-templates/list/Storage/latest`
-- Example: `github/metadata/atlantis-starter-02/main`
+- Include bucket array in cache key (order matters for priority)
+- Include GitHub org array in cache key (order matters for priority)
+- Include namespace in cache key for S3 resources
+- Include version/versionId in cache key for specific versions
+- Example: `s3-templates/list/Storage/atlantis/latest`
+- Example: `github/metadata/63klabs/atlantis-starter-02`
 
 **Cache Invalidation**:
 - TTL-based expiration (no manual invalidation in Phase 1)
+- Short TTLs in test environment for rapid iteration
+- Longer TTLs in production for cost optimization
+- Future: Add manual invalidation API in Phase 2
+
+### Settings Configuration (src/config/settings.js)
+
+```javascript
+const settings = {
+  // Multiple S3 buckets with priority ordering (first = highest priority)
+  atlantisS3Buckets: process.env.ATLANTIS_S3_BUCKETS.split(',').map(b => b.trim()),
+  
+  // Multiple GitHub users/orgs with priority ordering (first = highest priority)
+  githubUsers: process.env.ATLANTIS_GITHUB_USER_ORGS.split(',').map(u => u.trim()),
+  
+  // Template categories (extensible)
+  templateCategories: [
+    { name: 'Storage', description: 'S3, DynamoDB, and data storage templates' },
+    { name: 'Network', description: 'CloudFront, Route53, and networking templates' },
+    { name: 'Pipeline', description: 'CodePipeline, CodeBuild CI/CD templates' },
+    { name: 'Service Role', description: 'IAM roles and policies templates' },
+    { name: 'Modules', description: 'Reusable CloudFormation definitions' }
+  ],
+  
+  // Repository types from GitHub custom properties
+  repositoryTypes: [
+    'documentation',
+    'app-starter',
+    'templates',
+    'management',
+    'package',
+    'mcp'
+  ],
+  
+  // Naming convention configuration
+  naming: {
+    prefix: process.env.NAMING_PREFIX,
+    projectId: process.env.NAMING_PROJECT_ID,
+    stageId: process.env.NAMING_STAGE_ID
+  },
+  
+  // Cache TTL configuration (seconds)
+  cacheTTL: {
+    templates: parseInt(process.env.ATLANTIS_TEMPLATE_CACHE_TTL || '3600'),
+    starters: parseInt(process.env.ATLANTIS_STARTER_CACHE_TTL || '3600'),
+    documentation: parseInt(process.env.ATLANTIS_DOCUMENTATION_CACHE_TTL || '21600')
+  },
+  
+  // GitHub configuration
+  github: {
+    tokenParameter: process.env.GITHUB_TOKEN_PARAMETER || '',
+    apiBaseUrl: 'https://api.github.com'
+  },
+  
+  // S3 configuration
+  s3: {
+    allowTag: 'atlantis-mcp:Allow',
+    indexPriorityTag: 'atlantis-mcp:IndexPriority'
+  }
+};
+
+module.exports = settings;
+```
 - Short TTLs in test environment for rapid iteration
 - Longer TTLs in production for cost optimization
 - Future: Add manual invalidation API in Phase 2

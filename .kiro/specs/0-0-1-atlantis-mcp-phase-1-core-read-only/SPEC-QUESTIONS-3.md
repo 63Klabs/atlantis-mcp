@@ -29,7 +29,7 @@ You mentioned allowing an array of GitHub user/orgs.
 - For the `list_starters` tool, should we aggregate results from all user/orgs?
 - Should we add filtering by user/org in the MCP tool inputs?
 
-Yes, i have included the CloudFormation parameter, environment variable, and settings in the design doc code examples.
+Yes, i have included the CloudFormation parameter, environment variable, and settings in the design doc code examples. Be sure to review my changes. It is important we retain the code examples in design.md.
 "githubUsers": process.env.ATLANTIS_GITHUB_USER_ORGS.split(',')
 
 When searching, similar to multiple S3 buckets, we should provide a filtering option. ghusers should be in options. If it is not empty/null/undefined, then it should be passed as a conn.parameters.ghusers as an array. (Only valid values from settings.) If there is no ghusers, then add settings().githubUsers to conn.parameters.ghusers
@@ -104,6 +104,7 @@ Do what ever is easiest for extracting zip or relying on GitHub.
 Include documentation on adding a script to the github actions that would generate the sidecar file and store it along with the zip in json.
 When reading from the GitHub repo, it should be extracted from the metadata using the custom property.
 The zip file should match the github repository name.
+It may be useful to index the readme headings, template resources and parameters, and exported methods and top of document comments.
 
 ## 6. Template Version Identifiers
 
@@ -136,7 +137,25 @@ You updated the S3 paths to:
 
 **Answer**
 
-`atlantis/` is not fixed but there are currently no other prefixes that would replace it. However, to remain future thinking, we should provide a default in settings.js. We do not need to provide a template parameter or environment variable at this time. Templates are stored with the .yml extension, but support both when searching. .yml takes precedence if there are two named the same (in same bucket w/ same prefix)
+`atlantis/` is not fixed and organizations may store custom templates.
+The format is {namespace}/templates/v2/, {namespace}/app-starters/v2, etc
+There could be:
+
+```
+atlantis/
+finance/
+devops/
+```
+
+We should examine the s3 bucket for any directories at the root and aggregate them.
+More than likely there will only be atlantis and one other.
+Priority should be assigned based upon an S3 tag for that bucket: 
+`atlantis-mcp:IndexPriority=devops,finance,atlantis`
+We should only index those directories listed in the `atlantis-mcp:IndexPriority` tag value.
+Also, we should only access S3 buckets that have the tag:
+`atlantis-mcp:Allow=true` (if the tag is non-existent or set to any other value we log a warning and skip)
+
+Templates are stored with the .yml extension, but support both when searching. .yml takes precedence if there are two named the same (in same bucket w/ same prefix)
 
 ## 8. ReadLambdaExecRoleIncludeManagedPolicyArns Parameter
 
