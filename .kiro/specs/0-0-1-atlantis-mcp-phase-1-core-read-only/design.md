@@ -136,46 +136,74 @@ sequenceDiagram
 
 ### Component Architecture
 
-The MCP server follows the MVC (Model-View-Controller) pattern established in atlantis-starter-02:
+The MCP server follows the MVC (Model-View-Controller) pattern with a multi-function directory structure. Each Lambda function is self-contained to avoid premature abstraction:
 
 ```
-src/
-├── index.js                 # Lambda handler, cold start initialization
-├── config/
-│   ├── index.js            # Config initialization (async)
-│   ├── connections.js      # Cache-data connections and profiles
-│   └── settings.js         # Application settings
-├── routes/
-│   └── index.js            # Request routing (switch statement)
-├── controllers/
-│   ├── templates.js        # Template operations controller
-│   ├── starters.js         # Starter code controller
-│   ├── documentation.js    # Documentation search controller
-│   ├── validation.js       # Naming validation controller
-│   └── updates.js          # Template updates controller
-├── services/
-│   ├── templates.js        # Template service with caching
-│   ├── starters.js         # Starter service with caching
-│   ├── documentation.js    # Documentation service with caching
-│   ├── github.js           # GitHub API service
-│   └── validation.js       # Validation service
-├── models/
-│   ├── s3-templates.js     # S3 template DAO
-│   ├── github-api.js       # GitHub API DAO
-│   └── doc-index.js        # Documentation index DAO
-├── views/
-│   └── mcp-response.js     # MCP protocol response formatter
-└── utils/
-    ├── mcp-protocol.js     # MCP protocol utilities
-    ├── schema-validator.js # JSON Schema validation
-    └── naming-rules.js     # AWS resource naming rules
+application-infrastructure/
+├── src/
+│   └── lambda/
+│       ├── read/
+│       │   ├── index.js              # Lambda handler
+│       │   ├── package.json          # All dependencies
+│       │   ├── package-lock.json
+│       │   ├── config/
+│       │   │   ├── index.js          # Config initialization (async)
+│       │   │   ├── connections.js    # Cache-data connections and profiles
+│       │   │   └── settings.js       # Application settings
+│       │   ├── routes/
+│       │   │   └── index.js          # Request routing (switch statement)
+│       │   ├── controllers/
+│       │   │   ├── templates.js      # Template operations controller
+│       │   │   ├── starters.js       # Starter code controller
+│       │   │   ├── documentation.js  # Documentation search controller
+│       │   │   ├── validation.js     # Naming validation controller
+│       │   │   └── updates.js        # Template updates controller
+│       │   ├── services/
+│       │   │   ├── templates.js      # Template service with caching
+│       │   │   ├── starters.js       # Starter service with caching
+│       │   │   ├── documentation.js  # Documentation service with caching
+│       │   │   ├── github.js         # GitHub API service
+│       │   │   └── validation.js     # Validation service
+│       │   ├── models/
+│       │   │   ├── s3-templates.js   # S3 template DAO
+│       │   │   ├── github-api.js     # GitHub API DAO
+│       │   │   └── doc-index.js      # Documentation index DAO
+│       │   ├── views/
+│       │   │   └── mcp-response.js   # MCP protocol response formatter
+│       │   └── utils/
+│       │       ├── mcp-protocol.js   # MCP protocol utilities
+│       │       ├── schema-validator.js # JSON Schema validation
+│       │       └── naming-rules.js   # AWS resource naming rules
+│       └── write/                    # Phase 2 placeholder
+│           └── .gitkeep
+├── tests/
+│   ├── unit/
+│   ├── integration/
+│   └── property/
+├── build-scripts/
+│   ├── generate-put-ssm.py
+│   ├── update_template_configuration.py
+│   └── update_template_timestamp.py
+├── buildspec.yml
+└── template.yml
 ```
+
+**Key Design Decisions**:
+- **Separate Function Directories**: Each Lambda function in its own directory under `src/lambda/`
+- **Self-Contained Functions**: All code for read function lives in `src/lambda/read/` - no shared directories
+- **Future Write Function**: `src/lambda/write/` placeholder created for Phase 2
+- **Simple Build Process**: buildspec.yml packages each function directory independently
+- **Import Pattern**: Modules import using relative paths (e.g., `require('./config')`)
+- **Single package.json per function**: All dependencies in one place per function
+- **Tests at Root**: Test directory at repository root, not within Lambda functions
+- **No Premature Layers**: Shared code extraction deferred until Phase 2 shows actual duplication
+- **YAGNI Principle**: Don't create shared infrastructure until multiple functions need it
 
 ## Components and Interfaces
 
-### 1. Lambda Handler (src/index.js)
+### 1. Lambda Handler (src/lambda/read/index.js)
 
-**Purpose**: Entry point for Lambda function, handles cold start initialization and request delegation.
+**Purpose**: Entry point for Read Lambda function, handles cold start initialization and request delegation.
 
 **Responsibilities**:
 - Initialize Config (connections, secrets, settings) during cold start
@@ -186,8 +214,13 @@ src/
 
 **Interface**:
 ```javascript
+// Import modules using relative paths
+const Config = require('./config');
+const Routes = require('./routes');
+const { tools: { Response } } = require('@63klabs/cache-data');
+
 /**
- * Lambda handler for MCP server requests
+ * Lambda handler for MCP server read-only requests
  * @param {Object} event - API Gateway event
  * @param {Object} context - Lambda context
  * @returns {Promise<Object>} API Gateway response
@@ -205,12 +238,12 @@ exports.handler = async (event, context) => {
 
 **Cold Start Initialization**:
 - Parse environment variables
-- Initialize cache-data connections
+- Initialize cache-data Cache.init() with DynamoDB table and S3 bucket
 - Load SSM parameters (if needed)
 - Build documentation index (async, non-blocking)
 
 
-### 2. Router (src/routes/index.js)
+### 2. Router (src/lambda/read/routes/index.js)
 
 **Purpose**: Route incoming requests to appropriate controllers based on MCP tool name.
 
@@ -224,6 +257,9 @@ exports.handler = async (event, context) => {
 
 **Interface**:
 ```javascript
+const { tools: { ClientRequest, Response } } = require('@63klabs/cache-data');
+const Controllers = require('../controllers');
+
 /**
  * Process incoming request and route to controller
  * @param {Object} event - API Gateway event
@@ -263,12 +299,20 @@ const process = async (event, context) => {
     case 'check_template_updates':
       RESP.setBody(await Controllers.Updates.check(props));
       break;
+    case 'list_template_versions':
+      RESP.setBody(await Controllers.Templates.listVersions(props));
+      break;
+    case 'list_categories':
+      RESP.setBody(await Controllers.Templates.listCategories(props));
+      break;
     default:
       RESP.reset({statusCode: 404});
   }
   
   return RESP;
 };
+
+module.exports = { process };
 ```
 
 **Routing Strategy**:
@@ -290,7 +334,7 @@ const process = async (event, context) => {
 - Format data for views
 - Return structured data to router
 
-**Example: Templates Controller (src/controllers/templates.js)**:
+**Example: Templates Controller (src/lambda/read/controllers/templates.js)**:
 ```javascript
 const Services = require('../services');
 const SchemaValidator = require('../utils/schema-validator');
@@ -373,7 +417,7 @@ module.exports = { list, get };
 - Handle cache invalidation logic
 - Aggregate data from multiple sources
 
-**Example: Templates Service (src/services/templates.js)**:
+**Example: Templates Service (src/lambda/read/services/templates.js)**:
 ```javascript
 const {
 	cache: { 
@@ -553,7 +597,7 @@ module.exports = { list, get, listVersions };
 - Parse and transform raw data
 - Handle pagination for large result sets
 
-**Example: S3 Templates DAO (src/models/s3-templates.js)**:
+**Example: S3 Templates DAO (src/lambda/read/models/s3-templates.js)**:
 ```javascript
 const { AWS, DebugAndLog } = require('@63klabs/cache-data').tools;
 const Config = require('../config');
@@ -978,7 +1022,7 @@ module.exports = { list, get, listVersions };
 - Add metadata (request ID, timestamp)
 - Ensure protocol compliance
 
-**Example: MCP Response View (src/views/mcp-response.js)**:
+**Example: MCP Response View (src/shared/views/mcp-response.js)**:
 ```javascript
 /**
  * Format successful MCP response
@@ -1397,7 +1441,7 @@ module.exports = connections;
 |--------------|----------------|----------|------|-----------|
 | Template List | 1 hour | 5 minutes | DynamoDB | Changes infrequently, small payload |
 | Template Detail | 24 hours | 5 minutes | S3 | Large YAML files, rarely change |
-| Template Versions | 5 minutes | 1 minute | DynamoDB | Frequently checked for updates |
+| Template Versions | 60 minutes | 5 minutes | DynamoDB | Version history, moderate change rate |
 | Starter List | 1 hour | 5 minutes | DynamoDB | Changes infrequently, small payload |
 | Starter Detail | 30 minutes | 5 minutes | DynamoDB | GitHub data, moderate change rate |
 | Documentation Index | 6 hours | 5 minutes | DynamoDB | Large but compressible, daily updates |
@@ -1454,11 +1498,18 @@ const settings = {
     stageId: process.env.NAMING_STAGE_ID
   },
   
-  // Cache TTL configuration (seconds)
-  cacheTTL: {
-    templates: parseInt(process.env.ATLANTIS_TEMPLATE_CACHE_TTL || '3600'),
-    starters: parseInt(process.env.ATLANTIS_STARTER_CACHE_TTL || '3600'),
-    documentation: parseInt(process.env.ATLANTIS_DOCUMENTATION_CACHE_TTL || '21600')
+  // Cache TTL configuration (seconds) - organized by resource type
+  ttl: {
+    templateList: parseInt(process.env.ATLANTIS_TEMPLATE_LIST_TTL || '3600'), // 1 hour default
+    templateDetail: parseInt(process.env.ATLANTIS_TEMPLATE_DETAIL_TTL || '86400'), // 24 hours default
+    templateVersions: parseInt(process.env.ATLANTIS_TEMPLATE_VERSIONS_TTL || '3600'), // 1 hour default
+    starterList: parseInt(process.env.ATLANTIS_STARTER_LIST_TTL || '3600'), // 1 hour default
+    starterDetail: parseInt(process.env.ATLANTIS_STARTER_DETAIL_TTL || '3600'), // 1 hour default
+    documentationIndex: parseInt(process.env.ATLANTIS_DOCUMENTATION_INDEX_TTL || '21600'), // 6 hours default
+    codePatterns: parseInt(process.env.ATLANTIS_CODE_PATTERNS_TTL || '21600'), // 6 hours default
+    githubMetadata: parseInt(process.env.ATLANTIS_GITHUB_METADATA_TTL || '1800'), // 30 minutes default
+    githubProperties: parseInt(process.env.ATLANTIS_GITHUB_PROPERTIES_TTL || '3600'), // 1 hour default
+    fullTemplateContent: parseInt(process.env.ATLANTIS_FULL_TEMPLATE_CONTENT_TTL || '86400') // 24 hours default
   },
   
   // GitHub configuration
@@ -1471,6 +1522,11 @@ const settings = {
   s3: {
     allowTag: 'atlantis-mcp:Allow',
     indexPriorityTag: 'atlantis-mcp:IndexPriority'
+  },
+  
+  // Logging configuration
+  logging: {
+    level: process.env.LOG_LEVEL || 'INFO' // ERROR, WARN, INFO, DEBUG, DIAG
   }
 };
 
@@ -1480,7 +1536,7 @@ module.exports = settings;
 - Longer TTLs in production for cost optimization
 - Future: Add manual invalidation API in Phase 2
 
-### Config Initialization (src/config/index.js)
+### Config Initialization (src/shared/config/index.js)
 
 ```javascript
 
@@ -3140,7 +3196,7 @@ jest.spyOn(global, 'fetch').mockResolvedValue({
 
 ### Build Process (buildspec.yml)
 
-The buildspec.yml follows atlantis-starter-02 pattern with MCP-specific additions:
+The buildspec.yml is updated to support multi-function architecture with shared code:
 
 ```yaml
 version: 0.2
@@ -3151,16 +3207,23 @@ phases:
       nodejs: 24
     commands:
       - echo "Installing dependencies..."
-      - cd application-infrastructure/src
+      
+      # Install shared dependencies
+      - cd application-infrastructure/src/shared
       - npm ci --production
-      - cd ../..
+      - cd ../../..
+      
+      # Install read-function dependencies
+      - cd application-infrastructure/src/lambda/read-function
+      - npm ci --production
+      - cd ../../../..
       
   pre_build:
     commands:
       - echo "Running tests..."
-      - cd application-infrastructure/src
+      - cd application-infrastructure/src/tests
       - npm test
-      - cd ../..
+      - cd ../../..
       
       - echo "Generating SSM parameters..."
       - cd application-infrastructure
@@ -3172,6 +3235,15 @@ phases:
       - echo "Building SAM application..."
       - cd application-infrastructure
       
+      # Copy shared code into read-function deployment package
+      - echo "Copying shared code to read-function..."
+      - mkdir -p src/lambda/read-function/shared
+      - cp -r src/shared/* src/lambda/read-function/shared/
+      
+      # Copy shared node_modules to read-function (cache-data, etc.)
+      - echo "Copying shared node_modules to read-function..."
+      - cp -r src/shared/node_modules src/lambda/read-function/
+      
       # Replace variables in template-configuration.json
       - sed -i "s/\$DEPLOY_ENVIRONMENT/$DEPLOY_ENVIRONMENT/g" template-configuration.json
       - sed -i "s/\$STAGE_ID/$STAGE_ID/g" template-configuration.json
@@ -3181,11 +3253,52 @@ phases:
   post_build:
     commands:
       - echo "Build completed"
+      - echo "Read function package includes shared code and dependencies"
 
 artifacts:
   files:
     - application-infrastructure/**/*
   name: mcp-server-artifacts
+```
+
+**Key Build Steps**:
+1. **Install shared dependencies**: Install @63klabs/cache-data and other shared packages in `src/shared/`
+2. **Install function-specific dependencies**: Install any function-specific packages in each Lambda function directory
+3. **Run tests**: Execute all tests from `src/tests/` directory
+4. **Copy shared code**: Copy `src/shared/` into each Lambda function's deployment package
+5. **Copy shared node_modules**: Copy shared dependencies into each Lambda function
+6. **Package for deployment**: SAM packages each Lambda function with its shared code
+
+**Directory Structure After Build**:
+```
+src/lambda/read-function/
+├── index.js                    # Lambda handler
+├── package.json                # Function-specific dependencies
+├── node_modules/               # Shared + function-specific dependencies
+│   └── @63klabs/
+│       └── cache-data/
+└── shared/                     # Copied from src/shared/
+    ├── config/
+    ├── routes/
+    ├── controllers/
+    ├── services/
+    ├── models/
+    ├── views/
+    └── utils/
+```
+
+**Import Pattern in Lambda Handler**:
+```javascript
+// src/lambda/read-function/index.js
+const Config = require('./shared/config');
+const Routes = require('./shared/routes');
+const { Response } = require('@63klabs/cache-data').tools;
+
+exports.handler = async (event, context) => {
+  await Config.init();
+  const response = await Routes.process(event, context);
+  return response.toAPIGateway();
+};
 ```
 
 ### Environment Variables
@@ -3199,12 +3312,24 @@ Environment:
     DEPLOY_ENVIRONMENT: !Ref DeployEnvironment
     LOG_LEVEL: !If [IsProduction, "INFO", "DEBUG"]
     
-    # MCP-specific
-    ATLANTIS_S3_BUCKETS: !Ref AtlantisS3Buckets
-    ATLANTIS_S3_PREFIX: !Ref AtlantisS3Prefix
-    ATLANTIS_TEMPLATE_CACHE_TTL: !Ref AtlantisTemplateCacheTTL
-    ATLANTIS_STARTER_CACHE_TTL: !Ref AtlantisStarterCacheTTL
-    ATLANTIS_DOCUMENTATION_CACHE_TTL: !Ref AtlantisDocumentationCacheTTL
+    # MCP-specific - S3 and GitHub configuration
+    ATLANTIS_S3_BUCKETS: !Ref AtlantisS3Buckets  # Comma-delimited list
+    ATLANTIS_GITHUB_USER_ORGS: !Ref AtlantisGitHubUserOrgs  # Comma-delimited list
+    
+    # MCP-specific - TTL configuration (organized by resource type)
+    ATLANTIS_TEMPLATE_LIST_TTL: !Ref AtlantisTemplateListTTL
+    ATLANTIS_TEMPLATE_DETAIL_TTL: !Ref AtlantisTemplateDetailTTL
+    ATLANTIS_TEMPLATE_VERSIONS_TTL: !Ref AtlantisTemplateVersionsTTL
+    ATLANTIS_STARTER_LIST_TTL: !Ref AtlantisStarterListTTL
+    ATLANTIS_STARTER_DETAIL_TTL: !Ref AtlantisStarterDetailTTL
+    ATLANTIS_DOCUMENTATION_INDEX_TTL: !Ref AtlantisDocumentationIndexTTL
+    ATLANTIS_CODE_PATTERNS_TTL: !Ref AtlantisCodePatternsTTL
+    ATLANTIS_GITHUB_METADATA_TTL: !Ref AtlantisGitHubMetadataTTL
+    ATLANTIS_GITHUB_PROPERTIES_TTL: !Ref AtlantisGitHubPropertiesTTL
+    ATLANTIS_FULL_TEMPLATE_CONTENT_TTL: !Ref AtlantisFullTemplateContentTTL
+    
+    # GitHub token (optional)
+    GITHUB_TOKEN_PARAMETER: !Ref GitHubTokenParameter
     
     # Naming convention
     NAMING_PREFIX: !Ref Prefix
