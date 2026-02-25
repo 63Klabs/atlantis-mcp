@@ -324,5 +324,5 @@ The production dashboard includes:
 
 - [Atlantis Template Repository](https://github.com/63Klabs/atlantis-cfn-template-repo-for-serverless-deployments)
 - [Atlantis Configuration Repository](https://github.com/63Klabs/atlantis-cfn-configuration-repo-for-serverless-deployments)
-- [SAM Deployment Guide](./SAM-DEPLOYMENT-GUIDE.md)
-- [Quick Start Guide](./QUICK-START-SAM.md)
+- [SAM Deployment Guide](sam-deployment-guide.md)
+- [Quick Start Guide](quick-start-sam.md)

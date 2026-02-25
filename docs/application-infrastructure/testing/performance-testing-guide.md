@@ -193,11 +193,11 @@ Cache hit is 87.2% faster
 
 ### CloudWatch Insights Queries
 
-See `cloudwatch-insights-queries.json` for pre-built queries:
+See `application-infrastructure/cloudwatch-insights-queries.json` for pre-built queries:
 
 ```bash
 # View queries
-cat cloudwatch-insights-queries.json | jq '.queries[] | select(.name | contains("Performance"))'
+cat application-infrastructure/cloudwatch-insights-queries.json | jq '.queries[] | select(.name | contains("Performance"))'
 ```
 
 **Key queries**:
@@ -408,6 +408,6 @@ Performance testing ensures the Lambda function meets acceptable performance sta
 4. **Document changes** - Track performance improvements over time
 
 For questions or issues, refer to:
-- [CloudWatch Insights Guide](CLOUDWATCH-INSIGHTS-GUIDE.md)
-- [Deployment Validation Checklist](DEPLOYMENT-VALIDATION-CHECKLIST.md)
-- [Integration Test Status](src/tests/INTEGRATION_TEST_STATUS.md)
+- [CloudWatch Insights Guide](../monitoring/cloudwatch-insights-guide.md)
+- [Deployment Validation Checklist](../deployment/deployment-validation-checklist.md)
+- [Integration Test Status](../../application-infrastructure/src/tests/INTEGRATION_TEST_STATUS.md)

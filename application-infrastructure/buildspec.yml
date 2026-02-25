@@ -64,7 +64,7 @@ phases:
       - |
         if [ -f "package.json" ]; then
           echo "Installing test dependencies"
-          npm ci
+          npm install
         else
           echo "No package.json found in src/, skipping tests"
         fi
@@ -93,7 +93,7 @@ phases:
 
       # Clean up any existing node_modules and install only production dependencies
       - rm -rf node_modules
-      - npm ci --omit=dev
+      - npm install --omit=dev
 
       # FAIL the build if npm audit has vulnerabilities it can't fix
       # Perform a fix to move us forward, then check to make sure there were no unresolved high fixes

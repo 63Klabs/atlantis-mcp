@@ -2,7 +2,7 @@
 
 This is a quick reference for deploying the Atlantis MCP Server using AWS SAM CLI.
 
-For detailed instructions, see [SAM-DEPLOYMENT-GUIDE.md](SAM-DEPLOYMENT-GUIDE.md).
+For detailed instructions, see [SAM Deployment Guide](sam-deployment-guide.md).
 
 ## Prerequisites Checklist
 
@@ -165,6 +165,6 @@ The Atlantis Configuration Repository handles automated deployments.
 
 ## Support
 
-- Full Guide: [SAM-DEPLOYMENT-GUIDE.md](SAM-DEPLOYMENT-GUIDE.md)
-- CloudFormation Parameters: [../docs/deployment/cloudformation-parameters.md](../docs/deployment/cloudformation-parameters.md)
+- Full Guide: [SAM Deployment Guide](sam-deployment-guide.md)
+- CloudFormation Parameters: [../../deployment/cloudformation-parameters.md](../../deployment/cloudformation-parameters.md)
 - GitHub Issues: https://github.com/63Klabs/atlantis-mcp-server/issues

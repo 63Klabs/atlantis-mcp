@@ -510,7 +510,7 @@ After successful deployment:
 
 ## Additional Resources
 
-- [Pipeline Configuration Guide](./PIPELINE-CONFIGURATION.md)
-- [Deployment Approval Guide](./DEPLOYMENT-APPROVAL-GUIDE.md)
-- [SAM Deployment Guide](./SAM-DEPLOYMENT-GUIDE.md)
-- [Troubleshooting Guide](../docs/troubleshooting.md)
+- [Pipeline Configuration Guide](pipeline-configuration.md)
+- [Deployment Approval Guide](deployment-approval-guide.md)
+- [SAM Deployment Guide](sam-deployment-guide.md)
+- [Troubleshooting Guide](../../troubleshooting.md)

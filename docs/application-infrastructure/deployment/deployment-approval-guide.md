@@ -402,7 +402,7 @@ If deployment stuck after approval:
 
 ## Additional Resources
 
-- [Pipeline Configuration Guide](./PIPELINE-CONFIGURATION.md)
-- [SAM Deployment Guide](./SAM-DEPLOYMENT-GUIDE.md)
+- [Pipeline Configuration Guide](pipeline-configuration.md)
+- [SAM Deployment Guide](sam-deployment-guide.md)
 - [AWS CodePipeline Manual Approval Documentation](https://docs.aws.amazon.com/codepipeline/latest/userguide/approvals.html)
 - [Atlantis Platform Documentation](https://github.com/63Klabs/atlantis-cfn-template-repo-for-serverless-deployments)

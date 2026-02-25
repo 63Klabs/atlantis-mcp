@@ -679,8 +679,8 @@ After successful validation:
 ## Troubleshooting
 
 If validation fails, see:
-- [DEPLOYMENT-TESTING-GUIDE.md](./DEPLOYMENT-TESTING-GUIDE.md) - Troubleshooting section
-- [../docs/troubleshooting.md](../docs/troubleshooting.md) - General troubleshooting
+- [Deployment Testing Guide](deployment-testing-guide.md) - Troubleshooting section
+- [Troubleshooting Guide](../../troubleshooting.md) - General troubleshooting
 - CloudWatch Logs - Detailed error information
 - CloudWatch Insights - Query patterns and analysis
 

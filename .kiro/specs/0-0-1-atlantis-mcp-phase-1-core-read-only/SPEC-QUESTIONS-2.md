@@ -66,7 +66,7 @@ Please clarify these points so I can ensure the design phase accurately reflects
 
 4. Cache data initialization is already included in the code during the Config.init. If values are not provided, Cache-data automatically checks the Lambda environment variables (we set in template.yml)
 
-5. Key directory information is available in the file application-infrastructure/README-Application-Structure.md file
+5. Key directory information is available in the file docs/application-infrastructure/README.md
 
 6. The application template is application-infrastructure/template.yml . All deployable files are in application-infrastructure/ as the root of the repo is reserved for documentation and AI helper files.
 
