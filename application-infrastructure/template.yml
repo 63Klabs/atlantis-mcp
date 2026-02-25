@@ -496,7 +496,7 @@ Conditions:
 
 Globals:
   Api:
-    OpenApiVersion: 3.0.0 # Prevents extra stage called Stage in API Gateway https://www.internetkatta.com/how-to-prevent-aws-sam-from-creating-the-default-stage-in-api-gateway-stage
+    OpenApiVersion: 3.0.0 #>! Prevents extra stage called Stage in API Gateway https://www.internetkatta.com/how-to-prevent-aws-sam-from-creating-the-default-stage-in-api-gateway-stage
     PropagateTags: True
     TracingEnabled: !If [ IsNotDevelopment, True,  False] # X-Ray
 
@@ -599,7 +599,7 @@ Resources:
     Type: AWS::ApiGateway::ApiKey
     DependsOn: 
       - WebApi
-      - WebApiApiPathBaseStage
+      # - WebApiApiPathBaseStage
     Properties:
       Name: !Sub '${Prefix}-${ProjectId}-${StageId}-MCP-Public-Key'
       Description: "API Key for public MCP server access with rate limiting"
@@ -610,7 +610,7 @@ Resources:
     Type: AWS::ApiGateway::UsagePlan
     DependsOn:
       - WebApi
-      - WebApiApiPathBaseStage
+      # - WebApiApiPathBaseStage
     Properties:
       UsagePlanName: !Sub '${Prefix}-${ProjectId}-${StageId}-MCP-Public-Plan'
       Description: "Usage plan for public MCP server access with rate limiting"
