@@ -1,107 +1,456 @@
 openapi: '3.0.0'
 info:
-  title: "Web Service API"
-  description: "An API"
-  version: "0.1"
+  title: "Atlantis MCP Server API"
+  description: "Model Context Protocol server for Atlantis Templates and Scripts Platform - provides read-only operations for template discovery, starter code, and documentation search"
+  version: "0.0.1"
   contact:
-    name: "Your Name"
-    url: "https://example.com"
-    email: "contact@example.com"
+    name: "63klabs.net"
+    url: "https://github.com/63Klabs/atlantis-mcp-server"
   license:
-    name: "CC Attribution-ShareAlike 4.0 (CC BY-SA 4.0)"
-    url: "https://example.com"
+    name: "Distributed on an AS IS BASIS"
+    url: "https://github.com/63Klabs/atlantis-mcp-server/blob/main/LICENSE.txt"
 
 # =============================================================================
+# PATHS - MCP Endpoints
+# =============================================================================
 
-paths: 
+paths:
 
-  /api/example/:
-    get:
-      description: "GET API Example"
-      # parameters:
-      #   - $ref: '#/components/parameters/someParameter'
+  /mcp/list_templates:
+    post:
+      summary: "List available templates"
+      description: "Returns a list of available Atlantis templates from configured S3 buckets and GitHub repositories"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MCPRequest'
       responses:
-        $ref: '#/components/schemas/DataResponses'
-      x-amazon-apigateway-integration: # This is always the same
+        '200':
+          description: "Success response with template list"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPResponse'
+        '400':
+          description: "Bad request - invalid MCP protocol message"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPError'
+        '500':
+          description: "Internal server error"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPError'
+      x-amazon-apigateway-integration:
         httpMethod: post
         type: aws_proxy
         uri:
-          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AppFunction.Arn}/invocations
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ReadLambdaFunction.Arn}/invocations
 
-  /api/example/{id}:
-    get:
-      description: "GET API Example by ID"
-      parameters:
-        - name: id
-          in: path
-          description: "Example Resource ID"
-          required: false
-          schema:
-            type: string
+  /mcp/get_template:
+    post:
+      summary: "Get template content"
+      description: "Returns the full content of a specific template including metadata and file contents"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MCPRequest'
       responses:
-        $ref: '#/components/schemas/DataResponses'
-      x-amazon-apigateway-integration: # This is always the same
+        '200':
+          description: "Success response with template content"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPResponse'
+        '400':
+          description: "Bad request - invalid MCP protocol message"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPError'
+        '404':
+          description: "Template not found"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPError'
+        '500':
+          description: "Internal server error"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPError'
+      x-amazon-apigateway-integration:
         httpMethod: post
         type: aws_proxy
         uri:
-          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AppFunction.Arn}/invocations
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ReadLambdaFunction.Arn}/invocations
 
+  /mcp/list_starters:
+    post:
+      summary: "List available application starters"
+      description: "Returns a list of available application starter templates"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MCPRequest'
+      responses:
+        '200':
+          description: "Success response with starter list"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPResponse'
+        '400':
+          description: "Bad request - invalid MCP protocol message"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPError'
+        '500':
+          description: "Internal server error"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPError'
+      x-amazon-apigateway-integration:
+        httpMethod: post
+        type: aws_proxy
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ReadLambdaFunction.Arn}/invocations
 
+  /mcp/get_starter_info:
+    post:
+      summary: "Get starter information"
+      description: "Returns detailed information about a specific application starter"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MCPRequest'
+      responses:
+        '200':
+          description: "Success response with starter information"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPResponse'
+        '400':
+          description: "Bad request - invalid MCP protocol message"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPError'
+        '404':
+          description: "Starter not found"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPError'
+        '500':
+          description: "Internal server error"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPError'
+      x-amazon-apigateway-integration:
+        httpMethod: post
+        type: aws_proxy
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ReadLambdaFunction.Arn}/invocations
+
+  /mcp/search_documentation:
+    post:
+      summary: "Search documentation"
+      description: "Searches through available documentation and returns matching results"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MCPRequest'
+      responses:
+        '200':
+          description: "Success response with search results"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPResponse'
+        '400':
+          description: "Bad request - invalid MCP protocol message"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPError'
+        '500':
+          description: "Internal server error"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPError'
+      x-amazon-apigateway-integration:
+        httpMethod: post
+        type: aws_proxy
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ReadLambdaFunction.Arn}/invocations
+
+  /mcp/validate_naming:
+    post:
+      summary: "Validate resource naming"
+      description: "Validates resource names against Atlantis naming conventions"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MCPRequest'
+      responses:
+        '200':
+          description: "Success response with validation results"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPResponse'
+        '400':
+          description: "Bad request - invalid MCP protocol message"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPError'
+        '500':
+          description: "Internal server error"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPError'
+      x-amazon-apigateway-integration:
+        httpMethod: post
+        type: aws_proxy
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ReadLambdaFunction.Arn}/invocations
+
+  /mcp/check_template_updates:
+    post:
+      summary: "Check for template updates"
+      description: "Checks if newer versions of templates are available"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MCPRequest'
+      responses:
+        '200':
+          description: "Success response with update information"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPResponse'
+        '400':
+          description: "Bad request - invalid MCP protocol message"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPError'
+        '500':
+          description: "Internal server error"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPError'
+      x-amazon-apigateway-integration:
+        httpMethod: post
+        type: aws_proxy
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ReadLambdaFunction.Arn}/invocations
+
+  /mcp/list_template_versions:
+    post:
+      summary: "List template versions"
+      description: "Returns version history for a specific template"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MCPRequest'
+      responses:
+        '200':
+          description: "Success response with version list"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPResponse'
+        '400':
+          description: "Bad request - invalid MCP protocol message"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPError'
+        '404':
+          description: "Template not found"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPError'
+        '500':
+          description: "Internal server error"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPError'
+      x-amazon-apigateway-integration:
+        httpMethod: post
+        type: aws_proxy
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ReadLambdaFunction.Arn}/invocations
+
+  /mcp/list_categories:
+    post:
+      summary: "List template categories"
+      description: "Returns available template categories for filtering and organization"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MCPRequest'
+      responses:
+        '200':
+          description: "Success response with category list"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPResponse'
+        '400':
+          description: "Bad request - invalid MCP protocol message"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPError'
+        '500':
+          description: "Internal server error"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPError'
+      x-amazon-apigateway-integration:
+        httpMethod: post
+        type: aws_proxy
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ReadLambdaFunction.Arn}/invocations
+
+# =============================================================================
+# COMPONENTS - Reusable Schemas
 # =============================================================================
 
 components:
 
-  # ---------------------------------------------------------------------------
-
-  parameters:
-
-    someParameter:
-      name: someParameter
-      in: query
-      description: "A sample parameter"
-      required: false
-      schema:
-        type: string
-        example: "exampleValue"
-
-  # ---------------------------------------------------------------------------
-
   schemas:
 
-    # Top level
-
-    DataResponses:
-      '200':
-        description: "Response OK"
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ResponseObject'
-      '304':
-        $ref: '#/components/schemas/304'
-      '403':
-        $ref: '#/components/schemas/403'
-
-    # Non 200 Status Codes
-
-    '304':
-      description: "Not Modified"
-      content:
-        text/plain:
-          schema:
-            title: Not Modified
-            type: string
-    '403':
-      description: Not Authorized.
-      content:
-        text/plain:
-          schema:
-            title: Not authorized
-            type: string
-
-    # Fragments
-
-    ResponseObject:
+    # MCP Protocol Request Schema (JSON-RPC 2.0)
+    MCPRequest:
       type: object
-      title: A response object
-      description: "A response object containing data"
+      required:
+        - jsonrpc
+        - method
+        - id
+      properties:
+        jsonrpc:
+          type: string
+          enum: ['2.0']
+          description: "JSON-RPC protocol version"
+          example: "2.0"
+        method:
+          type: string
+          description: "MCP method name to invoke"
+          example: "list_templates"
+        params:
+          type: object
+          description: "Method-specific parameters (optional)"
+          example:
+            namespace: "atlantis"
+            category: "serverless"
+        id:
+          oneOf:
+            - type: string
+            - type: number
+          description: "Unique request identifier"
+          example: "req-123"
+
+    # MCP Protocol Success Response Schema (JSON-RPC 2.0)
+    MCPResponse:
+      type: object
+      required:
+        - jsonrpc
+        - result
+        - id
+      properties:
+        jsonrpc:
+          type: string
+          enum: ['2.0']
+          description: "JSON-RPC protocol version"
+          example: "2.0"
+        result:
+          type: object
+          description: "Method result data"
+          example:
+            templates:
+              - name: "serverless-api"
+                version: "1.0.0"
+                description: "Serverless API template"
+        id:
+          oneOf:
+            - type: string
+            - type: number
+          description: "Request identifier matching the request"
+          example: "req-123"
+
+    # MCP Protocol Error Response Schema (JSON-RPC 2.0)
+    MCPError:
+      type: object
+      required:
+        - jsonrpc
+        - error
+        - id
+      properties:
+        jsonrpc:
+          type: string
+          enum: ['2.0']
+          description: "JSON-RPC protocol version"
+          example: "2.0"
+        error:
+          type: object
+          required:
+            - code
+            - message
+          properties:
+            code:
+              type: integer
+              description: "Error code (JSON-RPC standard codes)"
+              example: -32600
+            message:
+              type: string
+              description: "Human-readable error message"
+              example: "Invalid Request"
+            data:
+              type: object
+              description: "Additional error information (optional)"
+              example:
+                details: "Missing required parameter: namespace"
+        id:
+          oneOf:
+            - type: string
+            - type: number
+            - type: 'null'
+          description: "Request identifier or null if request ID could not be determined"
+          example: "req-123"
