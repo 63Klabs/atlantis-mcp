@@ -11,11 +11,8 @@
  * @module models/s3-starters
  */
 
-const { S3Client, GetObjectCommand, ListObjectsV2Command, GetObjectTaggingCommand } = require('@aws-sdk/client-s3');
-const { tools: { DebugAndLog } } = require('@63klabs/cache-data');
-
-// Initialize S3 client
-const s3Client = new S3Client({ region: process.env.AWS_REGION || 'us-east-1' });
+const { GetObjectCommand, ListObjectsV2Command, GetObjectTaggingCommand } = require('@aws-sdk/client-s3');
+const { tools: { DebugAndLog, AWS } } = require('@63klabs/cache-data');
 
 /**
  * Check if a bucket has the atlantis-mcp:Allow=true tag
@@ -56,7 +53,7 @@ async function getIndexedNamespaces(bucketName) {
       MaxKeys: 100
     });
 
-    const response = await s3Client.send(command);
+    const response = await AWS.s3.client.send(command);
     const namespaces = (response.CommonPrefixes || [])
       .map(prefix => prefix.Prefix.replace(/\/$/, ''))
       .filter(ns => ns.length > 0);
@@ -222,7 +219,7 @@ async function list(connection, options = {}) {
             Prefix: prefix
           });
 
-          const response = await s3Client.send(command);
+          const response = await AWS.s3.client.send(command);
 
           // >! Find all ZIP files
           const zipFiles = (response.Contents || [])
@@ -240,7 +237,7 @@ async function list(connection, options = {}) {
                 Key: metadataKey
               });
 
-              const metadataResponse = await s3Client.send(metadataCommand);
+              const metadataResponse = await AWS.s3.client.send(metadataCommand);
               const metadataContent = await metadataResponse.Body.transformToString();
 
               // >! Parse sidecar metadata JSON
@@ -349,7 +346,7 @@ async function get(connection, options = {}) {
             Key: zipKey
           });
 
-          const zipResponse = await s3Client.send(zipCommand);
+          const zipResponse = await AWS.s3.client.send(zipCommand);
 
           // ZIP exists, now get sidecar metadata
           try {
@@ -358,7 +355,7 @@ async function get(connection, options = {}) {
               Key: metadataKey
             });
 
-            const metadataResponse = await s3Client.send(metadataCommand);
+            const metadataResponse = await AWS.s3.client.send(metadataCommand);
             const metadataContent = await metadataResponse.Body.transformToString();
 
             // >! Parse sidecar metadata JSON

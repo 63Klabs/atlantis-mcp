@@ -11,13 +11,10 @@
  * @module models/s3-templates
  */
 
-const { S3Client, GetObjectCommand, ListObjectsV2Command, ListObjectVersionsCommand, GetObjectTaggingCommand } = require('@aws-sdk/client-s3');
-const { tools: { DebugAndLog } } = require('@63klabs/cache-data');
+const { GetObjectCommand, ListObjectsV2Command, ListObjectVersionsCommand, GetObjectTaggingCommand } = require('@aws-sdk/client-s3');
+const { tools: { DebugAndLog, AWS } } = require('@63klabs/cache-data');
 const yaml = require('js-yaml');
 const ErrorHandler = require('../utils/error-handler');
-
-// Initialize S3 client
-const s3Client = new S3Client({ region: process.env.AWS_REGION || 'us-east-1' });
 
 /**
  * Check if a bucket has the atlantis-mcp:Allow=true tag
@@ -64,7 +61,7 @@ async function getIndexedNamespaces(bucketName) {
       MaxKeys: 100
     });
 
-    const response = await s3Client.send(command);
+    const response = await AWS.s3.client.send(command);
     const namespaces = (response.CommonPrefixes || [])
       .map(prefix => prefix.Prefix.replace(/\/$/, ''))
       .filter(ns => ns.length > 0);
@@ -316,7 +313,7 @@ async function list(connection, options = {}) {
             Prefix: prefix
           });
 
-          const response = await s3Client.send(command);
+          const response = await AWS.s3.client.send(command);
 
           // >! Parse template metadata from S3 keys
           // >! Support both .yml and .yaml extensions (.yml takes precedence)
@@ -335,7 +332,7 @@ async function list(connection, options = {}) {
                     Bucket: bucket,
                     Key: template.key
                   });
-                  const response = await s3Client.send(command);
+                  const response = await AWS.s3.client.send(command);
                   const content = await response.Body.transformToString();
                   const parsedVersion = parseHumanReadableVersion(content);
 
@@ -445,7 +442,7 @@ async function get(connection, options = {}) {
                 Prefix: key
               });
 
-              const listResponse = await s3Client.send(listCommand);
+              const listResponse = await AWS.s3.client.send(listCommand);
 
               if (listResponse.Versions && listResponse.Versions.length > 0) {
                 // Check each version to see if it matches either criterion
@@ -457,7 +454,7 @@ async function get(connection, options = {}) {
                       VersionId: v.VersionId
                     });
 
-                    const response = await s3Client.send(getCommand);
+                    const response = await AWS.s3.client.send(getCommand);
                     const templateContent = await response.Body.transformToString();
                     const parsed = parseCloudFormationTemplate(templateContent);
 
@@ -507,7 +504,7 @@ async function get(connection, options = {}) {
             }
 
             const command = new GetObjectCommand(getParams);
-            const response = await s3Client.send(command);
+            const response = await AWS.s3.client.send(command);
 
             const templateContent = await response.Body.transformToString();
             const parsed = parseCloudFormationTemplate(templateContent);
@@ -600,7 +597,7 @@ async function listVersions(connection, options = {}) {
               Prefix: key
             });
 
-            const response = await s3Client.send(command);
+            const response = await AWS.s3.client.send(command);
 
             if (!response.Versions || response.Versions.length === 0) {
               continue;
@@ -616,7 +613,7 @@ async function listVersions(connection, options = {}) {
                     Key: key,
                     VersionId: v.VersionId
                   });
-                  const content = await s3Client.send(getCommand);
+                  const content = await AWS.s3.client.send(getCommand);
                   const templateContent = await content.Body.transformToString();
                   const parsed = parseCloudFormationTemplate(templateContent);
 
