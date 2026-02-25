@@ -14,6 +14,7 @@
 const { S3Client, GetObjectCommand, ListObjectsV2Command, ListObjectVersionsCommand, GetObjectTaggingCommand } = require('@aws-sdk/client-s3');
 const { tools: { DebugAndLog } } = require('@63klabs/cache-data');
 const yaml = require('js-yaml');
+const ErrorHandler = require('../utils/error-handler');
 
 // Initialize S3 client
 const s3Client = new S3Client({ region: process.env.AWS_REGION || 'us-east-1' });
@@ -36,7 +37,13 @@ async function checkBucketAccess(bucketName) {
     // TODO: Implement proper bucket tagging check when permissions are configured
     return true;
   } catch (error) {
-    DebugAndLog.warn(`Failed to check bucket access for ${bucketName}: ${error.message}`);
+    // >! Log S3 operation failures with bucket name, key, error details
+    ErrorHandler.logS3Error({
+      operation: 'GetObjectTagging',
+      bucket: bucketName,
+      key: '',
+      error
+    });
     return false;
   }
 }
@@ -65,7 +72,12 @@ async function getIndexedNamespaces(bucketName) {
     DebugAndLog.debug(`Discovered namespaces in ${bucketName}: ${namespaces.join(', ')}`);
     return namespaces;
   } catch (error) {
-    DebugAndLog.warn(`Failed to get indexed namespaces for ${bucketName}: ${error.message}`);
+    // >! Log S3 operation failures with bucket name, key, error details
+    ErrorHandler.logS3Error({
+      operation: 'ListObjectsV2',
+      bucket: bucketName,
+      error
+    });
     return [];
   }
 }
@@ -243,6 +255,7 @@ async function list(connection, options = {}) {
       // >! Check if bucket has atlantis-mcp:Allow=true tag
       const allowAccess = await checkBucketAccess(bucket);
       if (!allowAccess) {
+        // >! Log which specific bucket failed without exposing sensitive info
         DebugAndLog.warn(`Bucket ${bucket} does not have atlantis-mcp:Allow=true tag, skipping`);
         errors.push({
           source: bucket,
@@ -274,17 +287,50 @@ async function list(connection, options = {}) {
           
           // >! Parse template metadata from S3 keys
           // >! Support both .yml and .yaml extensions (.yml takes precedence)
-          const templates = (response.Contents || [])
+          let templates = (response.Contents || [])
             .filter(obj => obj.Key.endsWith('.yml') || obj.Key.endsWith('.yaml'))
             .map(obj => parseTemplateMetadata(obj, bucket, namespace))
             .filter(t => filterByCategory(t, category))
-            .filter(t => filterByVersion(t, version))
             .filter(t => filterByVersionId(t, versionId));
+          
+          // >! If version filter is provided, fetch content to extract Human_Readable_Version
+          if (version) {
+            const templatesWithVersion = await Promise.all(
+              templates.map(async (template) => {
+                try {
+                  const command = new GetObjectCommand({
+                    Bucket: bucket,
+                    Key: template.key
+                  });
+                  const response = await s3Client.send(command);
+                  const content = await response.Body.transformToString();
+                  const parsedVersion = parseHumanReadableVersion(content);
+                  
+                  return {
+                    ...template,
+                    version: parsedVersion
+                  };
+                } catch (error) {
+                  DebugAndLog.warn(`Failed to fetch version for ${template.key}: ${error.message}`);
+                  return template; // Return without version if fetch fails
+                }
+              })
+            );
+            
+            // >! Now filter by version after fetching
+            templates = templatesWithVersion.filter(t => filterByVersion(t, version));
+          }
           
           allTemplates.push(...templates);
         } catch (error) {
           // >! Brown-out support: log error but continue with other namespaces
-          DebugAndLog.warn(`Failed to list templates from ${bucket}/${namespace}: ${error.message}`);
+          // >! Use DebugAndLog.warn for non-fatal errors (brown-out scenarios)
+          ErrorHandler.logS3Error({
+            operation: 'ListObjectsV2',
+            bucket,
+            key: prefix,
+            error
+          });
           errors.push({
             source: `${bucket}/${namespace}`,
             sourceType: 's3',
@@ -295,7 +341,12 @@ async function list(connection, options = {}) {
       }
     } catch (error) {
       // >! Brown-out support: log error but continue with other buckets
-      DebugAndLog.warn(`Failed to list templates from bucket ${bucket}: ${error.message}`);
+      // >! Use DebugAndLog.warn for non-fatal errors (brown-out scenarios)
+      ErrorHandler.logS3Error({
+        operation: 'ListTemplates',
+        bucket,
+        error
+      });
       errors.push({
         source: bucket,
         sourceType: 's3',
@@ -352,13 +403,73 @@ async function get(connection, options = {}) {
           const key = buildTemplateKey(namespace, basePath, category, templateName, extension);
           
           try {
+            // >! When both version and versionId provided, we need to check if ANY version matches EITHER criterion
+            // >! This requires listing versions and checking each one
+            if (version && versionId) {
+              // List all versions of this template
+              const listCommand = new ListObjectVersionsCommand({
+                Bucket: bucket,
+                Prefix: key
+              });
+              
+              const listResponse = await s3Client.send(listCommand);
+              
+              if (listResponse.Versions && listResponse.Versions.length > 0) {
+                // Check each version to see if it matches either criterion
+                for (const v of listResponse.Versions) {
+                  try {
+                    const getCommand = new GetObjectCommand({
+                      Bucket: bucket,
+                      Key: key,
+                      VersionId: v.VersionId
+                    });
+                    
+                    const response = await s3Client.send(getCommand);
+                    const templateContent = await response.Body.transformToString();
+                    const parsed = parseCloudFormationTemplate(templateContent);
+                    
+                    // Check if this version matches EITHER criterion (OR condition)
+                    const versionMatches = parsed.version === version;
+                    const versionIdMatches = v.VersionId === versionId;
+                    
+                    if (versionMatches || versionIdMatches) {
+                      // Found a match! Return this template
+                      return {
+                        name: templateName,
+                        version: parsed.version,
+                        versionId: v.VersionId,
+                        content: templateContent,
+                        parameters: parsed.Parameters,
+                        outputs: parsed.Outputs,
+                        description: parsed.Description,
+                        category: category,
+                        namespace: namespace,
+                        bucket: bucket,
+                        s3Path: `s3://${bucket}/${key}`,
+                        lastModified: response.LastModified,
+                        size: response.ContentLength,
+                        metadata: parsed.Metadata
+                      };
+                    }
+                  } catch (versionError) {
+                    DebugAndLog.warn(`Failed to check version ${v.VersionId}: ${versionError.message}`);
+                    continue;
+                  }
+                }
+              }
+              
+              // No version matched either criterion, try next extension/namespace/bucket
+              continue;
+            }
+            
+            // >! Single criterion: version OR versionId (not both)
             const getParams = {
               Bucket: bucket,
               Key: key
             };
             
-            // >! If versionId specified, add it to params
-            if (versionId) {
+            // >! If versionId specified (without version), fetch that specific version
+            if (versionId && !version) {
               getParams.VersionId = versionId;
             }
             
@@ -368,18 +479,9 @@ async function get(connection, options = {}) {
             const templateContent = await response.Body.transformToString();
             const parsed = parseCloudFormationTemplate(templateContent);
             
-            // >! If version specified, check if it matches (OR condition with versionId)
+            // >! If only version specified, check if it matches
             if (version && !versionId && parsed.version !== version) {
               continue; // Try next namespace/bucket
-            }
-            
-            // >! Support OR condition when both version and versionId provided
-            if (version && versionId) {
-              const versionMatches = parsed.version === version;
-              const versionIdMatches = response.VersionId === versionId;
-              if (!versionMatches && !versionIdMatches) {
-                continue;
-              }
             }
             
             return {
@@ -403,12 +505,21 @@ async function get(connection, options = {}) {
               continue; // Try next extension/namespace/bucket
             }
             // >! Brown-out support: try next bucket on failure
-            DebugAndLog.warn(`Failed to get template from ${bucket}/${key}: ${error.message}`);
+            ErrorHandler.logS3Error({
+              operation: 'GetObject',
+              bucket,
+              key,
+              error
+            });
           }
         }
       }
     } catch (error) {
-      DebugAndLog.warn(`Failed to get template from bucket ${bucket}: ${error.message}`);
+      ErrorHandler.logS3Error({
+        operation: 'GetTemplate',
+        bucket,
+        error
+      });
       // Continue to next bucket
     }
   }
@@ -508,12 +619,21 @@ async function listVersions(connection, options = {}) {
             if (error.name === 'NoSuchKey') {
               continue;
             }
-            DebugAndLog.warn(`Failed to list versions for ${bucket}/${key}: ${error.message}`);
+            ErrorHandler.logS3Error({
+              operation: 'ListObjectVersions',
+              bucket,
+              key,
+              error
+            });
           }
         }
       }
     } catch (error) {
-      DebugAndLog.warn(`Failed to list versions from bucket ${bucket}: ${error.message}`);
+      ErrorHandler.logS3Error({
+        operation: 'ListVersions',
+        bucket,
+        error
+      });
     }
   }
   

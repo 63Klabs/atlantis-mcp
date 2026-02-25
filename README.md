@@ -1,92 +1,222 @@
 # Atlantis MCP Server - Phase 1 (Core Read-Only)
 
-> For use with template-pipeline.yml which can be deployed using [Atlantis Configuration Repository for Serverless Deployments using AWS SAM](https://github.com/63Klabs/atlantis-cfn-configuration-repo-for-serverless-deployments)
-
-The Atlantis MCP (Model Context Protocol) Server provides AI-assisted development capabilities for the 63Klabs Atlantis Templates and Scripts Platform. It exposes read-only operations through a REST API that complies with the MCP protocol v1.0, enabling AI assistants and development tools to discover CloudFormation templates, starter code repositories, and documentation.
+The Atlantis MCP (Model Context Protocol) Server provides AI-assisted development capabilities for the 63Klabs Atlantis Templates and Scripts Platform. It enables developers to discover, validate, and utilize CloudFormation templates, starter code, and documentation through AI assistants and IDEs.
 
 ## Features
 
-### Phase 1 - Read-Only Operations
+- **Template Discovery**: Browse and search CloudFormation templates across multiple S3 buckets
+- **Template Retrieval**: Get full template content with metadata, parameters, and outputs
+- **Version Management**: List template versions and check for updates
+- **Starter Code Discovery**: Find and explore pre-configured application starters
+- **Documentation Search**: Search across documentation, tutorials, and code patterns
+- **Naming Validation**: Validate resource names against Atlantis conventions
+- **Multi-Source Support**: Aggregate data from multiple S3 buckets and GitHub organizations
+- **Intelligent Caching**: Fast responses with multi-tier caching strategy
+- **Rate Limiting**: Public access with configurable rate limits
 
-- **Template Discovery**: List and retrieve CloudFormation templates from multiple S3 buckets with version support
-- **Starter Code Discovery**: Discover application starter repositories from GitHub organizations
-- **Documentation Search**: Search across Atlantis documentation, tutorials, and code patterns
-- **Naming Validation**: Validate resource names against Atlantis naming conventions
-- **Template Updates**: Check for available template updates and breaking changes
-- **Multi-Source Support**: Aggregate data from multiple S3 buckets and GitHub organizations with priority ordering
-- **Brown-Out Resilience**: Continue operation and return partial data when some sources fail
-- **Public Access**: Rate-limited public access (100 requests/hour per IP) for read-only operations
+## Quick Start
 
-### MCP Protocol Compliance
+### For AI Assistant Users
 
-- Full MCP protocol v1.0 implementation
-- JSON Schema validation for all tool inputs
-- Standardized error responses
-- Tool capability discovery
-
-### Infrastructure
-
-- API Gateway with rate limiting
-- Lambda Function with gradual deployment in production
-- Multi-tier caching (in-memory, DynamoDB, S3) via [@63klabs/cache-data](https://www.npmjs.com/package/@63klabs/cache-data)
-- AWS X-Ray Tracing
-- CloudWatch monitoring and dashboards
-- Comprehensive logging with DebugAndLog
-
-## Installation and Deployment
-
-### Prerequisites
-
-- AWS Account with appropriate permissions
-- Atlantis Platform templates and configuration repository access
-- GitHub token stored in SSM Parameter Store (for GitHub API access)
-- S3 buckets tagged with `atlantis-mcp:Allow=true` and `atlantis-mcp:IndexPriority`
-- GitHub repositories with `atlantis_repository-type` custom property
-
-### Deployment
-
-Deploy using the Atlantis Configuration Repository following the standard deployment workflow:
+The Atlantis MCP Server is designed to work seamlessly with AI assistants. Once configured, you can ask your AI assistant to:
 
 ```
-dev → test → beta → main
+"Show me available CloudFormation templates for storage"
+"Get the latest version of the pipeline template"
+"Find starter code for a Node.js Lambda function"
+"Validate this resource name: acme-myapp-test-MyFunction"
+"Search documentation for DynamoDB caching patterns"
 ```
 
-See the [Atlantis Configuration Repository](https://github.com/63Klabs/atlantis-cfn-configuration-repo-for-serverless-deployments) for deployment instructions.
+See the [Integration Guides](#integration-guides) for setup instructions for your specific AI assistant.
+
+### Available MCP Tools
+
+The server exposes the following tools through the MCP protocol:
+
+| Tool | Description |
+|------|-------------|
+| `list_templates` | List all available CloudFormation templates |
+| `get_template` | Get specific template with full content and metadata |
+| `list_template_versions` | List all versions of a specific template |
+| `list_categories` | List template categories (Storage, Network, Pipeline, etc.) |
+| `list_starters` | List available application starter code repositories |
+| `get_starter_info` | Get detailed information about a specific starter |
+| `search_documentation` | Search documentation, tutorials, and code patterns |
+| `validate_naming` | Validate resource names against Atlantis conventions |
+| `check_template_updates` | Check if templates have newer versions available |
+
+## Integration Guides
+
+- [Claude Desktop Integration](docs/integration/claude.md)
+- [ChatGPT Integration](docs/integration/chatgpt.md)
+- [Cursor IDE Integration](docs/integration/cursor.md)
+- [Kiro IDE Integration](docs/integration/kiro.md)
+- [Amazon Q Developer Integration](docs/integration/amazon-q.md)
 
 ## Documentation
 
-- [Requirements Document](./.kiro/specs/0-0-1-atlantis-mcp-phase-1-core-read-only/requirements.md)
-- [Design Document](./.kiro/specs/0-0-1-atlantis-mcp-phase-1-core-read-only/design.md)
-- [Implementation Tasks](./.kiro/specs/0-0-1-atlantis-mcp-phase-1-core-read-only/tasks.md)
-- [Application Structure](./application-infrastructure/README-Application-Structure.md)
+### For Users
+- [MCP Tools Reference](docs/tools/README.md) - Detailed documentation for each MCP tool
+- [Common Use Cases](docs/use-cases/README.md) - Patterns and examples
+- [Troubleshooting Guide](docs/troubleshooting.md) - Common issues and solutions
 
-## MCP Tools
+### For Organizations
+- [Deployment Guide](docs/deployment/README.md) - How to deploy your own instance
+- [Configuration Reference](docs/configuration/README.md) - CloudFormation parameters
+- [GitHub Setup](docs/setup/github.md) - Configure GitHub integration
+- [S3 Setup](docs/setup/s3.md) - Configure S3 buckets and tags
 
-Phase 1 provides the following read-only MCP tools:
+### For Maintainers
+- [Architecture Overview](docs/technical/architecture.md) - System design and components
+- [Development Guide](docs/technical/development.md) - Local development setup
+- [Testing Guide](docs/technical/testing.md) - Running and writing tests
+- [Contribution Guidelines](CONTRIBUTING.md) - How to contribute
 
-- `list_templates` - List available CloudFormation templates
-- `get_template` - Retrieve specific template details
-- `list_template_versions` - List all versions of a template
-- `list_categories` - List template categories
-- `list_starters` - List available starter code repositories
-- `get_starter_info` - Get detailed starter repository information
-- `search_documentation` - Search Atlantis documentation and code patterns
-- `validate_naming` - Validate resource names against conventions
-- `check_template_updates` - Check for template updates
+## Prerequisites
 
-## Configuration
+### For Using the Public Instance
 
-The MCP server is configured via CloudFormation parameters:
+No prerequisites - just configure your AI assistant to connect to the public Atlantis MCP Server endpoint.
 
-- `ATLANTIS_S3_BUCKETS` - Comma-delimited list of S3 buckets for templates
-- `ATLANTIS_GITHUB_USER_ORGS` - Comma-delimited list of GitHub users/orgs
-- `PublicRateLimit` - Rate limit for public access (default: 100 requests/hour)
-- Cache TTL parameters for each resource type
-- `GitHubTokenParameter` - SSM parameter name for GitHub token
-- `LogLevel` - Logging level (ERROR, WARN, INFO, DEBUG)
+### For Self-Hosting
 
-## AI Context
+- AWS Account with appropriate permissions
+- Node.js 20.x or later
+- AWS SAM CLI
+- Access to Atlantis SAM Configuration Repository
+- GitHub Personal Access Token (for private repository access)
 
-See [AGENTS.md](AGENTS.md) for important context and guidelines for AI-generated code in this repository.
+## Architecture
 
-The context file is also helpful (and perhaps essential) for HUMANS developing within the application's structured platform as well.
+The Atlantis MCP Server is built on AWS serverless services:
+
+- **AWS Lambda**: Serverless compute for MCP request handling
+- **API Gateway**: REST API with rate limiting
+- **DynamoDB**: Cache storage for frequently accessed data
+- **S3**: Template storage and cache overflow
+- **Systems Manager Parameter Store**: Secure credential storage
+- **CloudWatch**: Logging and monitoring
+
+```
+┌─────────────┐
+│ AI Assistant│
+└──────┬──────┘
+       │ MCP Protocol
+       ▼
+┌─────────────┐
+│ API Gateway │ ◄── Rate Limiting
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐
+│   Lambda    │ ◄── Read-Only Operations
+└──────┬──────┘
+       │
+       ├──► DynamoDB (Cache)
+       ├──► S3 (Templates & Cache)
+       └──► GitHub API (Metadata)
+```
+
+## Security
+
+- **Read-Only Access**: Phase 1 provides only read operations
+- **Rate Limiting**: Public access limited to 100 requests/hour per IP (configurable)
+- **Least Privilege**: Lambda functions have minimal IAM permissions
+- **No Authentication Required**: Public read access for discovery and documentation
+- **Secure Credentials**: GitHub tokens stored in AWS Systems Manager Parameter Store
+
+## Naming Convention
+
+All Atlantis resources follow this naming pattern:
+
+```
+<Prefix>-<ProjectId>-<StageId>-<ResourceName>
+```
+
+Example: `acme-person-api-test-GetPersonFunction`
+
+For S3 buckets:
+```
+<orgPrefix>-<Prefix>-<ProjectId>-<StageId>-<Region>-<AccountId>
+```
+
+Use the `validate_naming` tool to verify your resource names follow these conventions.
+
+## Caching Strategy
+
+The MCP Server uses intelligent multi-tier caching:
+
+1. **In-Memory Cache**: Fast access within Lambda invocation
+2. **DynamoDB Cache**: Shared cache across invocations
+3. **S3 Cache**: Long-term storage for large objects
+
+Default TTL values:
+- Template metadata: 1 hour
+- Starter metadata: 1 hour  
+- Documentation index: 6 hours
+- Full template content: 24 hours
+
+## Rate Limiting
+
+Public access is rate-limited to prevent abuse:
+
+- Default: 100 requests per hour per IP address
+- Rate limit headers included in responses:
+  - `X-RateLimit-Limit`: Maximum requests allowed
+  - `X-RateLimit-Remaining`: Requests remaining in current window
+  - `X-RateLimit-Reset`: Time when limit resets (Unix timestamp)
+- HTTP 429 returned when limit exceeded with `Retry-After` header
+
+## Multi-Source Support
+
+The MCP Server aggregates data from multiple sources:
+
+### Multiple S3 Buckets
+- Configure multiple template buckets via `ATLANTIS_S3_BUCKETS` parameter
+- Buckets searched in priority order
+- Requires `atlantis-mcp:Allow=true` tag on buckets
+- Namespace discovery via `atlantis-mcp:IndexPriority` tag
+
+### Multiple GitHub Organizations
+- Configure multiple GitHub users/orgs via `ATLANTIS_GITHUB_USER_ORGS` parameter
+- Organizations searched in priority order
+- Repository filtering via `atlantis_repository-type` custom property
+- Automatic rate limit handling
+
+## Brown-Out Support
+
+The MCP Server continues operation even when some data sources fail:
+
+- Returns available data from working sources
+- Includes error information for failed sources
+- Logs detailed errors for troubleshooting
+- Ensures partial data is better than no data
+
+## Version Information
+
+- **MCP Protocol Version**: 1.0
+- **Phase**: 1 (Core Read-Only)
+- **AWS Lambda Runtime**: Node.js 20.x
+- **Cache Package**: @63klabs/cache-data
+
+## Related Resources
+
+- [Atlantis Template Repository](https://github.com/63Klabs/atlantis-cfn-template-repo-for-serverless-deployments)
+- [Atlantis Configuration Repository](https://github.com/63Klabs/atlantis-cfn-configuration-repo-for-serverless-deployments)
+- [Model Context Protocol Specification](https://modelcontextprotocol.io/)
+- [Changelog](CHANGELOG.md)
+- [Security Policy](SECURITY.md)
+- [License](LICENSE.txt)
+
+## Support
+
+- **Issues**: [GitHub Issues](https://github.com/63klabs/atlantis-mcp-server/issues)
+- **Documentation**: [Full Documentation](docs/README.md)
+- **Email**: support@63klabs.com
+
+## License
+
+Copyright © 2025 63Klabs. All rights reserved.
+
+See [LICENSE.txt](LICENSE.txt) for details.

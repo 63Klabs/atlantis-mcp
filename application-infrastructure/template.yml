@@ -640,6 +640,7 @@ Resources:
           DEPLOY_ENVIRONMENT: !Ref DeployEnvironment
           LOG_LEVEL: !Ref LogLevel
           PARAM_STORE_PATH: !Ref ParameterStoreHierarchy
+          PUBLIC_RATE_LIMIT: !Ref PublicRateLimit
 
           PARAMETERS_SECRETS_EXTENSION_LOG_LEVEL: !If [ IsProduction, "INFO", "DEBUG"]
           AWS_LAMBDA_LOG_LEVEL: !Ref LogLevel

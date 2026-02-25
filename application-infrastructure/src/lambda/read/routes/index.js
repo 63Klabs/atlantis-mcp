@@ -23,11 +23,20 @@ const { tools: { ClientRequest, Response, DebugAndLog } } = require('@63klabs/ca
 const process = async (event, context) => {
   const REQ = new ClientRequest(event, context);
   const RESP = new Response(REQ);
+  const ErrorHandler = require('../utils/error-handler');
   
   // Validate request
   if (!REQ.isValid()) {
     DebugAndLog.warn('Invalid request received', { event });
-    return RESP.reset({ statusCode: 400, body: { error: 'Invalid request format' } });
+    const error = ErrorHandler.createError({
+      code: ErrorHandler.ErrorCode.INVALID_INPUT,
+      message: 'Invalid request format',
+      category: ErrorHandler.ErrorCategory.CLIENT_ERROR,
+      statusCode: 400,
+      requestId: context.requestId
+    });
+    ErrorHandler.logError(error, { requestId: context.requestId });
+    return RESP.reset({ statusCode: 400, body: ErrorHandler.toUserResponse(error, context.requestId) });
   }
   
   const props = REQ.getProps();
@@ -38,10 +47,18 @@ const process = async (event, context) => {
   
   if (!tool) {
     DebugAndLog.warn('No tool specified in request', { props });
-    return RESP.reset({ statusCode: 400, body: { error: 'Missing tool parameter' } });
+    const error = ErrorHandler.createError({
+      code: ErrorHandler.ErrorCode.INVALID_INPUT,
+      message: 'Missing tool parameter',
+      category: ErrorHandler.ErrorCategory.CLIENT_ERROR,
+      statusCode: 400,
+      requestId: context.requestId
+    });
+    ErrorHandler.logError(error, { requestId: context.requestId });
+    return RESP.reset({ statusCode: 400, body: ErrorHandler.toUserResponse(error, context.requestId) });
   }
   
-  // Log routing decision
+  // >! Log routing decision
   DebugAndLog.info('Routing request', { 
     tool, 
     method: props.httpMethod,
@@ -99,12 +116,15 @@ const process = async (event, context) => {
         break;
         
       default:
-        // Unknown tool - return 404
+        // >! Unknown tool - return 404
         DebugAndLog.warn('Unknown tool requested', { tool });
-        return RESP.reset({ 
-          statusCode: 404, 
-          body: { 
-            error: 'Unknown tool',
+        const error = ErrorHandler.createError({
+          code: ErrorHandler.ErrorCode.UNKNOWN_TOOL,
+          message: `Unknown tool: ${tool}`,
+          category: ErrorHandler.ErrorCategory.NOT_FOUND,
+          statusCode: 404,
+          requestId: context.requestId,
+          details: {
             tool,
             availableTools: [
               'list_templates',
@@ -117,7 +137,13 @@ const process = async (event, context) => {
               'validate_naming',
               'check_template_updates'
             ]
-          } 
+          }
+        });
+        error.availableTools = error.details.availableTools;
+        ErrorHandler.logError(error, { tool, requestId: context.requestId });
+        return RESP.reset({ 
+          statusCode: 404, 
+          body: ErrorHandler.toUserResponse(error, context.requestId)
         });
     }
     
@@ -126,34 +152,40 @@ const process = async (event, context) => {
     const supportedMethods = ['GET', 'POST'];
     if (!supportedMethods.includes(props.httpMethod)) {
       DebugAndLog.warn('Unsupported HTTP method', { method: props.httpMethod });
-      return RESP.reset({ 
-        statusCode: 405, 
-        body: { 
-          error: 'Method not allowed',
+      const error = ErrorHandler.createError({
+        code: ErrorHandler.ErrorCode.METHOD_NOT_ALLOWED,
+        message: `Method not allowed: ${props.httpMethod}`,
+        category: ErrorHandler.ErrorCategory.CLIENT_ERROR,
+        statusCode: 405,
+        requestId: context.requestId,
+        details: {
           method: props.httpMethod,
           allowedMethods: supportedMethods
-        } 
+        }
+      });
+      ErrorHandler.logError(error, { tool, requestId: context.requestId });
+      return RESP.reset({ 
+        statusCode: 405, 
+        body: ErrorHandler.toUserResponse(error, context.requestId)
       });
     }
     
     return RESP;
     
   } catch (error) {
-    // Log error with full context
-    DebugAndLog.error('Error processing request', { 
-      error: error.message,
-      stack: error.stack,
+    // >! Log error with full context
+    // >! Log all errors with stack traces and request context
+    ErrorHandler.logError(error, { 
       tool,
-      requestId: context.requestId
+      requestId: context.requestId,
+      parameters: props.body || props.queryStringParameters
     });
     
-    // Return sanitized error to client
+    // >! Return sanitized error to client
+    // >! Categorize errors as 4xx (client) or 5xx (server)
     return RESP.reset({ 
-      statusCode: 500, 
-      body: { 
-        error: 'Internal server error',
-        requestId: context.requestId
-      } 
+      statusCode: ErrorHandler.getStatusCode(error), 
+      body: ErrorHandler.toUserResponse(error, context.requestId)
     });
   }
 };

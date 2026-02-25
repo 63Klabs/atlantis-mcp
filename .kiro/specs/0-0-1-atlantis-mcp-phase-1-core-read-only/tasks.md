@@ -233,290 +233,290 @@ This document outlines the implementation tasks for Phase 1 of the Atlantis MCP 
 
 ### 6. Services (Requirements 4, 5, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19)
 
-- [ ] 6.1 Implement Templates Service (src/lambda/read/services/templates.js)
-  - [ ] 6.1.1 Implement list() with cache-data pass-through caching
-  - [ ] 6.1.2 Support filtering by category
-  - [ ] 6.1.3 Support filtering by version (Human_Readable_Version)
-  - [ ] 6.1.4 Support filtering by versionId (S3_VersionId)
-  - [ ] 6.1.5 Support filtering by s3Buckets (validate against settings)
-  - [ ] 6.1.6 Set connection.host to array of buckets for cache key
-  - [ ] 6.1.7 Set connection.parameters for cache key and DAO filtering
-  - [ ] 6.1.8 Use Config.getConnCacheProfile('s3-templates', 'templates-list')
-  - [ ] 6.1.9 Implement get() with cache-data pass-through caching
-  - [ ] 6.1.10 Support version parameter (Human_Readable_Version)
-  - [ ] 6.1.11 Support versionId parameter (S3_VersionId)
-  - [ ] 6.1.12 Support OR condition when both version and versionId provided
-  - [ ] 6.1.13 Throw TEMPLATE_NOT_FOUND error with available templates
-  - [ ] 6.1.14 Implement listVersions() with cache-data pass-through caching
-  - [ ] 6.1.15 Use Config.getConnCacheProfile('s3-templates', 'template-versions')
-  - [ ] 6.1.16 Implement listCategories() function
-  - [ ] 6.1.17 Return category names, descriptions, and template counts
-  - [ ] 6.1.18 Use settings.templateCategories for category list
-  - [ ] 6.1.19 Implement checkUpdates() function
-  - [ ] 6.1.20 Compare current version with latest version from S3
-  - [ ] 6.1.21 Return update information (version, release date, changelog)
-  - [ ] 6.1.22 Indicate breaking changes and migration guide links
-  - [ ] 6.1.23 Support checking multiple templates in single request
+- [x] 6.1 Implement Templates Service (src/lambda/read/services/templates.js)
+  - [x] 6.1.1 Implement list() with cache-data pass-through caching
+  - [x] 6.1.2 Support filtering by category
+  - [x] 6.1.3 Support filtering by version (Human_Readable_Version)
+  - [x] 6.1.4 Support filtering by versionId (S3_VersionId)
+  - [x] 6.1.5 Support filtering by s3Buckets (validate against settings)
+  - [x] 6.1.6 Set connection.host to array of buckets for cache key
+  - [x] 6.1.7 Set connection.parameters for cache key and DAO filtering
+  - [x] 6.1.8 Use Config.getConnCacheProfile('s3-templates', 'templates-list')
+  - [x] 6.1.9 Implement get() with cache-data pass-through caching
+  - [x] 6.1.10 Support version parameter (Human_Readable_Version)
+  - [x] 6.1.11 Support versionId parameter (S3_VersionId)
+  - [x] 6.1.12 Support OR condition when both version and versionId provided
+  - [x] 6.1.13 Throw TEMPLATE_NOT_FOUND error with available templates
+  - [x] 6.1.14 Implement listVersions() with cache-data pass-through caching
+  - [x] 6.1.15 Use Config.getConnCacheProfile('s3-templates', 'template-versions')
+  - [x] 6.1.16 Implement listCategories() function
+  - [x] 6.1.17 Return category names, descriptions, and template counts
+  - [x] 6.1.18 Use settings.templateCategories for category list
+  - [x] 6.1.19 Implement checkUpdates() function
+  - [x] 6.1.20 Compare current version with latest version from S3
+  - [x] 6.1.21 Return update information (version, release date, changelog)
+  - [x] 6.1.22 Indicate breaking changes and migration guide links
+  - [x] 6.1.23 Support checking multiple templates in single request
 
-- [ ] 6.2 Implement Starters Service (src/lambda/read/services/starters.js)
-  - [ ] 6.2.1 Implement list() with cache-data pass-through caching
-  - [ ] 6.2.2 Support filtering by ghusers (validate against settings)
-  - [ ] 6.2.3 Set connection.host to array of GitHub users/orgs for cache key
-  - [ ] 6.2.4 Use Config.getConnCacheProfile('github-api', 'starters-list')
-  - [ ] 6.2.5 Aggregate starters from S3 buckets and GitHub users/orgs
-  - [ ] 6.2.6 Filter by atlantis_repository-type: app-starter
-  - [ ] 6.2.7 Indicate which starters include cache-data integration
-  - [ ] 6.2.8 Indicate which starters include CloudFront integration
-  - [ ] 6.2.9 Implement get() with cache-data pass-through caching
-  - [ ] 6.2.10 Prefer sidecar metadata from S3 when available
-  - [ ] 6.2.11 Skip starters without sidecar metadata and log warning
-  - [ ] 6.2.12 Return example code snippets from sidecar metadata
-  - [ ] 6.2.13 Indicate when starter repository is private
+- [x] 6.2 Implement Starters Service (src/lambda/read/services/starters.js)
+  - [x] 6.2.1 Implement list() with cache-data pass-through caching
+  - [x] 6.2.2 Support filtering by ghusers (validate against settings)
+  - [x] 6.2.3 Set connection.host to array of GitHub users/orgs for cache key
+  - [x] 6.2.4 Use Config.getConnCacheProfile('github-api', 'starters-list')
+  - [x] 6.2.5 Aggregate starters from S3 buckets and GitHub users/orgs
+  - [x] 6.2.6 Filter by atlantis_repository-type: app-starter
+  - [x] 6.2.7 Indicate which starters include cache-data integration
+  - [x] 6.2.8 Indicate which starters include CloudFront integration
+  - [x] 6.2.9 Implement get() with cache-data pass-through caching
+  - [x] 6.2.10 Prefer sidecar metadata from S3 when available
+  - [x] 6.2.11 Skip starters without sidecar metadata and log warning
+  - [x] 6.2.12 Return example code snippets from sidecar metadata
+  - [x] 6.2.13 Indicate when starter repository is private
 
-- [ ] 6.3 Implement Documentation Service (src/lambda/read/services/documentation.js)
-  - [ ] 6.3.1 Implement search() with cache-data pass-through caching
-  - [ ] 6.3.2 Search across all configured GitHub users/orgs
-  - [ ] 6.3.3 Filter repositories by atlantis_repository-type custom property
-  - [ ] 6.3.4 Support keyword-based search with relevance ranking
-  - [ ] 6.3.5 Support filtering by documentation type (guide, tutorial, reference, troubleshooting, template pattern, code example)
-  - [ ] 6.3.6 Return search results with title, excerpt, file path, GitHub URL, result type
-  - [ ] 6.3.7 Indicate whether results are from documentation or code examples
-  - [ ] 6.3.8 Return code snippets with context (file path, line numbers, surrounding code)
-  - [ ] 6.3.9 Provide suggestions when no results found
-  - [ ] 6.3.10 Use Config.getConnCacheProfile('doc-index', 'search')
+- [x] 6.3 Implement Documentation Service (src/lambda/read/services/documentation.js)
+  - [x] 6.3.1 Implement search() with cache-data pass-through caching
+  - [x] 6.3.2 Search across all configured GitHub users/orgs
+  - [x] 6.3.3 Filter repositories by atlantis_repository-type custom property
+  - [x] 6.3.4 Support keyword-based search with relevance ranking
+  - [x] 6.3.5 Support filtering by documentation type (guide, tutorial, reference, troubleshooting, template pattern, code example)
+  - [x] 6.3.6 Return search results with title, excerpt, file path, GitHub URL, result type
+  - [x] 6.3.7 Indicate whether results are from documentation or code examples
+  - [x] 6.3.8 Return code snippets with context (file path, line numbers, surrounding code)
+  - [x] 6.3.9 Provide suggestions when no results found
+  - [x] 6.3.10 Use Config.getConnCacheProfile('doc-index', 'search')
 
-- [ ] 6.4 Implement Validation Service (src/lambda/read/services/validation.js)
-  - [ ] 6.4.1 Implement validateNaming() function
-  - [ ] 6.4.2 Detect resource type from name pattern
-  - [ ] 6.4.3 Validate application resources: <Prefix>-<ProjectId>-<StageId>-<ResourceName>
-  - [ ] 6.4.4 Validate S3 buckets: <orgPrefix>-<Prefix>-<ProjectId>-<StageId>-<Region>-<AccountId>
-  - [ ] 6.4.5 Validate alternative S3 pattern: <orgPrefix>-<Prefix>-<ProjectId>-<Region>
-  - [ ] 6.4.6 Verify Prefix matches template.yaml configuration
-  - [ ] 6.4.7 Verify ProjectId matches template.yaml configuration
-  - [ ] 6.4.8 Verify StageId matches allowed values
-  - [ ] 6.4.9 Verify ResourceName follows AWS resource naming rules
-  - [ ] 6.4.10 Return specific error messages for invalid components
-  - [ ] 6.4.11 Provide suggestions for correcting invalid names
-  - [ ] 6.4.12 Support validation of partial names
-  - [ ] 6.4.13 Validate names for S3, DynamoDB, Lambda, CloudFormation
+- [x] 6.4 Implement Validation Service (src/lambda/read/services/validation.js)
+  - [x] 6.4.1 Implement validateNaming() function
+  - [x] 6.4.2 Detect resource type from name pattern
+  - [x] 6.4.3 Validate application resources: <Prefix>-<ProjectId>-<StageId>-<ResourceName>
+  - [x] 6.4.4 Validate S3 buckets: <orgPrefix>-<Prefix>-<ProjectId>-<StageId>-<Region>-<AccountId>
+  - [x] 6.4.5 Validate alternative S3 pattern: <orgPrefix>-<Prefix>-<ProjectId>-<Region>
+  - [x] 6.4.6 Verify Prefix matches template.yaml configuration
+  - [x] 6.4.7 Verify ProjectId matches template.yaml configuration
+  - [x] 6.4.8 Verify StageId matches allowed values
+  - [x] 6.4.9 Verify ResourceName follows AWS resource naming rules
+  - [x] 6.4.10 Return specific error messages for invalid components
+  - [x] 6.4.11 Provide suggestions for correcting invalid names
+  - [x] 6.4.12 Support validation of partial names
+  - [x] 6.4.13 Validate names for S3, DynamoDB, Lambda, CloudFormation
 
 ### 7. Controllers (Requirements 14, 15, 16, 17, 18, 21)
 
-- [ ] 7.1 Implement Templates Controller (src/lambda/read/controllers/templates.js)
-  - [ ] 7.1.1 Implement list() function
-  - [ ] 7.1.2 Validate input against JSON Schema
-  - [ ] 7.1.3 Extract parameters (category, version, versionId, s3Buckets)
-  - [ ] 7.1.4 Call Services.Templates.list()
-  - [ ] 7.1.5 Return MCP-formatted response
-  - [ ] 7.1.6 Implement get() function
-  - [ ] 7.1.7 Validate input against JSON Schema
-  - [ ] 7.1.8 Extract parameters (templateName, category, version, versionId, s3Buckets)
-  - [ ] 7.1.9 Call Services.Templates.get()
-  - [ ] 7.1.10 Handle TEMPLATE_NOT_FOUND error with available templates
-  - [ ] 7.1.11 Return MCP-formatted response
-  - [ ] 7.1.12 Implement listVersions() function
-  - [ ] 7.1.13 Validate input against JSON Schema
-  - [ ] 7.1.14 Extract parameters (templateName, category, s3Buckets)
-  - [ ] 7.1.15 Call Services.Templates.listVersions()
-  - [ ] 7.1.16 Return MCP-formatted response
-  - [ ] 7.1.17 Implement listCategories() function
-  - [ ] 7.1.18 Call Services.Templates.listCategories()
-  - [ ] 7.1.19 Return MCP-formatted response
+- [x] 7.1 Implement Templates Controller (src/lambda/read/controllers/templates.js)
+  - [x] 7.1.1 Implement list() function
+  - [x] 7.1.2 Validate input against JSON Schema
+  - [x] 7.1.3 Extract parameters (category, version, versionId, s3Buckets)
+  - [x] 7.1.4 Call Services.Templates.list()
+  - [x] 7.1.5 Return MCP-formatted response
+  - [x] 7.1.6 Implement get() function
+  - [x] 7.1.7 Validate input against JSON Schema
+  - [x] 7.1.8 Extract parameters (templateName, category, version, versionId, s3Buckets)
+  - [x] 7.1.9 Call Services.Templates.get()
+  - [x] 7.1.10 Handle TEMPLATE_NOT_FOUND error with available templates
+  - [x] 7.1.11 Return MCP-formatted response
+  - [x] 7.1.12 Implement listVersions() function
+  - [x] 7.1.13 Validate input against JSON Schema
+  - [x] 7.1.14 Extract parameters (templateName, category, s3Buckets)
+  - [x] 7.1.15 Call Services.Templates.listVersions()
+  - [x] 7.1.16 Return MCP-formatted response
+  - [x] 7.1.17 Implement listCategories() function
+  - [x] 7.1.18 Call Services.Templates.listCategories()
+  - [x] 7.1.19 Return MCP-formatted response
 
-- [ ] 7.2 Implement Starters Controller (src/lambda/read/controllers/starters.js)
-  - [ ] 7.2.1 Implement list() function
-  - [ ] 7.2.2 Validate input against JSON Schema
-  - [ ] 7.2.3 Extract parameters (ghusers)
-  - [ ] 7.2.4 Call Services.Starters.list()
-  - [ ] 7.2.5 Return MCP-formatted response
-  - [ ] 7.2.6 Implement get() function
-  - [ ] 7.2.7 Validate input against JSON Schema
-  - [ ] 7.2.8 Extract parameters (starterName, ghusers)
-  - [ ] 7.2.9 Call Services.Starters.get()
-  - [ ] 7.2.10 Return MCP-formatted response
+- [x] 7.2 Implement Starters Controller (src/lambda/read/controllers/starters.js)
+  - [x] 7.2.1 Implement list() function
+  - [x] 7.2.2 Validate input against JSON Schema
+  - [x] 7.2.3 Extract parameters (ghusers)
+  - [x] 7.2.4 Call Services.Starters.list()
+  - [x] 7.2.5 Return MCP-formatted response
+  - [x] 7.2.6 Implement get() function
+  - [x] 7.2.7 Validate input against JSON Schema
+  - [x] 7.2.8 Extract parameters (starterName, ghusers)
+  - [x] 7.2.9 Call Services.Starters.get()
+  - [x] 7.2.10 Return MCP-formatted response
 
-- [ ] 7.3 Implement Documentation Controller (src/lambda/read/controllers/documentation.js)
-  - [ ] 7.3.1 Implement search() function
-  - [ ] 7.3.2 Validate input against JSON Schema
-  - [ ] 7.3.3 Extract parameters (query, type, ghusers)
-  - [ ] 7.3.4 Call Services.Documentation.search()
-  - [ ] 7.3.5 Return MCP-formatted response with suggestions if no results
+- [x] 7.3 Implement Documentation Controller (src/lambda/read/controllers/documentation.js)
+  - [x] 7.3.1 Implement search() function
+  - [x] 7.3.2 Validate input against JSON Schema
+  - [x] 7.3.3 Extract parameters (query, type, ghusers)
+  - [x] 7.3.4 Call Services.Documentation.search()
+  - [x] 7.3.5 Return MCP-formatted response with suggestions if no results
 
-- [ ] 7.4 Implement Validation Controller (src/lambda/read/controllers/validation.js)
-  - [ ] 7.4.1 Implement validate() function
-  - [ ] 7.4.2 Validate input against JSON Schema
-  - [ ] 7.4.3 Extract parameters (resourceName, resourceType)
-  - [ ] 7.4.4 Call Services.Validation.validateNaming()
-  - [ ] 7.4.5 Return MCP-formatted response with validation results and suggestions
+- [x] 7.4 Implement Validation Controller (src/lambda/read/controllers/validation.js)
+  - [x] 7.4.1 Implement validate() function
+  - [x] 7.4.2 Validate input against JSON Schema
+  - [x] 7.4.3 Extract parameters (resourceName, resourceType)
+  - [x] 7.4.4 Call Services.Validation.validateNaming()
+  - [x] 7.4.5 Return MCP-formatted response with validation results and suggestions
 
-- [ ] 7.5 Implement Updates Controller (src/lambda/read/controllers/updates.js)
-  - [ ] 7.5.1 Implement check() function
-  - [ ] 7.5.2 Validate input against JSON Schema
-  - [ ] 7.5.3 Extract parameters (templateName, currentVersion, s3Buckets)
-  - [ ] 7.5.4 Call Services.Templates.checkUpdates()
-  - [ ] 7.5.5 Return MCP-formatted response with update information
+- [-] 7.5 Implement Updates Controller (src/lambda/read/controllers/updates.js)
+  - [x] 7.5.1 Implement check() function
+  - [x] 7.5.2 Validate input against JSON Schema
+  - [x] 7.5.3 Extract parameters (templateName, currentVersion, s3Buckets)
+  - [x] 7.5.4 Call Services.Templates.checkUpdates()
+  - [x] 7.5.5 Return MCP-formatted response with update information
 
 ### 8. Views (Requirement 21)
 
-- [ ] 8.1 Implement MCP Response Formatter (src/lambda/read/views/mcp-response.js)
-  - [ ] 8.1.1 Implement formatToolResponse() function
-  - [ ] 8.1.2 Format list_templates response
-  - [ ] 8.1.3 Format get_template response
-  - [ ] 8.1.4 Format list_template_versions response
-  - [ ] 8.1.5 Format list_categories response
-  - [ ] 8.1.6 Format list_starters response
-  - [ ] 8.1.7 Format get_starter_info response
-  - [ ] 8.1.8 Format search_documentation response
-  - [ ] 8.1.9 Format validate_naming response
-  - [ ] 8.1.10 Format check_template_updates response
-  - [ ] 8.1.11 Include tool descriptions for AI assistants
-  - [ ] 8.1.12 Include usage examples in tool descriptions
+- [x] 8.1 Implement MCP Response Formatter (src/lambda/read/views/mcp-response.js)
+  - [x] 8.1.1 Implement formatToolResponse() function
+  - [x] 8.1.2 Format list_templates response
+  - [x] 8.1.3 Format get_template response
+  - [x] 8.1.4 Format list_template_versions response
+  - [x] 8.1.5 Format list_categories response
+  - [x] 8.1.6 Format list_starters response
+  - [x] 8.1.7 Format get_starter_info response
+  - [x] 8.1.8 Format search_documentation response
+  - [x] 8.1.9 Format validate_naming response
+  - [x] 8.1.10 Format check_template_updates response
+  - [x] 8.1.11 Include tool descriptions for AI assistants
+  - [x] 8.1.12 Include usage examples in tool descriptions
 
 ### 9. Error Handling and Logging (Requirement 22)
 
-- [ ] 9.1 Implement comprehensive error handling
-  - [ ] 9.1.1 Use DebugAndLog.error for fatal errors
-  - [ ] 9.1.2 Use DebugAndLog.warn for non-fatal errors (brown-out scenarios)
-  - [ ] 9.1.3 Use DebugAndLog.info for informational messages
-  - [ ] 9.1.4 Use DebugAndLog.debug for detailed debugging
-  - [ ] 9.1.5 Use DebugAndLog.diag for diagnostic information
-  - [ ] 9.1.6 Log all requests with timestamp, IP, tool name, execution time
-  - [ ] 9.1.7 Log all errors with stack traces and request context
-  - [ ] 9.1.8 Log S3 operation failures with bucket name, key, error details
-  - [ ] 9.1.9 Log GitHub API failures with repository, user/org, endpoint, error details
-  - [ ] 9.1.10 Log which specific bucket/org failed without exposing sensitive info
-  - [ ] 9.1.11 Return user-friendly error messages (no internal details)
-  - [ ] 9.1.12 Categorize errors as 4xx (client) or 5xx (server)
-  - [ ] 9.1.13 Include request IDs in error responses
-  - [ ] 9.1.14 Emit CloudWatch metrics for error rates, latency, cache performance
-  - [ ] 9.1.15 Implement structured logging with consistent format
-  - [ ] 9.1.16 Support configurable log levels via environment variables
+- [x] 9.1 Implement comprehensive error handling
+  - [x] 9.1.1 Use DebugAndLog.error for fatal errors
+  - [x] 9.1.2 Use DebugAndLog.warn for non-fatal errors (brown-out scenarios)
+  - [x] 9.1.3 Use DebugAndLog.info for informational messages
+  - [x] 9.1.4 Use DebugAndLog.debug for detailed debugging
+  - [x] 9.1.5 Use DebugAndLog.diag for diagnostic information
+  - [x] 9.1.6 Log all requests with timestamp, IP, tool name, execution time
+  - [x] 9.1.7 Log all errors with stack traces and request context
+  - [x] 9.1.8 Log S3 operation failures with bucket name, key, error details
+  - [x] 9.1.9 Log GitHub API failures with repository, user/org, endpoint, error details
+  - [x] 9.1.10 Log which specific bucket/org failed without exposing sensitive info
+  - [x] 9.1.11 Return user-friendly error messages (no internal details)
+  - [x] 9.1.12 Categorize errors as 4xx (client) or 5xx (server)
+  - [x] 9.1.13 Include request IDs in error responses
+  - [x] 9.1.14 Emit CloudWatch metrics for error rates, latency, cache performance
+  - [x] 9.1.15 Implement structured logging with consistent format
+  - [x] 9.1.16 Support configurable log levels via environment variables
 
 ### 10. Rate Limiting (Requirement 3)
 
-- [ ] 10.1 Configure API Gateway rate limiting
-  - [ ] 10.1.1 Set default rate limit to 100 requests per hour per IP
-  - [ ] 10.1.2 Make rate limit configurable via CloudFormation parameter
-  - [ ] 10.1.3 Track rate limits per IP address
-  - [ ] 10.1.4 Return HTTP 429 when rate limit exceeded
-  - [ ] 10.1.5 Include retry-after header in 429 responses
-  - [ ] 10.1.6 Reset request counts every hour
-  - [ ] 10.1.7 Include rate limit headers (X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset)
-  - [ ] 10.1.8 Log rate limit violations to CloudWatch
-  - [ ] 10.1.9 Apply rate limiting globally across all resources
+- [x] 10.1 Configure API Gateway rate limiting
+  - [x] 10.1.1 Set default rate limit to 100 requests per hour per IP
+  - [x] 10.1.2 Make rate limit configurable via CloudFormation parameter
+  - [x] 10.1.3 Track rate limits per IP address
+  - [x] 10.1.4 Return HTTP 429 when rate limit exceeded
+  - [x] 10.1.5 Include retry-after header in 429 responses
+  - [x] 10.1.6 Reset request counts every hour
+  - [x] 10.1.7 Include rate limit headers (X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset)
+  - [x] 10.1.8 Log rate limit violations to CloudWatch
+  - [x] 10.1.9 Apply rate limiting globally across all resources
 
 ### 11. Testing (Requirement 25)
 
-- [ ] 11.1 Implement property-based tests for naming validation
-  - [ ] 11.1.1 Install fast-check for property-based testing
-  - [ ] 11.1.2 Test that valid application resource names always pass
-  - [ ] 11.1.3 Test that valid S3 bucket names always pass
-  - [ ] 11.1.4 Test that invalid names always fail with appropriate errors
-  - [ ] 11.1.5 Test partial name validation
-  - [ ] 11.1.6 Test edge cases (empty strings, special characters, length limits)
-  - [ ] 11.1.7 Verify error messages are helpful and specific
+- [x] 11.1 Implement property-based tests for naming validation
+  - [x] 11.1.1 Install fast-check for property-based testing
+  - [x] 11.1.2 Test that valid application resource names always pass
+  - [x] 11.1.3 Test that valid S3 bucket names always pass
+  - [x] 11.1.4 Test that invalid names always fail with appropriate errors
+  - [x] 11.1.5 Test partial name validation
+  - [x] 11.1.6 Test edge cases (empty strings, special characters, length limits)
+  - [x] 11.1.7 Verify error messages are helpful and specific
 
-- [ ] 11.2 Implement unit tests for Read Lambda
-  - [ ] 11.2.1 Mock AWS SDK calls (S3, DynamoDB, SSM)
-  - [ ] 11.2.2 Test cache hit scenarios
-  - [ ] 11.2.3 Test cache miss scenarios
-  - [ ] 11.2.4 Test rate limiting logic
-  - [ ] 11.2.5 Test error handling for all failure scenarios
-  - [ ] 11.2.6 Test brown-out support (partial data when sources fail)
-  - [ ] 11.2.7 Test multiple S3 bucket handling
-  - [ ] 11.2.8 Test multiple GitHub user/org handling
-  - [ ] 11.2.9 Test namespace discovery and priority ordering
-  - [ ] 11.2.10 Test template version handling (Human_Readable_Version and S3_VersionId)
-  - [ ] 11.2.11 Test sidecar metadata reading and exclusion
-  - [ ] 11.2.12 Test GitHub custom property filtering and exclusion
-  - [ ] 11.2.13 Test OR condition for version and versionId parameters
-  - [ ] 11.2.14 Test bucket access checking (atlantis-mcp:Allow tag)
-  - [ ] 11.2.15 Test namespace indexing (atlantis-mcp:IndexPriority tag)
+- [x] 11.2 Implement unit tests for Read Lambda
+  - [x] 11.2.1 Mock AWS SDK calls (S3, DynamoDB, SSM)
+  - [x] 11.2.2 Test cache hit scenarios
+  - [x] 11.2.3 Test cache miss scenarios
+  - [x] 11.2.4 Test rate limiting logic
+  - [x] 11.2.5 Test error handling for all failure scenarios
+  - [x] 11.2.6 Test brown-out support (partial data when sources fail)
+  - [x] 11.2.7 Test multiple S3 bucket handling
+  - [x] 11.2.8 Test multiple GitHub user/org handling
+  - [x] 11.2.9 Test namespace discovery and priority ordering
+  - [x] 11.2.10 Test template version handling (Human_Readable_Version and S3_VersionId)
+  - [x] 11.2.11 Test sidecar metadata reading and exclusion
+  - [x] 11.2.12 Test GitHub custom property filtering and exclusion
+  - [x] 11.2.13 Test OR condition for version and versionId parameters
+  - [x] 11.2.14 Test bucket access checking (atlantis-mcp:Allow tag)
+  - [x] 11.2.15 Test namespace indexing (atlantis-mcp:IndexPriority tag)
 
-- [ ] 11.3 Implement unit tests for Controllers
-  - [ ] 11.3.1 Test Templates controller list() function
-  - [ ] 11.3.2 Test Templates controller get() function
-  - [ ] 11.3.3 Test Templates controller listVersions() function
-  - [ ] 11.3.4 Test Templates controller listCategories() function
-  - [ ] 11.3.5 Test Starters controller list() function
-  - [ ] 11.3.6 Test Starters controller get() function
-  - [ ] 11.3.7 Test Documentation controller search() function
-  - [ ] 11.3.8 Test Validation controller validate() function
-  - [ ] 11.3.9 Test Updates controller check() function
-  - [ ] 11.3.10 Test JSON Schema validation for all controllers
-  - [ ] 11.3.11 Test error handling in controllers
+- [x] 11.3 Implement unit tests for Controllers
+  - [x] 11.3.1 Test Templates controller list() function
+  - [x] 11.3.2 Test Templates controller get() function
+  - [x] 11.3.3 Test Templates controller listVersions() function
+  - [x] 11.3.4 Test Templates controller listCategories() function
+  - [x] 11.3.5 Test Starters controller list() function
+  - [x] 11.3.6 Test Starters controller get() function
+  - [x] 11.3.7 Test Documentation controller search() function
+  - [x] 11.3.8 Test Validation controller validate() function
+  - [x] 11.3.9 Test Updates controller check() function
+  - [x] 11.3.10 Test JSON Schema validation for all controllers
+  - [x] 11.3.11 Test error handling in controllers
 
-- [ ] 11.4 Implement unit tests for Services
-  - [ ] 11.4.1 Test Templates service list() with caching
-  - [ ] 11.4.2 Test Templates service get() with caching
-  - [ ] 11.4.3 Test Templates service listVersions() with caching
-  - [ ] 11.4.4 Test Templates service listCategories()
-  - [ ] 11.4.5 Test Templates service checkUpdates()
-  - [ ] 11.4.6 Test Starters service list() with caching
-  - [ ] 11.4.7 Test Starters service get() with caching
-  - [ ] 11.4.8 Test Documentation service search() with caching
-  - [ ] 11.4.9 Test Validation service validateNaming()
-  - [ ] 11.4.10 Test service-level bucket filtering
-  - [ ] 11.4.11 Test service-level GitHub user/org filtering
+- [x] 11.4 Implement unit tests for Services
+  - [x] 11.4.1 Test Templates service list() with caching
+  - [x] 11.4.2 Test Templates service get() with caching
+  - [x] 11.4.3 Test Templates service listVersions() with caching
+  - [x] 11.4.4 Test Templates service listCategories()
+  - [x] 11.4.5 Test Templates service checkUpdates()
+  - [x] 11.4.6 Test Starters service list() with caching
+  - [x] 11.4.7 Test Starters service get() with caching
+  - [x] 11.4.8 Test Documentation service search() with caching
+  - [x] 11.4.9 Test Validation service validateNaming()
+  - [x] 11.4.10 Test service-level bucket filtering
+  - [x] 11.4.11 Test service-level GitHub user/org filtering
 
-- [ ] 11.5 Implement unit tests for Models/DAOs
-  - [ ] 11.5.1 Test S3 Templates DAO list() function
-  - [ ] 11.5.2 Test S3 Templates DAO get() function
-  - [ ] 11.5.3 Test S3 Templates DAO listVersions() function
-  - [ ] 11.5.4 Test S3 Templates DAO checkBucketAccess()
-  - [ ] 11.5.5 Test S3 Templates DAO getIndexedNamespaces()
-  - [ ] 11.5.6 Test S3 Templates DAO parseCloudFormationTemplate()
-  - [ ] 11.5.7 Test S3 Templates DAO deduplicateTemplates()
-  - [ ] 11.5.8 Test S3 App Starters DAO list() function
-  - [ ] 11.5.9 Test S3 App Starters DAO get() function
-  - [ ] 11.5.10 Test GitHub API DAO listRepositories()
-  - [ ] 11.5.11 Test GitHub API DAO getRepository()
-  - [ ] 11.5.12 Test GitHub API DAO getCustomProperty()
-  - [ ] 11.5.13 Test GitHub API DAO getReadme()
-  - [ ] 11.5.14 Test GitHub API DAO getReleases()
-  - [ ] 11.5.15 Test GitHub API DAO rate limit handling
-  - [ ] 11.5.16 Test Documentation Index DAO buildIndex()
-  - [ ] 11.5.17 Test Documentation Index DAO search()
+- [x] 11.5 Implement unit tests for Models/DAOs
+  - [x] 11.5.1 Test S3 Templates DAO list() function
+  - [x] 11.5.2 Test S3 Templates DAO get() function
+  - [x] 11.5.3 Test S3 Templates DAO listVersions() function
+  - [x] 11.5.4 Test S3 Templates DAO checkBucketAccess()
+  - [x] 11.5.5 Test S3 Templates DAO getIndexedNamespaces()
+  - [x] 11.5.6 Test S3 Templates DAO parseCloudFormationTemplate()
+  - [x] 11.5.7 Test S3 Templates DAO deduplicateTemplates()
+  - [x] 11.5.8 Test S3 App Starters DAO list() function
+  - [x] 11.5.9 Test S3 App Starters DAO get() function
+  - [x] 11.5.10 Test GitHub API DAO listRepositories()
+  - [x] 11.5.11 Test GitHub API DAO getRepository()
+  - [x] 11.5.12 Test GitHub API DAO getCustomProperty()
+  - [x] 11.5.13 Test GitHub API DAO getReadme()
+  - [x] 11.5.14 Test GitHub API DAO getReleases()
+  - [x] 11.5.15 Test GitHub API DAO rate limit handling
+  - [x] 11.5.16 Test Documentation Index DAO buildIndex()
+  - [x] 11.5.17 Test Documentation Index DAO search()
 
-- [ ] 11.6 Implement unit tests for Utilities
-  - [ ] 11.6.1 Test MCP protocol utilities successResponse()
-  - [ ] 11.6.2 Test MCP protocol utilities errorResponse()
-  - [ ] 11.6.3 Test JSON Schema validator validate()
-  - [ ] 11.6.4 Test naming rules validateApplicationResource()
-  - [ ] 11.6.5 Test naming rules validateS3Bucket()
-  - [ ] 11.6.6 Test naming rules suggestion generation
+- [x] 11.6 Implement unit tests for Utilities
+  - [x] 11.6.1 Test MCP protocol utilities successResponse()
+  - [x] 11.6.2 Test MCP protocol utilities errorResponse()
+  - [x] 11.6.3 Test JSON Schema validator validate()
+  - [x] 11.6.4 Test naming rules validateApplicationResource()
+  - [x] 11.6.5 Test naming rules validateS3Bucket()
+  - [x] 11.6.6 Test naming rules suggestion generation
 
-- [ ] 11.7 Achieve code coverage targets
-  - [ ] 11.7.1 Run code coverage analysis
-  - [ ] 11.7.2 Identify uncovered code paths
-  - [ ] 11.7.3 Add tests for uncovered paths
-  - [ ] 11.7.4 Verify minimum 80% code coverage achieved
+- [x] 11.7 Achieve code coverage targets
+  - [x] 11.7.1 Run code coverage analysis
+  - [x] 11.7.2 Identify uncovered code paths
+  - [x] 11.7.3 Add tests for uncovered paths
+  - [x] 11.7.4 Verify minimum 80% code coverage achieved
 
 ### 12. Documentation (Requirement 24)
 
-- [ ] 12.1 Create end-user documentation
-  - [ ] 12.1.1 Write README.md with overview and quick start
-  - [ ] 12.1.2 Document each MCP tool with examples
-  - [ ] 12.1.3 Create integration guide for Claude
-  - [ ] 12.1.4 Create integration guide for ChatGPT
-  - [ ] 12.1.5 Create integration guide for Cursor
-  - [ ] 12.1.6 Create integration guide for Kiro
-  - [ ] 12.1.7 Create integration guide for Amazon Q Developer
-  - [ ] 12.1.8 Document common use cases and patterns
-  - [ ] 12.1.9 Create troubleshooting guide for users
+- [x] 12.1 Create end-user documentation
+  - [x] 12.1.1 Write README.md with overview and quick start
+  - [x] 12.1.2 Document each MCP tool with examples
+  - [x] 12.1.3 Create integration guide for Claude
+  - [x] 12.1.4 Create integration guide for ChatGPT
+  - [x] 12.1.5 Create integration guide for Cursor
+  - [x] 12.1.6 Create integration guide for Kiro
+  - [x] 12.1.7 Create integration guide for Amazon Q Developer
+  - [x] 12.1.8 Document common use cases and patterns
+  - [x] 12.1.9 Create troubleshooting guide for users
 
-- [ ] 12.2 Create organizational documentation
-  - [ ] 12.2.1 Write deployment guide using SAM configuration repository
-  - [ ] 12.2.2 Document all CloudFormation parameters
-  - [ ] 12.2.3 Document GitHub token setup and required scopes
-  - [ ] 12.2.4 Document GitHub custom properties setup
-  - [ ] 12.2.5 Document S3 bucket tagging (atlantis-mcp:Allow, atlantis-mcp:IndexPriority)
-  - [ ] 12.2.6 Create Python script for generating sidecar metadata files
-  - [ ] 12.2.7 Document sidecar metadata script usage in CodeBuild
-  - [ ] 12.2.8 Document sidecar metadata script usage in GitHub Actions
-  - [ ] 12.2.9 Document multiple S3 bucket configuration
-  - [ ] 12.2.10 Document multiple GitHub org configuration
-  - [ ] 12.2.11 Create self-hosting guide
+- [x] 12.2 Create organizational documentation
+  - [x] 12.2.1 Write deployment guide using SAM configuration repository
+  - [x] 12.2.2 Document all CloudFormation parameters
+  - [x] 12.2.3 Document GitHub token setup and required scopes
+  - [x] 12.2.4 Document GitHub custom properties setup
+  - [x] 12.2.5 Document S3 bucket tagging (atlantis-mcp:Allow, atlantis-mcp:IndexPriority)
+  - [x] 12.2.6 Create Python script for generating sidecar metadata files
+  - [x] 12.2.7 Document sidecar metadata script usage in CodeBuild
+  - [x] 12.2.8 Document sidecar metadata script usage in GitHub Actions
+  - [x] 12.2.9 Document multiple S3 bucket configuration
+  - [x] 12.2.10 Document multiple GitHub org configuration
+  - [x] 12.2.11 Create self-hosting guide
 
 - [ ] 12.3 Create maintainer documentation
   - [ ] 12.3.1 Create architecture diagrams (high-level, component, data flow)
