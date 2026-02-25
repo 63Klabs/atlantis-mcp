@@ -1,9 +1,9 @@
 /**
  * Controllers Index
- * 
+ *
  * Exports all controller modules for MCP tool request handling.
  * Controllers validate inputs, orchestrate service calls, and format MCP responses.
- * 
+ *
  * @module controllers
  */
 

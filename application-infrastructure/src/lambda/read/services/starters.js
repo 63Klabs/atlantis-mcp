@@ -1,14 +1,14 @@
 /**
  * Starters Service
- * 
+ *
  * Provides business logic for app starter operations with caching.
  * Implements pass-through caching using cache-data package for:
  * - Starter listing with filtering by GitHub users/orgs
  * - Starter retrieval with metadata
- * 
+ *
  * Aggregates starters from both S3 buckets and GitHub repositories,
  * filtering by atlantis_repository-type: app-starter custom property.
- * 
+ *
  * @module services/starters
  */
 
@@ -19,38 +19,38 @@ const Models = require('../models');
 
 /**
  * List app starters with cache-data pass-through caching
- * 
+ *
  * Aggregates starters from both S3 buckets and GitHub repositories.
  * Filters by atlantis_repository-type: app-starter custom property.
- * 
+ *
  * @param {Object} options - Filter options
  * @param {Array<string>} [options.ghusers] - Filter to specific GitHub users/orgs (optional, validated against settings)
  * @returns {Promise<Object>} { starters: Array, errors: Array, partialData: boolean }
- * 
+ *
  * Each starter object includes:
  * - hasS3Package: boolean - Whether starter has S3 package available
  * - hasSidecarMetadata: boolean - Whether starter has sidecar metadata
  * - hasCacheDataIntegration: boolean - Whether starter includes cache-data integration
  * - hasCloudFrontIntegration: boolean - Whether starter includes CloudFront integration
- * 
+ *
  * @example
  * // List all starters
  * const result = await Starters.list({});
- * 
+ *
  * @example
  * // List starters from specific GitHub users/orgs
  * const result = await Starters.list({ ghusers: ['63klabs', 'myorg'] });
  */
 async function list(options = {}) {
   const { ghusers } = options;
-  
+
   // >! Get connection and cache profile from config
   const { conn, cacheProfile } = Config.getConnCacheProfile('github-api', 'starters-list');
-  
+
   if (!conn || !cacheProfile) {
     throw new Error('Failed to get connection and cache profile for github-api/starters-list');
   }
-  
+
   // >! Determine which GitHub users/orgs to search (filtered or all)
   let usersOrgsToSearch = ghusers;
   if (!usersOrgsToSearch || usersOrgsToSearch.length === 0) {
@@ -63,10 +63,10 @@ async function list(options = {}) {
       throw new Error('No valid GitHub users/orgs specified');
     }
   }
-  
+
   // >! Set host to array of users/orgs (used in cache key)
   conn.host = usersOrgsToSearch;
-  
+
   // >! Set parameters for cache key - filter by app-starter repository type
   conn.parameters = { repositoryType: 'app-starter' };
 
@@ -76,10 +76,10 @@ async function list(options = {}) {
       usersOrgs: connection.host,
       repositoryType: 'app-starter'
     });
-    
+
     // >! Get S3 buckets from settings
     const s3Buckets = Config.settings().s3.buckets;
-    
+
     // >! Aggregate starters from both S3 buckets and GitHub repositories
     const [s3Result, githubResult] = await Promise.all([
       // Fetch from S3 buckets
@@ -88,15 +88,15 @@ async function list(options = {}) {
         path: Config.settings().s3.starterPrefix,
         parameters: {}
       }, opts),
-      
+
       // Fetch from GitHub repositories
       Models.GitHubAPI.listRepositories(connection, opts)
     ]);
-    
+
     // >! Combine results from both sources
     const allStarters = [];
     const allErrors = [];
-    
+
     // Add S3 starters
     if (s3Result.starters) {
       allStarters.push(...s3Result.starters.map(starter => ({
@@ -111,7 +111,7 @@ async function list(options = {}) {
     if (s3Result.errors) {
       allErrors.push(...s3Result.errors);
     }
-    
+
     // Add GitHub starters (filtered by atlantis_repository-type: app-starter)
     if (githubResult.repositories) {
       allStarters.push(...githubResult.repositories.map(repo => ({
@@ -138,17 +138,17 @@ async function list(options = {}) {
     if (githubResult.errors) {
       allErrors.push(...githubResult.errors);
     }
-    
+
     // >! Deduplicate starters by name (S3 takes precedence over GitHub)
     const uniqueStarters = deduplicateStarters(allStarters);
-    
+
     return {
       starters: uniqueStarters,
       errors: allErrors.length > 0 ? allErrors : undefined,
       partialData: allErrors.length > 0
     };
   };
-  
+
   // >! Use cache-data pass-through caching
   const result = await CacheableDataAccess.getData(
     cacheProfile,
@@ -156,13 +156,13 @@ async function list(options = {}) {
     conn,
     {}, // options: for functions, tokens, non-cache data
   );
-  
+
   return result.body;
 }
 
 /**
  * Deduplicate starters by name (S3 takes precedence over GitHub)
- * 
+ *
  * @private
  * @param {Array<Object>} starters - Array of starter objects
  * @returns {Array<Object>} Deduplicated starters
@@ -170,17 +170,21 @@ async function list(options = {}) {
 function deduplicateStarters(starters) {
   const seen = new Map();
   const deduplicated = [];
-  
+
   // Sort so S3 starters come first (they have priority)
   const sorted = starters.sort((a, b) => {
-    if (a.source === 's3' && b.source !== 's3') return -1;
-    if (a.source !== 's3' && b.source === 's3') return 1;
+    if (a.source === 's3' && b.source !== 's3') {
+      return -1;
+    }
+    if (a.source !== 's3' && b.source === 's3') {
+      return 1;
+    }
     return 0;
   });
-  
+
   for (const starter of sorted) {
     const key = starter.name.toLowerCase();
-    
+
     if (!seen.has(key)) {
       seen.set(key, true);
       deduplicated.push(starter);
@@ -188,22 +192,22 @@ function deduplicateStarters(starters) {
       DebugAndLog.debug(`Skipping duplicate starter: ${starter.name} from ${starter.source}`);
     }
   }
-  
+
   return deduplicated;
 }
 
 /**
  * Get specific app starter with cache-data pass-through caching
- * 
+ *
  * Aggregates starter details from both S3 buckets and GitHub repositories.
  * Prefers S3 sidecar metadata when available.
- * 
+ *
  * @param {Object} options - Starter identification
  * @param {string} options.starterName - Starter name (required)
  * @param {Array<string>} [options.ghusers] - Filter to specific GitHub users/orgs (optional, validated against settings)
  * @returns {Promise<Object>} Starter details
  * @throws {Error} STARTER_NOT_FOUND if starter not found
- * 
+ *
  * Returned starter object includes:
  * - Basic metadata (name, description, language, framework, features, prerequisites, author, license)
  * - Integration flags (hasCacheDataIntegration, hasCloudFrontIntegration)
@@ -213,11 +217,11 @@ function deduplicateStarters(starters) {
  * - Sidecar metadata flag (hasSidecarMetadata)
  * - Example code snippets (if available in sidecar metadata)
  * - Private repository indicator (isPrivate)
- * 
+ *
  * @example
  * // Get starter by name
  * const starter = await Starters.get({ starterName: 'atlantis-starter-02' });
- * 
+ *
  * @example
  * // Get starter from specific GitHub users/orgs
  * const starter = await Starters.get({
@@ -290,7 +294,7 @@ async function get(options = {}) {
     // >! Prefer S3 sidecar metadata when available
     if (s3Result) {
       DebugAndLog.debug(`Using S3 sidecar metadata for starter: ${starterName}`);
-      
+
       // Enhance S3 metadata with GitHub stats if available
       let githubStats = null;
       if (githubResult) {
@@ -346,7 +350,7 @@ async function get(options = {}) {
     // >! Skip starters without sidecar metadata and log warning
     if (githubResult && !s3Result) {
       DebugAndLog.warn(`Starter ${starterName} found on GitHub but has no S3 sidecar metadata, skipping`);
-      
+
       // Return null to trigger STARTER_NOT_FOUND error
       return null;
     }

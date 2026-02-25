@@ -1,6 +1,6 @@
 /**
  * Unit tests for Starters Service - Cache-Data Integration Detection
- * 
+ *
  * Tests that the starters service correctly indicates which starters
  * include cache-data integration based on sidecar metadata.
  */
@@ -294,10 +294,10 @@ describe('Starters Service - Cache-Data Integration Detection', () => {
     expect(result.starters.length).toBe(1);
 
     const starter = result.starters[0];
-    
+
     // Verify hasCacheDataIntegration is added
     expect(starter.hasCacheDataIntegration).toBe(true);
-    
+
     // Verify all original fields are preserved
     expect(starter.name).toBe('full-metadata-starter');
     expect(starter.description).toBe('Starter with complete metadata');

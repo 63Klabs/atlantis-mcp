@@ -1,12 +1,12 @@
 /**
  * Unit tests for Templates Controller
- * 
+ *
  * Tests all Templates controller functions:
  * - list() - List all available templates with filtering
  * - get() - Retrieve specific template with full metadata
  * - listVersions() - List all versions of a template
  * - listCategories() - List all template categories
- * 
+ *
  * Tests include:
  * - Input validation (JSON Schema)
  * - Service orchestration
@@ -68,14 +68,14 @@ describe('Templates Controller', () => {
       };
 
       SchemaValidator.validate.mockReturnValue({ valid: true });
-      
+
       const mockTemplates = {
         templates: [
           { name: 'template-storage-s3-artifacts', version: 'v1.3.5/2024-01-15', category: 'Storage' },
           { name: 'template-storage-s3-oac-for-cloudfront', version: 'v1.2.3/2024-01-10', category: 'Storage' }
         ]
       };
-      
+
       Services.Templates.list.mockResolvedValue(mockTemplates);
 
       // Act
@@ -163,7 +163,7 @@ describe('Templates Controller', () => {
       // Arrange
       const props = { body: { input: {} } };
       SchemaValidator.validate.mockReturnValue({ valid: true });
-      
+
       const serviceError = new Error('S3 connection failed');
       Services.Templates.list.mockRejectedValue(serviceError);
 
@@ -248,7 +248,7 @@ describe('Templates Controller', () => {
       };
 
       SchemaValidator.validate.mockReturnValue({ valid: true });
-      
+
       const mockTemplate = {
         name: 'template-storage-s3-artifacts',
         version: 'v1.3.5/2024-01-15',
@@ -258,7 +258,7 @@ describe('Templates Controller', () => {
         bucket: 'test-bucket',
         content: '# CloudFormation template...'
       };
-      
+
       Services.Templates.get.mockResolvedValue(mockTemplate);
 
       // Act
@@ -320,11 +320,11 @@ describe('Templates Controller', () => {
       };
 
       SchemaValidator.validate.mockReturnValue({ valid: true });
-      
+
       const notFoundError = new Error('Template not found');
       notFoundError.code = 'TEMPLATE_NOT_FOUND';
       notFoundError.availableTemplates = ['template1', 'template2'];
-      
+
       Services.Templates.get.mockRejectedValue(notFoundError);
 
       // Act
@@ -355,10 +355,10 @@ describe('Templates Controller', () => {
       };
 
       SchemaValidator.validate.mockReturnValue({ valid: true });
-      
+
       const notFoundError = new Error('Template not found');
       notFoundError.code = 'TEMPLATE_NOT_FOUND';
-      
+
       Services.Templates.get.mockRejectedValue(notFoundError);
 
       // Act
@@ -386,7 +386,7 @@ describe('Templates Controller', () => {
       };
 
       SchemaValidator.validate.mockReturnValue({ valid: true });
-      
+
       const serviceError = new Error('Network timeout');
       Services.Templates.get.mockRejectedValue(serviceError);
 
@@ -449,7 +449,7 @@ describe('Templates Controller', () => {
       };
 
       SchemaValidator.validate.mockReturnValue({ valid: true });
-      
+
       const mockVersions = {
         templateName: 'template-storage-s3-artifacts',
         category: 'Storage',
@@ -458,7 +458,7 @@ describe('Templates Controller', () => {
           { version: 'v1.3.4/2024-01-10', versionId: 'def456', lastModified: '2024-01-10T10:00:00Z' }
         ]
       };
-      
+
       Services.Templates.listVersions.mockResolvedValue(mockVersions);
 
       // Act
@@ -517,7 +517,7 @@ describe('Templates Controller', () => {
       };
 
       SchemaValidator.validate.mockReturnValue({ valid: true });
-      
+
       const serviceError = new Error('S3 ListObjectVersions failed');
       Services.Templates.listVersions.mockRejectedValue(serviceError);
 
@@ -569,13 +569,13 @@ describe('Templates Controller', () => {
       const props = { body: { input: {} } };
 
       SchemaValidator.validate.mockReturnValue({ valid: true });
-      
+
       const mockCategories = [
         { name: 'Storage', description: 'S3 and storage templates', count: 5 },
         { name: 'Network', description: 'CloudFront and Route53 templates', count: 3 },
         { name: 'Pipeline', description: 'CodePipeline templates', count: 2 }
       ];
-      
+
       Services.Templates.listCategories.mockResolvedValue(mockCategories);
 
       // Act
@@ -639,7 +639,7 @@ describe('Templates Controller', () => {
       const props = { body: { input: {} } };
 
       SchemaValidator.validate.mockReturnValue({ valid: true });
-      
+
       const serviceError = new Error('Configuration error');
       Services.Templates.listCategories.mockRejectedValue(serviceError);
 

@@ -1,6 +1,6 @@
 /**
  * Unit Tests for Documentation Service
- * 
+ *
  * Tests the Documentation service layer including:
  * - search() with caching
  * - Service-level GitHub user/org filtering
@@ -41,9 +41,32 @@ const Models = require('../../../lambda/read/models');
 const Documentation = require('../../../lambda/read/services/documentation');
 
 describe('Documentation Service', () => {
+  // Helper function to create properly structured mock connection and cache profile
+  const createMockConnCacheProfile = (connectionName = 'doc-index', profileName = 'search') => {
+    return {
+      conn: {
+        name: connectionName,
+        host: [],
+        path: '/docs',
+        parameters: {},
+        cache: []
+      },
+      cacheProfile: {
+        profile: profileName,
+        overrideOriginHeaderExpiration: true,
+        defaultExpirationInSeconds: 3600,
+        expirationIsOnInterval: false,
+        headersToRetain: '',
+        hostId: connectionName,
+        pathId: profileName,
+        encrypt: false
+      }
+    };
+  };
+
   beforeEach(() => {
     jest.clearAllMocks();
-    
+
     // Default mock implementations
     Config.settings.mockReturnValue({
       github: {
@@ -59,13 +82,9 @@ describe('Documentation Service', () => {
   describe('search() with caching', () => {
     it('should search documentation using cache-data', async () => {
       // Arrange
-      const mockConn = { host: [], parameters: {} };
-      const mockCacheProfile = { pathId: 'search' };
-      
-      Config.getConnCacheProfile.mockReturnValue({
-        conn: mockConn,
-        cacheProfile: mockCacheProfile
-      });
+      const mockConnCache = createMockConnCacheProfile();
+
+      Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
       const mockResults = {
         results: [
@@ -94,30 +113,26 @@ describe('Documentation Service', () => {
       expect(Config.getConnCacheProfile).toHaveBeenCalledWith('doc-index', 'search');
       expect(CacheableDataAccess.getData).toHaveBeenCalled();
       expect(result).toEqual(mockResults);
-      expect(mockConn.host).toEqual(['63klabs', 'myorg', 'testorg']);
+      expect(mockConnCache.conn.host).toEqual(['63klabs', 'myorg', 'testorg']);
     });
 
     it('should require query parameter', async () => {
       // Act & Assert
       await expect(Documentation.search({}))
         .rejects.toThrow('query is required');
-      
+
       await expect(Documentation.search({ query: '' }))
         .rejects.toThrow('query is required');
-      
+
       await expect(Documentation.search({ query: '   ' }))
         .rejects.toThrow('query is required');
     });
 
     it('should filter by type', async () => {
       // Arrange
-      const mockConn = { host: [], parameters: {} };
-      const mockCacheProfile = { pathId: 'search' };
-      
-      Config.getConnCacheProfile.mockReturnValue({
-        conn: mockConn,
-        cacheProfile: mockCacheProfile
-      });
+      const mockConnCache = createMockConnCacheProfile();
+
+      Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
       CacheableDataAccess.getData.mockResolvedValue({
         body: {
@@ -137,7 +152,7 @@ describe('Documentation Service', () => {
       });
 
       // Assert
-      expect(mockConn.parameters).toEqual({
+      expect(mockConnCache.conn.parameters).toEqual({
         query: 'Lambda',
         type: 'code-example',
         subType: undefined,
@@ -147,13 +162,9 @@ describe('Documentation Service', () => {
 
     it('should filter by subType', async () => {
       // Arrange
-      const mockConn = { host: [], parameters: {} };
-      const mockCacheProfile = { pathId: 'search' };
-      
-      Config.getConnCacheProfile.mockReturnValue({
-        conn: mockConn,
-        cacheProfile: mockCacheProfile
-      });
+      const mockConnCache = createMockConnCacheProfile();
+
+      Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
       CacheableDataAccess.getData.mockResolvedValue({
         body: {
@@ -174,7 +185,7 @@ describe('Documentation Service', () => {
       });
 
       // Assert
-      expect(mockConn.parameters).toEqual({
+      expect(mockConnCache.conn.parameters).toEqual({
         query: 'getting started',
         type: 'documentation',
         subType: 'tutorial',
@@ -184,13 +195,9 @@ describe('Documentation Service', () => {
 
     it('should support custom limit', async () => {
       // Arrange
-      const mockConn = { host: [], parameters: {} };
-      const mockCacheProfile = { pathId: 'search' };
-      
-      Config.getConnCacheProfile.mockReturnValue({
-        conn: mockConn,
-        cacheProfile: mockCacheProfile
-      });
+      const mockConnCache = createMockConnCacheProfile();
+
+      Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
       CacheableDataAccess.getData.mockResolvedValue({
         body: {
@@ -210,18 +217,14 @@ describe('Documentation Service', () => {
       });
 
       // Assert
-      expect(mockConn.parameters.limit).toBe(25);
+      expect(mockConnCache.conn.parameters.limit).toBe(25);
     });
 
     it('should default limit to 10', async () => {
       // Arrange
-      const mockConn = { host: [], parameters: {} };
-      const mockCacheProfile = { pathId: 'search' };
-      
-      Config.getConnCacheProfile.mockReturnValue({
-        conn: mockConn,
-        cacheProfile: mockCacheProfile
-      });
+      const mockConnCache = createMockConnCacheProfile();
+
+      Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
       CacheableDataAccess.getData.mockResolvedValue({
         body: {
@@ -238,18 +241,14 @@ describe('Documentation Service', () => {
       await Documentation.search({ query: 'test' });
 
       // Assert
-      expect(mockConn.parameters.limit).toBe(10);
+      expect(mockConnCache.conn.parameters.limit).toBe(10);
     });
 
     it('should filter by specific GitHub users/orgs', async () => {
       // Arrange
-      const mockConn = { host: [], parameters: {} };
-      const mockCacheProfile = { pathId: 'search' };
-      
-      Config.getConnCacheProfile.mockReturnValue({
-        conn: mockConn,
-        cacheProfile: mockCacheProfile
-      });
+      const mockConnCache = createMockConnCacheProfile();
+
+      Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
       CacheableDataAccess.getData.mockResolvedValue({
         body: {
@@ -269,18 +268,14 @@ describe('Documentation Service', () => {
       });
 
       // Assert
-      expect(mockConn.host).toEqual(['63klabs', 'myorg']);
+      expect(mockConnCache.conn.host).toEqual(['63klabs', 'myorg']);
     });
 
     it('should validate GitHub users/orgs filter against configured users/orgs', async () => {
       // Arrange
-      const mockConn = { host: [], parameters: {} };
-      const mockCacheProfile = { pathId: 'search' };
-      
-      Config.getConnCacheProfile.mockReturnValue({
-        conn: mockConn,
-        cacheProfile: mockCacheProfile
-      });
+      const mockConnCache = createMockConnCacheProfile();
+
+      Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
       CacheableDataAccess.getData.mockResolvedValue({
         body: {
@@ -300,18 +295,14 @@ describe('Documentation Service', () => {
       });
 
       // Assert - invalid org should be filtered out
-      expect(mockConn.host).toEqual(['63klabs']);
+      expect(mockConnCache.conn.host).toEqual(['63klabs']);
     });
 
     it('should throw error if no valid GitHub users/orgs specified', async () => {
       // Arrange
-      const mockConn = { host: [], parameters: {} };
-      const mockCacheProfile = { pathId: 'search' };
-      
-      Config.getConnCacheProfile.mockReturnValue({
-        conn: mockConn,
-        cacheProfile: mockCacheProfile
-      });
+      const mockConnCache = createMockConnCacheProfile();
+
+      Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
       // Act & Assert
       await expect(Documentation.search({
@@ -322,13 +313,9 @@ describe('Documentation Service', () => {
 
     it('should trim query before searching', async () => {
       // Arrange
-      const mockConn = { host: [], parameters: {} };
-      const mockCacheProfile = { pathId: 'search' };
-      
-      Config.getConnCacheProfile.mockReturnValue({
-        conn: mockConn,
-        cacheProfile: mockCacheProfile
-      });
+      const mockConnCache = createMockConnCacheProfile();
+
+      Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
       CacheableDataAccess.getData.mockResolvedValue({
         body: {
@@ -345,18 +332,14 @@ describe('Documentation Service', () => {
       await Documentation.search({ query: '  test query  ' });
 
       // Assert
-      expect(mockConn.parameters.query).toBe('test query');
+      expect(mockConnCache.conn.parameters.query).toBe('test query');
     });
 
     it('should call DocIndex.search() in fetch function', async () => {
       // Arrange
-      const mockConn = { host: [], parameters: {} };
-      const mockCacheProfile = { pathId: 'search' };
-      
-      Config.getConnCacheProfile.mockReturnValue({
-        conn: mockConn,
-        cacheProfile: mockCacheProfile
-      });
+      const mockConnCache = createMockConnCacheProfile();
+
+      Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
       const mockSearchResults = {
         results: [{ title: 'Result 1' }],
@@ -367,7 +350,7 @@ describe('Documentation Service', () => {
       Models.DocIndex.search.mockResolvedValue(mockSearchResults);
 
       CacheableDataAccess.getData.mockImplementation(async (profile, fetchFn) => {
-        const result = await fetchFn(mockConn, {});
+        const result = await fetchFn(mockConnCache.conn, {});
         return { body: result };
       });
 
@@ -387,13 +370,9 @@ describe('Documentation Service', () => {
 
     it('should return suggestions when no results found', async () => {
       // Arrange
-      const mockConn = { host: [], parameters: {} };
-      const mockCacheProfile = { pathId: 'search' };
-      
-      Config.getConnCacheProfile.mockReturnValue({
-        conn: mockConn,
-        cacheProfile: mockCacheProfile
-      });
+      const mockConnCache = createMockConnCacheProfile();
+
+      Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
       CacheableDataAccess.getData.mockResolvedValue({
         body: {

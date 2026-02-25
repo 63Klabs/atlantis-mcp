@@ -56,40 +56,42 @@ phases:
       - ls -l -a
       - cd application-infrastructure
       
-      # Run all tests (unit, integration, property) from tests/ directory
+      # Run all tests (unit, integration, property) from src/tests/ directory
+      - echo "Running application tests from src/tests/ directory"
+      - cd src
+      
+      # Install test dependencies
       - |
-        if [ -d "tests" ]; then
-          echo "Running tests from tests/ directory"
-          # Install test dependencies if package.json exists at root
-          if [ -f "package.json" ]; then
-            npm ci
-            npm test
-          else
-            echo "No root package.json found, skipping root-level tests"
+        if [ -f "package.json" ]; then
+          echo "Installing test dependencies"
+          npm ci
+        else
+          echo "No package.json found in src/, skipping tests"
+        fi
+      
+      # Run all tests with coverage
+      - |
+        if [ -f "package.json" ] && npm run | grep -q "test"; then
+          echo "Running all tests with coverage"
+          npm test
+          
+          # Check if coverage meets minimum thresholds
+          if [ -f "coverage/coverage-summary.json" ]; then
+            echo "Code coverage report generated"
+            cat coverage/coverage-summary.json
           fi
         else
-          echo "No tests/ directory found, skipping tests"
+          echo "No test script found, skipping tests"
         fi
+      
+      # Go back to application-infrastructure directory
+      - cd ..
 
       # Build Read Lambda function
       - echo "Building Read Lambda function from src/lambda/read/"
       - cd src/lambda/read
 
-      # Install dev dependencies for testing
-      - npm install --include=dev
-      
-      # Run tests for Read Lambda if test script exists
-      - |
-        if npm run | grep -q "test"; then
-          echo "Running Read Lambda tests"
-          npm test
-        else
-          echo "No test script found for Read Lambda, skipping"
-        fi
-
-      # Clean up test artifacts and reinstall only production dependencies to reduce Lambda package size
-      - rm -rf __tests__
-      - rm -rf coverage
+      # Clean up any existing node_modules and install only production dependencies
       - rm -rf node_modules
       - npm ci --omit=dev
 
@@ -122,9 +124,56 @@ phases:
       # list files in the artifacts
       - ls -l -a
 
+  post_build:
+    commands:
+      # Generate code coverage badge and summary
+      - |
+        if [ -f "src/coverage/coverage-summary.json" ]; then
+          echo "Generating code coverage summary"
+          python3 -c "
+        import json
+        import sys
+        
+        try:
+            with open('src/coverage/coverage-summary.json', 'r') as f:
+                coverage = json.load(f)
+            
+            total = coverage.get('total', {})
+            lines = total.get('lines', {}).get('pct', 0)
+            statements = total.get('statements', {}).get('pct', 0)
+            functions = total.get('functions', {}).get('pct', 0)
+            branches = total.get('branches', {}).get('pct', 0)
+            
+            print(f'Code Coverage Summary:')
+            print(f'  Lines: {lines}%')
+            print(f'  Statements: {statements}%')
+            print(f'  Functions: {functions}%')
+            print(f'  Branches: {branches}%')
+            
+            # Check minimum coverage thresholds (80%)
+            min_coverage = 80
+            if lines < min_coverage or statements < min_coverage:
+                print(f'WARNING: Code coverage below {min_coverage}% threshold')
+                # Uncomment to fail build on low coverage:
+                # sys.exit(1)
+        except Exception as e:
+            print(f'Error reading coverage report: {e}')
+        "
+        else
+          echo "No coverage report found"
+        fi
+      
+      # Report build status
+      - echo "Build completed successfully"
+
 artifacts:
   files:
     - 'application-infrastructure/**/*'
+  secondary-artifacts:
+    CoverageReport:
+      files:
+        - 'application-infrastructure/src/coverage/**/*'
+      name: coverage-report
 
 # add cache
 cache:

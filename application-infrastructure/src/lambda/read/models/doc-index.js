@@ -5,14 +5,14 @@ const S3Templates = require('./s3-templates');
 
 /**
  * Documentation Index DAO
- * 
+ *
  * Builds and searches a comprehensive index of:
  * - Markdown documentation from GitHub repositories
  * - CloudFormation template sections and patterns
  * - Python and Node.js code from app starters
  * - cache-data package usage patterns
  * - README headings and top-of-file comments
- * 
+ *
  * The index is built asynchronously at Lambda cold start for template repo
  * and cache-data package, with app starter indexing done on-demand.
  */
@@ -24,7 +24,7 @@ let indexLastBuilt = null;
 
 /**
  * Build searchable documentation index
- * 
+ *
  * @param {Object} options - Build options
  * @param {boolean} options.includeStarters - Whether to index app starters (default: false)
  * @param {boolean} options.force - Force rebuild even if index exists (default: false)
@@ -32,7 +32,7 @@ let indexLastBuilt = null;
  */
 const buildIndex = async (options = {}) => {
   const { includeStarters = false, force = false } = options;
-  
+
   // Return existing index if available and not forcing rebuild
   if (documentationIndex && !force && !indexBuildInProgress) {
     return {
@@ -41,7 +41,7 @@ const buildIndex = async (options = {}) => {
       entryCount: documentationIndex.entries.length
     };
   }
-  
+
   // Prevent concurrent builds
   if (indexBuildInProgress) {
     DebugAndLog.info('Documentation index build already in progress, waiting...');
@@ -56,13 +56,13 @@ const buildIndex = async (options = {}) => {
       entryCount: documentationIndex?.entries?.length || 0
     };
   }
-  
+
   indexBuildInProgress = true;
-  
+
   try {
     DebugAndLog.info('Building documentation index...');
     const startTime = Date.now();
-    
+
     const index = {
       entries: [],
       metadata: {
@@ -70,34 +70,34 @@ const buildIndex = async (options = {}) => {
         sources: []
       }
     };
-    
+
     // Index template repository documentation
     await indexTemplateRepository(index);
-    
+
     // Index cache-data package documentation
     await indexCacheDataPackage(index);
-    
+
     // Index CloudFormation templates
     await indexCloudFormationTemplates(index);
-    
+
     // Index app starters (if requested)
     if (includeStarters) {
       await indexAppStarters(index);
     }
-    
+
     documentationIndex = index;
     indexLastBuilt = new Date().toISOString();
-    
+
     const duration = Date.now() - startTime;
     DebugAndLog.info(`Documentation index built in ${duration}ms with ${index.entries.length} entries`);
-    
+
     return {
       cached: false,
       lastBuilt: indexLastBuilt,
       entryCount: index.entries.length,
       buildDuration: duration
     };
-    
+
   } catch (error) {
     DebugAndLog.error(`Failed to build documentation index: ${error.message}`, error.stack);
     throw error;
@@ -113,7 +113,7 @@ const indexTemplateRepository = async (index) => {
   try {
     const settings = Config.settings();
     const githubUsers = settings.githubUsers || [];
-    
+
     // Look for template repository in configured GitHub users/orgs
     for (const userOrg of githubUsers) {
       try {
@@ -123,21 +123,21 @@ const indexTemplateRepository = async (index) => {
           path: '/repos',
           parameters: { repositoryType: 'templates' }
         };
-        
+
         const repos = await GitHubAPI.listRepositories(connection, {});
-        
+
         for (const repo of repos.repositories || []) {
           // Index markdown files from repository
           await indexMarkdownFiles(index, repo, 'templates');
         }
-        
+
         index.metadata.sources.push({
           type: 'github',
           userOrg,
           repositoryType: 'templates',
           indexed: true
         });
-        
+
       } catch (error) {
         DebugAndLog.warn(`Failed to index template repository from ${userOrg}: ${error.message}`);
         index.metadata.sources.push({
@@ -161,7 +161,7 @@ const indexCacheDataPackage = async (index) => {
   try {
     const settings = Config.settings();
     const githubUsers = settings.githubUsers || [];
-    
+
     // Look for cache-data package in configured GitHub users/orgs
     for (const userOrg of githubUsers) {
       try {
@@ -170,9 +170,9 @@ const indexCacheDataPackage = async (index) => {
           path: '/repos',
           parameters: { repositoryType: 'package' }
         };
-        
+
         const repos = await GitHubAPI.listRepositories(connection, {});
-        
+
         for (const repo of repos.repositories || []) {
           if (repo.name && repo.name.includes('cache-data')) {
             // Index markdown files and code examples
@@ -180,14 +180,14 @@ const indexCacheDataPackage = async (index) => {
             await indexCodeExamples(index, repo, 'package');
           }
         }
-        
+
         index.metadata.sources.push({
           type: 'github',
           userOrg,
           repositoryType: 'package',
           indexed: true
         });
-        
+
       } catch (error) {
         DebugAndLog.warn(`Failed to index cache-data package from ${userOrg}: ${error.message}`);
         index.metadata.sources.push({
@@ -211,7 +211,7 @@ const indexCloudFormationTemplates = async (index) => {
   try {
     const settings = Config.settings();
     const buckets = settings.atlantisS3Buckets || [];
-    
+
     for (const bucket of buckets) {
       try {
         const connection = {
@@ -219,10 +219,10 @@ const indexCloudFormationTemplates = async (index) => {
           path: 'templates/v2',
           parameters: {}
         };
-        
+
         const result = await S3Templates.list(connection, {});
         const templates = result.templates || [];
-        
+
         for (const template of templates) {
           // Get full template content
           const fullTemplate = await S3Templates.get({
@@ -233,20 +233,20 @@ const indexCloudFormationTemplates = async (index) => {
               templateName: template.name
             }
           }, {});
-          
+
           if (fullTemplate) {
             // Index template sections
             await indexTemplateContent(index, fullTemplate, bucket);
           }
         }
-        
+
         index.metadata.sources.push({
           type: 's3',
           bucket,
           resourceType: 'templates',
           indexed: true
         });
-        
+
       } catch (error) {
         DebugAndLog.warn(`Failed to index templates from bucket ${bucket}: ${error.message}`);
         index.metadata.sources.push({
@@ -270,7 +270,7 @@ const indexAppStarters = async (index) => {
   try {
     const settings = Config.settings();
     const githubUsers = settings.githubUsers || [];
-    
+
     for (const userOrg of githubUsers) {
       try {
         const connection = {
@@ -278,22 +278,22 @@ const indexAppStarters = async (index) => {
           path: '/repos',
           parameters: { repositoryType: 'app-starter' }
         };
-        
+
         const repos = await GitHubAPI.listRepositories(connection, {});
-        
+
         for (const repo of repos.repositories || []) {
           // Index code examples from starters
           await indexCodeExamples(index, repo, 'app-starter');
           await indexMarkdownFiles(index, repo, 'app-starter');
         }
-        
+
         index.metadata.sources.push({
           type: 'github',
           userOrg,
           repositoryType: 'app-starter',
           indexed: true
         });
-        
+
       } catch (error) {
         DebugAndLog.warn(`Failed to index app starters from ${userOrg}: ${error.message}`);
         index.metadata.sources.push({
@@ -321,11 +321,11 @@ const indexMarkdownFiles = async (index, repo, repositoryType) => {
       path: `/repos/${repo.owner}/${repo.name}`,
       parameters: {}
     }, {});
-    
+
     if (readme && readme.content) {
       // Parse README headings and content
       const headings = extractMarkdownHeadings(readme.content);
-      
+
       for (const heading of headings) {
         index.entries.push({
           title: heading.title,
@@ -346,10 +346,10 @@ const indexMarkdownFiles = async (index, repo, repositoryType) => {
         });
       }
     }
-    
+
     // TODO: Index other markdown files from docs/ directory
     // This would require additional GitHub API calls to list directory contents
-    
+
   } catch (error) {
     DebugAndLog.warn(`Failed to index markdown files from ${repo.name}: ${error.message}`);
   }
@@ -362,10 +362,10 @@ const indexCodeExamples = async (index, repo, repositoryType) => {
   try {
     // For cache-data package, index key functions and usage patterns
     // For app starters, index Lambda handlers and key functions
-    
+
     // This is a simplified implementation
     // Full implementation would use GitHub API to fetch file contents
-    
+
     const codePatterns = [
       {
         pattern: 'CacheableDataAccess.getData',
@@ -383,7 +383,7 @@ const indexCodeExamples = async (index, repo, repositoryType) => {
         language: 'javascript'
       }
     ];
-    
+
     for (const pattern of codePatterns) {
       index.entries.push({
         title: pattern.description,
@@ -407,7 +407,7 @@ const indexCodeExamples = async (index, repo, repositoryType) => {
         }
       });
     }
-    
+
   } catch (error) {
     DebugAndLog.warn(`Failed to index code examples from ${repo.name}: ${error.message}`);
   }
@@ -420,14 +420,14 @@ const indexTemplateContent = async (index, template, bucket) => {
   try {
     const yaml = require('js-yaml');
     const parsed = yaml.load(template.content);
-    
+
     // Index template sections
     const sections = ['Metadata', 'Parameters', 'Mappings', 'Conditions', 'Resources', 'Outputs'];
-    
+
     for (const section of sections) {
       if (parsed[section]) {
         const sectionContent = JSON.stringify(parsed[section], null, 2);
-        
+
         index.entries.push({
           title: `${template.name} - ${section}`,
           excerpt: `CloudFormation ${section} section from ${template.name}`,
@@ -447,7 +447,7 @@ const indexTemplateContent = async (index, template, bucket) => {
             category: template.category
           }
         });
-        
+
         // Index individual resources
         if (section === 'Resources') {
           for (const [resourceName, resourceDef] of Object.entries(parsed[section])) {
@@ -476,7 +476,7 @@ const indexTemplateContent = async (index, template, bucket) => {
         }
       }
     }
-    
+
   } catch (error) {
     DebugAndLog.warn(`Failed to index template content for ${template.name}: ${error.message}`);
   }
@@ -484,7 +484,7 @@ const indexTemplateContent = async (index, template, bucket) => {
 
 /**
  * Search documentation index
- * 
+ *
  * @param {Object} options - Search options
  * @param {string} options.query - Search query (keywords)
  * @param {string} options.type - Filter by type (documentation, template-pattern, code-example)
@@ -494,12 +494,12 @@ const indexTemplateContent = async (index, template, bucket) => {
  */
 const search = async (options = {}) => {
   const { query, type, subType, limit = 10 } = options;
-  
+
   // Ensure index is built
   if (!documentationIndex) {
     await buildIndex({ includeStarters: false });
   }
-  
+
   if (!documentationIndex || !documentationIndex.entries) {
     return {
       results: [],
@@ -508,10 +508,10 @@ const search = async (options = {}) => {
       suggestions: ['Try building the documentation index first']
     };
   }
-  
+
   // Normalize query
   const queryKeywords = extractKeywords(query);
-  
+
   // Search and rank results
   let results = documentationIndex.entries
     .map(entry => ({
@@ -519,26 +519,26 @@ const search = async (options = {}) => {
       relevanceScore: calculateRelevance(entry, queryKeywords)
     }))
     .filter(entry => entry.relevanceScore > 0);
-  
+
   // Apply type filters
   if (type) {
     results = results.filter(entry => entry.type === type);
   }
-  
+
   if (subType) {
     results = results.filter(entry => entry.subType === subType);
   }
-  
+
   // Sort by relevance
   results.sort((a, b) => b.relevanceScore - a.relevanceScore);
-  
+
   // Limit results
   const totalResults = results.length;
   results = results.slice(0, limit);
-  
+
   // Generate suggestions if no results
   const suggestions = totalResults === 0 ? generateSuggestions(query, documentationIndex) : [];
-  
+
   return {
     results: results.map(r => ({
       title: r.title,
@@ -566,16 +566,16 @@ const search = async (options = {}) => {
 const extractMarkdownHeadings = (content) => {
   const headings = [];
   const lines = content.split('\n');
-  
+
   let currentHeading = null;
   let currentContent = [];
   let lineNumber = 0;
-  
+
   for (const line of lines) {
     lineNumber++;
-    
+
     const headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
-    
+
     if (headingMatch) {
       // Save previous heading
       if (currentHeading) {
@@ -585,12 +585,12 @@ const extractMarkdownHeadings = (content) => {
           excerpt: currentContent.join(' ').substring(0, 200).trim()
         });
       }
-      
+
       // Start new heading
       const level = headingMatch[1].length;
       const title = headingMatch[2].trim();
       const anchor = title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-      
+
       currentHeading = {
         level,
         title,
@@ -602,7 +602,7 @@ const extractMarkdownHeadings = (content) => {
       currentContent.push(line);
     }
   }
-  
+
   // Save last heading
   if (currentHeading) {
     headings.push({
@@ -611,7 +611,7 @@ const extractMarkdownHeadings = (content) => {
       excerpt: currentContent.join(' ').substring(0, 200).trim()
     });
   }
-  
+
   return headings;
 };
 
@@ -620,7 +620,7 @@ const extractMarkdownHeadings = (content) => {
  */
 const determineDocumentationType = (title) => {
   const lowerTitle = title.toLowerCase();
-  
+
   if (lowerTitle.includes('guide') || lowerTitle.includes('how to')) {
     return 'guide';
   }
@@ -633,7 +633,7 @@ const determineDocumentationType = (title) => {
   if (lowerTitle.includes('troubleshoot') || lowerTitle.includes('debug') || lowerTitle.includes('error')) {
     return 'troubleshooting';
   }
-  
+
   return 'guide';
 };
 
@@ -641,18 +641,20 @@ const determineDocumentationType = (title) => {
  * Extract keywords from text
  */
 const extractKeywords = (text) => {
-  if (!text) return [];
-  
+  if (!text) {
+    return [];
+  }
+
   // Normalize and split into words
   const words = text
     .toLowerCase()
     .replace(/[^a-z0-9\s-]/g, ' ')
     .split(/\s+/)
     .filter(word => word.length > 2);
-  
+
   // Remove common stop words
   const stopWords = new Set(['the', 'and', 'for', 'with', 'from', 'this', 'that', 'are', 'was', 'were', 'been', 'have', 'has', 'had']);
-  
+
   return [...new Set(words.filter(word => !stopWords.has(word)))];
 };
 
@@ -661,11 +663,11 @@ const extractKeywords = (text) => {
  */
 const calculateRelevance = (entry, queryKeywords) => {
   let score = 0;
-  
+
   const entryKeywords = entry.keywords || [];
   const titleKeywords = extractKeywords(entry.title);
   const excerptKeywords = extractKeywords(entry.excerpt);
-  
+
   // Title matches are most important
   for (const keyword of queryKeywords) {
     if (titleKeywords.includes(keyword)) {
@@ -678,7 +680,7 @@ const calculateRelevance = (entry, queryKeywords) => {
       score += 3;
     }
   }
-  
+
   // Exact phrase match bonus
   const queryLower = queryKeywords.join(' ');
   if (entry.title.toLowerCase().includes(queryLower)) {
@@ -687,7 +689,7 @@ const calculateRelevance = (entry, queryKeywords) => {
   if (entry.excerpt.toLowerCase().includes(queryLower)) {
     score += 10;
   }
-  
+
   return score;
 };
 
@@ -696,7 +698,7 @@ const calculateRelevance = (entry, queryKeywords) => {
  */
 const generateSuggestions = (query, index) => {
   const suggestions = [];
-  
+
   // Suggest popular topics
   const topicCounts = {};
   for (const entry of index.entries) {
@@ -704,22 +706,22 @@ const generateSuggestions = (query, index) => {
       topicCounts[keyword] = (topicCounts[keyword] || 0) + 1;
     }
   }
-  
+
   const topTopics = Object.entries(topicCounts)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5)
     .map(([topic]) => topic);
-  
+
   if (topTopics.length > 0) {
     suggestions.push(`Try searching for: ${topTopics.join(', ')}`);
   }
-  
+
   // Suggest broadening search
   suggestions.push('Try using fewer or more general keywords');
-  
+
   // Suggest specific types
   suggestions.push('Try filtering by type: documentation, template-pattern, or code-example');
-  
+
   return suggestions;
 };
 

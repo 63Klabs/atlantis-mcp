@@ -1,6 +1,6 @@
 /**
  * Unit tests for Read Lambda handler
- * 
+ *
  * Tests the main Lambda handler function including:
  * - Cold start initialization
  * - Rate limiting
@@ -78,7 +78,7 @@ describe('Read Lambda Handler', () => {
 
     // Set up default mock implementations
     Config.init.mockResolvedValue(undefined);
-    
+
     RateLimiter.checkRateLimit.mockReturnValue({
       allowed: true,
       headers: {

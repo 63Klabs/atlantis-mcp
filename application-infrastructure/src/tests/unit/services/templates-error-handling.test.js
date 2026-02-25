@@ -1,6 +1,6 @@
 /**
  * Templates Service Error Handling Tests
- * 
+ *
  * Tests error handling in the Templates service, specifically:
  * - TEMPLATE_NOT_FOUND error with available templates list
  * - Helpful error messages for users
@@ -12,11 +12,11 @@ describe('Templates Service - Error Handling', () => {
   let Config;
   let CacheableDataAccess;
   let DebugAndLog;
-  
+
   beforeEach(() => {
     // Reset modules before each test
     jest.resetModules();
-    
+
     // Mock cache-data
     jest.mock('@63klabs/cache-data', () => ({
       cache: {
@@ -31,13 +31,13 @@ describe('Templates Service - Error Handling', () => {
         }
       }
     }));
-    
+
     // Mock config
     jest.mock('../../../config', () => ({
       getConnCacheProfile: jest.fn(),
       settings: jest.fn()
     }));
-    
+
     // Mock models
     jest.mock('../../../models', () => ({
       S3Templates: {
@@ -45,22 +45,22 @@ describe('Templates Service - Error Handling', () => {
         list: jest.fn()
       }
     }));
-    
+
     // Import after mocking
     const cacheData = require('@63klabs/cache-data');
     CacheableDataAccess = cacheData.cache.CacheableDataAccess;
     DebugAndLog = cacheData.tools.DebugAndLog;
-    
+
     Templates = require('../../../lambda/read/services/templates');
     Models = require('../../../models');
     Config = require('../../../config');
-    
+
     // Setup default config mocks
     Config.getConnCacheProfile.mockReturnValue({
       conn: { host: [], parameters: {} },
       cacheProfile: { pathId: 'test-path' }
     });
-    
+
     Config.settings.mockReturnValue({
       s3: {
         buckets: ['test-bucket-1', 'test-bucket-2']
@@ -73,17 +73,17 @@ describe('Templates Service - Error Handling', () => {
       }
     });
   });
-  
+
   afterEach(() => {
     jest.restoreAllMocks();
     jest.clearAllMocks();
   });
-  
+
   describe('get() - TEMPLATE_NOT_FOUND error', () => {
     it('should throw TEMPLATE_NOT_FOUND with available templates when template not found', async () => {
       // Mock S3Templates.get to return null (not found)
       Models.S3Templates.get.mockResolvedValue(null);
-      
+
       // Mock S3Templates.list to return available templates
       Models.S3Templates.list.mockResolvedValue({
         templates: [
@@ -94,13 +94,13 @@ describe('Templates Service - Error Handling', () => {
         errors: [],
         partialData: false
       });
-      
+
       // Mock CacheableDataAccess.getData to call fetchFunction directly
       CacheableDataAccess.getData.mockImplementation(async (cacheProfile, fetchFunction, conn, opts) => {
         const body = await fetchFunction(conn, opts);
         return { body };
       });
-      
+
       // Attempt to get non-existent template
       await expect(
         Templates.get({
@@ -108,7 +108,7 @@ describe('Templates Service - Error Handling', () => {
           templateName: 'template-storage-nonexistent'
         })
       ).rejects.toThrow(/Template not found: Storage\/template-storage-nonexistent/);
-      
+
       // Verify error details
       try {
         await Templates.get({
@@ -129,7 +129,7 @@ describe('Templates Service - Error Handling', () => {
         ]);
       }
     });
-    
+
     it('should include version in error message when version specified', async () => {
       Models.S3Templates.get.mockResolvedValue(null);
       Models.S3Templates.list.mockResolvedValue({
@@ -137,12 +137,12 @@ describe('Templates Service - Error Handling', () => {
         errors: [],
         partialData: false
       });
-      
+
       CacheableDataAccess.getData.mockImplementation(async (cacheProfile, fetchFunction, conn, opts) => {
         const body = await fetchFunction(conn, opts);
         return { body };
       });
-      
+
       try {
         await Templates.get({
           category: 'Storage',
@@ -155,7 +155,7 @@ describe('Templates Service - Error Handling', () => {
         expect(error.code).toBe('TEMPLATE_NOT_FOUND');
       }
     });
-    
+
     it('should include versionId in error message when versionId specified', async () => {
       Models.S3Templates.get.mockResolvedValue(null);
       Models.S3Templates.list.mockResolvedValue({
@@ -163,12 +163,12 @@ describe('Templates Service - Error Handling', () => {
         errors: [],
         partialData: false
       });
-      
+
       CacheableDataAccess.getData.mockImplementation(async (cacheProfile, fetchFunction, conn, opts) => {
         const body = await fetchFunction(conn, opts);
         return { body };
       });
-      
+
       try {
         await Templates.get({
           category: 'Storage',
@@ -181,16 +181,16 @@ describe('Templates Service - Error Handling', () => {
         expect(error.code).toBe('TEMPLATE_NOT_FOUND');
       }
     });
-    
+
     it('should handle list() failure gracefully when building error message', async () => {
       Models.S3Templates.get.mockResolvedValue(null);
       Models.S3Templates.list.mockRejectedValue(new Error('S3 access denied'));
-      
+
       CacheableDataAccess.getData.mockImplementation(async (cacheProfile, fetchFunction, conn, opts) => {
         const body = await fetchFunction(conn, opts);
         return { body };
       });
-      
+
       try {
         await Templates.get({
           category: 'Storage',
@@ -202,7 +202,7 @@ describe('Templates Service - Error Handling', () => {
         expect(error.message).toContain('Template not found: Storage/template-storage-nonexistent');
         expect(error.message).not.toContain('Available templates');
         expect(error.availableTemplates).toEqual([]);
-        
+
         // Verify warning was logged
         expect(DebugAndLog.warn).toHaveBeenCalledWith(
           'Failed to get available templates for error message',
@@ -212,7 +212,7 @@ describe('Templates Service - Error Handling', () => {
         );
       }
     });
-    
+
     it('should not throw error when template is found', async () => {
       const mockTemplate = {
         templateName: 'template-storage-s3-artifacts',
@@ -220,19 +220,19 @@ describe('Templates Service - Error Handling', () => {
         version: 'v1.3.5/2024-01-15',
         content: 'AWSTemplateFormatVersion: "2010-09-09"'
       };
-      
+
       Models.S3Templates.get.mockResolvedValue(mockTemplate);
-      
+
       CacheableDataAccess.getData.mockImplementation(async (cacheProfile, fetchFunction, conn, opts) => {
         const body = await fetchFunction(conn, opts);
         return { body };
       });
-      
+
       const result = await Templates.get({
         category: 'Storage',
         templateName: 'template-storage-s3-artifacts'
       });
-      
+
       expect(result).toEqual(mockTemplate);
       expect(Models.S3Templates.get).toHaveBeenCalledTimes(1);
     });

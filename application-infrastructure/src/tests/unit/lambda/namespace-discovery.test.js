@@ -1,6 +1,6 @@
 /**
  * Namespace Discovery and Priority Ordering Tests
- * 
+ *
  * Tests namespace discovery from S3 buckets and priority ordering
  */
 

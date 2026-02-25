@@ -1,12 +1,12 @@
 /**
  * Cache-data connection and cache profile configurations for Atlantis MCP Server
- * 
+ *
  * This module defines connection profiles for different data sources (S3, GitHub API)
  * and their associated cache profiles with appropriate TTLs and caching strategies.
- * 
+ *
  * Connection hosts are set dynamically in services based on filtering requirements.
  * Cache profiles use different TTLs for production vs test environments.
- * 
+ *
  * @module config/connections
  */
 
@@ -15,7 +15,7 @@ const settings = require('./settings');
 /**
  * Determine if running in production environment
  * Production environments have longer cache TTLs and more conservative settings
- * 
+ *
  * @returns {boolean} True if production environment
  */
 function isProduction() {
@@ -25,13 +25,13 @@ function isProduction() {
 
 /**
  * Connection and cache profile definitions
- * 
+ *
  * Each connection defines:
  * - name: Unique identifier for the connection
  * - host: Target host (set dynamically in services for S3, static for GitHub)
  * - path: Base path for requests
  * - cache: Array of cache profiles with TTL and caching strategy
- * 
+ *
  * Cache profiles define:
  * - profile: Unique identifier within the connection
  * - overrideOriginHeaderExpiration: Whether to override origin cache headers
@@ -41,7 +41,7 @@ function isProduction() {
  * - hostId: Host identifier for cache key generation
  * - pathId: Path identifier for cache key generation
  * - encrypt: Whether to encrypt cached data
- * 
+ *
  * @type {Array<Object>}
  */
 const connections = [
@@ -259,7 +259,7 @@ const connections = [
 
 /**
  * Get connection by name
- * 
+ *
  * @param {string} name - Connection name
  * @returns {Object|null} Connection object or null if not found
  */
@@ -269,7 +269,7 @@ function getConnection(name) {
 
 /**
  * Get cache profile from connection
- * 
+ *
  * @param {string} connectionName - Connection name
  * @param {string} profileName - Cache profile name
  * @returns {Object|null} Cache profile object or null if not found
@@ -279,18 +279,18 @@ function getCacheProfile(connectionName, profileName) {
   if (!connection) {
     return null;
   }
-  
+
   return connection.cache.find(profile => profile.profile === profileName) || null;
 }
 
 /**
  * Get connection and cache profile together
  * Used by services to retrieve both connection and cache configuration
- * 
+ *
  * @param {string} connectionName - Connection name
  * @param {string} profileName - Cache profile name
  * @returns {{conn: Object, cacheProfile: Object}|null} Connection and profile or null
- * 
+ *
  * @example
  * const { conn, cacheProfile } = getConnCacheProfile('s3-templates', 'templates-list');
  * conn.host = ['bucket1', 'bucket2']; // Set dynamically in service
@@ -301,12 +301,12 @@ function getConnCacheProfile(connectionName, profileName) {
   if (!connection) {
     return null;
   }
-  
+
   const cacheProfile = connection.cache.find(profile => profile.profile === profileName);
   if (!cacheProfile) {
     return null;
   }
-  
+
   // Return deep copy to prevent mutation of original connection
   return {
     conn: JSON.parse(JSON.stringify(connection)),

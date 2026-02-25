@@ -1,10 +1,10 @@
 /**
  * Validation Controller
- * 
+ *
  * Handles MCP tool requests for AWS resource naming validation.
  * Validates resource names against Atlantis naming conventions and provides
  * specific error messages and suggestions for invalid names.
- * 
+ *
  * @module controllers/validation
  */
 
@@ -15,22 +15,22 @@ const { tools: { DebugAndLog } } = require('@63klabs/cache-data');
 
 /**
  * Validate resource name against Atlantis naming conventions
- * 
+ *
  * Validates resource names against Atlantis naming conventions:
  * - Application resources: <Prefix>-<ProjectId>-<StageId>-<ResourceName>
  * - S3 buckets: <orgPrefix>-<Prefix>-<ProjectId>-<StageId>-<Region>-<AccountId>
  * - S3 buckets (alt): <orgPrefix>-<Prefix>-<ProjectId>-<Region>
- * 
+ *
  * Returns validation results with specific error messages and suggestions
  * for correcting invalid names.
- * 
+ *
  * @param {Object} props - Request properties from router
  * @param {Object} props.body - Request body containing tool input
  * @param {Object} props.body.input - Tool input parameters
  * @param {string} props.body.input.resourceName - Resource name to validate (required)
  * @param {string} [props.body.input.resourceType] - Resource type (s3, dynamodb, lambda, cloudformation, application)
  * @returns {Promise<Object>} MCP-formatted response with validation results
- * 
+ *
  * @example
  * // Valid application resource name
  * const result = await validate({
@@ -41,7 +41,7 @@ const { tools: { DebugAndLog } } = require('@63klabs/cache-data');
  *   }
  * });
  * // Returns: { valid: true, resourceType: 'application', components: {...}, errors: [], suggestions: [] }
- * 
+ *
  * @example
  * // Invalid resource name with suggestions
  * const result = await validate({
@@ -59,15 +59,15 @@ const validate = async (props) => {
 
   // Extract input from request body
   const input = props.body?.input || {};
-  
+
   // Validate input against JSON Schema
   const validation = SchemaValidator.validate('validate_naming', input);
-  
+
   if (!validation.valid) {
     DebugAndLog.warn('Validation controller: Invalid input', {
       errors: validation.errors
     });
-    
+
     return MCPProtocol.errorResponse(
       'INVALID_INPUT',
       {
@@ -80,7 +80,7 @@ const validate = async (props) => {
 
   // Extract parameters
   const { resourceName, resourceType } = input;
-  
+
   DebugAndLog.debug('Validation controller: Validating resource name', {
     resourceName,
     resourceType: resourceType || 'auto-detect'

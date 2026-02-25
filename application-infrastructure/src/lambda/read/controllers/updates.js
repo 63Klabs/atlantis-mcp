@@ -1,12 +1,12 @@
 /**
  * Updates Controller
- * 
+ *
  * Handles MCP tool requests for template update checking.
  * Validates inputs, orchestrates service calls, and formats MCP responses.
- * 
+ *
  * Supported operations:
  * - check() - Check if newer versions of templates are available
- * 
+ *
  * @module controllers/updates
  */
 
@@ -17,11 +17,11 @@ const { tools: { DebugAndLog } } = require('@63klabs/cache-data');
 
 /**
  * Check for template updates
- * 
+ *
  * Compares current template version with latest available version and returns
  * update information including version numbers, release dates, changelog,
  * breaking changes indicator, and migration guide links.
- * 
+ *
  * @param {Object} props - Request properties from ClientRequest
  * @param {Object} props.body - Request body containing tool input
  * @param {Object} props.body.input - Tool input parameters
@@ -30,7 +30,7 @@ const { tools: { DebugAndLog } } = require('@63klabs/cache-data');
  * @param {string} [props.body.input.category] - Template category (optional)
  * @param {Array<string>} [props.body.input.s3Buckets] - Filter to specific buckets (optional)
  * @returns {Promise<Object>} MCP-formatted response with update information
- * 
+ *
  * @example
  * const response = await Updates.check({
  *   body: {
@@ -56,7 +56,7 @@ async function check(props) {
     // >! Validate input against JSON Schema
     const input = props.body?.input || {};
     const validation = SchemaValidator.validate('check_template_updates', input);
-    
+
     if (!validation.valid) {
       DebugAndLog.warn('check_template_updates validation failed', {
         errors: validation.errors,
@@ -67,17 +67,17 @@ async function check(props) {
         errors: validation.errors
       }, 'check_template_updates');
     }
-    
+
     // >! Extract parameters (templateName, currentVersion, category, s3Buckets)
     const { templateName, currentVersion, category, s3Buckets } = input;
-    
+
     DebugAndLog.info('check_template_updates request', {
       templateName,
       currentVersion,
       category,
       s3BucketsCount: s3Buckets ? s3Buckets.length : 0
     });
-    
+
     // >! Call Services.Templates.checkUpdates()
     // The service expects an array of templates to check
     const updateResults = await Services.Templates.checkUpdates({
@@ -88,10 +88,10 @@ async function check(props) {
       }],
       s3Buckets
     });
-    
+
     // Extract the single result (we only checked one template)
     const updateInfo = updateResults[0];
-    
+
     // Check if there was an error
     if (updateInfo.error) {
       DebugAndLog.warn('check_template_updates error from service', {
@@ -99,14 +99,14 @@ async function check(props) {
         currentVersion,
         error: updateInfo.error
       });
-      
+
       return MCPProtocol.errorResponse('UPDATE_CHECK_FAILED', {
         message: updateInfo.error,
         templateName,
         currentVersion
       }, 'check_template_updates');
     }
-    
+
     DebugAndLog.info('check_template_updates response', {
       templateName: updateInfo.templateName,
       currentVersion: updateInfo.currentVersion,
@@ -114,7 +114,7 @@ async function check(props) {
       updateAvailable: updateInfo.updateAvailable,
       breakingChanges: updateInfo.breakingChanges
     });
-    
+
     // >! Return MCP-formatted response with update information
     return MCPProtocol.successResponse('check_template_updates', {
       templateName: updateInfo.templateName,
@@ -130,13 +130,13 @@ async function check(props) {
       namespace: updateInfo.namespace,
       bucket: updateInfo.bucket
     });
-    
+
   } catch (error) {
     DebugAndLog.error('check_template_updates error', {
       error: error.message,
       stack: error.stack
     });
-    
+
     return MCPProtocol.errorResponse('INTERNAL_ERROR', {
       message: 'Failed to check template updates',
       error: error.message

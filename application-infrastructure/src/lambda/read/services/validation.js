@@ -1,15 +1,15 @@
 /**
  * Validation Service
- * 
+ *
  * Provides business logic for AWS resource naming validation.
  * Validates resource names against Atlantis naming conventions:
  * - Application resources: <Prefix>-<ProjectId>-<StageId>-<ResourceName>
  * - S3 buckets: <orgPrefix>-<Prefix>-<ProjectId>-<StageId>-<Region>-<AccountId>
  * - S3 buckets (alt): <orgPrefix>-<Prefix>-<ProjectId>-<Region>
- * 
+ *
  * This service does NOT use caching as it performs pure validation logic
  * without external data access.
- * 
+ *
  * @module services/validation
  */
 
@@ -19,17 +19,17 @@ const { tools: { DebugAndLog } } = require('@63klabs/cache-data');
 
 /**
  * Validate resource name against Atlantis naming conventions
- * 
+ *
  * Automatically detects resource type from name pattern and validates
  * against appropriate naming rules. Verifies components against
  * template.yaml configuration (Prefix, ProjectId, StageId).
- * 
+ *
  * @param {Object} options - Validation options
  * @param {string} options.resourceName - Resource name to validate (required)
  * @param {string} [options.resourceType] - Resource type (s3, dynamodb, lambda, cloudformation, application) - auto-detected if not provided
  * @param {boolean} [options.partial=false] - Allow partial name validation (e.g., just Prefix-ProjectId)
  * @returns {Promise<Object>} Validation result with errors, suggestions, and parsed components
- * 
+ *
  * Returned object structure:
  * {
  *   valid: boolean,
@@ -47,21 +47,21 @@ const { tools: { DebugAndLog } } = require('@63klabs/cache-data');
  *   suggestions: Array<string>,
  *   pattern?: string  // For S3 buckets: 'pattern1' or 'pattern2'
  * }
- * 
+ *
  * @example
  * // Validate application resource name
  * const result = await Validation.validateNaming({
  *   resourceName: 'acme-myapp-prod-GetUserFunction'
  * });
  * // Returns: { valid: true, resourceType: 'application', components: {...}, errors: [], suggestions: [] }
- * 
+ *
  * @example
  * // Validate S3 bucket name
  * const result = await Validation.validateNaming({
  *   resourceName: '63k-acme-myapp-prod-us-east-1-123456789012',
  *   resourceType: 's3'
  * });
- * 
+ *
  * @example
  * // Validate partial name
  * const result = await Validation.validateNaming({
@@ -93,7 +93,7 @@ async function validateNaming(options = {}) {
   let detectedType = resourceType;
   if (!detectedType) {
     detectedType = NamingRules.detectResourceType(resourceName);
-    
+
     if (!detectedType) {
       // Default to 'application' if detection fails
       detectedType = 'application';

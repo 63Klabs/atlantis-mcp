@@ -1,15 +1,17 @@
 /**
  * Configuration settings for Atlantis MCP Server Read Lambda
- * 
+ *
  * This module parses environment variables and provides structured configuration
  * for S3 buckets, GitHub organizations, cache TTLs, and template categories.
- * 
+ *
  * @module config/settings
  */
 
+const { tools: { DebugAndLog } } = require('@63klabs/cache-data');
+
 /**
  * Parse comma-delimited environment variable into array
- * 
+ *
  * @param {string} envVar - Environment variable name
  * @param {Array<string>} defaultValue - Default value if not set
  * @returns {Array<string>} Parsed array of values
@@ -24,7 +26,7 @@ function parseCommaSeparated(envVar, defaultValue = []) {
 
 /**
  * Parse TTL value from environment variable
- * 
+ *
  * @param {string} envVar - Environment variable name
  * @param {number} defaultValue - Default TTL in seconds
  * @returns {number} TTL in seconds
@@ -36,7 +38,7 @@ function parseTTL(envVar, defaultValue) {
   }
   const parsed = parseInt(value, 10);
   if (isNaN(parsed) || parsed < 0) {
-    console.warn(`Invalid TTL value for ${envVar}: ${value}, using default: ${defaultValue}`);
+    DebugAndLog.warn(`Invalid TTL value for ${envVar}: ${value}, using default: ${defaultValue}`);
     return defaultValue;
   }
   return parsed;
@@ -82,13 +84,13 @@ const settings = {
      * @type {Array<string>}
      */
     buckets: parseCommaSeparated('ATLANTIS_S3_BUCKETS', []),
-    
+
     /**
      * S3 path prefix for templates
      * @type {string}
      */
     templatePrefix: 'templates/v2',
-    
+
     /**
      * S3 path prefix for app starters
      * @type {string}
@@ -104,13 +106,13 @@ const settings = {
      * @type {Array<string>}
      */
     userOrgs: parseCommaSeparated('ATLANTIS_GITHUB_USER_ORGS', []),
-    
+
     /**
      * GitHub custom property name for repository type
      * @type {string}
      */
     repositoryTypeProperty: 'atlantis_repository-type',
-    
+
     /**
      * Valid repository type values
      * @type {Array<string>}
@@ -136,68 +138,68 @@ const settings = {
        * @type {number}
        */
       fullTemplateContent: parseTTL('TTL_FULL_TEMPLATE_CONTENT', 3600),
-      
+
       /**
        * TTL for template version history (default: 3600s = 1 hour)
        * @type {number}
        */
       templateVersionHistory: parseTTL('TTL_TEMPLATE_VERSION_HISTORY', 3600),
-      
+
       /**
        * TTL for template update information (default: 3600s = 1 hour)
        * @type {number}
        */
       templateUpdates: parseTTL('TTL_TEMPLATE_UPDATES', 3600),
-      
+
       /**
        * TTL for template list (default: 1800s = 30 minutes)
        * @type {number}
        */
       templateList: parseTTL('TTL_TEMPLATE_LIST', 1800),
-      
+
       /**
        * TTL for app starter list (default: 1800s = 30 minutes)
        * @type {number}
        */
       appStarterList: parseTTL('TTL_APP_STARTER_LIST', 1800),
-      
+
       /**
        * TTL for GitHub repository list (default: 1800s = 30 minutes)
        * @type {number}
        */
       githubRepoList: parseTTL('TTL_GITHUB_REPO_LIST', 1800),
-      
+
       /**
        * TTL for S3 bucket list (default: 1800s = 30 minutes)
        * @type {number}
        */
       s3BucketList: parseTTL('TTL_S3_BUCKET_LIST', 1800),
-      
+
       /**
        * TTL for namespace list (default: 1800s = 30 minutes)
        * @type {number}
        */
       namespaceList: parseTTL('TTL_NAMESPACE_LIST', 1800),
-      
+
       /**
        * TTL for category list (default: 1800s = 30 minutes)
        * @type {number}
        */
       categoryList: parseTTL('TTL_CATEGORY_LIST', 1800),
-      
+
       /**
        * TTL for documentation index (default: 3600s = 1 hour)
        * @type {number}
        */
       documentationIndex: parseTTL('TTL_DOCUMENTATION_INDEX', 3600)
     },
-    
+
     /**
      * DynamoDB table name for cache storage
      * @type {string}
      */
     dynamoDbTable: process.env.CACHE_DYNAMODB_TABLE || '',
-    
+
     /**
      * S3 bucket name for cache storage
      * @type {string}
@@ -212,7 +214,7 @@ const settings = {
      * @type {string}
      */
     level: process.env.LOG_LEVEL || 'INFO',
-    
+
     /**
      * Whether to enable verbose logging
      * @type {boolean}
@@ -227,19 +229,19 @@ const settings = {
      * @type {string}
      */
     applicationResourcePattern: '<Prefix>-<ProjectId>-<StageId>-<ResourceName>',
-    
+
     /**
      * S3 bucket naming pattern (primary)
      * @type {string}
      */
     s3BucketPattern: '<orgPrefix>-<Prefix>-<ProjectId>-<StageId>-<Region>-<AccountId>',
-    
+
     /**
      * S3 bucket naming pattern (alternative)
      * @type {string}
      */
     s3BucketPatternAlt: '<orgPrefix>-<Prefix>-<ProjectId>-<Region>',
-    
+
     /**
      * CloudFormation parameters
      */
@@ -257,7 +259,7 @@ const settings = {
      * @type {Array<{name: string, description: string}>}
      */
     categories: TEMPLATE_CATEGORIES,
-    
+
     /**
      * Get category names only
      * @returns {Array<string>} Array of category names
@@ -265,7 +267,7 @@ const settings = {
     getCategoryNames() {
       return TEMPLATE_CATEGORIES.map(cat => cat.name);
     },
-    
+
     /**
      * Get category by name
      * @param {string} name - Category name
@@ -283,7 +285,7 @@ const settings = {
      * @type {string}
      */
     region: process.env.AWS_REGION || 'us-east-1',
-    
+
     /**
      * SSM parameter name for GitHub token
      * @type {string}
@@ -307,26 +309,26 @@ const settings = {
  */
 function validateSettings() {
   const warnings = [];
-  
+
   if (settings.s3.buckets.length === 0) {
     warnings.push('ATLANTIS_S3_BUCKETS not configured - template discovery will be limited');
   }
-  
+
   if (settings.github.userOrgs.length === 0) {
     warnings.push('ATLANTIS_GITHUB_USER_ORGS not configured - repository discovery will be limited');
   }
-  
+
   if (!settings.cache.dynamoDbTable) {
     warnings.push('CACHE_DYNAMODB_TABLE not configured - DynamoDB caching disabled');
   }
-  
+
   if (!settings.cache.s3Bucket) {
     warnings.push('CACHE_S3_BUCKET not configured - S3 caching disabled');
   }
-  
+
   if (warnings.length > 0) {
-    console.warn('Configuration warnings:');
-    warnings.forEach(warning => console.warn(`  - ${warning}`));
+    DebugAndLog.warn('Configuration warnings:');
+    warnings.forEach(warning => DebugAndLog.warn(`  - ${warning}`));
   }
 }
 

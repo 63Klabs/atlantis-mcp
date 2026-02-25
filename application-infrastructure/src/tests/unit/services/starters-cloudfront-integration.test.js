@@ -1,9 +1,9 @@
 /**
  * Unit Tests: Starters Service - CloudFront Integration Detection
- * 
+ *
  * Tests that the starters service correctly detects and reports CloudFront integration
  * from sidecar metadata for S3 starters and defaults to false for GitHub starters.
- * 
+ *
  * @module tests/unit/services/starters-cloudfront-integration
  */
 
@@ -13,16 +13,16 @@ describe('Starters Service - CloudFront Integration Detection', () => {
   let Starters;
   let Models;
   let CacheableDataAccess;
-  
+
   beforeEach(() => {
     // Reset modules
     jest.resetModules();
-    
+
     // Mock cache-data package
     const mockCacheableDataAccess = {
       getData: jest.fn()
     };
-    
+
     jest.mock('@63klabs/cache-data', () => ({
       cache: {
         CacheableDataAccess: mockCacheableDataAccess
@@ -36,9 +36,9 @@ describe('Starters Service - CloudFront Integration Detection', () => {
         }
       }
     }));
-    
+
     CacheableDataAccess = mockCacheableDataAccess;
-    
+
     // Mock Config
     jest.mock('../../../lambda/read/config', () => ({
       settings: jest.fn(() => ({
@@ -63,7 +63,7 @@ describe('Starters Service - CloudFront Integration Detection', () => {
         }
       }))
     }));
-    
+
     // Mock Models
     jest.mock('../../../lambda/read/models', () => ({
       S3Starters: {
@@ -73,17 +73,17 @@ describe('Starters Service - CloudFront Integration Detection', () => {
         listRepositories: jest.fn()
       }
     }));
-    
+
     Models = require('../../../lambda/read/models');
-    
+
     // Import service after mocks
     Starters = require('../../../lambda/read/services/starters');
   });
-  
+
   afterEach(() => {
     jest.restoreAllMocks();
   });
-  
+
   describe('S3 Starters with CloudFront Integration', () => {
     it('should detect CloudFront integration from sidecar metadata', async () => {
       // Mock S3 starters with CloudFront integration
@@ -100,7 +100,7 @@ describe('Starters Service - CloudFront Integration Detection', () => {
           errors: []
         })
       };
-      
+
       // Mock GitHub starters (empty)
       Models.GitHubAPI = {
         listRepositories: jest.fn().mockResolvedValue({
@@ -108,21 +108,21 @@ describe('Starters Service - CloudFront Integration Detection', () => {
           errors: []
         })
       };
-      
+
       // Mock CacheableDataAccess to call fetchFunction directly
       CacheableDataAccess.getData.mockImplementation(async (cacheProfile, fetchFunction, conn, opts) => {
         const result = await fetchFunction(conn, opts);
         return { body: result };
       });
-      
+
       const result = await Starters.list({});
-      
+
       expect(result.starters).toHaveLength(1);
       expect(result.starters[0].hasCloudFrontIntegration).toBe(true);
       expect(result.starters[0].hasCacheDataIntegration).toBe(false);
       expect(result.starters[0].source).toBe('s3');
     });
-    
+
     it('should default to false when cloudFrontIntegration is not in sidecar metadata', async () => {
       // Mock S3 starters without CloudFront integration field
       Models.S3Starters = {
@@ -138,7 +138,7 @@ describe('Starters Service - CloudFront Integration Detection', () => {
           errors: []
         })
       };
-      
+
       // Mock GitHub starters (empty)
       Models.GitHubAPI = {
         listRepositories: jest.fn().mockResolvedValue({
@@ -146,20 +146,20 @@ describe('Starters Service - CloudFront Integration Detection', () => {
           errors: []
         })
       };
-      
+
       // Mock CacheableDataAccess to call fetchFunction directly
       CacheableDataAccess.getData.mockImplementation(async (cacheProfile, fetchFunction, conn, opts) => {
         const result = await fetchFunction(conn, opts);
         return { body: result };
       });
-      
+
       const result = await Starters.list({});
-      
+
       expect(result.starters).toHaveLength(1);
       expect(result.starters[0].hasCloudFrontIntegration).toBe(false);
       expect(result.starters[0].source).toBe('s3');
     });
-    
+
     it('should handle starters with both cache-data and CloudFront integration', async () => {
       // Mock S3 starters with both integrations
       Models.S3Starters = {
@@ -175,7 +175,7 @@ describe('Starters Service - CloudFront Integration Detection', () => {
           errors: []
         })
       };
-      
+
       // Mock GitHub starters (empty)
       Models.GitHubAPI = {
         listRepositories: jest.fn().mockResolvedValue({
@@ -183,22 +183,22 @@ describe('Starters Service - CloudFront Integration Detection', () => {
           errors: []
         })
       };
-      
+
       // Mock CacheableDataAccess to call fetchFunction directly
       CacheableDataAccess.getData.mockImplementation(async (cacheProfile, fetchFunction, conn, opts) => {
         const result = await fetchFunction(conn, opts);
         return { body: result };
       });
-      
+
       const result = await Starters.list({});
-      
+
       expect(result.starters).toHaveLength(1);
       expect(result.starters[0].hasCloudFrontIntegration).toBe(true);
       expect(result.starters[0].hasCacheDataIntegration).toBe(true);
       expect(result.starters[0].source).toBe('s3');
     });
   });
-  
+
   describe('GitHub Starters without Sidecar Metadata', () => {
     it('should default to false for GitHub starters without sidecar metadata', async () => {
       // Mock S3 starters (empty)
@@ -208,7 +208,7 @@ describe('Starters Service - CloudFront Integration Detection', () => {
           errors: []
         })
       };
-      
+
       // Mock GitHub starters
       Models.GitHubAPI = {
         listRepositories: jest.fn().mockResolvedValue({
@@ -232,15 +232,15 @@ describe('Starters Service - CloudFront Integration Detection', () => {
           errors: []
         })
       };
-      
+
       // Mock CacheableDataAccess to call fetchFunction directly
       CacheableDataAccess.getData.mockImplementation(async (cacheProfile, fetchFunction, conn, opts) => {
         const result = await fetchFunction(conn, opts);
         return { body: result };
       });
-      
+
       const result = await Starters.list({});
-      
+
       expect(result.starters).toHaveLength(1);
       expect(result.starters[0].hasCloudFrontIntegration).toBe(false);
       expect(result.starters[0].hasCacheDataIntegration).toBe(false);
@@ -248,7 +248,7 @@ describe('Starters Service - CloudFront Integration Detection', () => {
       expect(result.starters[0].hasSidecarMetadata).toBe(false);
     });
   });
-  
+
   describe('Mixed Sources', () => {
     it('should correctly detect CloudFront integration across S3 and GitHub sources', async () => {
       // Mock S3 starters with CloudFront integration
@@ -271,7 +271,7 @@ describe('Starters Service - CloudFront Integration Detection', () => {
           errors: []
         })
       };
-      
+
       // Mock GitHub starters
       Models.GitHubAPI = {
         listRepositories: jest.fn().mockResolvedValue({
@@ -295,34 +295,34 @@ describe('Starters Service - CloudFront Integration Detection', () => {
           errors: []
         })
       };
-      
+
       // Mock CacheableDataAccess to call fetchFunction directly
       CacheableDataAccess.getData.mockImplementation(async (cacheProfile, fetchFunction, conn, opts) => {
         const result = await fetchFunction(conn, opts);
         return { body: result };
       });
-      
+
       const result = await Starters.list({});
-      
+
       expect(result.starters).toHaveLength(3);
-      
+
       // S3 starter with CloudFront
       const s3CloudFrontStarter = result.starters.find(s => s.name === 's3-cloudfront-starter');
       expect(s3CloudFrontStarter.hasCloudFrontIntegration).toBe(true);
       expect(s3CloudFrontStarter.source).toBe('s3');
-      
+
       // S3 starter without CloudFront
       const s3BasicStarter = result.starters.find(s => s.name === 's3-basic-starter');
       expect(s3BasicStarter.hasCloudFrontIntegration).toBe(false);
       expect(s3BasicStarter.source).toBe('s3');
-      
+
       // GitHub starter (defaults to false)
       const githubStarter = result.starters.find(s => s.name === 'github-starter');
       expect(githubStarter.hasCloudFrontIntegration).toBe(false);
       expect(githubStarter.source).toBe('github');
     });
   });
-  
+
   describe('Deduplication with CloudFront Integration', () => {
     it('should preserve CloudFront integration flag when S3 takes precedence over GitHub', async () => {
       // Mock S3 starters with CloudFront integration
@@ -339,7 +339,7 @@ describe('Starters Service - CloudFront Integration Detection', () => {
           errors: []
         })
       };
-      
+
       // Mock GitHub starters with same name (should be deduplicated)
       Models.GitHubAPI = {
         listRepositories: jest.fn().mockResolvedValue({
@@ -363,15 +363,15 @@ describe('Starters Service - CloudFront Integration Detection', () => {
           errors: []
         })
       };
-      
+
       // Mock CacheableDataAccess to call fetchFunction directly
       CacheableDataAccess.getData.mockImplementation(async (cacheProfile, fetchFunction, conn, opts) => {
         const result = await fetchFunction(conn, opts);
         return { body: result };
       });
-      
+
       const result = await Starters.list({});
-      
+
       // Should only have one starter (S3 takes precedence)
       expect(result.starters).toHaveLength(1);
       expect(result.starters[0].name).toBe('duplicate-starter');

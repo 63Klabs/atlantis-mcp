@@ -1,16 +1,16 @@
 /**
  * MCP Response Formatter (Views Layer)
- * 
+ *
  * Provides formatting functions for MCP protocol responses with tool-specific
  * enhancements, descriptions, and usage examples. This layer sits between
  * controllers and the MCP protocol utilities to add presentation logic.
- * 
+ *
  * The views layer enhances responses with:
  * - Tool-specific formatting and structure
  * - Helpful descriptions for AI assistants
  * - Usage examples and guidance
  * - Metadata enrichment
- * 
+ *
  * @module views/mcp-response
  */
 
@@ -18,16 +18,16 @@ const { tools: { DebugAndLog } } = require('@63klabs/cache-data');
 
 /**
  * Format tool response with tool-specific enhancements
- * 
+ *
  * This is the main entry point for formatting MCP responses. It delegates
  * to tool-specific formatters that add descriptions, examples, and structure
  * appropriate for each tool.
- * 
+ *
  * @param {string} toolName - Name of the MCP tool
  * @param {*} data - Response data from service layer
  * @param {Object} [metadata={}] - Additional metadata
  * @returns {Object} Enhanced response data ready for MCP protocol wrapper
- * 
+ *
  * @example
  * const formatted = formatToolResponse('list_templates', templates, {
  *   cached: true,
@@ -40,31 +40,31 @@ function formatToolResponse(toolName, data, metadata = {}) {
     switch (toolName) {
       case 'list_templates':
         return formatListTemplates(data, metadata);
-      
+
       case 'get_template':
         return formatGetTemplate(data, metadata);
-      
+
       case 'list_template_versions':
         return formatListTemplateVersions(data, metadata);
-      
+
       case 'list_categories':
         return formatListCategories(data, metadata);
-      
+
       case 'list_starters':
         return formatListStarters(data, metadata);
-      
+
       case 'get_starter_info':
         return formatGetStarterInfo(data, metadata);
-      
+
       case 'search_documentation':
         return formatSearchDocumentation(data, metadata);
-      
+
       case 'validate_naming':
         return formatValidateNaming(data, metadata);
-      
+
       case 'check_template_updates':
         return formatCheckTemplateUpdates(data, metadata);
-      
+
       default:
         // >! Return data as-is for unknown tools
         DebugAndLog.warn(`No specific formatter for tool: ${toolName}`);
@@ -79,17 +79,17 @@ function formatToolResponse(toolName, data, metadata = {}) {
 
 /**
  * Format list_templates response
- * 
+ *
  * Enhances template list with helpful descriptions and usage guidance.
  * Includes information about partial data scenarios and brown-out support.
- * 
+ *
  * @param {Object} data - Template list data from service
  * @param {Object} metadata - Additional metadata
  * @returns {Object} Formatted response
  */
 function formatListTemplates(data, metadata) {
   const { templates = [], errors = [], partialData = false } = data;
-  
+
   return {
     description: 'CloudFormation templates available in the Atlantis platform. Use get_template to retrieve full template content and parameters.',
     templates: templates.map(template => ({
@@ -124,10 +124,10 @@ function formatListTemplates(data, metadata) {
 
 /**
  * Format get_template response
- * 
+ *
  * Enhances template details with parameter descriptions and usage guidance.
  * Provides context about template structure and deployment.
- * 
+ *
  * @param {Object} data - Template data from service
  * @param {Object} metadata - Additional metadata
  * @returns {Object} Formatted response
@@ -165,17 +165,17 @@ function formatGetTemplate(data, metadata) {
 
 /**
  * Format list_template_versions response
- * 
+ *
  * Enhances version history with helpful context about version identifiers
  * and how to retrieve specific versions.
- * 
+ *
  * @param {Object} data - Version history data from service
  * @param {Object} metadata - Additional metadata
  * @returns {Object} Formatted response
  */
 function formatListTemplateVersions(data, metadata) {
   const { templateName, category, versions = [], namespace, bucket } = data;
-  
+
   return {
     description: `Version history for ${templateName} (${category})`,
     templateName: templateName,
@@ -202,16 +202,16 @@ function formatListTemplateVersions(data, metadata) {
 
 /**
  * Format list_categories response
- * 
+ *
  * Enhances category list with descriptions and guidance on category usage.
- * 
+ *
  * @param {Object} data - Categories data from service
  * @param {Object} metadata - Additional metadata
  * @returns {Object} Formatted response
  */
 function formatListCategories(data, metadata) {
   const { categories = [] } = data;
-  
+
   return {
     description: 'Template categories in the Atlantis platform. Each category represents a different type of infrastructure component.',
     categories: categories.map(cat => ({
@@ -238,16 +238,16 @@ function formatListCategories(data, metadata) {
 
 /**
  * Format list_starters response
- * 
+ *
  * Enhances starter list with feature highlights and integration information.
- * 
+ *
  * @param {Object} data - Starters data from service
  * @param {Object} metadata - Additional metadata
  * @returns {Object} Formatted response
  */
 function formatListStarters(data, metadata) {
   const { starters = [], errors = [], partialData = false } = data;
-  
+
   return {
     description: 'Starter code repositories for bootstrapping serverless applications with Atlantis platform integration.',
     starters: starters.map(starter => ({
@@ -281,9 +281,9 @@ function formatListStarters(data, metadata) {
 
 /**
  * Format get_starter_info response
- * 
+ *
  * Enhances starter details with setup guidance and feature explanations.
- * 
+ *
  * @param {Object} data - Starter info data from service
  * @param {Object} metadata - Additional metadata
  * @returns {Object} Formatted response
@@ -331,16 +331,16 @@ function formatGetStarterInfo(data, metadata) {
 
 /**
  * Format search_documentation response
- * 
+ *
  * Enhances search results with result type explanations and navigation guidance.
- * 
+ *
  * @param {Object} data - Search results data from service
  * @param {Object} metadata - Additional metadata
  * @returns {Object} Formatted response
  */
 function formatSearchDocumentation(data, metadata) {
   const { results = [], suggestions = [], query } = data;
-  
+
   return {
     description: `Search results for: "${query}"`,
     results: results.map(result => ({
@@ -377,18 +377,18 @@ function formatSearchDocumentation(data, metadata) {
 
 /**
  * Format validate_naming response
- * 
+ *
  * Enhances validation results with detailed explanations and correction suggestions.
- * 
+ *
  * @param {Object} data - Validation results from service
  * @param {Object} metadata - Additional metadata
  * @returns {Object} Formatted response
  */
 function formatValidateNaming(data, metadata) {
   const { valid, resourceName, components, resourceType, suggestions = [] } = data;
-  
+
   return {
-    description: valid 
+    description: valid
       ? `Resource name "${resourceName}" is valid`
       : `Resource name "${resourceName}" is invalid`,
     valid: valid,
@@ -407,7 +407,7 @@ function formatValidateNaming(data, metadata) {
         s3: 'acme-myapp-userdata-test-us-east-1-123456789012',
         s3Alternative: 'acme-myapp-userdata-us-east-1'
       },
-      nextSteps: valid 
+      nextSteps: valid
         ? ['Use this name in your CloudFormation templates']
         : ['Review suggestions above', 'Correct invalid components', 'Validate again']
     },
@@ -417,9 +417,9 @@ function formatValidateNaming(data, metadata) {
 
 /**
  * Format check_template_updates response
- * 
+ *
  * Enhances update check results with migration guidance and change summaries.
- * 
+ *
  * @param {Object} data - Update check results from service
  * @param {Object} metadata - Additional metadata
  * @returns {Object} Formatted response
@@ -439,7 +439,7 @@ function formatCheckTemplateUpdates(data, metadata) {
     namespace,
     bucket
   } = data;
-  
+
   return {
     description: updateAvailable
       ? `Update available for ${templateName}: ${currentVersion} → ${latestVersion}`
@@ -463,10 +463,10 @@ function formatCheckTemplateUpdates(data, metadata) {
         'Use get_template with version or versionId to retrieve new version',
         'Test in non-production environment first'
       ] : ['No action needed - template is current'],
-      migrationGuide: breakingChanges && migrationGuideUrl 
+      migrationGuide: breakingChanges && migrationGuideUrl
         ? `Migration guide: ${migrationGuideUrl}`
         : undefined,
-      deprecation: breakingChanges 
+      deprecation: breakingChanges
         ? 'Old version will be supported for 24 months from new version release date'
         : undefined
     },
@@ -476,7 +476,7 @@ function formatCheckTemplateUpdates(data, metadata) {
 
 module.exports = {
   formatToolResponse,
-  
+
   // Export individual formatters for testing
   formatListTemplates,
   formatGetTemplate,

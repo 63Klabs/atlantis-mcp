@@ -1,6 +1,6 @@
 /**
  * Unit tests for S3 Templates DAO - OR condition support
- * 
+ *
  * Tests that when both version and versionId are provided,
  * the get() function returns templates matching EITHER criterion.
  */
@@ -18,18 +18,18 @@ const S3Templates = require('../../../lambda/read/models/s3-templates');
 describe('S3 Templates DAO - OR Condition', () => {
   beforeEach(() => {
     s3Mock.reset();
-    
+
     // Mock checkBucketAccess to always return true
     jest.spyOn(S3Templates, 'checkBucketAccess').mockResolvedValue(true);
-    
+
     // Mock getIndexedNamespaces to return test namespace
     jest.spyOn(S3Templates, 'getIndexedNamespaces').mockResolvedValue(['test-namespace']);
   });
-  
+
   afterEach(() => {
     jest.restoreAllMocks();
   });
-  
+
   /**
    * Helper to create a readable stream from string
    */
@@ -39,7 +39,7 @@ describe('S3 Templates DAO - OR Condition', () => {
     stream.push(null);
     return stream;
   }
-  
+
   /**
    * Helper to create template content with version
    */
@@ -54,7 +54,7 @@ Outputs:
   TestOutput:
     Value: test`;
   }
-  
+
   it('should return template when version matches (both version and versionId provided)', async () => {
     const connection = {
       host: ['test-bucket'],
@@ -66,7 +66,7 @@ Outputs:
         versionId: 'version-id-999'
       }
     };
-    
+
     // Mock ListObjectVersions to return multiple versions
     s3Mock.on(ListObjectVersionsCommand).resolves({
       Versions: [
@@ -75,7 +75,7 @@ Outputs:
         { VersionId: 'version-id-789', IsLatest: false }
       ]
     });
-    
+
     // Mock GetObject for version-id-123 (matches version criterion)
     s3Mock.on(GetObjectCommand, {
       Bucket: 'test-bucket',
@@ -87,7 +87,7 @@ Outputs:
       LastModified: new Date('2024-01-15'),
       ContentLength: 100
     });
-    
+
     // Mock GetObject for version-id-456 (doesn't match)
     s3Mock.on(GetObjectCommand, {
       Bucket: 'test-bucket',
@@ -99,16 +99,16 @@ Outputs:
       LastModified: new Date('2024-01-10'),
       ContentLength: 100
     });
-    
+
     const result = await S3Templates.get(connection);
-    
+
     expect(result).not.toBeNull();
     expect(result.version).toBe('v1.0.0/2024-01-15');
     expect(result.versionId).toBe('version-id-123');
     expect(result.name).toBe('test-template');
     expect(result.category).toBe('Storage');
   });
-  
+
   it('should return template when versionId matches (both version and versionId provided)', async () => {
     const connection = {
       host: ['test-bucket'],
@@ -120,7 +120,7 @@ Outputs:
         versionId: 'version-id-456'
       }
     };
-    
+
     // Mock ListObjectVersions
     s3Mock.on(ListObjectVersionsCommand).resolves({
       Versions: [
@@ -129,7 +129,7 @@ Outputs:
         { VersionId: 'version-id-789', IsLatest: false }
       ]
     });
-    
+
     // Mock GetObject for version-id-123 (doesn't match)
     s3Mock.on(GetObjectCommand, {
       Bucket: 'test-bucket',
@@ -141,7 +141,7 @@ Outputs:
       LastModified: new Date('2024-01-10'),
       ContentLength: 100
     });
-    
+
     // Mock GetObject for version-id-456 (matches versionId criterion)
     s3Mock.on(GetObjectCommand, {
       Bucket: 'test-bucket',
@@ -153,15 +153,15 @@ Outputs:
       LastModified: new Date('2024-01-05'),
       ContentLength: 100
     });
-    
+
     const result = await S3Templates.get(connection);
-    
+
     expect(result).not.toBeNull();
     expect(result.version).toBe('v0.8.0/2024-01-05');
     expect(result.versionId).toBe('version-id-456');
     expect(result.name).toBe('test-template');
   });
-  
+
   it('should return null when neither version nor versionId matches', async () => {
     const connection = {
       host: ['test-bucket'],
@@ -173,7 +173,7 @@ Outputs:
         versionId: 'version-id-999'
       }
     };
-    
+
     // Mock ListObjectVersions
     s3Mock.on(ListObjectVersionsCommand).resolves({
       Versions: [
@@ -181,7 +181,7 @@ Outputs:
         { VersionId: 'version-id-456', IsLatest: false }
       ]
     });
-    
+
     // Mock GetObject for version-id-123 (doesn't match)
     s3Mock.on(GetObjectCommand, {
       Bucket: 'test-bucket',
@@ -193,7 +193,7 @@ Outputs:
       LastModified: new Date('2024-01-10'),
       ContentLength: 100
     });
-    
+
     // Mock GetObject for version-id-456 (doesn't match)
     s3Mock.on(GetObjectCommand, {
       Bucket: 'test-bucket',
@@ -205,12 +205,12 @@ Outputs:
       LastModified: new Date('2024-01-05'),
       ContentLength: 100
     });
-    
+
     const result = await S3Templates.get(connection);
-    
+
     expect(result).toBeNull();
   });
-  
+
   it('should work with only version parameter (no versionId)', async () => {
     const connection = {
       host: ['test-bucket'],
@@ -221,7 +221,7 @@ Outputs:
         version: 'v1.0.0/2024-01-15'
       }
     };
-    
+
     // Mock GetObject for latest version
     s3Mock.on(GetObjectCommand, {
       Bucket: 'test-bucket',
@@ -232,13 +232,13 @@ Outputs:
       LastModified: new Date('2024-01-15'),
       ContentLength: 100
     });
-    
+
     const result = await S3Templates.get(connection);
-    
+
     expect(result).not.toBeNull();
     expect(result.version).toBe('v1.0.0/2024-01-15');
   });
-  
+
   it('should work with only versionId parameter (no version)', async () => {
     const connection = {
       host: ['test-bucket'],
@@ -249,7 +249,7 @@ Outputs:
         versionId: 'version-id-456'
       }
     };
-    
+
     // Mock GetObject for specific version
     s3Mock.on(GetObjectCommand, {
       Bucket: 'test-bucket',
@@ -261,9 +261,9 @@ Outputs:
       LastModified: new Date('2024-01-05'),
       ContentLength: 100
     });
-    
+
     const result = await S3Templates.get(connection);
-    
+
     expect(result).not.toBeNull();
     expect(result.versionId).toBe('version-id-456');
     expect(result.version).toBe('v0.8.0/2024-01-05');

@@ -1,9 +1,9 @@
 /**
  * Services module exports
- * 
+ *
  * Provides business logic layer with caching for all MCP operations.
  * Services orchestrate data access through DAOs and implement caching strategies.
- * 
+ *
  * @module services
  */
 

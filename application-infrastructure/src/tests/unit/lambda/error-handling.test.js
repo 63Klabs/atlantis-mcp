@@ -1,6 +1,6 @@
 /**
  * Unit tests for error handling across all failure scenarios
- * 
+ *
  * Tests error handling including:
  * - S3 operation failures
  * - DynamoDB operation failures
@@ -76,7 +76,7 @@ describe('Error Handling', () => {
     test('should log S3 errors with bucket and key details', () => {
       const error = new Error('S3 operation failed');
       error.name = 'S3Error';
-      
+
       const context = {
         bucket: 'test-bucket',
         key: 'templates/v2/storage/template.yml',
@@ -141,7 +141,7 @@ describe('Error Handling', () => {
     test('should log DynamoDB errors with table name', () => {
       const error = new Error('DynamoDB operation failed');
       error.name = 'DynamoDBError';
-      
+
       const context = {
         tableName: 'cache-table',
         operation: 'GetItem',
@@ -193,7 +193,7 @@ describe('Error Handling', () => {
     test('should log GitHub errors with repository and endpoint details', () => {
       const error = new Error('GitHub API failed');
       error.status = 500;
-      
+
       const context = {
         repository: 'org/repo',
         endpoint: '/repos/org/repo/properties/values',
@@ -241,7 +241,7 @@ describe('Error Handling', () => {
     test('should log SSM errors without exposing parameter values', () => {
       const error = new Error('SSM operation failed');
       error.name = 'SSMError';
-      
+
       const context = {
         parameterName: '/myapp/github/token',
         operation: 'GetParameter'

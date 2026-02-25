@@ -1,8 +1,8 @@
 /**
  * Models Index
- * 
+ *
  * Exports all data access objects (DAOs) for the read Lambda function.
- * 
+ *
  * @module models
  */
 

@@ -1,6 +1,6 @@
 /**
  * Unit Tests for Starters Service
- * 
+ *
  * Tests the Starters service layer including:
  * - list() with caching
  * - get() with caching
@@ -47,9 +47,32 @@ const Models = require('../../../lambda/read/models');
 const Starters = require('../../../lambda/read/services/starters');
 
 describe('Starters Service', () => {
+  // Helper function to create properly structured mock connection and cache profile
+  const createMockConnCacheProfile = (connectionName = 'github-api', profileName = 'starters-list') => {
+    return {
+      conn: {
+        name: connectionName,
+        host: [],
+        path: '/repos',
+        parameters: {},
+        cache: []
+      },
+      cacheProfile: {
+        profile: profileName,
+        overrideOriginHeaderExpiration: true,
+        defaultExpirationInSeconds: 3600,
+        expirationIsOnInterval: false,
+        headersToRetain: '',
+        hostId: connectionName,
+        pathId: profileName.split('-').pop(), // Extract 'list', 'detail', etc.
+        encrypt: false
+      }
+    };
+  };
+
   beforeEach(() => {
     jest.clearAllMocks();
-    
+
     // Default mock implementations
     Config.settings.mockReturnValue({
       s3: {
@@ -69,13 +92,9 @@ describe('Starters Service', () => {
   describe('list() with caching', () => {
     it('should list all starters using cache-data', async () => {
       // Arrange
-      const mockConn = { host: [], parameters: {} };
-      const mockCacheProfile = { pathId: 'starters-list' };
-      
-      Config.getConnCacheProfile.mockReturnValue({
-        conn: mockConn,
-        cacheProfile: mockCacheProfile
-      });
+      const mockConnCache = createMockConnCacheProfile();
+
+      Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
       const mockStarters = [
         { name: 'starter1', source: 's3' },
@@ -97,18 +116,14 @@ describe('Starters Service', () => {
       expect(Config.getConnCacheProfile).toHaveBeenCalledWith('github-api', 'starters-list');
       expect(CacheableDataAccess.getData).toHaveBeenCalled();
       expect(result.starters).toEqual(mockStarters);
-      expect(mockConn.host).toEqual(['63klabs', 'myorg', 'testorg']);
+      expect(mockConnCache.conn.host).toEqual(['63klabs', 'myorg', 'testorg']);
     });
 
     it('should filter starters by specific GitHub users/orgs', async () => {
       // Arrange
-      const mockConn = { host: [], parameters: {} };
-      const mockCacheProfile = { pathId: 'starters-list' };
-      
-      Config.getConnCacheProfile.mockReturnValue({
-        conn: mockConn,
-        cacheProfile: mockCacheProfile
-      });
+      const mockConnCache = createMockConnCacheProfile();
+
+      Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
       CacheableDataAccess.getData.mockResolvedValue({
         body: {
@@ -122,18 +137,14 @@ describe('Starters Service', () => {
       await Starters.list({ ghusers: ['63klabs', 'myorg'] });
 
       // Assert
-      expect(mockConn.host).toEqual(['63klabs', 'myorg']);
+      expect(mockConnCache.conn.host).toEqual(['63klabs', 'myorg']);
     });
 
     it('should validate GitHub users/orgs filter against configured users/orgs', async () => {
       // Arrange
-      const mockConn = { host: [], parameters: {} };
-      const mockCacheProfile = { pathId: 'starters-list' };
-      
-      Config.getConnCacheProfile.mockReturnValue({
-        conn: mockConn,
-        cacheProfile: mockCacheProfile
-      });
+      const mockConnCache = createMockConnCacheProfile();
+
+      Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
       CacheableDataAccess.getData.mockResolvedValue({
         body: {
@@ -147,18 +158,14 @@ describe('Starters Service', () => {
       await Starters.list({ ghusers: ['63klabs', 'invalid-org'] });
 
       // Assert - invalid org should be filtered out
-      expect(mockConn.host).toEqual(['63klabs']);
+      expect(mockConnCache.conn.host).toEqual(['63klabs']);
     });
 
     it('should throw error if no valid GitHub users/orgs specified', async () => {
       // Arrange
-      const mockConn = { host: [], parameters: {} };
-      const mockCacheProfile = { pathId: 'starters-list' };
-      
-      Config.getConnCacheProfile.mockReturnValue({
-        conn: mockConn,
-        cacheProfile: mockCacheProfile
-      });
+      const mockConnCache = createMockConnCacheProfile();
+
+      Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
       // Act & Assert
       await expect(Starters.list({ ghusers: ['invalid-org'] }))
@@ -167,13 +174,9 @@ describe('Starters Service', () => {
 
     it('should set repository type filter to app-starter', async () => {
       // Arrange
-      const mockConn = { host: [], parameters: {} };
-      const mockCacheProfile = { pathId: 'starters-list' };
-      
-      Config.getConnCacheProfile.mockReturnValue({
-        conn: mockConn,
-        cacheProfile: mockCacheProfile
-      });
+      const mockConnCache = createMockConnCacheProfile();
+
+      Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
       CacheableDataAccess.getData.mockResolvedValue({
         body: {
@@ -187,22 +190,18 @@ describe('Starters Service', () => {
       await Starters.list({});
 
       // Assert
-      expect(mockConn.parameters).toEqual({ repositoryType: 'app-starter' });
+      expect(mockConnCache.conn.parameters).toEqual({ repositoryType: 'app-starter' });
     });
 
     it('should aggregate starters from S3 and GitHub', async () => {
       // Arrange
-      const mockConn = { host: [], parameters: {} };
-      const mockCacheProfile = { pathId: 'starters-list' };
-      
-      Config.getConnCacheProfile.mockReturnValue({
-        conn: mockConn,
-        cacheProfile: mockCacheProfile
-      });
+      const mockConnCache = createMockConnCacheProfile();
+
+      Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
       // Mock the fetch function to return aggregated results
       CacheableDataAccess.getData.mockImplementation(async (profile, fetchFn) => {
-        const result = await fetchFn(mockConn, {});
+        const result = await fetchFn(mockConnCache.conn, {});
         return { body: result };
       });
 
@@ -237,16 +236,12 @@ describe('Starters Service', () => {
 
     it('should deduplicate starters (S3 takes precedence)', async () => {
       // Arrange
-      const mockConn = { host: [], parameters: {} };
-      const mockCacheProfile = { pathId: 'starters-list' };
-      
-      Config.getConnCacheProfile.mockReturnValue({
-        conn: mockConn,
-        cacheProfile: mockCacheProfile
-      });
+      const mockConnCache = createMockConnCacheProfile();
+
+      Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
       CacheableDataAccess.getData.mockImplementation(async (profile, fetchFn) => {
-        const result = await fetchFn(mockConn, {});
+        const result = await fetchFn(mockConnCache.conn, {});
         return { body: result };
       });
 
@@ -281,16 +276,12 @@ describe('Starters Service', () => {
 
     it('should handle errors from S3 and GitHub sources', async () => {
       // Arrange
-      const mockConn = { host: [], parameters: {} };
-      const mockCacheProfile = { pathId: 'starters-list' };
-      
-      Config.getConnCacheProfile.mockReturnValue({
-        conn: mockConn,
-        cacheProfile: mockCacheProfile
-      });
+      const mockConnCache = createMockConnCacheProfile();
+
+      Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
       CacheableDataAccess.getData.mockImplementation(async (profile, fetchFn) => {
-        const result = await fetchFn(mockConn, {});
+        const result = await fetchFn(mockConnCache.conn, {});
         return { body: result };
       });
 
@@ -329,13 +320,9 @@ describe('Starters Service', () => {
   describe('get() with caching', () => {
     it('should get specific starter using cache-data', async () => {
       // Arrange
-      const mockConn = { host: [], parameters: {} };
-      const mockCacheProfile = { pathId: 'starter-detail' };
-      
-      Config.getConnCacheProfile.mockReturnValue({
-        conn: mockConn,
-        cacheProfile: mockCacheProfile
-      });
+      const mockConnCache = createMockConnCacheProfile('github-api', 'starter-detail');
+
+      Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
       const mockStarter = {
         name: 'atlantis-starter-02',
@@ -356,7 +343,7 @@ describe('Starters Service', () => {
       expect(Config.getConnCacheProfile).toHaveBeenCalledWith('github-api', 'starter-detail');
       expect(CacheableDataAccess.getData).toHaveBeenCalled();
       expect(result).toEqual(mockStarter);
-      expect(mockCacheProfile.pathId).toBe('starter-detail:atlantis-starter-02');
+      expect(mockConnCache.cacheProfile.pathId).toBe('starter-detail:atlantis-starter-02');
     });
 
     it('should require starterName', async () => {
@@ -367,13 +354,9 @@ describe('Starters Service', () => {
 
     it('should filter by specific GitHub users/orgs', async () => {
       // Arrange
-      const mockConn = { host: [], parameters: {} };
-      const mockCacheProfile = { pathId: 'starter-detail' };
-      
-      Config.getConnCacheProfile.mockReturnValue({
-        conn: mockConn,
-        cacheProfile: mockCacheProfile
-      });
+      const mockConnCache = createMockConnCacheProfile('github-api', 'starter-detail');
+
+      Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
       CacheableDataAccess.getData.mockResolvedValue({
         body: { name: 'starter1' }
@@ -386,21 +369,17 @@ describe('Starters Service', () => {
       });
 
       // Assert
-      expect(mockConn.host).toEqual(['63klabs']);
+      expect(mockConnCache.conn.host).toEqual(['63klabs']);
     });
 
     it('should prefer S3 sidecar metadata when available', async () => {
       // Arrange
-      const mockConn = { host: [], parameters: {} };
-      const mockCacheProfile = { pathId: 'starter-detail' };
-      
-      Config.getConnCacheProfile.mockReturnValue({
-        conn: mockConn,
-        cacheProfile: mockCacheProfile
-      });
+      const mockConnCache = createMockConnCacheProfile('github-api', 'starter-detail');
+
+      Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
       CacheableDataAccess.getData.mockImplementation(async (profile, fetchFn) => {
-        const result = await fetchFn(mockConn, {});
+        const result = await fetchFn(mockConnCache.conn, {});
         return { body: result };
       });
 
@@ -435,16 +414,12 @@ describe('Starters Service', () => {
 
     it('should skip starters without sidecar metadata', async () => {
       // Arrange
-      const mockConn = { host: [], parameters: {} };
-      const mockCacheProfile = { pathId: 'starter-detail' };
-      
-      Config.getConnCacheProfile.mockReturnValue({
-        conn: mockConn,
-        cacheProfile: mockCacheProfile
-      });
+      const mockConnCache = createMockConnCacheProfile('github-api', 'starter-detail');
+
+      Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
       CacheableDataAccess.getData.mockImplementation(async (profile, fetchFn) => {
-        const result = await fetchFn(mockConn, {});
+        const result = await fetchFn(mockConnCache.conn, {});
         return { body: result };
       });
 
@@ -463,13 +438,9 @@ describe('Starters Service', () => {
 
     it('should throw STARTER_NOT_FOUND with available starters', async () => {
       // Arrange
-      const mockConn = { host: [], parameters: {} };
-      const mockCacheProfile = { pathId: 'starter-detail' };
-      
-      Config.getConnCacheProfile.mockReturnValue({
-        conn: mockConn,
-        cacheProfile: mockCacheProfile
-      });
+      const mockConnCache = createMockConnCacheProfile('github-api', 'starter-detail');
+
+      Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
       CacheableDataAccess.getData
         .mockResolvedValueOnce({ body: null }) // get() returns null
@@ -498,13 +469,9 @@ describe('Starters Service', () => {
 
     it('should handle errors when getting available starters list', async () => {
       // Arrange
-      const mockConn = { host: [], parameters: {} };
-      const mockCacheProfile = { pathId: 'starter-detail' };
-      
-      Config.getConnCacheProfile.mockReturnValue({
-        conn: mockConn,
-        cacheProfile: mockCacheProfile
-      });
+      const mockConnCache = createMockConnCacheProfile('github-api', 'starter-detail');
+
+      Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
       CacheableDataAccess.getData
         .mockResolvedValueOnce({ body: null }) // get() returns null
@@ -523,13 +490,9 @@ describe('Starters Service', () => {
 
     it('should set repository type filter to app-starter', async () => {
       // Arrange
-      const mockConn = { host: [], parameters: {} };
-      const mockCacheProfile = { pathId: 'starter-detail' };
-      
-      Config.getConnCacheProfile.mockReturnValue({
-        conn: mockConn,
-        cacheProfile: mockCacheProfile
-      });
+      const mockConnCache = createMockConnCacheProfile('github-api', 'starter-detail');
+
+      Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
       CacheableDataAccess.getData.mockResolvedValue({
         body: { name: 'starter1' }
@@ -539,7 +502,7 @@ describe('Starters Service', () => {
       await Starters.get({ starterName: 'starter1' });
 
       // Assert
-      expect(mockConn.parameters).toEqual({
+      expect(mockConnCache.conn.parameters).toEqual({
         starterName: 'starter1',
         repositoryType: 'app-starter'
       });

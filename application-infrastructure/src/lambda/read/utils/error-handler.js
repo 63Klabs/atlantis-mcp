@@ -1,6 +1,6 @@
 /**
  * Error Handling Utilities for Atlantis MCP Server
- * 
+ *
  * Provides centralized error handling, categorization, and logging utilities.
  * Implements comprehensive error handling patterns including:
  * - Error categorization (4xx client errors, 5xx server errors)
@@ -8,7 +8,7 @@
  * - Structured error logging with context
  * - Request ID tracking
  * - CloudWatch metrics emission
- * 
+ *
  * @module utils/error-handler
  */
 
@@ -46,7 +46,7 @@ const ErrorCode = {
 
 /**
  * Create a standardized error object
- * 
+ *
  * @param {Object} options - Error options
  * @param {string} options.code - Error code from ErrorCode
  * @param {string} options.message - User-friendly error message
@@ -66,18 +66,18 @@ function createError({ code, message, category, statusCode, details, originalErr
   error.originalError = originalError;
   error.requestId = requestId;
   error.timestamp = new Date().toISOString();
-  
+
   return error;
 }
 
 /**
  * Log error with full context
- * 
+ *
  * Uses appropriate DebugAndLog level based on error category:
  * - CLIENT_ERROR: warn (user input issues)
  * - SERVER_ERROR: error (internal failures)
  * - EXTERNAL_SERVICE: warn (brown-out scenarios)
- * 
+ *
  * @param {Error} error - Error object
  * @param {Object} context - Additional context
  * @param {string} [context.tool] - MCP tool name
@@ -107,7 +107,7 @@ function logError(error, context = {}) {
     // >! Include additional details for debugging (not sent to client)
     details: error.details
   };
-  
+
   // >! Use appropriate log level based on error category
   switch (error.category) {
     case ErrorCategory.CLIENT_ERROR:
@@ -116,17 +116,17 @@ function logError(error, context = {}) {
       // >! Client errors are warnings - user input issues
       DebugAndLog.warn('Client error', logContext);
       break;
-      
+
     case ErrorCategory.EXTERNAL_SERVICE:
       // >! External service errors are warnings - brown-out scenarios
       DebugAndLog.warn('External service error', logContext);
       break;
-      
+
     case ErrorCategory.RATE_LIMIT:
       // >! Rate limit violations are informational
       DebugAndLog.info('Rate limit exceeded', logContext);
       break;
-      
+
     case ErrorCategory.SERVER_ERROR:
     case ErrorCategory.CACHE_ERROR:
     default:
@@ -138,7 +138,7 @@ function logError(error, context = {}) {
 
 /**
  * Log S3 operation failure with bucket name, key, and error details
- * 
+ *
  * @param {Object} options - Logging options
  * @param {string} options.operation - S3 operation (GetObject, ListObjects, etc.)
  * @param {string} options.bucket - S3 bucket name
@@ -162,7 +162,7 @@ function logS3Error({ operation, bucket, key, error, requestId }) {
 
 /**
  * Log GitHub API failure with repository, user/org, endpoint, and error details
- * 
+ *
  * @param {Object} options - Logging options
  * @param {string} options.operation - GitHub operation (getRepository, listRepositories, etc.)
  * @param {string} [options.repository] - Repository name
@@ -189,9 +189,9 @@ function logGitHubError({ operation, repository, userOrg, endpoint, error, reque
 
 /**
  * Convert error to user-friendly response
- * 
+ *
  * Removes internal implementation details and returns sanitized error message.
- * 
+ *
  * @param {Error} error - Error object
  * @param {string} [requestId] - Request ID
  * @returns {Object} User-friendly error response
@@ -204,46 +204,51 @@ function toUserResponse(error, requestId) {
     requestId: requestId || error.requestId,
     timestamp: error.timestamp || new Date().toISOString()
   };
-  
+
   // >! Include additional helpful information for specific error types
   if (error.code === ErrorCode.TEMPLATE_NOT_FOUND && error.availableTemplates) {
     response.availableTemplates = error.availableTemplates;
   }
-  
+
   if (error.code === ErrorCode.UNKNOWN_TOOL && error.availableTools) {
     response.availableTools = error.availableTools;
   }
-  
+
   if (error.code === ErrorCode.RATE_LIMIT_EXCEEDED && error.retryAfter) {
     response.retryAfter = error.retryAfter;
   }
-  
+
   return response;
 }
 
 /**
  * Categorize error as 4xx (client) or 5xx (server)
- * 
+ *
  * @param {Error} error - Error object
  * @returns {number} HTTP status code
  */
 function getStatusCode(error) {
+  // >! Handle null or undefined errors
+  if (!error) {
+    return 500;
+  }
+
   // >! Categorize errors as 4xx (client) or 5xx (server)
   if (error.statusCode) {
     return error.statusCode;
   }
-  
+
   switch (error.category) {
     case ErrorCategory.CLIENT_ERROR:
     case ErrorCategory.VALIDATION_ERROR:
       return 400;
-      
+
     case ErrorCategory.NOT_FOUND:
       return 404;
-      
+
     case ErrorCategory.RATE_LIMIT:
       return 429;
-      
+
     case ErrorCategory.SERVER_ERROR:
     case ErrorCategory.CACHE_ERROR:
     case ErrorCategory.EXTERNAL_SERVICE:
@@ -254,7 +259,7 @@ function getStatusCode(error) {
 
 /**
  * Log request with timestamp, IP, tool name, execution time
- * 
+ *
  * @param {Object} options - Request logging options
  * @param {string} options.tool - MCP tool name
  * @param {string} options.method - HTTP method
@@ -282,7 +287,7 @@ function logRequest({ tool, method, path, ip, requestId, executionTime, statusCo
 
 /**
  * Emit CloudWatch metric for error rate
- * 
+ *
  * @param {Object} options - Metric options
  * @param {string} options.tool - MCP tool name
  * @param {string} options.errorCode - Error code
@@ -304,7 +309,7 @@ function emitErrorMetric({ tool, errorCode, statusCode }) {
 
 /**
  * Emit CloudWatch metric for latency
- * 
+ *
  * @param {Object} options - Metric options
  * @param {string} options.tool - MCP tool name
  * @param {number} options.latency - Latency in milliseconds
@@ -326,7 +331,7 @@ function emitLatencyMetric({ tool, latency, cacheHit }) {
 
 /**
  * Emit CloudWatch metric for cache performance
- * 
+ *
  * @param {Object} options - Metric options
  * @param {string} options.tool - MCP tool name
  * @param {boolean} options.cacheHit - Whether cache hit occurred
@@ -347,9 +352,9 @@ function emitCacheMetric({ tool, cacheHit, cacheType }) {
 
 /**
  * Wrap async function with error handling
- * 
+ *
  * Catches errors, logs them, and converts to user-friendly responses.
- * 
+ *
  * @param {Function} fn - Async function to wrap
  * @param {Object} context - Error context
  * @returns {Function} Wrapped function
@@ -361,14 +366,14 @@ function wrapWithErrorHandling(fn, context = {}) {
     } catch (error) {
       // Log error with context
       logError(error, context);
-      
+
       // Emit error metric
       emitErrorMetric({
         tool: context.tool,
         errorCode: error.code || 'UNKNOWN_ERROR',
         statusCode: getStatusCode(error)
       });
-      
+
       // Re-throw for caller to handle
       throw error;
     }

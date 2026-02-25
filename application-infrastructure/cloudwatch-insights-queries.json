@@ -1,0 +1,125 @@
+{
+  "queries": [
+    {
+      "name": "Rate Limit Violations",
+      "description": "Find all rate limit violations with IP addresses and timestamps",
+      "logGroups": [
+        "/aws/lambda/${Prefix}-${ProjectId}-${StageId}-ReadFunction",
+        "/aws/apigateway/${Prefix}-${ProjectId}-${StageId}-WebApi-access-logs"
+      ],
+      "query": "fields @timestamp, @message, ip, requestId, status\n| filter status = 429 or @message like /rate limit/i or @message like /too many requests/i\n| sort @timestamp desc\n| limit 100"
+    },
+    {
+      "name": "Brown-Out Scenarios",
+      "description": "Identify partial data returns when some sources fail",
+      "logGroups": [
+        "/aws/lambda/${Prefix}-${ProjectId}-${StageId}-ReadFunction"
+      ],
+      "query": "fields @timestamp, @message, requestId\n| filter @message like /brown-out/i or @message like /partial data/i or @message like /source failed/i or @message like /bucket.*skipped/i or @message like /user.*org.*failed/i\n| parse @message /bucket[:\\s]+(?<failedBucket>[^\\s,]+)/\n| parse @message /user\\/org[:\\s]+(?<failedOrg>[^\\s,]+)/\n| stats count() as failureCount by failedBucket, failedOrg\n| sort failureCount desc"
+    },
+    {
+      "name": "Cache Performance Analysis",
+      "description": "Analyze cache hit/miss rates and performance metrics",
+      "logGroups": [
+        "/aws/lambda/${Prefix}-${ProjectId}-${StageId}-ReadFunction"
+      ],
+      "query": "fields @timestamp, @message, requestId\n| filter @message like /cache/i\n| parse @message /cache[:\\s]+(?<cacheStatus>hit|miss)/i\n| parse @message /duration[:\\s]+(?<duration>\\d+)/\n| parse @message /tool[:\\s]+(?<tool>[^\\s,]+)/\n| stats count() as totalRequests, \n        sum(cacheStatus = \"hit\") as cacheHits, \n        sum(cacheStatus = \"miss\") as cacheMisses,\n        avg(duration) as avgDuration,\n        max(duration) as maxDuration\n        by tool\n| fields tool, totalRequests, cacheHits, cacheMisses, \n         (cacheHits / totalRequests * 100) as hitRate,\n         avgDuration, maxDuration\n| sort hitRate desc"
+    },
+    {
+      "name": "Error Analysis by Type",
+      "description": "Categorize and count errors by type and source",
+      "logGroups": [
+        "/aws/lambda/${Prefix}-${ProjectId}-${StageId}-ReadFunction"
+      ],
+      "query": "fields @timestamp, @message, requestId\n| filter @message like /error/i or @message like /exception/i or @message like /failed/i\n| parse @message /error[:\\s]+(?<errorType>[^:]+):/i\n| parse @message /(?<errorCode>TEMPLATE_NOT_FOUND|INVALID_INPUT|BUCKET_ACCESS_DENIED|GITHUB_RATE_LIMIT|S3_ERROR|DYNAMODB_ERROR)/\n| stats count() as errorCount by coalesce(errorCode, errorType, \"Unknown\")\n| sort errorCount desc"
+    },
+    {
+      "name": "Request Latency by Tool",
+      "description": "Analyze request latency for each MCP tool",
+      "logGroups": [
+        "/aws/lambda/${Prefix}-${ProjectId}-${StageId}-ReadFunction"
+      ],
+      "query": "fields @timestamp, @message, @duration, requestId\n| filter @message like /tool[:\\s]+/\n| parse @message /tool[:\\s]+(?<tool>[^\\s,]+)/\n| parse @message /duration[:\\s]+(?<requestDuration>\\d+)/\n| stats count() as requestCount,\n        avg(@duration) as avgLambdaDuration,\n        max(@duration) as maxLambdaDuration,\n        avg(requestDuration) as avgRequestDuration,\n        max(requestDuration) as maxRequestDuration,\n        pct(@duration, 95) as p95Duration,\n        pct(@duration, 99) as p99Duration\n        by tool\n| sort avgLambdaDuration desc"
+    },
+    {
+      "name": "S3 Bucket Access Issues",
+      "description": "Find S3 bucket access problems and missing tags",
+      "logGroups": [
+        "/aws/lambda/${Prefix}-${ProjectId}-${StageId}-ReadFunction"
+      ],
+      "query": "fields @timestamp, @message, requestId\n| filter @message like /bucket/i and (@message like /access denied/i or @message like /not found/i or @message like /missing tag/i or @message like /atlantis-mcp:Allow/i or @message like /IndexPriority/i)\n| parse @message /bucket[:\\s]+(?<bucket>[^\\s,]+)/\n| parse @message /(?<issue>access denied|not found|missing tag|Allow=false|no IndexPriority)/i\n| stats count() as issueCount by bucket, issue\n| sort issueCount desc"
+    },
+    {
+      "name": "GitHub API Rate Limiting",
+      "description": "Monitor GitHub API rate limit status and violations",
+      "logGroups": [
+        "/aws/lambda/${Prefix}-${ProjectId}-${StageId}-ReadFunction"
+      ],
+      "query": "fields @timestamp, @message, requestId\n| filter @message like /github/i and (@message like /rate limit/i or @message like /X-RateLimit/i)\n| parse @message /X-RateLimit-Remaining[:\\s]+(?<remaining>\\d+)/\n| parse @message /X-RateLimit-Limit[:\\s]+(?<limit>\\d+)/\n| parse @message /user\\/org[:\\s]+(?<userOrg>[^\\s,]+)/\n| stats min(remaining) as minRemaining, max(limit) as rateLimit by userOrg\n| sort minRemaining asc"
+    },
+    {
+      "name": "Template Discovery Performance",
+      "description": "Analyze template discovery across multiple buckets",
+      "logGroups": [
+        "/aws/lambda/${Prefix}-${ProjectId}-${StageId}-ReadFunction"
+      ],
+      "query": "fields @timestamp, @message, @duration, requestId\n| filter @message like /list_templates/i or @message like /template discovery/i\n| parse @message /bucket[:\\s]+(?<bucket>[^\\s,]+)/\n| parse @message /namespace[:\\s]+(?<namespace>[^\\s,]+)/\n| parse @message /templates found[:\\s]+(?<templateCount>\\d+)/\n| stats count() as discoveryCount,\n        avg(@duration) as avgDuration,\n        sum(templateCount) as totalTemplates\n        by bucket, namespace\n| sort avgDuration desc"
+    },
+    {
+      "name": "Documentation Search Performance",
+      "description": "Analyze documentation search queries and results",
+      "logGroups": [
+        "/aws/lambda/${Prefix}-${ProjectId}-${StageId}-ReadFunction"
+      ],
+      "query": "fields @timestamp, @message, @duration, requestId\n| filter @message like /search_documentation/i\n| parse @message /query[:\\s]+(?<searchQuery>[^,]+)/\n| parse @message /results[:\\s]+(?<resultCount>\\d+)/\n| parse @message /duration[:\\s]+(?<searchDuration>\\d+)/\n| stats count() as searchCount,\n        avg(resultCount) as avgResults,\n        avg(searchDuration) as avgDuration,\n        max(searchDuration) as maxDuration\n        by searchQuery\n| sort searchCount desc\n| limit 20"
+    },
+    {
+      "name": "Cold Start Analysis",
+      "description": "Identify Lambda cold starts and initialization times",
+      "logGroups": [
+        "/aws/lambda/${Prefix}-${ProjectId}-${StageId}-ReadFunction"
+      ],
+      "query": "fields @timestamp, @message, @duration, @initDuration, requestId\n| filter @type = \"REPORT\"\n| stats count() as invocations,\n        sum(@initDuration > 0) as coldStarts,\n        avg(@duration) as avgDuration,\n        avg(@initDuration) as avgInitDuration,\n        max(@initDuration) as maxInitDuration,\n        pct(@duration, 95) as p95Duration\n| fields invocations, coldStarts, \n         (coldStarts / invocations * 100) as coldStartRate,\n         avgDuration, avgInitDuration, maxInitDuration, p95Duration"
+    },
+    {
+      "name": "Memory Usage Analysis",
+      "description": "Analyze Lambda memory usage and identify potential issues",
+      "logGroups": [
+        "/aws/lambda/${Prefix}-${ProjectId}-${StageId}-ReadFunction"
+      ],
+      "query": "fields @timestamp, @message, @maxMemoryUsed, @memorySize, requestId\n| filter @type = \"REPORT\"\n| stats count() as invocations,\n        avg(@maxMemoryUsed) as avgMemoryUsed,\n        max(@maxMemoryUsed) as maxMemoryUsed,\n        avg(@memorySize) as configuredMemory,\n        avg(@maxMemoryUsed / @memorySize * 100) as avgMemoryUtilization,\n        max(@maxMemoryUsed / @memorySize * 100) as maxMemoryUtilization\n| fields invocations, avgMemoryUsed, maxMemoryUsed, configuredMemory, avgMemoryUtilization, maxMemoryUtilization"
+    },
+    {
+      "name": "API Gateway Request Analysis",
+      "description": "Analyze API Gateway requests by path and status",
+      "logGroups": [
+        "/aws/apigateway/${Prefix}-${ProjectId}-${StageId}-WebApi-access-logs"
+      ],
+      "query": "fields @timestamp, requestId, ip, httpMethod, path, status, responseLength, requestTime\n| parse path /\\/mcp\\/(?<tool>[^\\/\\?]+)/\n| stats count() as requestCount,\n        avg(responseLength) as avgResponseSize,\n        sum(status >= 400) as errorCount,\n        sum(status = 429) as rateLimitCount\n        by tool, status\n| sort requestCount desc"
+    },
+    {
+      "name": "Validation Errors",
+      "description": "Find input validation errors and schema violations",
+      "logGroups": [
+        "/aws/lambda/${Prefix}-${ProjectId}-${StageId}-ReadFunction"
+      ],
+      "query": "fields @timestamp, @message, requestId\n| filter @message like /validation/i and (@message like /error/i or @message like /invalid/i)\n| parse @message /tool[:\\s]+(?<tool>[^\\s,]+)/\n| parse @message /parameter[:\\s]+(?<parameter>[^\\s,]+)/\n| parse @message /(?<validationError>missing required|invalid format|out of range|unknown parameter)/i\n| stats count() as errorCount by tool, parameter, validationError\n| sort errorCount desc"
+    },
+    {
+      "name": "Namespace Discovery Issues",
+      "description": "Identify namespace discovery and indexing problems",
+      "logGroups": [
+        "/aws/lambda/${Prefix}-${ProjectId}-${StageId}-ReadFunction"
+      ],
+      "query": "fields @timestamp, @message, requestId\n| filter @message like /namespace/i and (@message like /error/i or @message like /warning/i or @message like /IndexPriority/i)\n| parse @message /bucket[:\\s]+(?<bucket>[^\\s,]+)/\n| parse @message /namespace[:\\s]+(?<namespace>[^\\s,]+)/\n| parse @message /(?<issue>no IndexPriority|empty IndexPriority|namespace not found|invalid namespace)/i\n| stats count() as issueCount by bucket, namespace, issue\n| sort issueCount desc"
+    },
+    {
+      "name": "Sidecar Metadata Issues",
+      "description": "Find app starters with missing or invalid sidecar metadata",
+      "logGroups": [
+        "/aws/lambda/${Prefix}-${ProjectId}-${StageId}-ReadFunction"
+      ],
+      "query": "fields @timestamp, @message, requestId\n| filter @message like /sidecar/i and (@message like /missing/i or @message like /invalid/i or @message like /error/i)\n| parse @message /starter[:\\s]+(?<starter>[^\\s,]+)/\n| parse @message /bucket[:\\s]+(?<bucket>[^\\s,]+)/\n| parse @message /(?<issue>missing sidecar|invalid JSON|missing required field)/i\n| stats count() as issueCount by starter, bucket, issue\n| sort issueCount desc"
+    }
+  ]
+}

@@ -1,10 +1,10 @@
 /**
  * Unit tests for Starters Controller
- * 
+ *
  * Tests all Starters controller functions:
  * - list() - List all available starter code repositories
  * - get() - Retrieve specific starter with detailed metadata
- * 
+ *
  * Tests include:
  * - Input validation (JSON Schema)
  * - Service orchestration
@@ -63,7 +63,7 @@ describe('Starters Controller', () => {
       };
 
       SchemaValidator.validate.mockReturnValue({ valid: true });
-      
+
       const mockStarters = {
         starters: [
           {
@@ -84,7 +84,7 @@ describe('Starters Controller', () => {
           }
         ]
       };
-      
+
       Services.Starters.list.mockResolvedValue(mockStarters);
 
       // Act
@@ -166,7 +166,7 @@ describe('Starters Controller', () => {
       // Arrange
       const props = { body: { input: {} } };
       SchemaValidator.validate.mockReturnValue({ valid: true });
-      
+
       const serviceError = new Error('GitHub API connection failed');
       Services.Starters.list.mockRejectedValue(serviceError);
 
@@ -190,7 +190,7 @@ describe('Starters Controller', () => {
       // Arrange
       const props = { body: { input: { ghusers: ['63klabs', 'failedorg'] } } };
       SchemaValidator.validate.mockReturnValue({ valid: true });
-      
+
       Services.Starters.list.mockResolvedValue({
         starters: [{ name: 'starter1' }],
         partialData: true,
@@ -251,7 +251,7 @@ describe('Starters Controller', () => {
       };
 
       SchemaValidator.validate.mockReturnValue({ valid: true });
-      
+
       const mockStarter = {
         name: 'atlantis-starter-02',
         description: 'Serverless application starter with cache-data integration',
@@ -268,7 +268,7 @@ describe('Starters Controller', () => {
         hasCacheData: true,
         hasCloudFront: false
       };
-      
+
       Services.Starters.get.mockResolvedValue(mockStarter);
 
       // Act
@@ -327,11 +327,11 @@ describe('Starters Controller', () => {
       };
 
       SchemaValidator.validate.mockReturnValue({ valid: true });
-      
+
       const notFoundError = new Error('Starter not found');
       notFoundError.code = 'STARTER_NOT_FOUND';
       notFoundError.availableStarters = ['atlantis-starter-02', 'python-lambda-starter'];
-      
+
       Services.Starters.get.mockRejectedValue(notFoundError);
 
       // Act
@@ -362,10 +362,10 @@ describe('Starters Controller', () => {
       };
 
       SchemaValidator.validate.mockReturnValue({ valid: true });
-      
+
       const notFoundError = new Error('Starter not found');
       notFoundError.code = 'STARTER_NOT_FOUND';
-      
+
       Services.Starters.get.mockRejectedValue(notFoundError);
 
       // Act
@@ -393,7 +393,7 @@ describe('Starters Controller', () => {
       };
 
       SchemaValidator.validate.mockReturnValue({ valid: true });
-      
+
       const serviceError = new Error('S3 access denied');
       Services.Starters.get.mockRejectedValue(serviceError);
 

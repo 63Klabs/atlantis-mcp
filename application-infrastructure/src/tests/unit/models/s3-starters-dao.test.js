@@ -1,18 +1,21 @@
 /**
  * Unit Tests for S3 App Starters DAO
- * 
+ *
  * Tests all functions in the S3 App Starters Data Access Object including:
  * - list() function with multi-bucket support
  * - get() function
  * - Helper functions for sidecar metadata
  */
 
-const { S3Client, GetObjectCommand, ListObjectsV2Command, GetObjectTaggingCommand } = require('@aws-sdk/client-s3');
+// Mock S3 client BEFORE importing the module
+const { S3Client, GetObjectCommand, ListObjectsV2Command } = require('@aws-sdk/client-s3');
 const { mockClient } = require('aws-sdk-client-mock');
-const S3Starters = require('../../../lambda/read/models/s3-starters');
 
-// Mock S3 client
+// Create mock before module import
 const s3Mock = mockClient(S3Client);
+
+// Now import the module (it will use the mocked S3Client)
+const S3Starters = require('../../../lambda/read/models/s3-starters');
 
 // Mock DebugAndLog
 jest.mock('@63klabs/cache-data', () => ({

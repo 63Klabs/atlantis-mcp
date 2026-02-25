@@ -1,12 +1,12 @@
 /**
  * Naming Rules Utility
- * 
+ *
  * Validates AWS resource names against Atlantis naming conventions.
- * 
+ *
  * Application Resource Pattern: <Prefix>-<ProjectId>-<StageId>-<ResourceName>
  * S3 Bucket Pattern 1: <orgPrefix>-<Prefix>-<ProjectId>-<StageId>-<Region>-<AccountId>
  * S3 Bucket Pattern 2: <orgPrefix>-<Prefix>-<ProjectId>-<Region>
- * 
+ *
  * @module naming-rules
  */
 
@@ -44,7 +44,7 @@ const AWS_NAMING_RULES = {
 /**
  * Validate application resource name
  * Pattern: <Prefix>-<ProjectId>-<StageId>-<ResourceName>
- * 
+ *
  * @param {string} name - Resource name to validate
  * @param {Object} options - Validation options
  * @param {string} [options.resourceType='lambda'] - AWS resource type (lambda, dynamodb, cloudformation)
@@ -77,7 +77,7 @@ function validateApplicationResource(name, options = {}) {
 
   // Split name into components
   const parts = name.split('-');
-  
+
   // Minimum parts required (unless partial)
   if (!partial && parts.length < 4) {
     errors.push('Application resource name must have at least 4 components: Prefix-ProjectId-StageId-ResourceName');
@@ -86,10 +86,18 @@ function validateApplicationResource(name, options = {}) {
   }
 
   // Extract components
-  if (parts.length >= 1) components.prefix = parts[0];
-  if (parts.length >= 2) components.projectId = parts[1];
-  if (parts.length >= 3) components.stageId = parts[2];
-  if (parts.length >= 4) components.resourceName = parts.slice(3).join('-');
+  if (parts.length >= 1) {
+    components.prefix = parts[0];
+  }
+  if (parts.length >= 2) {
+    components.projectId = parts[1];
+  }
+  if (parts.length >= 3) {
+    components.stageId = parts[2];
+  }
+  if (parts.length >= 4) {
+    components.resourceName = parts.slice(3).join('-');
+  }
 
   // Validate Prefix
   if (components.prefix) {
@@ -176,7 +184,7 @@ function validateApplicationResource(name, options = {}) {
  * Validate S3 bucket name
  * Pattern 1: <orgPrefix>-<Prefix>-<ProjectId>-<StageId>-<Region>-<AccountId>
  * Pattern 2: <orgPrefix>-<Prefix>-<ProjectId>-<Region>
- * 
+ *
  * @param {string} name - S3 bucket name to validate
  * @param {Object} options - Validation options
  * @param {string} [options.orgPrefix] - Expected organization prefix
@@ -212,7 +220,7 @@ function validateS3Bucket(name, options = {}) {
 
   // Basic S3 naming rules
   const rules = AWS_NAMING_RULES.s3;
-  
+
   // Check length
   if (name.length < rules.minLength) {
     errors.push(`S3 bucket name is too short (minimum ${rules.minLength} characters)`);
@@ -342,7 +350,7 @@ function validateS3Bucket(name, options = {}) {
 
 /**
  * Validate resource name based on resource type
- * 
+ *
  * @param {string} name - Resource name to validate
  * @param {Object} options - Validation options
  * @param {string} options.resourceType - Resource type (s3, dynamodb, lambda, cloudformation, application)
@@ -389,7 +397,7 @@ function validateNaming(name, options = {}) {
 
 /**
  * Auto-detect resource type from name pattern
- * 
+ *
  * @param {string} name - Resource name
  * @returns {string|null} Detected resource type or null
  */

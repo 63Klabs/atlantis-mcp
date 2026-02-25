@@ -927,6 +927,27 @@ Resources:
         Subscription:
           - Endpoint: !Ref AlarmNotificationEmail
             Protocol: 'email'
+
+  # -- Read Lambda Function Latency Alarm --
+
+  ReadLambdaLatencyAlarm:
+    Type: "AWS::CloudWatch::Alarm"
+    Condition: CreateAlarms # Either PROD or ALWAYS - Check Conditions
+    Properties:
+      AlarmDescription: Read Lambda Function Duration > 5000ms
+      MetricName: Duration
+      Statistic: Average
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 5000
+      Period: 300
+      EvaluationPeriods: 2
+      TreatMissingData: notBreaching
+      Namespace: AWS/Lambda
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref ReadLambdaFunction
+      AlarmActions:
+        - Ref: ReadLambdaErrorAlarmNotification
   
   # -- CloudWatch Dashboard --
 

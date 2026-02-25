@@ -1,13 +1,13 @@
 /**
  * S3 App Starters Data Access Object
- * 
+ *
  * Handles retrieval of app starter packages and metadata from multiple S3 buckets with:
  * - Multi-bucket support with priority ordering
  * - Namespace discovery and indexing
  * - Sidecar metadata file support
  * - Brown-out support (continue on bucket failures)
  * - Bucket access validation via tags
- * 
+ *
  * @module models/s3-starters
  */
 
@@ -19,7 +19,7 @@ const s3Client = new S3Client({ region: process.env.AWS_REGION || 'us-east-1' })
 
 /**
  * Check if a bucket has the atlantis-mcp:Allow=true tag
- * 
+ *
  * @param {string} bucketName - S3 bucket name
  * @returns {Promise<boolean>} True if bucket has Allow tag set to true
  */
@@ -29,7 +29,7 @@ async function checkBucketAccess(bucketName) {
       Bucket: bucketName,
       Key: '' // Bucket-level tags
     });
-    
+
     // Note: Bucket tags require GetBucketTagging permission
     // For now, we'll assume access is allowed if bucket exists
     // TODO: Implement proper bucket tagging check when permissions are configured
@@ -42,7 +42,7 @@ async function checkBucketAccess(bucketName) {
 
 /**
  * Get indexed namespaces from bucket's atlantis-mcp:IndexPriority tag
- * 
+ *
  * @param {string} bucketName - S3 bucket name
  * @returns {Promise<Array<string>>} Array of namespace names in priority order
  */
@@ -55,12 +55,12 @@ async function getIndexedNamespaces(bucketName) {
       Delimiter: '/',
       MaxKeys: 100
     });
-    
+
     const response = await s3Client.send(command);
     const namespaces = (response.CommonPrefixes || [])
       .map(prefix => prefix.Prefix.replace(/\/$/, ''))
       .filter(ns => ns.length > 0);
-    
+
     DebugAndLog.debug(`Discovered namespaces in ${bucketName}: ${namespaces.join(', ')}`);
     return namespaces;
   } catch (error) {
@@ -71,14 +71,14 @@ async function getIndexedNamespaces(bucketName) {
 
 /**
  * Parse sidecar metadata JSON
- * 
+ *
  * @param {string} metadataContent - JSON content from sidecar file
  * @returns {Object} Parsed metadata with name, description, language, framework, features, prerequisites, author, license
  */
 function parseSidecarMetadata(metadataContent) {
   try {
     const metadata = JSON.parse(metadataContent);
-    
+
     return {
       name: metadata.name || '',
       description: metadata.description || '',
@@ -115,7 +115,7 @@ function parseSidecarMetadata(metadataContent) {
 
 /**
  * Build S3 key for app starter ZIP file
- * 
+ *
  * @param {string} namespace - Namespace directory
  * @param {string} basePath - Base path (e.g., 'app-starters/v2')
  * @param {string} appName - App starter name
@@ -127,7 +127,7 @@ function buildStarterZipKey(namespace, basePath, appName) {
 
 /**
  * Build S3 key for sidecar metadata file
- * 
+ *
  * @param {string} namespace - Namespace directory
  * @param {string} basePath - Base path (e.g., 'app-starters/v2')
  * @param {string} appName - App starter name
@@ -139,7 +139,7 @@ function buildStarterMetadataKey(namespace, basePath, appName) {
 
 /**
  * Extract app name from S3 key
- * 
+ *
  * @param {string} key - S3 object key
  * @returns {string} App starter name (without .zip extension)
  */
@@ -151,14 +151,14 @@ function extractAppNameFromKey(key) {
 
 /**
  * Deduplicate starters across buckets (first occurrence wins)
- * 
+ *
  * @param {Array<Object>} starters - Array of starter metadata
  * @returns {Array<Object>} Deduplicated starters
  */
 function deduplicateStarters(starters) {
   const seen = new Set();
   const deduplicated = [];
-  
+
   for (const starter of starters) {
     const key = starter.name;
     if (!seen.has(key)) {
@@ -166,13 +166,13 @@ function deduplicateStarters(starters) {
       deduplicated.push(starter);
     }
   }
-  
+
   return deduplicated;
 }
 
 /**
  * List all app starters from S3 buckets with brown-out support
- * 
+ *
  * @param {Object} connection - Connection object
  * @param {Array<string>|string} connection.host - S3 bucket name(s)
  * @param {string} connection.path - S3 object key prefix (e.g., "app-starters/v2")
@@ -182,13 +182,13 @@ function deduplicateStarters(starters) {
  */
 async function list(connection, options = {}) {
   const basePath = connection.path || 'app-starters/v2';
-  
+
   // Ensure host is an array
   const buckets = Array.isArray(connection.host) ? connection.host : [connection.host];
-  
+
   const allStarters = [];
   const errors = [];
-  
+
   // >! Iterate through buckets in priority order
   for (const bucket of buckets) {
     try {
@@ -204,54 +204,54 @@ async function list(connection, options = {}) {
         });
         continue;
       }
-      
+
       // >! Get IndexPriority tag to determine which namespaces to index
       const namespaces = await getIndexedNamespaces(bucket);
       if (namespaces.length === 0) {
         DebugAndLog.warn(`Bucket ${bucket} has no namespaces, skipping`);
         continue;
       }
-      
+
       // >! Search for ZIP files at path {namespace}/app-starters/v2/{appName}.zip
       for (const namespace of namespaces) {
         const prefix = `${namespace}/${basePath}/`;
-        
+
         try {
           const command = new ListObjectsV2Command({
             Bucket: bucket,
             Prefix: prefix
           });
-          
+
           const response = await s3Client.send(command);
-          
+
           // >! Find all ZIP files
           const zipFiles = (response.Contents || [])
             .filter(obj => obj.Key.endsWith('.zip'));
-          
+
           // >! For each ZIP file, check for corresponding sidecar metadata
           for (const zipFile of zipFiles) {
             const appName = extractAppNameFromKey(zipFile.Key);
             const metadataKey = buildStarterMetadataKey(namespace, basePath, appName);
-            
+
             try {
               // >! Search for sidecar metadata at path {namespace}/app-starters/v2/{appName}.json
               const metadataCommand = new GetObjectCommand({
                 Bucket: bucket,
                 Key: metadataKey
               });
-              
+
               const metadataResponse = await s3Client.send(metadataCommand);
               const metadataContent = await metadataResponse.Body.transformToString();
-              
+
               // >! Parse sidecar metadata JSON
               const metadata = parseSidecarMetadata(metadataContent);
-              
+
               // >! Verify ZIP file name matches GitHub repository name
               // The metadata should contain the repository name, which should match the ZIP file name
               if (metadata.name && metadata.name !== appName) {
                 DebugAndLog.warn(`ZIP file name '${appName}' does not match metadata name '${metadata.name}' in ${bucket}/${namespace}`);
               }
-              
+
               allStarters.push({
                 ...metadata,
                 name: appName, // Use ZIP file name as authoritative
@@ -294,10 +294,10 @@ async function list(connection, options = {}) {
       });
     }
   }
-  
+
   // >! Deduplicate starters (first occurrence wins due to priority ordering)
   const uniqueStarters = deduplicateStarters(allStarters);
-  
+
   return {
     starters: uniqueStarters,
     errors: errors.length > 0 ? errors : undefined,
@@ -307,7 +307,7 @@ async function list(connection, options = {}) {
 
 /**
  * Get specific app starter metadata from S3 buckets with brown-out support
- * 
+ *
  * @param {Object} connection - Connection object
  * @param {Array<string>|string} connection.host - S3 bucket name(s)
  * @param {string} connection.path - S3 object key prefix
@@ -319,14 +319,14 @@ async function list(connection, options = {}) {
 async function get(connection, options = {}) {
   const { starterName } = connection.parameters || {};
   const basePath = connection.path || 'app-starters/v2';
-  
+
   if (!starterName) {
     DebugAndLog.error('starterName parameter is required');
     return null;
   }
-  
+
   const buckets = Array.isArray(connection.host) ? connection.host : [connection.host];
-  
+
   // >! Search buckets in priority order
   for (const bucket of buckets) {
     try {
@@ -334,41 +334,41 @@ async function get(connection, options = {}) {
       if (!allowAccess) {
         continue;
       }
-      
+
       const namespaces = await getIndexedNamespaces(bucket);
-      
+
       // >! Search namespaces in priority order
       for (const namespace of namespaces) {
         const zipKey = buildStarterZipKey(namespace, basePath, starterName);
         const metadataKey = buildStarterMetadataKey(namespace, basePath, starterName);
-        
+
         try {
           // >! Check if ZIP file exists
           const zipCommand = new GetObjectCommand({
             Bucket: bucket,
             Key: zipKey
           });
-          
+
           const zipResponse = await s3Client.send(zipCommand);
-          
+
           // ZIP exists, now get sidecar metadata
           try {
             const metadataCommand = new GetObjectCommand({
               Bucket: bucket,
               Key: metadataKey
             });
-            
+
             const metadataResponse = await s3Client.send(metadataCommand);
             const metadataContent = await metadataResponse.Body.transformToString();
-            
+
             // >! Parse sidecar metadata JSON
             const metadata = parseSidecarMetadata(metadataContent);
-            
+
             // >! Verify ZIP file name matches GitHub repository name
             if (metadata.name && metadata.name !== starterName) {
               DebugAndLog.warn(`ZIP file name '${starterName}' does not match metadata name '${metadata.name}' in ${bucket}/${namespace}`);
             }
-            
+
             return {
               ...metadata,
               name: starterName, // Use ZIP file name as authoritative
@@ -400,7 +400,7 @@ async function get(connection, options = {}) {
       // Continue to next bucket
     }
   }
-  
+
   // Starter not found in any bucket
   return null;
 }

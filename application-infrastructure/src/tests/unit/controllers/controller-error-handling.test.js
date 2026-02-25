@@ -1,6 +1,6 @@
 /**
  * Unit tests for error handling across all controllers
- * 
+ *
  * Tests that all controllers properly handle errors:
  * - Service layer errors
  * - Network errors
@@ -9,7 +9,7 @@
  * - Internal errors
  * - Error logging
  * - Error response formatting
- * 
+ *
  * Ensures consistent error handling patterns across all controllers.
  */
 
@@ -483,7 +483,7 @@ describe('Controller Error Handling', () => {
   describe('Error Response Consistency', () => {
     test('all controllers should return consistent error response structure', async () => {
       const error = new Error('Test error');
-      
+
       Services.Templates.list.mockRejectedValue(error);
       Services.Starters.list.mockRejectedValue(error);
       Services.Documentation.search.mockRejectedValue(error);
@@ -509,7 +509,7 @@ describe('Controller Error Handling', () => {
 
     test('all controllers should include tool name in error response', async () => {
       const error = new Error('Test error');
-      
+
       Services.Templates.list.mockRejectedValue(error);
       await TemplatesController.list({ body: { input: {} } });
 

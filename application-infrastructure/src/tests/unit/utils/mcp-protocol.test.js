@@ -1,6 +1,6 @@
 /**
  * Unit Tests for MCP Protocol Utilities
- * 
+ *
  * Tests the MCP protocol utility functions including response formatting,
  * protocol negotiation, and capability discovery.
  */
@@ -54,9 +54,9 @@ describe('MCP Protocol Utilities', () => {
     test('should create valid success response with data', () => {
       const toolName = 'list_templates';
       const data = [{ name: 'template1' }, { name: 'template2' }];
-      
+
       const response = successResponse(toolName, data);
-      
+
       expect(response).toHaveProperty('protocol', 'mcp');
       expect(response).toHaveProperty('version', MCP_VERSION);
       expect(response).toHaveProperty('tool', toolName);
@@ -68,7 +68,7 @@ describe('MCP Protocol Utilities', () => {
 
     test('should create success response with empty data', () => {
       const response = successResponse('list_categories', []);
-      
+
       expect(response.success).toBe(true);
       expect(response.data).toEqual([]);
     });
@@ -76,14 +76,14 @@ describe('MCP Protocol Utilities', () => {
     test('should create success response with object data', () => {
       const data = { name: 'template1', version: 'v1.0.0' };
       const response = successResponse('get_template', data);
-      
+
       expect(response.success).toBe(true);
       expect(response.data).toEqual(data);
     });
 
     test('should include valid ISO timestamp', () => {
       const response = successResponse('list_templates', []);
-      
+
       expect(response.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
       expect(new Date(response.timestamp).toString()).not.toBe('Invalid Date');
     });
@@ -94,9 +94,9 @@ describe('MCP Protocol Utilities', () => {
       const errorCode = 'TEMPLATE_NOT_FOUND';
       const errorMessage = 'Template not found';
       const toolName = 'get_template';
-      
+
       const response = errorResponse(errorCode, errorMessage, toolName);
-      
+
       expect(response).toHaveProperty('protocol', 'mcp');
       expect(response).toHaveProperty('version', MCP_VERSION);
       expect(response).toHaveProperty('tool', toolName);
@@ -114,9 +114,9 @@ describe('MCP Protocol Utilities', () => {
         message: 'Validation failed',
         errors: ['Missing required field: templateName']
       };
-      
+
       const response = errorResponse(errorCode, errorDetails);
-      
+
       expect(response.success).toBe(false);
       expect(response.error.code).toBe(errorCode);
       expect(response.error.details).toEqual(errorDetails);
@@ -124,14 +124,14 @@ describe('MCP Protocol Utilities', () => {
 
     test('should create error response without tool name', () => {
       const response = errorResponse('INTERNAL_ERROR', 'Something went wrong');
-      
+
       expect(response.success).toBe(false);
       expect(response).not.toHaveProperty('tool');
     });
 
     test('should include valid ISO timestamp', () => {
       const response = errorResponse('ERROR', 'Test error');
-      
+
       expect(response.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
       expect(new Date(response.timestamp).toString()).not.toBe('Invalid Date');
     });
@@ -140,7 +140,7 @@ describe('MCP Protocol Utilities', () => {
   describe('negotiateProtocol()', () => {
     test('should accept supported version 1.0', () => {
       const result = negotiateProtocol('1.0');
-      
+
       expect(result).toHaveProperty('protocol', 'mcp');
       expect(result).toHaveProperty('accepted', true);
       expect(result).toHaveProperty('version', '1.0');
@@ -152,7 +152,7 @@ describe('MCP Protocol Utilities', () => {
 
     test('should reject unsupported version', () => {
       const result = negotiateProtocol('2.0');
-      
+
       expect(result.accepted).toBe(false);
       expect(result.version).toBe(MCP_VERSION);
       expect(result.capabilities).toBeNull();
@@ -161,7 +161,7 @@ describe('MCP Protocol Utilities', () => {
 
     test('should include list of supported versions', () => {
       const result = negotiateProtocol('1.0');
-      
+
       expect(Array.isArray(result.supportedVersions)).toBe(true);
       expect(result.supportedVersions.length).toBeGreaterThan(0);
     });
@@ -170,7 +170,7 @@ describe('MCP Protocol Utilities', () => {
   describe('getCapabilities()', () => {
     test('should return complete capabilities object', () => {
       const capabilities = getCapabilities();
-      
+
       expect(capabilities).toHaveProperty('protocol', 'mcp');
       expect(capabilities).toHaveProperty('version', MCP_VERSION);
       expect(capabilities).toHaveProperty('capabilities', MCP_CAPABILITIES);
@@ -182,7 +182,7 @@ describe('MCP Protocol Utilities', () => {
 
     test('should include server information', () => {
       const capabilities = getCapabilities();
-      
+
       expect(capabilities.serverInfo).toHaveProperty('name');
       expect(capabilities.serverInfo).toHaveProperty('version');
       expect(capabilities.serverInfo).toHaveProperty('phase');
@@ -190,7 +190,7 @@ describe('MCP Protocol Utilities', () => {
 
     test('should include all tools', () => {
       const capabilities = getCapabilities();
-      
+
       expect(Array.isArray(capabilities.tools)).toBe(true);
       expect(capabilities.tools.length).toBe(MCP_TOOLS.length);
     });
@@ -199,14 +199,14 @@ describe('MCP Protocol Utilities', () => {
   describe('listTools()', () => {
     test('should return array of all tools', () => {
       const tools = listTools();
-      
+
       expect(Array.isArray(tools)).toBe(true);
       expect(tools.length).toBeGreaterThan(0);
     });
 
     test('should return tools with complete definitions', () => {
       const tools = listTools();
-      
+
       tools.forEach(tool => {
         expect(tool).toHaveProperty('name');
         expect(tool).toHaveProperty('description');
@@ -217,7 +217,7 @@ describe('MCP Protocol Utilities', () => {
     test('should include expected tool names', () => {
       const tools = listTools();
       const toolNames = tools.map(t => t.name);
-      
+
       expect(toolNames).toContain('list_templates');
       expect(toolNames).toContain('get_template');
       expect(toolNames).toContain('list_starters');
@@ -229,7 +229,7 @@ describe('MCP Protocol Utilities', () => {
   describe('getTool()', () => {
     test('should return tool definition for valid tool name', () => {
       const tool = getTool('list_templates');
-      
+
       expect(tool).not.toBeNull();
       expect(tool).toHaveProperty('name', 'list_templates');
       expect(tool).toHaveProperty('description');
@@ -238,7 +238,7 @@ describe('MCP Protocol Utilities', () => {
 
     test('should return null for invalid tool name', () => {
       const tool = getTool('nonexistent_tool');
-      
+
       expect(tool).toBeNull();
     });
 
@@ -286,15 +286,15 @@ describe('MCP Protocol Utilities', () => {
     test('success and error responses should have consistent base structure', () => {
       const success = successResponse('test_tool', {});
       const error = errorResponse('ERROR', 'Test error', 'test_tool');
-      
+
       expect(success).toHaveProperty('protocol');
       expect(error).toHaveProperty('protocol');
       expect(success.protocol).toBe(error.protocol);
-      
+
       expect(success).toHaveProperty('version');
       expect(error).toHaveProperty('version');
       expect(success.version).toBe(error.version);
-      
+
       expect(success).toHaveProperty('timestamp');
       expect(error).toHaveProperty('timestamp');
     });
@@ -304,7 +304,7 @@ describe('MCP Protocol Utilities', () => {
       const error = errorResponse('ERROR', 'Test');
       const capabilities = getCapabilities();
       const negotiation = negotiateProtocol('1.0');
-      
+
       expect(success.protocol).toBe('mcp');
       expect(error.protocol).toBe('mcp');
       expect(capabilities.protocol).toBe('mcp');

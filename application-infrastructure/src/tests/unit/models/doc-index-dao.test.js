@@ -1,6 +1,6 @@
 /**
  * Unit Tests for Documentation Index DAO
- * 
+ *
  * Tests all functions in the Documentation Index Data Access Object including:
  * - buildIndex() function
  * - search() function with relevance ranking
@@ -41,7 +41,7 @@ jest.mock('@63klabs/cache-data', () => ({
 describe('Documentation Index DAO', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    
+
     // Reset module state
     jest.resetModules();
   });

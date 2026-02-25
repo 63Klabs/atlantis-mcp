@@ -63,15 +63,24 @@ The server exposes the following tools through the MCP protocol:
 
 ### For Organizations
 - [Deployment Guide](docs/deployment/README.md) - How to deploy your own instance
-- [Configuration Reference](docs/configuration/README.md) - CloudFormation parameters
-- [GitHub Setup](docs/setup/github.md) - Configure GitHub integration
-- [S3 Setup](docs/setup/s3.md) - Configure S3 buckets and tags
+- [CloudFormation Parameters](docs/deployment/cloudformation-parameters.md) - Configuration reference
+- [GitHub Token Setup](docs/deployment/github-token-setup.md) - Configure GitHub integration
+- [GitHub Custom Properties](docs/deployment/github-custom-properties.md) - Repository filtering setup
+- [S3 Bucket Tagging](docs/deployment/s3-bucket-tagging.md) - Configure S3 buckets and tags
+- [Multiple S3 Buckets](docs/deployment/multiple-s3-buckets.md) - Multi-bucket configuration
+- [Multiple GitHub Orgs](docs/deployment/multiple-github-orgs.md) - Multi-org configuration
+- [Sidecar Metadata (CodeBuild)](docs/deployment/sidecar-metadata-codebuild.md) - Generate metadata in CodeBuild
+- [Sidecar Metadata (GitHub Actions)](docs/deployment/sidecar-metadata-github-actions.md) - Generate metadata in GitHub Actions
+- [Self-Hosting Guide](docs/deployment/self-hosting.md) - Deploy your own instance
 
 ### For Maintainers
-- [Architecture Overview](docs/technical/architecture.md) - System design and components
-- [Development Guide](docs/technical/development.md) - Local development setup
-- [Testing Guide](docs/technical/testing.md) - Running and writing tests
-- [Contribution Guidelines](CONTRIBUTING.md) - How to contribute
+- [Architecture Overview](docs/maintainer/architecture.md) - System design and components
+- [Lambda Structure](docs/maintainer/lambda-structure.md) - Function organization
+- [Caching Strategy](docs/maintainer/caching-strategy.md) - Multi-tier caching implementation
+- [Template Versioning](docs/maintainer/template-versioning.md) - Dual identifier system
+- [Namespace Discovery](docs/maintainer/namespace-discovery.md) - S3 namespace indexing
+- [Brown-Out Support](docs/maintainer/brown-out-support.md) - Partial data handling
+- [Maintainer Guide](docs/maintainer/README.md) - Complete maintainer documentation
 
 ## Prerequisites
 

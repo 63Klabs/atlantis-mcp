@@ -1,9 +1,9 @@
 /**
  * Unit tests for Validation Controller
- * 
+ *
  * Tests Validation controller validate() function:
  * - Validate resource names against Atlantis naming conventions
- * 
+ *
  * Tests include:
  * - Input validation (JSON Schema)
  * - Service orchestration
@@ -63,7 +63,7 @@ describe('Validation Controller', () => {
       };
 
       SchemaValidator.validate.mockReturnValue({ valid: true });
-      
+
       const mockValidationResult = {
         valid: true,
         resourceType: 'application',
@@ -76,7 +76,7 @@ describe('Validation Controller', () => {
         errors: [],
         suggestions: []
       };
-      
+
       Services.Validation.validateNaming.mockResolvedValue(mockValidationResult);
 
       // Act
@@ -112,7 +112,7 @@ describe('Validation Controller', () => {
       };
 
       SchemaValidator.validate.mockReturnValue({ valid: true });
-      
+
       const mockValidationResult = {
         valid: true,
         resourceType: 's3',
@@ -128,7 +128,7 @@ describe('Validation Controller', () => {
         suggestions: [],
         pattern: 'pattern1'
       };
-      
+
       Services.Validation.validateNaming.mockResolvedValue(mockValidationResult);
 
       // Act
@@ -153,7 +153,7 @@ describe('Validation Controller', () => {
       };
 
       SchemaValidator.validate.mockReturnValue({ valid: true });
-      
+
       const mockValidationResult = {
         valid: true,
         resourceType: 's3',
@@ -167,7 +167,7 @@ describe('Validation Controller', () => {
         suggestions: [],
         pattern: 'pattern2'
       };
-      
+
       Services.Validation.validateNaming.mockResolvedValue(mockValidationResult);
 
       // Act
@@ -192,7 +192,7 @@ describe('Validation Controller', () => {
       };
 
       SchemaValidator.validate.mockReturnValue({ valid: true });
-      
+
       const mockValidationResult = {
         valid: false,
         resourceType: 'application',
@@ -207,7 +207,7 @@ describe('Validation Controller', () => {
           'Example: acme-myapp-prod-GetUserFunction'
         ]
       };
-      
+
       Services.Validation.validateNaming.mockResolvedValue(mockValidationResult);
 
       // Act
@@ -232,7 +232,7 @@ describe('Validation Controller', () => {
       };
 
       SchemaValidator.validate.mockReturnValue({ valid: true });
-      
+
       const mockValidationResult = {
         valid: true,
         resourceType: 'application',
@@ -245,7 +245,7 @@ describe('Validation Controller', () => {
         errors: [],
         suggestions: []
       };
-      
+
       Services.Validation.validateNaming.mockResolvedValue(mockValidationResult);
 
       // Act
@@ -321,7 +321,7 @@ describe('Validation Controller', () => {
       };
 
       SchemaValidator.validate.mockReturnValue({ valid: true });
-      
+
       const serviceError = new Error('Validation service failed');
       Services.Validation.validateNaming.mockRejectedValue(serviceError);
 
@@ -353,7 +353,7 @@ describe('Validation Controller', () => {
       };
 
       SchemaValidator.validate.mockReturnValue({ valid: true });
-      
+
       const mockValidationResult = {
         valid: true,
         resourceType: 'dynamodb',
@@ -366,7 +366,7 @@ describe('Validation Controller', () => {
         errors: [],
         suggestions: []
       };
-      
+
       Services.Validation.validateNaming.mockResolvedValue(mockValidationResult);
 
       // Act
@@ -389,7 +389,7 @@ describe('Validation Controller', () => {
       };
 
       SchemaValidator.validate.mockReturnValue({ valid: true });
-      
+
       const mockValidationResult = {
         valid: true,
         resourceType: 'lambda',
@@ -402,7 +402,7 @@ describe('Validation Controller', () => {
         errors: [],
         suggestions: []
       };
-      
+
       Services.Validation.validateNaming.mockResolvedValue(mockValidationResult);
 
       // Act
@@ -425,7 +425,7 @@ describe('Validation Controller', () => {
       };
 
       SchemaValidator.validate.mockReturnValue({ valid: true });
-      
+
       const mockValidationResult = {
         valid: true,
         resourceType: 'cloudformation',
@@ -438,7 +438,7 @@ describe('Validation Controller', () => {
         errors: [],
         suggestions: []
       };
-      
+
       Services.Validation.validateNaming.mockResolvedValue(mockValidationResult);
 
       // Act
@@ -461,7 +461,7 @@ describe('Validation Controller', () => {
       };
 
       SchemaValidator.validate.mockReturnValue({ valid: true });
-      
+
       Services.Validation.validateNaming.mockResolvedValue({
         valid: true,
         resourceType: 'application',
@@ -506,7 +506,7 @@ describe('Validation Controller', () => {
       };
 
       SchemaValidator.validate.mockReturnValue({ valid: true });
-      
+
       const mockValidationResult = {
         valid: false,
         resourceType: 'application',
@@ -523,7 +523,7 @@ describe('Validation Controller', () => {
           'Add ResourceName (e.g., MyFunction, MyTable)'
         ]
       };
-      
+
       Services.Validation.validateNaming.mockResolvedValue(mockValidationResult);
 
       // Act

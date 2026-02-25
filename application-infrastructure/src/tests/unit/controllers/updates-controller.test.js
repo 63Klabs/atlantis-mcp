@@ -1,9 +1,9 @@
 /**
  * Unit tests for Updates Controller
- * 
+ *
  * Tests Updates controller check() function:
  * - Check if newer versions of templates are available
- * 
+ *
  * Tests include:
  * - Input validation (JSON Schema)
  * - Service orchestration
@@ -64,7 +64,7 @@ describe('Updates Controller', () => {
       };
 
       SchemaValidator.validate.mockReturnValue({ valid: true });
-      
+
       const mockUpdateResult = [
         {
           templateName: 'template-storage-s3-artifacts',
@@ -81,7 +81,7 @@ describe('Updates Controller', () => {
           bucket: 'test-bucket'
         }
       ];
-      
+
       Services.Templates.checkUpdates.mockResolvedValue(mockUpdateResult);
 
       // Act
@@ -127,7 +127,7 @@ describe('Updates Controller', () => {
       };
 
       SchemaValidator.validate.mockReturnValue({ valid: true });
-      
+
       const mockUpdateResult = [
         {
           templateName: 'template-storage-s3-artifacts',
@@ -144,7 +144,7 @@ describe('Updates Controller', () => {
           bucket: 'test-bucket'
         }
       ];
-      
+
       Services.Templates.checkUpdates.mockResolvedValue(mockUpdateResult);
 
       // Act
@@ -169,7 +169,7 @@ describe('Updates Controller', () => {
       };
 
       SchemaValidator.validate.mockReturnValue({ valid: true });
-      
+
       const mockUpdateResult = [
         {
           templateName: 'template-pipeline',
@@ -186,7 +186,7 @@ describe('Updates Controller', () => {
           bucket: 'test-bucket'
         }
       ];
-      
+
       Services.Templates.checkUpdates.mockResolvedValue(mockUpdateResult);
 
       // Act
@@ -211,7 +211,7 @@ describe('Updates Controller', () => {
       };
 
       SchemaValidator.validate.mockReturnValue({ valid: true });
-      
+
       Services.Templates.checkUpdates.mockResolvedValue([
         {
           templateName: 'template-storage-s3-artifacts',
@@ -251,7 +251,7 @@ describe('Updates Controller', () => {
       };
 
       SchemaValidator.validate.mockReturnValue({ valid: true });
-      
+
       Services.Templates.checkUpdates.mockResolvedValue([
         {
           templateName: 'template-storage-s3-artifacts',
@@ -341,14 +341,14 @@ describe('Updates Controller', () => {
       };
 
       SchemaValidator.validate.mockReturnValue({ valid: true });
-      
+
       const mockUpdateResult = [
         {
           templateName: 'template-storage-s3-artifacts',
           error: 'Template not found in any configured bucket'
         }
       ];
-      
+
       Services.Templates.checkUpdates.mockResolvedValue(mockUpdateResult);
 
       // Act
@@ -381,7 +381,7 @@ describe('Updates Controller', () => {
       };
 
       SchemaValidator.validate.mockReturnValue({ valid: true });
-      
+
       const serviceError = new Error('S3 connection timeout');
       Services.Templates.checkUpdates.mockRejectedValue(serviceError);
 
@@ -415,7 +415,7 @@ describe('Updates Controller', () => {
       };
 
       SchemaValidator.validate.mockReturnValue({ valid: true });
-      
+
       Services.Templates.checkUpdates.mockResolvedValue([
         {
           templateName: 'template-storage-s3-artifacts',
@@ -464,14 +464,14 @@ describe('Updates Controller', () => {
       };
 
       SchemaValidator.validate.mockReturnValue({ valid: true });
-      
+
       const mockUpdateResult = [
         {
           templateName: 'template-storage-s3-artifacts',
           error: 'Invalid version format. Expected: vX.X.X/YYYY-MM-DD'
         }
       ];
-      
+
       Services.Templates.checkUpdates.mockResolvedValue(mockUpdateResult);
 
       // Act

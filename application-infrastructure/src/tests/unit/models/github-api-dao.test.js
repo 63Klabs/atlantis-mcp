@@ -1,6 +1,6 @@
 /**
  * Unit Tests for GitHub API DAO
- * 
+ *
  * Tests all functions in the GitHub API Data Access Object including:
  * - listRepositories() with multi-user/org support
  * - getRepository()
@@ -11,7 +11,7 @@
  */
 
 const GitHubAPI = require('../../../lambda/read/models/github-api');
-const Config = require('../../../lambda/read/config');
+const _Config = require('../../../lambda/read/config');
 
 // Mock Config
 jest.mock('../../../lambda/read/config', () => ({
@@ -235,6 +235,26 @@ describe('GitHub API DAO', () => {
     it('should support brown-out when user/org fails', async () => {
       // Mock first user/org fails
       global.fetch.mockRejectedValueOnce(new Error('Network error'));
+
+      // Mock second user/org succeeds
+      global.fetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: new Map(),
+        json: async () => [
+          { id: 2, name: 'repo2', full_name: 'test-org/repo2', description: 'Repo 2', private: false, html_url: 'https://github.com/test-org/repo2', clone_url: 'https://github.com/test-org/repo2.git', ssh_url: 'git@github.com:test-org/repo2.git', default_branch: 'main', language: 'TypeScript', stargazers_count: 15, forks_count: 3, watchers_count: 10, open_issues_count: 1, created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-15T00:00:00Z', pushed_at: '2024-01-15T00:00:00Z' }
+        ]
+      });
+
+      // Mock custom property check for second org's repo
+      global.fetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: new Map(),
+        json: async () => [
+          { property_name: 'atlantis_repository-type', value: 'templates' }
+        ]
+      });
 
       const connection = {
         host: ['63klabs', 'test-org'],

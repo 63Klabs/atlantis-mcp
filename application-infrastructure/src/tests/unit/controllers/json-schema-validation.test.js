@@ -1,13 +1,13 @@
 /**
  * Unit tests for JSON Schema validation across all controllers
- * 
+ *
  * Tests that all controllers properly validate input using JSON Schema:
  * - Templates controller (list, get, listVersions, listCategories)
  * - Starters controller (list, get)
  * - Documentation controller (search)
  * - Validation controller (validate)
  * - Updates controller (check)
- * 
+ *
  * Tests include:
  * - Required field validation
  * - Type validation

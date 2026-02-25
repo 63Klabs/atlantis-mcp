@@ -1,8 +1,8 @@
 /**
  * Unit tests for Starters Service - Repository Type Filtering
- * 
+ *
  * Validates: Requirements 4.1, 4.2
- * 
+ *
  * Tests that the starters service correctly filters GitHub repositories
  * by atlantis_repository-type custom property, ensuring only app-starter
  * repositories are included in the results.
@@ -10,7 +10,7 @@
 
 describe('Starters Service - Repository Type Filtering', () => {
   let Starters;
-  let Config;
+  let _Config;
   let Models;
   let CacheableDataAccess;
 
@@ -64,7 +64,7 @@ describe('Starters Service - Repository Type Filtering', () => {
       }))
     }));
 
-    Config = require('../../../lambda/read/config');
+    _Config = require('../../../lambda/read/config');
 
     // Mock Models
     jest.mock('../../../lambda/read/models', () => ({
@@ -276,14 +276,14 @@ describe('Starters Service - Repository Type Filtering', () => {
 
     // Verify both S3 and GitHub starters are included
     expect(result.starters).toHaveLength(2);
-    
+
     const s3Starter = result.starters.find(s => s.source === 's3');
     const githubStarter = result.starters.find(s => s.source === 'github');
-    
+
     expect(s3Starter).toBeDefined();
     expect(s3Starter.name).toBe('s3-app-starter');
     expect(s3Starter.hasS3Package).toBe(true);
-    
+
     expect(githubStarter).toBeDefined();
     expect(githubStarter.name).toBe('github-app-starter');
     expect(githubStarter.repositoryType).toBe('app-starter');

@@ -2,19 +2,19 @@
 
 ## Purpose
 
-This steering document establishes critical requirements for test execution to ensure GitHub Actions CI/CD pipelines succeed and NPM deployments are not blocked by test failures.
+This steering document establishes critical requirements for test execution to ensure CI/CD using CodePipeline/CodeDeploy or GitHub Actions succeed and NPM deployments are not blocked by test failures.
 
 ## Core Principle
 
-**ALL TESTS MUST PASS BEFORE ANY CODE IS COMMITTED OR MERGED.**
+**ALL TESTS MUST PASS BEFORE CODE IS DEPLOYED.**
 
-GitHub Actions will run the full test suite on every push and pull request. If any test fails, the deployment to NPM will be blocked. This is a critical safeguard to prevent broken code from reaching production.
+The full test suite will run during deployment. If any test fails, the deployment will be blocked. This is a critical safeguard to prevent broken code from reaching production.
 
 **CRITICAL: Test Framework Migration in Progress**
 
 This project is migrating from Mocha to Jest. During this transition:
 - **ALL NEW TESTS MUST BE WRITTEN IN JEST** (files ending in `.jest.mjs`)
-- Both Mocha and Jest test suites must pass (`npm run test:all`)
+- Jest test suites must pass (`npm run test:all`)
 - Mocha tests are legacy - maintain but don't create new ones
 - Jest tests are current - all new tests use this framework
 

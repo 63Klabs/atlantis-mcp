@@ -1,6 +1,6 @@
 /**
  * Unit Tests for S3 Templates DAO
- * 
+ *
  * Tests all functions in the S3 Templates Data Access Object including:
  * - list() function with multi-bucket support
  * - get() function with version handling
@@ -12,12 +12,15 @@
  * - Helper functions
  */
 
-const { S3Client, GetObjectCommand, ListObjectsV2Command, ListObjectVersionsCommand, GetObjectTaggingCommand } = require('@aws-sdk/client-s3');
+// Mock S3 client BEFORE importing the module
+const { S3Client, GetObjectCommand, ListObjectsV2Command, ListObjectVersionsCommand } = require('@aws-sdk/client-s3');
 const { mockClient } = require('aws-sdk-client-mock');
-const S3Templates = require('../../../lambda/read/models/s3-templates');
 
-// Mock S3 client
+// Create mock before module import
 const s3Mock = mockClient(S3Client);
+
+// Now import the module (it will use the mocked S3Client)
+const S3Templates = require('../../../lambda/read/models/s3-templates');
 
 // Mock DebugAndLog
 jest.mock('@63klabs/cache-data', () => ({
@@ -688,7 +691,7 @@ Description: Test template
     });
 
     it('should handle invalid YAML gracefully', () => {
-      const templateContent = `This is not valid YAML: {{{`;
+      const templateContent = 'This is not valid YAML: {{{';
 
       const result = S3Templates.parseCloudFormationTemplate(templateContent);
 

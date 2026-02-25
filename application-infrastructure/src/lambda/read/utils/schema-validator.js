@@ -1,9 +1,9 @@
 /**
  * JSON Schema Validator for MCP Tool Inputs
- * 
+ *
  * Validates MCP tool inputs against JSON Schema definitions to ensure
  * proper parameter types, required fields, and valid values.
- * 
+ *
  * @module schema-validator
  */
 
@@ -268,11 +268,11 @@ const schemas = {
 
 /**
  * Validate input against a JSON Schema
- * 
+ *
  * @param {string} toolName - Name of the MCP tool
  * @param {Object} input - Input data to validate
  * @returns {{valid: boolean, errors: Array<string>}} Validation result
- * 
+ *
  * @example
  * const result = validate('list_templates', { category: 'Storage' });
  * if (!result.valid) {
@@ -281,7 +281,7 @@ const schemas = {
  */
 const validate = (toolName, input) => {
   const schema = schemas[toolName];
-  
+
   if (!schema) {
     return {
       valid: false,
@@ -290,7 +290,7 @@ const validate = (toolName, input) => {
   }
 
   const errors = [];
-  
+
   // Validate input is an object
   if (typeof input !== 'object' || input === null || Array.isArray(input)) {
     errors.push('Input must be an object');
@@ -319,7 +319,7 @@ const validate = (toolName, input) => {
   // Validate each property
   for (const [propName, propValue] of Object.entries(input)) {
     const propSchema = schema.properties[propName];
-    
+
     if (!propSchema) {
       continue; // Already handled by additionalProperties check
     }
@@ -409,10 +409,10 @@ const validate = (toolName, input) => {
 
 /**
  * Get the JSON Schema for a specific tool
- * 
+ *
  * @param {string} toolName - Name of the MCP tool
  * @returns {Object|null} JSON Schema or null if tool not found
- * 
+ *
  * @example
  * const schema = getSchema('list_templates');
  * console.log(schema.properties);
@@ -423,9 +423,9 @@ const getSchema = (toolName) => {
 
 /**
  * Get all available tool names
- * 
+ *
  * @returns {Array<string>} List of tool names
- * 
+ *
  * @example
  * const tools = getToolNames();
  * console.log('Available tools:', tools);

@@ -1,10 +1,10 @@
 /**
  * MCP Protocol Utilities
- * 
+ *
  * Provides utilities for implementing the Model Context Protocol (MCP) v1.0 specification.
  * Includes functions for creating protocol-compliant responses, error handling, protocol
  * negotiation, and capability discovery.
- * 
+ *
  * @module mcp-protocol
  */
 
@@ -229,7 +229,7 @@ const MCP_TOOLS = [
 
 /**
  * Create a successful MCP protocol response
- * 
+ *
  * @param {string} toolName - Name of the MCP tool that was invoked
  * @param {*} data - Response data (will be serialized to JSON)
  * @returns {Object} MCP-compliant success response
@@ -251,7 +251,7 @@ function successResponse(toolName, data) {
 
 /**
  * Create an error MCP protocol response
- * 
+ *
  * @param {string} errorCode - Error code (e.g., 'INVALID_INPUT', 'TEMPLATE_NOT_FOUND')
  * @param {string|Object} errorDetails - Error message or detailed error object
  * @param {string} [toolName] - Name of the MCP tool that was invoked (optional)
@@ -283,7 +283,7 @@ function errorResponse(errorCode, errorDetails, toolName = null) {
 
 /**
  * Negotiate MCP protocol version with client
- * 
+ *
  * @param {string} clientVersion - Version requested by client
  * @returns {Object} Protocol negotiation response
  * @example
@@ -301,7 +301,7 @@ function negotiateProtocol(clientVersion) {
     version: accepted ? clientVersion : MCP_VERSION,
     supportedVersions: supportedVersions,
     capabilities: accepted ? MCP_CAPABILITIES : null,
-    message: accepted 
+    message: accepted
       ? `Protocol version ${clientVersion} accepted`
       : `Protocol version ${clientVersion} not supported. Supported versions: ${supportedVersions.join(', ')}`
   };
@@ -309,7 +309,7 @@ function negotiateProtocol(clientVersion) {
 
 /**
  * Get MCP server capabilities
- * 
+ *
  * @returns {Object} Server capabilities and available tools
  * @example
  * const capabilities = getCapabilities();
@@ -333,7 +333,7 @@ function getCapabilities() {
 
 /**
  * Get list of available MCP tools
- * 
+ *
  * @returns {Array<Object>} Array of tool definitions with names, descriptions, and input schemas
  * @example
  * const tools = listTools();
@@ -345,7 +345,7 @@ function listTools() {
 
 /**
  * Get definition for a specific MCP tool
- * 
+ *
  * @param {string} toolName - Name of the tool
  * @returns {Object|null} Tool definition or null if not found
  * @example
@@ -358,7 +358,7 @@ function getTool(toolName) {
 
 /**
  * Validate that a tool name is supported
- * 
+ *
  * @param {string} toolName - Name of the tool to validate
  * @returns {boolean} True if tool is supported, false otherwise
  * @example
@@ -375,14 +375,14 @@ module.exports = {
   MCP_VERSION,
   MCP_CAPABILITIES,
   MCP_TOOLS,
-  
+
   // Response functions
   successResponse,
   errorResponse,
-  
+
   // Protocol negotiation
   negotiateProtocol,
-  
+
   // Capability discovery
   getCapabilities,
   listTools,

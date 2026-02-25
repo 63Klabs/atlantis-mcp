@@ -1,6 +1,6 @@
 /**
  * Unit tests for cache hit and cache miss scenarios
- * 
+ *
  * Tests caching behavior including:
  * - Cache hits (data retrieved from cache)
  * - Cache misses (data fetched from source)
@@ -34,6 +34,12 @@ jest.mock('@63klabs/cache-data', () => ({
   }
 }));
 
+// Mock Config module
+jest.mock('../../../lambda/read/config', () => ({
+  getConnCacheProfile: jest.fn(),
+  settings: jest.fn()
+}));
+
 const { cache } = require('@63klabs/cache-data');
 const Config = require('../../../lambda/read/config');
 const TemplatesService = require('../../../lambda/read/services/templates');
@@ -45,24 +51,35 @@ describe('Cache Scenarios', () => {
     s3Mock.reset();
 
     // Mock Config.getConnCacheProfile
-    Config.getConnCacheProfile = jest.fn().mockReturnValue({
+    Config.getConnCacheProfile.mockReturnValue({
       conn: {
+        name: 's3-templates',
         host: ['bucket1', 'bucket2'],
-        path: '/templates/v2',
-        parameters: {}
+        path: 'templates/v2',
+        parameters: {},
+        cache: []
       },
       cacheProfile: {
         hostId: 's3-templates',
         pathId: 'templates-list',
-        profile: 'default',
-        defaultExpirationInSeconds: 3600
+        profile: 'templates-list',
+        overrideOriginHeaderExpiration: true,
+        defaultExpirationInSeconds: 3600,
+        expirationIsOnInterval: false,
+        headersToRetain: '',
+        encrypt: false
       }
     });
 
-    Config.settings = jest.fn().mockReturnValue({
-      atlantisS3Buckets: ['bucket1', 'bucket2'],
-      ttl: {
-        templateList: 3600
+    Config.settings.mockReturnValue({
+      s3: {
+        buckets: ['bucket1', 'bucket2'],
+        templatePrefix: 'templates/v2'
+      },
+      templates: {
+        categories: [
+          { name: 'Storage', description: 'Storage templates' }
+        ]
       }
     });
   });
@@ -120,7 +137,7 @@ describe('Cache Scenarios', () => {
 
       // First call - cache miss
       await TemplatesService.list({});
-      
+
       // Second call - should hit in-memory cache
       await TemplatesService.list({});
 
@@ -248,7 +265,7 @@ describe('Cache Scenarios', () => {
         fromCache: true
       });
 
-      await TemplatesService.list({ 
+      await TemplatesService.list({
         category: 'Storage',
         version: 'v1.0.0'
       });
@@ -270,10 +287,10 @@ describe('Cache Scenarios', () => {
       await TemplatesService.list({ category: 'Network' });
 
       expect(cache.CacheableDataAccess.getData).toHaveBeenCalledTimes(2);
-      
+
       const call1 = cache.CacheableDataAccess.getData.mock.calls[0];
       const call2 = cache.CacheableDataAccess.getData.mock.calls[1];
-      
+
       expect(call1[2].parameters.category).toBe('Storage');
       expect(call2[2].parameters.category).toBe('Network');
     });
@@ -483,7 +500,7 @@ describe('Cache Scenarios', () => {
       });
 
       // Make multiple concurrent requests
-      const requests = Array(10).fill(null).map(() => 
+      const requests = Array(10).fill(null).map(() =>
         TemplatesService.list({})
       );
 

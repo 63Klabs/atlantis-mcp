@@ -1,15 +1,15 @@
 /**
  * Configuration initialization module for Atlantis MCP Server Read Lambda
- * 
+ *
  * This module handles async initialization of:
  * - Cache-data Cache.init() with DynamoDB and S3
  * - GitHub token retrieval from SSM Parameter Store
  * - DebugAndLog initialization with log level
  * - Documentation index building (async, non-blocking)
- * 
+ *
  * The Config.init() function should be called once during Lambda cold start
  * before processing any requests.
- * 
+ *
  * @module config
  */
 
@@ -28,21 +28,21 @@ let initializationError = null;
 
 /**
  * Initialize configuration for Lambda function
- * 
+ *
  * This function performs async initialization that should happen once
  * during Lambda cold start. It is idempotent - calling multiple times
  * will only initialize once.
- * 
+ *
  * Initialization steps:
  * 1. Initialize cache-data Cache with DynamoDB table and S3 bucket
  * 2. Load GitHub token from SSM Parameter Store
  * 3. Initialize DebugAndLog with log level from settings
  * 4. Build documentation index asynchronously (non-blocking)
- * 
+ *
  * @async
  * @returns {Promise<void>}
  * @throws {Error} If critical initialization fails (cache, SSM)
- * 
+ *
  * @example
  * // In Lambda handler
  * exports.handler = async (event, context) => {
@@ -66,7 +66,7 @@ async function init() {
     // >! Initialize logging first so we can log subsequent initialization steps
     const logLevel = mapLogLevel(settings.logging.level);
     DebugAndLog.init({ logLevel });
-    
+
     DebugAndLog.info('Initializing Atlantis MCP Server Read Lambda configuration');
     DebugAndLog.debug('Settings:', {
       s3Buckets: settings.s3.buckets,
@@ -107,7 +107,7 @@ async function init() {
       });
 
       githubToken = await loadGitHubToken();
-      
+
       if (githubToken) {
         DebugAndLog.info('GitHub token loaded successfully');
       } else {
@@ -144,7 +144,7 @@ async function init() {
 
 /**
  * Load GitHub token from SSM Parameter Store
- * 
+ *
  * @async
  * @private
  * @returns {Promise<string|null>} GitHub token or null if not found
@@ -152,7 +152,7 @@ async function init() {
  */
 async function loadGitHubToken() {
   const parameterName = settings.aws.githubTokenParameter;
-  
+
   if (!parameterName) {
     DebugAndLog.warn('GitHub token parameter name not configured');
     return null;
@@ -161,7 +161,7 @@ async function loadGitHubToken() {
   try {
     // >! Use AWS.ssm from cache-data tools for SSM operations
     const ssm = AWS.ssm;
-    
+
     // >! Retrieve parameter with decryption enabled for SecureString parameters
     const result = await ssm.get({
       Name: parameterName,
@@ -181,7 +181,7 @@ async function loadGitHubToken() {
       });
       return null;
     }
-    
+
     // >! Re-throw other errors (permission issues, etc.)
     throw error;
   }
@@ -189,16 +189,16 @@ async function loadGitHubToken() {
 
 /**
  * Build documentation index asynchronously (non-blocking)
- * 
+ *
  * This function starts the documentation index building process in the background.
  * It does not block Lambda initialization - the Lambda can start processing
  * requests while the index builds.
- * 
+ *
  * The documentation index includes:
  * - Template repository documentation
  * - Cache-data package documentation
  * - App starter code patterns (on-demand)
- * 
+ *
  * @private
  */
 function buildDocumentationIndexAsync() {
@@ -207,17 +207,17 @@ function buildDocumentationIndexAsync() {
   setImmediate(async () => {
     try {
       DebugAndLog.info('Starting documentation index build (async)');
-      
+
       // TODO: Implement documentation index building in models/doc-index.js
       // For now, just log that we would build the index
       DebugAndLog.debug('Documentation index building deferred to models/doc-index.js implementation');
-      
+
       // When implemented, this will:
       // 1. Index template repo documentation
       // 2. Index cache-data package documentation
       // 3. Index CloudFormation template patterns
       // 4. Store indexed data in cache for fast search
-      
+
     } catch (error) {
       // >! Non-fatal error - log warning but don't fail Lambda
       DebugAndLog.warn('Documentation index build failed', {
@@ -229,7 +229,7 @@ function buildDocumentationIndexAsync() {
 
 /**
  * Map log level string to DebugAndLog numeric level
- * 
+ *
  * @private
  * @param {string} level - Log level string (ERROR, WARN, INFO, DEBUG, DIAG)
  * @returns {number} Numeric log level for DebugAndLog
@@ -242,15 +242,15 @@ function mapLogLevel(level) {
     'DEBUG': 4,
     'DIAG': 5
   };
-  
+
   return levelMap[level.toUpperCase()] || 3; // Default to INFO
 }
 
 /**
  * Get settings object
- * 
+ *
  * @returns {Object} Settings object
- * 
+ *
  * @example
  * const settings = Config.settings();
  * console.log(settings.s3.buckets);
@@ -261,13 +261,13 @@ function getSettings() {
 
 /**
  * Get connection and cache profile
- * 
+ *
  * This is a convenience method that delegates to connections.getConnCacheProfile()
- * 
+ *
  * @param {string} connectionName - Connection name
  * @param {string} profileName - Cache profile name
  * @returns {{conn: Object, cacheProfile: Object}|null} Connection and profile or null
- * 
+ *
  * @example
  * const { conn, cacheProfile } = Config.getConnCacheProfile('s3-templates', 'templates-list');
  * conn.host = ['bucket1', 'bucket2'];
@@ -279,9 +279,9 @@ function getConnCacheProfileWrapper(connectionName, profileName) {
 
 /**
  * Get GitHub token
- * 
+ *
  * @returns {string|null} GitHub token or null if not loaded
- * 
+ *
  * @example
  * const token = Config.getGitHubToken();
  * if (token) {
@@ -294,7 +294,7 @@ function getGitHubToken() {
 
 /**
  * Check if configuration is initialized
- * 
+ *
  * @returns {boolean} True if initialized
  */
 function isInitialized() {
@@ -303,7 +303,7 @@ function isInitialized() {
 
 /**
  * Reset initialization state (for testing only)
- * 
+ *
  * @private
  */
 function reset() {

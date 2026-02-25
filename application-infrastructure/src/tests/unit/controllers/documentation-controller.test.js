@@ -1,9 +1,9 @@
 /**
  * Unit tests for Documentation Controller
- * 
+ *
  * Tests Documentation controller search() function:
  * - Search Atlantis documentation, tutorials, and code patterns
- * 
+ *
  * Tests include:
  * - Input validation (JSON Schema)
  * - Service orchestration
@@ -64,7 +64,7 @@ describe('Documentation Controller', () => {
       };
 
       SchemaValidator.validate.mockReturnValue({ valid: true });
-      
+
       const mockResults = {
         results: [
           {
@@ -86,7 +86,7 @@ describe('Documentation Controller', () => {
           }
         ]
       };
-      
+
       Services.Documentation.search.mockResolvedValue(mockResults);
 
       // Act
@@ -187,7 +187,7 @@ describe('Documentation Controller', () => {
       };
 
       SchemaValidator.validate.mockReturnValue({ valid: true });
-      
+
       const serviceError = new Error('GitHub API rate limit exceeded');
       Services.Documentation.search.mockRejectedValue(serviceError);
 
@@ -218,7 +218,7 @@ describe('Documentation Controller', () => {
       };
 
       SchemaValidator.validate.mockReturnValue({ valid: true });
-      
+
       const mockResults = {
         results: [],
         suggestions: [
@@ -227,7 +227,7 @@ describe('Documentation Controller', () => {
           'Try searching for "DynamoDB table"'
         ]
       };
-      
+
       Services.Documentation.search.mockResolvedValue(mockResults);
 
       // Act
@@ -254,7 +254,7 @@ describe('Documentation Controller', () => {
       };
 
       SchemaValidator.validate.mockReturnValue({ valid: true });
-      
+
       Services.Documentation.search.mockResolvedValue({
         results: [{ title: 'Result 1' }],
         partialData: true,
@@ -382,7 +382,7 @@ describe('Documentation Controller', () => {
       };
 
       SchemaValidator.validate.mockReturnValue({ valid: true });
-      
+
       const mockResults = {
         results: [
           {
@@ -397,7 +397,7 @@ describe('Documentation Controller', () => {
           }
         ]
       };
-      
+
       Services.Documentation.search.mockResolvedValue(mockResults);
 
       // Act

@@ -1,6 +1,6 @@
 /**
  * Unit Tests for Validation Service
- * 
+ *
  * Tests the Validation service layer including:
  * - validateNaming() for various resource types
  * - Auto-detection of resource types
@@ -36,7 +36,7 @@ const Validation = require('../../../lambda/read/services/validation');
 describe('Validation Service', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    
+
     // Default mock implementations
     Config.settings.mockReturnValue({
       naming: {
@@ -246,10 +246,10 @@ describe('Validation Service', () => {
       // Assert
       expect(result1.valid).toBe(false);
       expect(result1.errors[0]).toContain('required');
-      
+
       expect(result2.valid).toBe(false);
       expect(result2.errors[0]).toContain('required');
-      
+
       expect(result3.valid).toBe(false);
       expect(result3.errors[0]).toContain('must be a string');
     });
