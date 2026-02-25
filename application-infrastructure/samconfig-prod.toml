@@ -63,7 +63,6 @@ parameter_overrides = [
     # MCP Server Configuration
     "AtlantisS3Buckets=",
     "AtlantisGitHubUserOrgs=63Klabs",
-    "PublicRateLimit=100",
     "ReadLambdaExecRoleIncludeManagedPolicyArns=",
     "GitHubTokenParameter=/atlantis-mcp/github/token",
     "LogLevel=INFO",

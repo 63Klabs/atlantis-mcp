@@ -71,7 +71,6 @@ Metadata:
         Parameters:
           - AtlantisS3Buckets
           - AtlantisGitHubUserOrgs
-          - PublicRateLimit
           - ReadLambdaExecRoleIncludeManagedPolicyArns
           - GitHubTokenParameter
           - LogLevel
@@ -297,14 +296,6 @@ Parameters:
     Description: "Comma-delimited list of GitHub users/organizations to search for repositories. Example: 63Klabs,myorg,myuser"
     Default: "63Klabs"
     ConstraintDescription: "Comma-delimited list of GitHub usernames or organization names"
-
-  PublicRateLimit:
-    Type: Number
-    Description: "Rate limit for public (unauthenticated) access in requests per hour per IP address"
-    Default: 100
-    MinValue: 1
-    MaxValue: 10000
-    ConstraintDescription: "Must be between 1 and 10000 requests per hour"
 
   ReadLambdaExecRoleIncludeManagedPolicyArns:
     Type: CommaDelimitedList
@@ -532,13 +523,6 @@ Resources:
         AllowOrigin: "'*'"
         MaxAge: "'86400'"
 
-      # Configure throttling via MethodSettings (SAM-supported approach)
-      MethodSettings:
-        - ResourcePath: '/*'
-          HttpMethod: '*'
-          ThrottlingBurstLimit: !Ref PublicRateLimit
-          ThrottlingRateLimit: !Ref PublicRateLimit
-
       DefinitionBody:
         "Fn::Transform":
           Name: "AWS::Include"
@@ -585,52 +569,6 @@ Resources:
     Properties:
       LogGroupName: !Sub 'API-Gateway-Execution-Logs_${WebApi}/${ApiPathBase}' # AWS default
       RetentionInDays: !If [ IsProduction, !Ref LogRetentionInDaysForPROD,  !Ref LogRetentionInDaysForDEVTEST]
-
-  # ---------------------------------------------------------------------------
-  # API Gateway Usage Plan for Rate Limiting
-  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-apigateway-usageplan.html
-  #
-  # Note: SAM creates implicit Stage and Deployment resources. We reference them using
-  # the logical ID pattern: {ApiLogicalId}{StageName}Stage
-  #
-
-  # -- API Key for Public Access --
-  MCPPublicApiKey:
-    Type: AWS::ApiGateway::ApiKey
-    DependsOn: 
-      - WebApi
-      # - WebApiApiPathBaseStage
-    Properties:
-      Name: !Sub '${Prefix}-${ProjectId}-${StageId}-MCP-Public-Key'
-      Description: "API Key for public MCP server access with rate limiting"
-      Enabled: true
-
-  # -- Usage Plan with Rate Limiting --
-  MCPPublicUsagePlan:
-    Type: AWS::ApiGateway::UsagePlan
-    DependsOn:
-      - WebApi
-      # - WebApiApiPathBaseStage
-    Properties:
-      UsagePlanName: !Sub '${Prefix}-${ProjectId}-${StageId}-MCP-Public-Plan'
-      Description: "Usage plan for public MCP server access with rate limiting"
-      ApiStages:
-        - ApiId: !Ref WebApi
-          Stage: !Ref ApiPathBase
-      Throttle:
-        BurstLimit: !Ref PublicRateLimit
-        RateLimit: !Ref PublicRateLimit
-      Quota:
-        Limit: !Ref PublicRateLimit
-        Period: HOUR
-
-  # -- Associate API Key with Usage Plan --
-  MCPUsagePlanKey:
-    Type: AWS::ApiGateway::UsagePlanKey
-    Properties:
-      KeyId: !Ref MCPPublicApiKey
-      KeyType: API_KEY
-      UsagePlanId: !Ref MCPPublicUsagePlan
 
   # ---------------------------------------------------------------------------
   # Lambda Functions
@@ -688,7 +626,6 @@ Resources:
           DEPLOY_ENVIRONMENT: !Ref DeployEnvironment
           LOG_LEVEL: !Ref LogLevel
           PARAM_STORE_PATH: !Ref ParameterStoreHierarchy
-          PUBLIC_RATE_LIMIT: !Ref PublicRateLimit
 
           PARAMETERS_SECRETS_EXTENSION_LOG_LEVEL: !If [ IsProduction, "INFO", "DEBUG"]
           AWS_LAMBDA_LOG_LEVEL: !Ref LogLevel
