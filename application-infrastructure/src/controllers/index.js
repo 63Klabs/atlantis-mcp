@@ -1,5 +1,2 @@
-const ExampleCtrl = require("./example.controller");
-
-module.exports = {
-	ExampleCtrl
-};
+// Controllers will be added here as they are implemented
+module.exports = {};

@@ -15,221 +15,221 @@ This document outlines the implementation tasks for Phase 1 of the Atlantis MCP 
 
 ### 1. Project Setup and Infrastructure
 
-- [ ] 1.1 Clone atlantis-starter-02 repository as foundation
-  - [ ] 1.1.1 Clone atlantis-starter-02 to new repository
-  - [ ] 1.1.2 Update package.json with MCP server details
-  - [ ] 1.1.3 Update README.md with MCP server description
-  - [ ] 1.1.4 Remove example code from atlantis-starter-02
+- [x] 1.1 Clone atlantis-starter-02 repository as foundation
+  - [x] 1.1.1 Clone atlantis-starter-02 to new repository
+  - [x] 1.1.2 Update package.json with MCP server details
+  - [x] 1.1.3 Update README.md with MCP server description
+  - [x] 1.1.4 Remove example code from atlantis-starter-02
 
-- [ ] 1.2 Set up Lambda function directory structure (Requirement 26)
-  - [ ] 1.2.1 Create src/lambda/read/ directory
-  - [ ] 1.2.2 Create src/lambda/write/ directory with .gitkeep (placeholder for Phase 2)
-  - [ ] 1.2.3 Create src/lambda/read/config/ directory
-  - [ ] 1.2.4 Create src/lambda/read/routes/ directory
-  - [ ] 1.2.5 Create src/lambda/read/controllers/ directory
-  - [ ] 1.2.6 Create src/lambda/read/services/ directory
-  - [ ] 1.2.7 Create src/lambda/read/models/ directory
-  - [ ] 1.2.8 Create src/lambda/read/views/ directory
-  - [ ] 1.2.9 Create src/lambda/read/utils/ directory
-  - [ ] 1.2.10 Create tests/ directory structure (unit, integration, property) at repository root
+- [x] 1.2 Set up Lambda function directory structure (Requirement 26)
+  - [x] 1.2.1 Create src/lambda/read/ directory
+  - [x] 1.2.2 Create src/lambda/write/ directory with .gitkeep (placeholder for Phase 2)
+  - [x] 1.2.3 Create src/lambda/read/config/ directory
+  - [x] 1.2.4 Create src/lambda/read/routes/ directory
+  - [x] 1.2.5 Create src/lambda/read/controllers/ directory
+  - [x] 1.2.6 Create src/lambda/read/services/ directory
+  - [x] 1.2.7 Create src/lambda/read/models/ directory
+  - [x] 1.2.8 Create src/lambda/read/views/ directory
+  - [x] 1.2.9 Create src/lambda/read/utils/ directory
+  - [x] 1.2.10 Create tests/ directory structure (unit, integration, property) at repository root
 
-- [ ] 1.3 Update buildspec.yml for Lambda function build (Requirement 26)
-  - [ ] 1.3.1 Add build steps for read function from src/lambda/read/
-  - [ ] 1.3.2 Add step to run tests before building packages
-  - [ ] 1.3.3 Ensure only essential node_modules are deployed to read function
-  - [ ] 1.3.4 Configure artifact output for read function
+- [x] 1.3 Update buildspec.yml for Lambda function build (Requirement 26)
+  - [x] 1.3.1 Add build steps for read function from src/lambda/read/
+  - [x] 1.3.2 Add step to run tests before building packages
+  - [x] 1.3.3 Ensure only essential node_modules are deployed to read function
+  - [x] 1.3.4 Configure artifact output for read function
 
-- [ ] 1.4 Update template.yml for Lambda deployment (Requirements 1, 2, 23, 26)
-  - [ ] 1.4.1 Define Read_Lambda resource with CodeUri pointing to src/lambda/read/
-  - [ ] 1.4.2 Add commented-out Write_Lambda resource for Phase 2
-  - [ ] 1.4.3 Add CloudFormation parameters (Prefix, ProjectId, StageId)
-  - [ ] 1.4.4 Add AtlantisS3Buckets parameter (CommaDelimitedList)
-  - [ ] 1.4.5 Add AtlantisGitHubUserOrgs parameter (CommaDelimitedList)
-  - [ ] 1.4.6 Add PublicRateLimit parameter (default 100)
-  - [ ] 1.4.7 Add ReadLambdaExecRoleIncludeManagedPolicyArns parameter (CommaDelimitedList)
-  - [ ] 1.4.8 Add CacheTTL parameters for each resource type
-  - [ ] 1.4.9 Add GitHubTokenParameter parameter
-  - [ ] 1.4.10 Add LogLevel parameter (ERROR, WARN, INFO, DEBUG)
-  - [ ] 1.4.11 Configure Read_Lambda IAM role with minimal permissions (S3 GetObject, ListBucket, GetObjectVersion, DynamoDB read, SSM GetParameter)
-  - [ ] 1.4.12 Add support for attaching managed policies via ReadLambdaExecRoleIncludeManagedPolicyArns
-  - [ ] 1.4.13 Configure API Gateway with rate limiting
-  - [ ] 1.4.14 Configure DynamoDB cache table
-  - [ ] 1.4.15 Configure S3 cache bucket
-  - [ ] 1.4.16 Follow Atlantis Naming_Convention for all resources
+- [x] 1.4 Update template.yml for Lambda deployment (Requirements 1, 2, 23, 26)
+  - [x] 1.4.1 Define Read_Lambda resource with CodeUri pointing to src/lambda/read/
+  - [x] 1.4.2 Add commented-out Write_Lambda resource for Phase 2
+  - [x] 1.4.3 Add CloudFormation parameters (Prefix, ProjectId, StageId)
+  - [x] 1.4.4 Add AtlantisS3Buckets parameter (CommaDelimitedList)
+  - [x] 1.4.5 Add AtlantisGitHubUserOrgs parameter (CommaDelimitedList)
+  - [x] 1.4.6 Add PublicRateLimit parameter (default 100)
+  - [x] 1.4.7 Add ReadLambdaExecRoleIncludeManagedPolicyArns parameter (CommaDelimitedList)
+  - [x] 1.4.8 Add CacheTTL parameters for each resource type
+  - [x] 1.4.9 Add GitHubTokenParameter parameter
+  - [x] 1.4.10 Add LogLevel parameter (ERROR, WARN, INFO, DEBUG)
+  - [x] 1.4.11 Configure Read_Lambda IAM role with minimal permissions (S3 GetObject, ListBucket, GetObjectVersion, DynamoDB read, SSM GetParameter)
+  - [x] 1.4.12 Add support for attaching managed policies via ReadLambdaExecRoleIncludeManagedPolicyArns
+  - [x] 1.4.13 Configure API Gateway with rate limiting
+  - [x] 1.4.14 Configure DynamoDB cache table
+  - [x] 1.4.15 Configure S3 cache bucket
+  - [x] 1.4.16 Follow Atlantis Naming_Convention for all resources
 
-- [ ] 1.5 Install dependencies
-  - [ ] 1.5.1 Create package.json for read function in src/lambda/read/
-  - [ ] 1.5.2 Install @63klabs/cache-data in src/lambda/read/
-  - [ ] 1.5.3 Install AWS SDK v3 packages (@aws-sdk/client-s3, @aws-sdk/client-dynamodb, @aws-sdk/client-ssm)
-  - [ ] 1.5.4 Install development dependencies at root (jest, fast-check, eslint)
+- [x] 1.5 Install dependencies
+  - [x] 1.5.1 Create package.json for read function in src/lambda/read/
+  - [x] 1.5.2 Install @63klabs/cache-data in src/lambda/read/
+  - [x] 1.5.3 Install AWS SDK v3 packages (@aws-sdk/client-s3, @aws-sdk/client-dynamodb, @aws-sdk/client-ssm)
+  - [x] 1.5.4 Install development dependencies at root (jest, fast-check, eslint)
 
 ### 2. Configuration and Settings (Requirements 1, 19, 23)
 
-- [ ] 2.1 Implement settings.js (src/lambda/read/config/settings.js)
-  - [ ] 2.1.1 Parse ATLANTIS_S3_BUCKETS environment variable into array
-  - [ ] 2.1.2 Parse ATLANTIS_GITHUB_USER_ORGS environment variable into array
-  - [ ] 2.1.3 Define TTL values in settings.ttl property
-  - [ ] 2.1.4 Set settings.ttl.fullTemplateContent from environment (default 3600s)
-  - [ ] 2.1.5 Set settings.ttl.templateVersionHistory from environment (default 3600s)
-  - [ ] 2.1.6 Set settings.ttl.templateUpdates from environment (default 3600s)
-  - [ ] 2.1.7 Set settings.ttl.templateList from environment (default 1800s)
-  - [ ] 2.1.8 Set settings.ttl.appStarterList from environment (default 1800s)
-  - [ ] 2.1.9 Set settings.ttl.githubRepoList from environment (default 1800s)
-  - [ ] 2.1.10 Set settings.ttl.s3BucketList from environment (default 1800s)
-  - [ ] 2.1.11 Set settings.ttl.namespaceList from environment (default 1800s)
-  - [ ] 2.1.12 Set settings.ttl.categoryList from environment (default 1800s)
-  - [ ] 2.1.13 Set settings.ttl.documentationIndex from environment (default 3600s)
-  - [ ] 2.1.14 Organize settings into logical sections (s3, github, cache, logging, naming)
-  - [ ] 2.1.15 Define Template_Category values (Storage, Network, Pipeline, Service Role, Modules)
-  - [ ] 2.1.16 Export settings object
+- [x] 2.1 Implement settings.js (src/lambda/read/config/settings.js)
+  - [x] 2.1.1 Parse ATLANTIS_S3_BUCKETS environment variable into array
+  - [x] 2.1.2 Parse ATLANTIS_GITHUB_USER_ORGS environment variable into array
+  - [x] 2.1.3 Define TTL values in settings.ttl property
+  - [x] 2.1.4 Set settings.ttl.fullTemplateContent from environment (default 3600s)
+  - [x] 2.1.5 Set settings.ttl.templateVersionHistory from environment (default 3600s)
+  - [x] 2.1.6 Set settings.ttl.templateUpdates from environment (default 3600s)
+  - [x] 2.1.7 Set settings.ttl.templateList from environment (default 1800s)
+  - [x] 2.1.8 Set settings.ttl.appStarterList from environment (default 1800s)
+  - [x] 2.1.9 Set settings.ttl.githubRepoList from environment (default 1800s)
+  - [x] 2.1.10 Set settings.ttl.s3BucketList from environment (default 1800s)
+  - [x] 2.1.11 Set settings.ttl.namespaceList from environment (default 1800s)
+  - [x] 2.1.12 Set settings.ttl.categoryList from environment (default 1800s)
+  - [x] 2.1.13 Set settings.ttl.documentationIndex from environment (default 3600s)
+  - [x] 2.1.14 Organize settings into logical sections (s3, github, cache, logging, naming)
+  - [x] 2.1.15 Define Template_Category values (Storage, Network, Pipeline, Service Role, Modules)
+  - [x] 2.1.16 Export settings object
 
-- [ ] 2.2 Implement connections.js (src/lambda/read/config/connections.js)
-  - [ ] 2.2.1 Define cache-data connection profiles for S3 templates
-  - [ ] 2.2.2 Define cache-data connection profiles for GitHub API
-  - [ ] 2.2.3 Define cache-data connection profiles for documentation index
-  - [ ] 2.2.4 Configure cache profiles with appropriate TTLs from settings
-  - [ ] 2.2.5 Configure cache profiles with DynamoDB and S3 cache backends
-  - [ ] 2.2.6 Export connection and cache profile objects
+- [-] 2.2 Implement connections.js (src/lambda/read/config/connections.js)
+  - [x] 2.2.1 Define cache-data connection profiles for S3 templates
+  - [x] 2.2.2 Define cache-data connection profiles for GitHub API
+  - [x] 2.2.3 Define cache-data connection profiles for documentation index
+  - [x] 2.2.4 Configure cache profiles with appropriate TTLs from settings
+  - [x] 2.2.5 Configure cache profiles with DynamoDB and S3 cache backends
+  - [x] 2.2.6 Export connection and cache profile objects
 
-- [ ] 2.3 Implement config initialization (src/lambda/read/config/index.js)
-  - [ ] 2.3.1 Create async Config.init() function
-  - [ ] 2.3.2 Initialize cache-data Cache.init() with DynamoDB table and S3 bucket
-  - [ ] 2.3.3 Load GitHub token from SSM Parameter Store
-  - [ ] 2.3.4 Initialize DebugAndLog with log level from settings
-  - [ ] 2.3.5 Build documentation index asynchronously (non-blocking)
-  - [ ] 2.3.6 Export Config object with init(), settings(), and getConnCacheProfile() methods
+- [x] 2.3 Implement config initialization (src/lambda/read/config/index.js)
+  - [x] 2.3.1 Create async Config.init() function
+  - [x] 2.3.2 Initialize cache-data Cache.init() with DynamoDB table and S3 bucket
+  - [x] 2.3.3 Load GitHub token from SSM Parameter Store
+  - [x] 2.3.4 Initialize DebugAndLog with log level from settings
+  - [x] 2.3.5 Build documentation index asynchronously (non-blocking)
+  - [x] 2.3.6 Export Config object with init(), settings(), and getConnCacheProfile() methods
 
 ### 3. Lambda Handler and Routing (Requirements 1, 2, 26)
 
-- [ ] 3.1 Implement Read Lambda handler (src/lambda/read/index.js)
-  - [ ] 3.1.1 Import Config from ./config
-  - [ ] 3.1.2 Import Routes from ./routes
-  - [ ] 3.1.3 Implement handler function
-  - [ ] 3.1.4 Call await Config.init() during cold start
-  - [ ] 3.1.5 Delegate to Routes.process()
-  - [ ] 3.1.6 Return API Gateway-compatible response
-  - [ ] 3.1.7 Handle top-level errors
+- [x] 3.1 Implement Read Lambda handler (src/lambda/read/index.js)
+  - [x] 3.1.1 Import Config from ./config
+  - [x] 3.1.2 Import Routes from ./routes
+  - [x] 3.1.3 Implement handler function
+  - [x] 3.1.4 Call await Config.init() during cold start
+  - [x] 3.1.5 Delegate to Routes.process()
+  - [x] 3.1.6 Return API Gateway-compatible response
+  - [x] 3.1.7 Handle top-level errors
 
-- [ ] 3.2 Implement request routing (src/lambda/read/routes/index.js)
-  - [ ] 3.2.1 Import ClientRequest and Response from cache-data
-  - [ ] 3.2.2 Import all controllers
-  - [ ] 3.2.3 Implement Routes.process() function
-  - [ ] 3.2.4 Create ClientRequest object from event
-  - [ ] 3.2.5 Extract MCP tool name from request
-  - [ ] 3.2.6 Route to appropriate controller using switch statement
-  - [ ] 3.2.7 Handle list_templates tool
-  - [ ] 3.2.8 Handle get_template tool
-  - [ ] 3.2.9 Handle list_template_versions tool
-  - [ ] 3.2.10 Handle list_categories tool
-  - [ ] 3.2.11 Handle list_starters tool
-  - [ ] 3.2.12 Handle get_starter_info tool
-  - [ ] 3.2.13 Handle search_documentation tool
-  - [ ] 3.2.14 Handle validate_naming tool
-  - [ ] 3.2.15 Handle check_template_updates tool
-  - [ ] 3.2.16 Return 404 for unknown tools
-  - [ ] 3.2.17 Return 405 for unsupported methods
-  - [ ] 3.2.18 Log routing decisions
+- [x] 3.2 Implement request routing (src/lambda/read/routes/index.js)
+  - [x] 3.2.1 Import ClientRequest and Response from cache-data
+  - [x] 3.2.2 Import all controllers
+  - [x] 3.2.3 Implement Routes.process() function
+  - [x] 3.2.4 Create ClientRequest object from event
+  - [x] 3.2.5 Extract MCP tool name from request
+  - [x] 3.2.6 Route to appropriate controller using switch statement
+  - [x] 3.2.7 Handle list_templates tool
+  - [x] 3.2.8 Handle get_template tool
+  - [x] 3.2.9 Handle list_template_versions tool
+  - [x] 3.2.10 Handle list_categories tool
+  - [x] 3.2.11 Handle list_starters tool
+  - [x] 3.2.12 Handle get_starter_info tool
+  - [x] 3.2.13 Handle search_documentation tool
+  - [x] 3.2.14 Handle validate_naming tool
+  - [x] 3.2.15 Handle check_template_updates tool
+  - [x] 3.2.16 Return 404 for unknown tools
+  - [x] 3.2.17 Return 405 for unsupported methods
+  - [x] 3.2.18 Log routing decisions
 
 ### 4. Utilities and Protocol Support (Requirements 17, 21)
 
-- [ ] 4.1 Implement MCP protocol utilities (src/lambda/read/utils/mcp-protocol.js)
-  - [ ] 4.1.1 Implement successResponse() function
-  - [ ] 4.1.2 Implement errorResponse() function
-  - [ ] 4.1.3 Define MCP protocol version 1.0 constants
-  - [ ] 4.1.4 Implement protocol negotiation support
-  - [ ] 4.1.5 Implement capability discovery support
+- [x] 4.1 Implement MCP protocol utilities (src/lambda/read/utils/mcp-protocol.js)
+  - [x] 4.1.1 Implement successResponse() function
+  - [x] 4.1.2 Implement errorResponse() function
+  - [x] 4.1.3 Define MCP protocol version 1.0 constants
+  - [x] 4.1.4 Implement protocol negotiation support
+  - [x] 4.1.5 Implement capability discovery support
 
-- [ ] 4.2 Implement JSON Schema validator (src/lambda/read/utils/schema-validator.js)
-  - [ ] 4.2.1 Define JSON Schema for list_templates input
-  - [ ] 4.2.2 Define JSON Schema for get_template input
-  - [ ] 4.2.3 Define JSON Schema for list_template_versions input
-  - [ ] 4.2.4 Define JSON Schema for list_categories input
-  - [ ] 4.2.5 Define JSON Schema for list_starters input
-  - [ ] 4.2.6 Define JSON Schema for get_starter_info input
-  - [ ] 4.2.7 Define JSON Schema for search_documentation input
-  - [ ] 4.2.8 Define JSON Schema for validate_naming input
-  - [ ] 4.2.9 Define JSON Schema for check_template_updates input
-  - [ ] 4.2.10 Implement validate() function
-  - [ ] 4.2.11 Return detailed validation errors
+- [x] 4.2 Implement JSON Schema validator (src/lambda/read/utils/schema-validator.js)
+  - [x] 4.2.1 Define JSON Schema for list_templates input
+  - [x] 4.2.2 Define JSON Schema for get_template input
+  - [x] 4.2.3 Define JSON Schema for list_template_versions input
+  - [x] 4.2.4 Define JSON Schema for list_categories input
+  - [x] 4.2.5 Define JSON Schema for list_starters input
+  - [x] 4.2.6 Define JSON Schema for get_starter_info input
+  - [x] 4.2.7 Define JSON Schema for search_documentation input
+  - [x] 4.2.8 Define JSON Schema for validate_naming input
+  - [x] 4.2.9 Define JSON Schema for check_template_updates input
+  - [x] 4.2.10 Implement validate() function
+  - [x] 4.2.11 Return detailed validation errors
 
-- [ ] 4.3 Implement naming rules (src/lambda/read/utils/naming-rules.js)
-  - [ ] 4.3.1 Define application resource naming pattern: <Prefix>-<ProjectId>-<StageId>-<ResourceName>
-  - [ ] 4.3.2 Define S3 bucket naming pattern: <orgPrefix>-<Prefix>-<ProjectId>-<StageId>-<Region>-<AccountId>
-  - [ ] 4.3.3 Define alternative S3 bucket pattern: <orgPrefix>-<Prefix>-<ProjectId>-<Region>
-  - [ ] 4.3.4 Implement validateApplicationResource() function
-  - [ ] 4.3.5 Implement validateS3Bucket() function
-  - [ ] 4.3.6 Implement AWS resource naming rules for S3, DynamoDB, Lambda, CloudFormation
-  - [ ] 4.3.7 Provide suggestions for invalid names
-  - [ ] 4.3.8 Support partial name validation
+- [x] 4.3 Implement naming rules (src/lambda/read/utils/naming-rules.js)
+  - [x] 4.3.1 Define application resource naming pattern: <Prefix>-<ProjectId>-<StageId>-<ResourceName>
+  - [x] 4.3.2 Define S3 bucket naming pattern: <orgPrefix>-<Prefix>-<ProjectId>-<StageId>-<Region>-<AccountId>
+  - [x] 4.3.3 Define alternative S3 bucket pattern: <orgPrefix>-<Prefix>-<ProjectId>-<Region>
+  - [x] 4.3.4 Implement validateApplicationResource() function
+  - [x] 4.3.5 Implement validateS3Bucket() function
+  - [x] 4.3.6 Implement AWS resource naming rules for S3, DynamoDB, Lambda, CloudFormation
+  - [x] 4.3.7 Provide suggestions for invalid names
+  - [x] 4.3.8 Support partial name validation
 
 ### 5. Models / Data Access Objects (Requirements 4, 5, 6, 7, 8, 13, 20)
 
-- [ ] 5.1 Implement S3 Templates DAO (src/lambda/read/models/s3-templates.js)
-  - [ ] 5.1.1 Implement checkBucketAccess() to verify atlantis-mcp:Allow=true tag
-  - [ ] 5.1.2 Implement getIndexedNamespaces() to read atlantis-mcp:IndexPriority tag
-  - [ ] 5.1.3 Implement list() function with multi-bucket support
-  - [ ] 5.1.4 Implement brown-out support in list() (continue on bucket failures)
-  - [ ] 5.1.5 Implement get() function with multi-bucket priority search
-  - [ ] 5.1.6 Implement brown-out support in get() (try next bucket on failure)
-  - [ ] 5.1.7 Implement listVersions() using S3 ListObjectVersions API
-  - [ ] 5.1.8 Parse Human_Readable_Version from template comments (vX.X.X/YYYY-MM-DD)
-  - [ ] 5.1.9 Extract S3_VersionId from S3 API responses
-  - [ ] 5.1.10 Support both .yml and .yaml extensions (.yml takes precedence)
-  - [ ] 5.1.11 Parse CloudFormation template structure (Parameters, Outputs, Description)
-  - [ ] 5.1.12 Filter templates by category
-  - [ ] 5.1.13 Filter templates by version (Human_Readable_Version)
-  - [ ] 5.1.14 Filter templates by versionId (S3_VersionId)
-  - [ ] 5.1.15 Support OR condition when both version and versionId provided
-  - [ ] 5.1.16 Deduplicate templates across buckets (first occurrence wins)
-  - [ ] 5.1.17 Include Namespace and bucket information in responses
-  - [ ] 5.1.18 Log warnings when buckets are skipped (missing tags)
-  - [ ] 5.1.19 Return error information for failed sources
+- [x] 5.1 Implement S3 Templates DAO (src/lambda/read/models/s3-templates.js)
+  - [x] 5.1.1 Implement checkBucketAccess() to verify atlantis-mcp:Allow=true tag
+  - [x] 5.1.2 Implement getIndexedNamespaces() to read atlantis-mcp:IndexPriority tag
+  - [x] 5.1.3 Implement list() function with multi-bucket support
+  - [x] 5.1.4 Implement brown-out support in list() (continue on bucket failures)
+  - [x] 5.1.5 Implement get() function with multi-bucket priority search
+  - [x] 5.1.6 Implement brown-out support in get() (try next bucket on failure)
+  - [x] 5.1.7 Implement listVersions() using S3 ListObjectVersions API
+  - [x] 5.1.8 Parse Human_Readable_Version from template comments (vX.X.X/YYYY-MM-DD)
+  - [x] 5.1.9 Extract S3_VersionId from S3 API responses
+  - [x] 5.1.10 Support both .yml and .yaml extensions (.yml takes precedence)
+  - [x] 5.1.11 Parse CloudFormation template structure (Parameters, Outputs, Description)
+  - [x] 5.1.12 Filter templates by category
+  - [x] 5.1.13 Filter templates by version (Human_Readable_Version)
+  - [x] 5.1.14 Filter templates by versionId (S3_VersionId)
+  - [x] 5.1.15 Support OR condition when both version and versionId provided
+  - [x] 5.1.16 Deduplicate templates across buckets (first occurrence wins)
+  - [x] 5.1.17 Include Namespace and bucket information in responses
+  - [x] 5.1.18 Log warnings when buckets are skipped (missing tags)
+  - [x] 5.1.19 Return error information for failed sources
 
-- [ ] 5.2 Implement GitHub API DAO (src/lambda/read/models/github-api.js)
-  - [ ] 5.2.1 Implement listRepositories() with multi-user/org support
-  - [ ] 5.2.2 Implement brown-out support in listRepositories() (continue on user/org failures)
-  - [ ] 5.2.3 Implement getRepository() to retrieve repository metadata
-  - [ ] 5.2.4 Implement getCustomProperty() using Repository Properties API
-  - [ ] 5.2.5 Query atlantis_repository-type custom property
-  - [ ] 5.2.6 Exclude repositories without atlantis_repository-type property
-  - [ ] 5.2.7 Filter repositories by atlantis_repository-type value
-  - [ ] 5.2.8 Implement getReadme() to retrieve README content
-  - [ ] 5.2.9 Implement getReleases() to retrieve release information
-  - [ ] 5.2.10 Implement getRepositoryStats() (stars, forks, last updated)
-  - [ ] 5.2.11 Handle GitHub API rate limits (respect X-RateLimit-* headers)
-  - [ ] 5.2.12 Return cached data with staleness indicator when rate limited
-  - [ ] 5.2.13 Handle authentication for private repositories
-  - [ ] 5.2.14 Log warnings when repositories are skipped (missing custom property)
-  - [ ] 5.2.15 Return error information for failed sources
-  - [ ] 5.2.16 Include user/org name in error logs
+- [x] 5.2 Implement GitHub API DAO (src/lambda/read/models/github-api.js)
+  - [x] 5.2.1 Implement listRepositories() with multi-user/org support
+  - [x] 5.2.2 Implement brown-out support in listRepositories() (continue on user/org failures)
+  - [x] 5.2.3 Implement getRepository() to retrieve repository metadata
+  - [x] 5.2.4 Implement getCustomProperty() using Repository Properties API
+  - [x] 5.2.5 Query atlantis_repository-type custom property
+  - [x] 5.2.6 Exclude repositories without atlantis_repository-type property
+  - [x] 5.2.7 Filter repositories by atlantis_repository-type value
+  - [x] 5.2.8 Implement getReadme() to retrieve README content
+  - [x] 5.2.9 Implement getReleases() to retrieve release information
+  - [x] 5.2.10 Implement getRepositoryStats() (stars, forks, last updated)
+  - [x] 5.2.11 Handle GitHub API rate limits (respect X-RateLimit-* headers)
+  - [x] 5.2.12 Return cached data with staleness indicator when rate limited
+  - [x] 5.2.13 Handle authentication for private repositories
+  - [x] 5.2.14 Log warnings when repositories are skipped (missing custom property)
+  - [x] 5.2.15 Return error information for failed sources
+  - [x] 5.2.16 Include user/org name in error logs
 
-- [ ] 5.3 Implement Documentation Index DAO (src/lambda/read/models/doc-index.js)
-  - [ ] 5.3.1 Implement buildIndex() to create searchable documentation index
-  - [ ] 5.3.2 Index markdown documentation from GitHub repositories
-  - [ ] 5.3.3 Index CloudFormation template sections (Metadata, Parameters, Mappings, Conditions, Resources, Outputs)
-  - [ ] 5.3.4 Index CloudFormation resource definitions and patterns
-  - [ ] 5.3.5 Index Python and Node.js functions from app starters
-  - [ ] 5.3.6 Index cache-data package usage patterns
-  - [ ] 5.3.7 Index README headings from templates and starters
-  - [ ] 5.3.8 Index top-of-file comments from source code
-  - [ ] 5.3.9 Implement search() function with keyword-based search
-  - [ ] 5.3.10 Implement relevance ranking for search results
-  - [ ] 5.3.11 Return code snippets with context (file path, line numbers)
-  - [ ] 5.3.12 Support filtering by result type (documentation, template pattern, code example)
-  - [ ] 5.3.13 Build index for template repo and cache-data package at Lambda cold start
-  - [ ] 5.3.14 Build index for app starter code asynchronously or on-demand
-  - [ ] 5.3.15 Provide suggestions when no results found
+- [-] 5.3 Implement Documentation Index DAO (src/lambda/read/models/doc-index.js)
+  - [x] 5.3.1 Implement buildIndex() to create searchable documentation index
+  - [x] 5.3.2 Index markdown documentation from GitHub repositories
+  - [x] 5.3.3 Index CloudFormation template sections (Metadata, Parameters, Mappings, Conditions, Resources, Outputs)
+  - [x] 5.3.4 Index CloudFormation resource definitions and patterns
+  - [x] 5.3.5 Index Python and Node.js functions from app starters
+  - [x] 5.3.6 Index cache-data package usage patterns
+  - [x] 5.3.7 Index README headings from templates and starters
+  - [x] 5.3.8 Index top-of-file comments from source code
+  - [x] 5.3.9 Implement search() function with keyword-based search
+  - [x] 5.3.10 Implement relevance ranking for search results
+  - [x] 5.3.11 Return code snippets with context (file path, line numbers)
+  - [x] 5.3.12 Support filtering by result type (documentation, template pattern, code example)
+  - [x] 5.3.13 Build index for template repo and cache-data package at Lambda cold start
+  - [x] 5.3.14 Build index for app starter code asynchronously or on-demand
+  - [x] 5.3.15 Provide suggestions when no results found
 
-- [ ] 5.4 Implement S3 App Starters DAO (src/lambda/read/models/s3-starters.js)
-  - [ ] 5.4.1 Implement list() function with multi-bucket support
-  - [ ] 5.4.2 Search for ZIP files at path {namespace}/app-starters/v2/{appName}.zip
-  - [ ] 5.4.3 Search for sidecar metadata at path {namespace}/app-starters/v2/{appName}.json
-  - [ ] 5.4.4 Implement brown-out support in list() (continue on bucket failures)
-  - [ ] 5.4.5 Implement get() function to retrieve sidecar metadata
-  - [ ] 5.4.6 Skip starters without sidecar metadata and log warning
-  - [ ] 5.4.7 Parse sidecar metadata JSON (name, description, language, framework, features, prerequisites, author, license)
-  - [ ] 5.4.8 Verify ZIP file name matches GitHub repository name
-  - [ ] 5.4.9 Return error information for failed sources
+- [x] 5.4 Implement S3 App Starters DAO (src/lambda/read/models/s3-starters.js)
+  - [x] 5.4.1 Implement list() function with multi-bucket support
+  - [x] 5.4.2 Search for ZIP files at path {namespace}/app-starters/v2/{appName}.zip
+  - [x] 5.4.3 Search for sidecar metadata at path {namespace}/app-starters/v2/{appName}.json
+  - [x] 5.4.4 Implement brown-out support in list() (continue on bucket failures)
+  - [x] 5.4.5 Implement get() function to retrieve sidecar metadata
+  - [x] 5.4.6 Skip starters without sidecar metadata and log warning
+  - [x] 5.4.7 Parse sidecar metadata JSON (name, description, language, framework, features, prerequisites, author, license)
+  - [x] 5.4.8 Verify ZIP file name matches GitHub repository name
+  - [x] 5.4.9 Return error information for failed sources
 
 ### 6. Services (Requirements 4, 5, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19)
 

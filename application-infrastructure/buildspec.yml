@@ -52,14 +52,40 @@ phases:
   pre_build:
     commands:
       
-      # Application Environment: Install NPM dependencies needed for application environment
+      # Run tests from repository root before building Lambda packages
       - ls -l -a
-      - cd application-infrastructure/src
+      - cd application-infrastructure
+      
+      # Run all tests (unit, integration, property) from tests/ directory
+      - |
+        if [ -d "tests" ]; then
+          echo "Running tests from tests/ directory"
+          # Install test dependencies if package.json exists at root
+          if [ -f "package.json" ]; then
+            npm ci
+            npm test
+          else
+            echo "No root package.json found, skipping root-level tests"
+          fi
+        else
+          echo "No tests/ directory found, skipping tests"
+        fi
 
-      # Install dev so we can run tests, but we will remove dev dependencies later
+      # Build Read Lambda function
+      - echo "Building Read Lambda function from src/lambda/read/"
+      - cd src/lambda/read
+
+      # Install dev dependencies for testing
       - npm install --include=dev
-      # Run Test
-      - npm test
+      
+      # Run tests for Read Lambda if test script exists
+      - |
+        if npm run | grep -q "test"; then
+          echo "Running Read Lambda tests"
+          npm test
+        else
+          echo "No test script found for Read Lambda, skipping"
+        fi
 
       # Clean up test artifacts and reinstall only production dependencies to reduce Lambda package size
       - rm -rf __tests__
@@ -73,7 +99,7 @@ phases:
       - npm audit --audit-level=high
       
       # Go back to application-infrastructure directory
-      - cd ..
+      - cd ../../..
 
       # Generate a random 256 bit key (hexidecimal) in SSM for cache data:
       - python3 ./build-scripts/generate-put-ssm.py ${PARAM_STORE_HIERARCHY}CacheData_SecureDataKey --generate 256

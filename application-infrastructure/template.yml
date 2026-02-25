@@ -3,14 +3,15 @@
 # and limitations under the License.
 #
 # Atlantis for AWS SAM Deployments
-# Starter 02 - API Gateway and Lambda using Cache-Data (NodeJS)
-# Author: Chad Kluck - 63klabs.net
-# Version: v2.0.5/2026-01-07
+# Atlantis MCP Server - Phase 1 (Core Read-Only)
+# Author: 63klabs.net
+# Version: v0.0.1/2026-02-24
 
 # Documentation, Issues/Feature Requests, Latest Updates, and Security Reports on GitHub:
-# https://github.com/63Klabs/atlantis-starter-02-apigw-lambda-cache-data-nodejs
+# https://github.com/63Klabs/atlantis-mcp-server
 
-# Creates a web service using API Gateway and Lambda using NodeJS and 63klabs/cache-data
+# Creates an MCP (Model Context Protocol) server for Atlantis Templates and Scripts Platform
+# Provides read-only operations for template discovery, starter code, and documentation
 # This template is designed to be used with 63KLabs Atlantis for automated deployments.
 
 # USE WITH:
@@ -18,7 +19,7 @@
 
 AWSTemplateFormatVersion: "2010-09-09"
 Transform:  AWS::Serverless-2016-10-31
-Description: "A web service using API Gateway, Lambda, Cache, NodeJS - atlantis-starter-02-apigw-lambda-cache-data-nodejs"
+Description: "Atlantis MCP Server - Phase 1 (Core Read-Only) - Model Context Protocol server for AI-assisted development"
 
 # =============================================================================
 # META DATA
@@ -64,6 +65,30 @@ Metadata:
           - LogRetentionInDaysForPROD
           - LogRetentionInDaysForDEVTEST
           - ApiGatewayLoggingEnabled
+      -
+        Label:
+          default: "MCP Server Configuration"
+        Parameters:
+          - AtlantisS3Buckets
+          - AtlantisGitHubUserOrgs
+          - PublicRateLimit
+          - ReadLambdaExecRoleIncludeManagedPolicyArns
+          - GitHubTokenParameter
+          - LogLevel
+      -
+        Label:
+          default: "Cache TTL Settings"
+        Parameters:
+          - CacheTTLFullTemplateContent
+          - CacheTTLTemplateVersionHistory
+          - CacheTTLTemplateUpdates
+          - CacheTTLTemplateList
+          - CacheTTLAppStarterList
+          - CacheTTLGitHubRepoList
+          - CacheTTLS3BucketList
+          - CacheTTLNamespaceList
+          - CacheTTLCategoryList
+          - CacheTTLDocumentationIndex
       -
         Label:
           default: "Cache-Data Settings"
@@ -258,6 +283,132 @@ Parameters:
     AllowedValues: ["Etc/UTC", "America/Puerto_Rico", "America/New_York", "America/Indianapolis", "America/Chicago", "America/Denver", "America/Phoenix", "America/Los_Angeles", "America/Anchorage", "Pacific/Honolulu"] # https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
     ConstraintDescription: "Common examples for United States of America. Accepted values can be changed in the template for your region."
 
+  # ---------------------------------------------------------------------------
+  # MCP Server Configuration Parameters
+
+  AtlantisS3Buckets:
+    Type: CommaDelimitedList
+    Description: "Comma-delimited list of S3 bucket names containing Atlantis templates and starters. Buckets must have 'atlantis-mcp:Allow=true' tag and 'atlantis-mcp:IndexPriority' tag with namespace list. Example: bucket1,bucket2,bucket3"
+    Default: ""
+    ConstraintDescription: "Comma-delimited list of valid S3 bucket names"
+
+  AtlantisGitHubUserOrgs:
+    Type: CommaDelimitedList
+    Description: "Comma-delimited list of GitHub users/organizations to search for repositories. Example: 63Klabs,myorg,myuser"
+    Default: "63Klabs"
+    ConstraintDescription: "Comma-delimited list of GitHub usernames or organization names"
+
+  PublicRateLimit:
+    Type: Number
+    Description: "Rate limit for public (unauthenticated) access in requests per hour per IP address"
+    Default: 100
+    MinValue: 1
+    MaxValue: 10000
+    ConstraintDescription: "Must be between 1 and 10000 requests per hour"
+
+  ReadLambdaExecRoleIncludeManagedPolicyArns:
+    Type: CommaDelimitedList
+    Description: "Comma-delimited list of managed policy ARNs to attach to the Read Lambda execution role for extended permissions. Leave empty if no additional policies needed."
+    Default: ""
+    ConstraintDescription: "Comma-delimited list of valid IAM policy ARNs"
+
+  GitHubTokenParameter:
+    Type: String
+    Description: "SSM Parameter Store path containing GitHub personal access token for API access. Token should have 'repo' and 'read:org' scopes. Example: /atlantis-mcp/github/token"
+    Default: "/atlantis-mcp/github/token"
+    AllowedPattern: "^/[a-zA-Z0-9/_.-]+$"
+    ConstraintDescription: "Must be a valid SSM Parameter Store path starting with /"
+
+  LogLevel:
+    Type: String
+    Description: "Logging level for the MCP server Lambda functions"
+    Default: "INFO"
+    AllowedValues: ["ERROR", "WARN", "INFO", "DEBUG"]
+    ConstraintDescription: "Must be ERROR, WARN, INFO, or DEBUG"
+
+  # ---------------------------------------------------------------------------
+  # Cache TTL Parameters (in seconds)
+
+  CacheTTLFullTemplateContent:
+    Type: Number
+    Description: "TTL in seconds for full template content cache"
+    Default: 3600
+    MinValue: 60
+    MaxValue: 86400
+    ConstraintDescription: "Must be between 60 and 86400 seconds (1 minute to 24 hours)"
+
+  CacheTTLTemplateVersionHistory:
+    Type: Number
+    Description: "TTL in seconds for template version history cache"
+    Default: 3600
+    MinValue: 60
+    MaxValue: 86400
+    ConstraintDescription: "Must be between 60 and 86400 seconds (1 minute to 24 hours)"
+
+  CacheTTLTemplateUpdates:
+    Type: Number
+    Description: "TTL in seconds for template updates cache"
+    Default: 3600
+    MinValue: 60
+    MaxValue: 86400
+    ConstraintDescription: "Must be between 60 and 86400 seconds (1 minute to 24 hours)"
+
+  CacheTTLTemplateList:
+    Type: Number
+    Description: "TTL in seconds for template list cache"
+    Default: 1800
+    MinValue: 60
+    MaxValue: 86400
+    ConstraintDescription: "Must be between 60 and 86400 seconds (1 minute to 24 hours)"
+
+  CacheTTLAppStarterList:
+    Type: Number
+    Description: "TTL in seconds for app starter list cache"
+    Default: 1800
+    MinValue: 60
+    MaxValue: 86400
+    ConstraintDescription: "Must be between 60 and 86400 seconds (1 minute to 24 hours)"
+
+  CacheTTLGitHubRepoList:
+    Type: Number
+    Description: "TTL in seconds for GitHub repository list cache"
+    Default: 1800
+    MinValue: 60
+    MaxValue: 86400
+    ConstraintDescription: "Must be between 60 and 86400 seconds (1 minute to 24 hours)"
+
+  CacheTTLS3BucketList:
+    Type: Number
+    Description: "TTL in seconds for S3 bucket list cache"
+    Default: 1800
+    MinValue: 60
+    MaxValue: 86400
+    ConstraintDescription: "Must be between 60 and 86400 seconds (1 minute to 24 hours)"
+
+  CacheTTLNamespaceList:
+    Type: Number
+    Description: "TTL in seconds for namespace list cache"
+    Default: 1800
+    MinValue: 60
+    MaxValue: 86400
+    ConstraintDescription: "Must be between 60 and 86400 seconds (1 minute to 24 hours)"
+
+  CacheTTLCategoryList:
+    Type: Number
+    Description: "TTL in seconds for category list cache"
+    Default: 1800
+    MinValue: 60
+    MaxValue: 86400
+    ConstraintDescription: "Must be between 60 and 86400 seconds (1 minute to 24 hours)"
+
+  CacheTTLDocumentationIndex:
+    Type: Number
+    Description: "TTL in seconds for documentation index cache"
+    Default: 3600
+    MinValue: 60
+    MaxValue: 86400
+    ConstraintDescription: "Must be between 60 and 86400 seconds (1 minute to 24 hours)"
+
 # =============================================================================
 # MAPPINGS
 # -----------------------------------------------------------------------------
@@ -335,6 +486,7 @@ Conditions:
   HasCacheDataDynamoDbTableName: !Not [!Equals [!Ref CacheDataDynamoDbTableName, ""]]
   HasCacheDataS3BucketName: !Not [!Equals [!Ref CacheDataS3BucketName, ""]]
   HasCacheDataStorageStack: !Not [!And [!Condition HasCacheDataDynamoDbTableName, !Condition HasCacheDataS3BucketName]]
+  HasReadLambdaManagedPolicies: !Not [!Equals [!Join ['', !Ref ReadLambdaExecRoleIncludeManagedPolicyArns], '']]
 
 # =============================================================================
 # GLOBALS
@@ -374,11 +526,16 @@ Resources:
       Name: !Sub '${Prefix}-${ProjectId}-${StageId}-WebApi'
       StageName: !Ref ApiPathBase
 
-      Cors: # Accepted methods are okay from any origin. Our lambda function will handle complex origins for GET and POST requests.
-        AllowMethods: "'GET,OPTIONS'" # Add additional methods such as POST, PUT, DELETE here
+      Cors: # MCP server accepts POST requests from any origin
+        AllowMethods: "'POST,OPTIONS'"
         AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
         AllowOrigin: "'*'"
-        MaxAge: "'86400'" # This is just for the max age of CORS
+        MaxAge: "'86400'"
+
+      # Rate limiting for public access
+      ThrottleSettings:
+        BurstLimit: !Ref PublicRateLimit
+        RateLimit: !Ref PublicRateLimit
 
       DefinitionBody:
         "Fn::Transform":
@@ -428,41 +585,43 @@ Resources:
       RetentionInDays: !If [ IsProduction, !Ref LogRetentionInDaysForPROD,  !Ref LogRetentionInDaysForDEVTEST]
 
   # ---------------------------------------------------------------------------
-  # Lambda
+  # Lambda Functions
   # https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-resource-function.html
   #
 
-  AppFunction:
+  # -- Read Lambda Function (Phase 1) --
+  # Handles all read-only MCP operations with minimal AWS permissions
+
+  ReadLambdaFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub '${Prefix}-${ProjectId}-${StageId}-AppFunction'
-      Description: "Web Service to provide access to APIs"
+      FunctionName: !Sub '${Prefix}-${ProjectId}-${StageId}-ReadFunction'
+      Description: "MCP Server Read-Only Operations - Template discovery, starter code, documentation search"
 
-      VersionDescription: "Web Service Version Notes" # Use this To Overcome AliasLive Update Errors - Rarely need to update
-      AutoPublishCodeSha256: "20260107T150600" # Use this To Overcome AliasLive Update Errors - Rarely need to update
+      VersionDescription: "MCP Server Read Lambda Version"
+      AutoPublishCodeSha256: "20260224T000000"
       AutoPublishAlias: live
 
       DeploymentPreference:
-        Enabled: !If [ IsProduction, True,  False] #Gradual deployment only if in production so DEV and TEST aren't hindered
+        Enabled: !If [ IsProduction, True,  False]
         Type: !If [ IsProduction, !Ref FunctionGradualDeploymentType, "AllAtOnce"]
         Role: !Ref DeployRole
         Alarms:
           Fn::If:
             - CreateAlarms
-            - - !Ref AppFunctionErrorsAlarm
+            - - !Ref ReadLambdaErrorsAlarm
             - - !Ref 'AWS::NoValue'
 
-      CodeUri: src/
+      CodeUri: src/lambda/read/
       Handler: index.handler
-      Runtime: nodejs24.x # https://docs.aws.amazon.com/lambda/latest/dg/lambda-runtimes.html
+      Runtime: nodejs24.x
       Architectures:
-        - !Ref FunctionArchitecture # arm64 has better processing than default x86_64 - but layers and binaries must support
+        - !Ref FunctionArchitecture
       Timeout: !Ref FunctionTimeOutInSeconds
       MemorySize: !Ref FunctionMaxMemoryInMB
-      Role: !GetAtt LambdaExecutionRole.Arn
+      Role: !GetAtt ReadLambdaExecutionRole.Arn
 
       Layers:
-        # Lambda Insights and Param Secrets - ARN is Mapped in as they vary by region and architecture - Update regions and versions in Mapping section
         - !If
           - IsArmArch
           - !FindInMap [LambdaInsightsArm, !Ref 'AWS::Region', ExtArn]
@@ -475,60 +634,130 @@ Resources:
       Environment:
         Variables:
           userAgentIdentifier: !Ref UserAgent
-          lambdaTimeoutInSeconds: !Ref FunctionTimeOutInSeconds # so we can calculate any external connection timeout in our code: 
+          lambdaTimeoutInSeconds: !Ref FunctionTimeOutInSeconds
 
-          NODE_ENV: "production" # We treat everything that is not local development as production
-          DEPLOY_ENVIRONMENT: !Ref DeployEnvironment # PROD, TEST, DEV - a different category of environment
-          LOG_LEVEL: !If [ IsProduction, "INFO", "DEBUG"] # 0-2 (ERROR, WARN, INFO) for prod, 3-5 (MSG, DIAG, DEBUG) for non-prod
-          PARAM_STORE_PATH: !Ref ParameterStoreHierarchy # SSM Parameter store can use a hierarchy to organize your apps parameters
+          NODE_ENV: "production"
+          DEPLOY_ENVIRONMENT: !Ref DeployEnvironment
+          LOG_LEVEL: !Ref LogLevel
+          PARAM_STORE_PATH: !Ref ParameterStoreHierarchy
 
-          PARAMETERS_SECRETS_EXTENSION_LOG_LEVEL: !If [ IsProduction, "INFO", "DEBUG"] # 'DEBUG', 'WARN', 'ERROR', 'NONE', 'INFO'
-          AWS_LAMBDA_LOG_LEVEL: !If [ IsProduction, "INFO", "DEBUG"] # 'DEBUG', 'WARN', 'ERROR', 'INFO' - 'CRITICAL' and 'SILENT' are not currently recognized by Cache Data logging
+          PARAMETERS_SECRETS_EXTENSION_LOG_LEVEL: !If [ IsProduction, "INFO", "DEBUG"]
+          AWS_LAMBDA_LOG_LEVEL: !Ref LogLevel
           AWS_LAMBDA_LOG_FORMAT: 'text'
 
+          # MCP Server Configuration
+          ATLANTIS_S3_BUCKETS: !Join [',', !Ref AtlantisS3Buckets]
+          ATLANTIS_GITHUB_USER_ORGS: !Join [',', !Ref AtlantisGitHubUserOrgs]
+          GITHUB_TOKEN_PARAMETER: !Ref GitHubTokenParameter
+
+          # Cache TTL Settings (in seconds)
+          CACHE_TTL_FULL_TEMPLATE_CONTENT: !Ref CacheTTLFullTemplateContent
+          CACHE_TTL_TEMPLATE_VERSION_HISTORY: !Ref CacheTTLTemplateVersionHistory
+          CACHE_TTL_TEMPLATE_UPDATES: !Ref CacheTTLTemplateUpdates
+          CACHE_TTL_TEMPLATE_LIST: !Ref CacheTTLTemplateList
+          CACHE_TTL_APP_STARTER_LIST: !Ref CacheTTLAppStarterList
+          CACHE_TTL_GITHUB_REPO_LIST: !Ref CacheTTLGitHubRepoList
+          CACHE_TTL_S3_BUCKET_LIST: !Ref CacheTTLS3BucketList
+          CACHE_TTL_NAMESPACE_LIST: !Ref CacheTTLNamespaceList
+          CACHE_TTL_CATEGORY_LIST: !Ref CacheTTLCategoryList
+          CACHE_TTL_DOCUMENTATION_INDEX: !Ref CacheTTLDocumentationIndex
+
           # Cache-Data Settings
-          # If you do not provide these environment variables, cache-data will use the default values (shown below)
-          # CACHE_DATA_DYNAMO_DB_TABLE and CACHE_DATA_S3_BUCKET are required for cache-data to work
-          # See https://github.com/63Klabs/cache-data/blob/main/docs/00-example-implementation/example-template-lambda-function.yml
-          # -- Optional --
-          CACHE_DATA_TIME_ZONE_FOR_INTERVAL: !Ref CacheDataTimeZoneForInterval # Cache-Data may expire using an interval such as every four, six, twelve, ... hours on the hour starting at midnight. What timezone holds the midnight to calculate from?
-          CACHE_DATA_AWS_X_RAY_ON: true # (default is false) Enable X-Ray tracing for Cache-Data 
-          CACHE_DATA_USE_TOOLS_HASH_METHOD: true # (default is false) Use the tools.hash method for generating the URI ID to identify cached requests
-          # -- Required --
+          CACHE_DATA_TIME_ZONE_FOR_INTERVAL: !Ref CacheDataTimeZoneForInterval
+          CACHE_DATA_AWS_X_RAY_ON: true
+          CACHE_DATA_USE_TOOLS_HASH_METHOD: true
           CACHE_DATA_DYNAMO_DB_TABLE: !If 
             - HasCacheDataDynamoDbTableName
             - !Ref CacheDataDynamoDbTableName
             - Fn::ImportValue:
-                'Fn::Sub': '${Prefix}-CacheDataDynamoDbTable' # relies on the Cache Data storage stack output
+                'Fn::Sub': '${Prefix}-CacheDataDynamoDbTable'
           CACHE_DATA_S3_BUCKET: !If 
             - HasCacheDataS3BucketName
             - !Ref CacheDataS3BucketName
             - Fn::ImportValue:
-                'Fn::Sub': '${Prefix}-CacheDataS3Bucket' # relies on the Cache Data storage stack output
+                'Fn::Sub': '${Prefix}-CacheDataS3Bucket'
 
       Events:
-        GetApiData:
+        ListTemplates:
           Type: Api
           Properties:
-            Path: /api/example
-            Method: get
+            Path: /mcp/list_templates
+            Method: post
             RestApiId: !Ref WebApi
-        GetById:
+        GetTemplate:
           Type: Api
           Properties:
-            Path: /api/example/{id}
-            Method: get
+            Path: /mcp/get_template
+            Method: post
+            RestApiId: !Ref WebApi
+        ListStarters:
+          Type: Api
+          Properties:
+            Path: /mcp/list_starters
+            Method: post
+            RestApiId: !Ref WebApi
+        GetStarterInfo:
+          Type: Api
+          Properties:
+            Path: /mcp/get_starter_info
+            Method: post
+            RestApiId: !Ref WebApi
+        SearchDocumentation:
+          Type: Api
+          Properties:
+            Path: /mcp/search_documentation
+            Method: post
+            RestApiId: !Ref WebApi
+        ValidateNaming:
+          Type: Api
+          Properties:
+            Path: /mcp/validate_naming
+            Method: post
+            RestApiId: !Ref WebApi
+        CheckTemplateUpdates:
+          Type: Api
+          Properties:
+            Path: /mcp/check_template_updates
+            Method: post
+            RestApiId: !Ref WebApi
+        ListTemplateVersions:
+          Type: Api
+          Properties:
+            Path: /mcp/list_template_versions
+            Method: post
+            RestApiId: !Ref WebApi
+        ListCategories:
+          Type: Api
+          Properties:
+            Path: /mcp/list_categories
+            Method: post
             RestApiId: !Ref WebApi
 
-  # -- LambdaFunction Execution Role --
-  #    These are the resources your Lambda function needs access to Logs, SSM Parameters, DynamoDb, S3, etc.
-  #    Define specific actions such as get/put (read/write)
+  # -- Write Lambda Function (Phase 2 - Placeholder) --
+  # Uncomment and configure in Phase 2 for write operations
+  # WriteLambdaFunction:
+  #   Type: AWS::Serverless::Function
+  #   Properties:
+  #     FunctionName: !Sub '${Prefix}-${ProjectId}-${StageId}-WriteFunction'
+  #     Description: "MCP Server Write Operations - Repository creation, template modification"
+  #     CodeUri: src/lambda/write/
+  #     Handler: index.handler
+  #     Runtime: nodejs24.x
+  #     Architectures:
+  #       - !Ref FunctionArchitecture
+  #     Timeout: !Ref FunctionTimeOutInSeconds
+  #     MemorySize: !Ref FunctionMaxMemoryInMB
+  #     Role: !GetAtt WriteLambdaExecutionRole.Arn
+  #     # ... additional configuration for write operations
 
-  LambdaExecutionRole:
+  # -- Read Lambda Execution Role --
+  # Minimal permissions: S3 GetObject/ListBucket/GetObjectVersion, DynamoDB read, SSM GetParameter
+
+  ReadLambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub "${Prefix}-${ProjectId}-${StageId}-ExecutionRole"
-      Description: "IAM Role that allows the Lambda permission to execute and access resources"
+      RoleName: !Sub "${Prefix}-${ProjectId}-${StageId}-ReadExecutionRole"
+      Description: "IAM Role for Read Lambda with minimal read-only permissions"
       Path: !Ref RolePath
       PermissionsBoundary: !If [HasPermissionsBoundaryArn, !Ref PermissionsBoundaryArn, !Ref 'AWS::NoValue' ]
 
@@ -539,18 +768,17 @@ Resources:
             Service: [lambda.amazonaws.com]
           Action: sts:AssumeRole
 
-      # Lambda Insights, XRay, and Cache Data have already prepared policies
       ManagedPolicyArns:
         - 'arn:aws:iam::aws:policy/CloudWatchLambdaInsightsExecutionRolePolicy'
         - 'arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess'
-        - Fn::If:
+        - !If
           - HasCacheDataStorageStack
           - Fn::ImportValue:
-              'Fn::Sub': '${Prefix}-CacheDataManagedLambdaExecutionRolePolicy' # relies on the Cache Data storage stack output
-          - !Ref 'AWS::NoValue' # If supplying your own Bucket or Table then you will need to supply your own statements to the execution role (see below)
+              'Fn::Sub': '${Prefix}-CacheDataManagedLambdaExecutionRolePolicy'
+          - !Ref 'AWS::NoValue'
 
       Policies:
-      - PolicyName: LambdaResourceAccessPolicies
+      - PolicyName: ReadLambdaResourceAccessPolicies
         PolicyDocument:
           Statement:
 
@@ -560,7 +788,7 @@ Resources:
             - logs:CreateLogStream
             - logs:PutLogEvents
             Effect: Allow
-            Resource: !GetAtt AppLogGroup.Arn
+            Resource: !GetAtt ReadLambdaLogGroup.Arn
 
           - Sid: LambdaAccessToSSMParameters
             Action:
@@ -571,60 +799,75 @@ Resources:
             Effect: Allow
             Resource: 
             - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${ParameterStoreHierarchy}*"
+            - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${GitHubTokenParameter}"
 
-          # access to cache-data is provided through the Cache-Data managed policy
-          # If you are not using the managed policy provided by a Cache-Data Stack then
-          # You would need to add the S3 and DynamoDb statements here.
-          # See: https://github.com/63Klabs/cache-data/blob/main/docs/00-example-implementation/example-template-lambda-function.yml
+          - Sid: S3ReadOnlyAccess
+            Action:
+            - s3:GetObject
+            - s3:GetObjectVersion
+            - s3:ListBucket
+            - s3:ListBucketVersions
+            - s3:GetBucketTagging
+            Effect: Allow
+            Resource:
+            - !Sub "arn:aws:s3:::*"
+            - !Sub "arn:aws:s3:::*/*"
 
-  # -- Lambda permissions allowing API Gateway to Execute it --
-  #    For gradual deployments to work properly, API Gateway needs permission to invoke both:
-  #    1. $LATEST version (new code during deployment)
-  #    2. :live alias (stable version during traffic shifting)
-  #    Without both permissions, gradual deployments (in production) will fail with permission errors
+          - Sid: DynamoDBReadOnlyAccess
+            Action:
+            - dynamodb:GetItem
+            - dynamodb:Query
+            - dynamodb:Scan
+            - dynamodb:BatchGetItem
+            Effect: Allow
+            Resource:
+            - !If
+              - HasCacheDataDynamoDbTableName
+              - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CacheDataDynamoDbTableName}"
+              - Fn::Sub:
+                - "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${TableName}"
+                - TableName:
+                    Fn::ImportValue: !Sub '${Prefix}-CacheDataDynamoDbTable'
 
-  # Permission for API Gateway to invoke the $LATEST version of the Lambda function
-  # This is used in all environments and during gradual deployments for new code
-  ConfigLambdaPermission:
+  # -- Lambda permissions allowing API Gateway to Execute Read Lambda --
+
+  ReadLambdaPermission:
     Type: "AWS::Lambda::Permission"
     Properties:
       Action: lambda:InvokeFunction
-      FunctionName: !Sub "${AppFunction}"  # References $LATEST by default
+      FunctionName: !Sub "${ReadLambdaFunction}"
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebApi}/*"
 
-  # Permission for API Gateway to invoke the :live alias of the Lambda function
-  # Only created in production where gradual deployments are enabled
-  # During gradual deployment, traffic shifts from :live alias to $LATEST version
-  ConfigLambdaPermissionLive:
+  ReadLambdaPermissionLive:
     Type: "AWS::Lambda::Permission"
-    Condition: IsProduction  # Only needed in production for gradual deployments
+    Condition: IsProduction
     Properties:
       Action: lambda:InvokeFunction
-      FunctionName: !Ref AppFunction.Alias # live
+      FunctionName: !Ref ReadLambdaFunction.Alias
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebApi}/*"
 
-  # -- Log Group with a retention policy --
+  # -- Log Group with retention policy --
 
-  AppLogGroup:
+  ReadLambdaLogGroup:
     Type: AWS::Logs::LogGroup
     DeletionPolicy: !If [IsProduction, Retain, Delete]
     UpdateReplacePolicy: Retain
     Properties: 
-      LogGroupName: !Sub '/aws/lambda/${Prefix}-${ProjectId}-${StageId}-AppFunction' # Avoid circular reference !Sub "/aws/lambda/${AppFunction}"
+      LogGroupName: !Sub '/aws/lambda/${Prefix}-${ProjectId}-${StageId}-ReadFunction'
       RetentionInDays: !If [ IsProduction, !Ref LogRetentionInDaysForPROD,  !Ref LogRetentionInDaysForDEVTEST]
 
   # ---------------------------------------------------------------------------
   # CloudWatch Alarms and Dashboards
 
-  # -- Lambda Function Error Alarm --
+  # -- Read Lambda Function Error Alarm --
 
-  AppFunctionErrorsAlarm:
+  ReadLambdaErrorsAlarm:
     Type: "AWS::CloudWatch::Alarm"
     Condition: CreateAlarms # Either PROD or ALWAYS - Check Conditions
     Properties:
-      AlarmDescription: Lambda Function Error > 1
+      AlarmDescription: Read Lambda Function Error > 1
       MetricName: Errors
       Statistic: Sum
       ComparisonOperator: GreaterThanThreshold
@@ -635,13 +878,13 @@ Resources:
       Namespace: AWS/Lambda
       Dimensions:
         - Name: FunctionName
-          Value: !Ref AppFunction
+          Value: !Ref ReadLambdaFunction
       AlarmActions:
-        - Ref: AppFunctionErrorAlarmNotification
+        - Ref: ReadLambdaErrorAlarmNotification
 
-  # -- Lambda Function Notification for Error Alarm --
+  # -- Read Lambda Function Notification for Error Alarm --
 
-  AppFunctionErrorAlarmNotification:
+  ReadLambdaErrorAlarmNotification:
       Type: AWS::SNS::Topic
       Condition: CreateAlarms # Either PROD or ALWAYS - Check Conditions
       Properties: 
@@ -702,15 +945,15 @@ Resources:
 
 Outputs:
 
-  # -- Endpoint examples
+  # -- MCP Endpoint examples
   ApiEndpoint:
-    Description: "Endpoint URL"
-    Value: !Sub "https://${WebApi}.execute-api.${AWS::Region}.amazonaws.com/${ApiPathBase}/api/example/" # change to your endpoint
+    Description: "MCP Server API Endpoint URL"
+    Value: !Sub "https://${WebApi}.execute-api.${AWS::Region}.amazonaws.com/${ApiPathBase}/mcp/"
 
   # -- CloudWatch Log Groups
-  CloudWatchLambdaExecutionLogGroup:
-    Description: "Cloud Watch Log Group for Lambda Execution Logs"
-    Value: !Sub "https://console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#logStream:group=%2Faws%2Flambda%2F${AppFunction}"
+  CloudWatchReadLambdaExecutionLogGroup:
+    Description: "Cloud Watch Log Group for Read Lambda Execution Logs"
+    Value: !Sub "https://console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#logStream:group=%2Faws%2Flambda%2F${ReadLambdaFunction}"
 
   CloudWatchApiGatewayExecutionLogGroup:
     Condition: ApiGatewayLoggingIsEnabled
@@ -728,9 +971,9 @@ Outputs:
     Value: !Sub 'https://console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=${Prefix}-${ProjectId}-${StageId}-Dashboard'
 
   # -- Resource quick links
-  LambdaWebConsole:
-    Description: "Lambda Web Console"
-    Value: !Sub "https://console.aws.amazon.com/lambda/home?region=${AWS::Region}#/functions/${AppFunction}?tab=code"
+  ReadLambdaWebConsole:
+    Description: "Read Lambda Web Console"
+    Value: !Sub "https://console.aws.amazon.com/lambda/home?region=${AWS::Region}#/functions/${ReadLambdaFunction}?tab=code"
 
   ParameterStore:
     Description: "SSM Parameter Store"

@@ -1,0 +1,336 @@
+/**
+ * Configuration settings for Atlantis MCP Server Read Lambda
+ * 
+ * This module parses environment variables and provides structured configuration
+ * for S3 buckets, GitHub organizations, cache TTLs, and template categories.
+ * 
+ * @module config/settings
+ */
+
+/**
+ * Parse comma-delimited environment variable into array
+ * 
+ * @param {string} envVar - Environment variable name
+ * @param {Array<string>} defaultValue - Default value if not set
+ * @returns {Array<string>} Parsed array of values
+ */
+function parseCommaSeparated(envVar, defaultValue = []) {
+  const value = process.env[envVar];
+  if (!value || value.trim() === '') {
+    return defaultValue;
+  }
+  return value.split(',').map(item => item.trim()).filter(item => item.length > 0);
+}
+
+/**
+ * Parse TTL value from environment variable
+ * 
+ * @param {string} envVar - Environment variable name
+ * @param {number} defaultValue - Default TTL in seconds
+ * @returns {number} TTL in seconds
+ */
+function parseTTL(envVar, defaultValue) {
+  const value = process.env[envVar];
+  if (!value) {
+    return defaultValue;
+  }
+  const parsed = parseInt(value, 10);
+  if (isNaN(parsed) || parsed < 0) {
+    console.warn(`Invalid TTL value for ${envVar}: ${value}, using default: ${defaultValue}`);
+    return defaultValue;
+  }
+  return parsed;
+}
+
+/**
+ * Template categories supported by Atlantis platform
+ * @constant
+ */
+const TEMPLATE_CATEGORIES = [
+  {
+    name: 'Storage',
+    description: 'S3 buckets, DynamoDB tables, and data storage resources'
+  },
+  {
+    name: 'Network',
+    description: 'CloudFront distributions, Route53, VPC, and networking resources'
+  },
+  {
+    name: 'Pipeline',
+    description: 'CodePipeline, CodeBuild, and CI/CD infrastructure'
+  },
+  {
+    name: 'Service Role',
+    description: 'IAM roles and policies for AWS services'
+  },
+  {
+    name: 'Modules',
+    description: 'Reusable CloudFormation definitions and nested stacks'
+  }
+];
+
+/**
+ * Application settings object
+ * Organized into logical sections for S3, GitHub, cache, logging, and naming
+ */
+const settings = {
+  // S3 Configuration
+  s3: {
+    /**
+     * List of S3 buckets to search for templates and starters
+     * Parsed from ATLANTIS_S3_BUCKETS environment variable
+     * @type {Array<string>}
+     */
+    buckets: parseCommaSeparated('ATLANTIS_S3_BUCKETS', []),
+    
+    /**
+     * S3 path prefix for templates
+     * @type {string}
+     */
+    templatePrefix: 'templates/v2',
+    
+    /**
+     * S3 path prefix for app starters
+     * @type {string}
+     */
+    starterPrefix: 'app-starters/v2'
+  },
+
+  // GitHub Configuration
+  github: {
+    /**
+     * List of GitHub users/organizations to search for repositories
+     * Parsed from ATLANTIS_GITHUB_USER_ORGS environment variable
+     * @type {Array<string>}
+     */
+    userOrgs: parseCommaSeparated('ATLANTIS_GITHUB_USER_ORGS', []),
+    
+    /**
+     * GitHub custom property name for repository type
+     * @type {string}
+     */
+    repositoryTypeProperty: 'atlantis_repository-type',
+    
+    /**
+     * Valid repository type values
+     * @type {Array<string>}
+     */
+    validRepositoryTypes: [
+      'documentation',
+      'app-starter',
+      'templates',
+      'management',
+      'package',
+      'mcp'
+    ]
+  },
+
+  // Cache Configuration
+  cache: {
+    /**
+     * Cache TTL values in seconds for different resource types
+     */
+    ttl: {
+      /**
+       * TTL for full template content (default: 3600s = 1 hour)
+       * @type {number}
+       */
+      fullTemplateContent: parseTTL('TTL_FULL_TEMPLATE_CONTENT', 3600),
+      
+      /**
+       * TTL for template version history (default: 3600s = 1 hour)
+       * @type {number}
+       */
+      templateVersionHistory: parseTTL('TTL_TEMPLATE_VERSION_HISTORY', 3600),
+      
+      /**
+       * TTL for template update information (default: 3600s = 1 hour)
+       * @type {number}
+       */
+      templateUpdates: parseTTL('TTL_TEMPLATE_UPDATES', 3600),
+      
+      /**
+       * TTL for template list (default: 1800s = 30 minutes)
+       * @type {number}
+       */
+      templateList: parseTTL('TTL_TEMPLATE_LIST', 1800),
+      
+      /**
+       * TTL for app starter list (default: 1800s = 30 minutes)
+       * @type {number}
+       */
+      appStarterList: parseTTL('TTL_APP_STARTER_LIST', 1800),
+      
+      /**
+       * TTL for GitHub repository list (default: 1800s = 30 minutes)
+       * @type {number}
+       */
+      githubRepoList: parseTTL('TTL_GITHUB_REPO_LIST', 1800),
+      
+      /**
+       * TTL for S3 bucket list (default: 1800s = 30 minutes)
+       * @type {number}
+       */
+      s3BucketList: parseTTL('TTL_S3_BUCKET_LIST', 1800),
+      
+      /**
+       * TTL for namespace list (default: 1800s = 30 minutes)
+       * @type {number}
+       */
+      namespaceList: parseTTL('TTL_NAMESPACE_LIST', 1800),
+      
+      /**
+       * TTL for category list (default: 1800s = 30 minutes)
+       * @type {number}
+       */
+      categoryList: parseTTL('TTL_CATEGORY_LIST', 1800),
+      
+      /**
+       * TTL for documentation index (default: 3600s = 1 hour)
+       * @type {number}
+       */
+      documentationIndex: parseTTL('TTL_DOCUMENTATION_INDEX', 3600)
+    },
+    
+    /**
+     * DynamoDB table name for cache storage
+     * @type {string}
+     */
+    dynamoDbTable: process.env.CACHE_DYNAMODB_TABLE || '',
+    
+    /**
+     * S3 bucket name for cache storage
+     * @type {string}
+     */
+    s3Bucket: process.env.CACHE_S3_BUCKET || ''
+  },
+
+  // Logging Configuration
+  logging: {
+    /**
+     * Log level (ERROR, WARN, INFO, DEBUG)
+     * @type {string}
+     */
+    level: process.env.LOG_LEVEL || 'INFO',
+    
+    /**
+     * Whether to enable verbose logging
+     * @type {boolean}
+     */
+    verbose: process.env.LOG_VERBOSE === 'true'
+  },
+
+  // Naming Convention Configuration
+  naming: {
+    /**
+     * Application resource naming pattern
+     * @type {string}
+     */
+    applicationResourcePattern: '<Prefix>-<ProjectId>-<StageId>-<ResourceName>',
+    
+    /**
+     * S3 bucket naming pattern (primary)
+     * @type {string}
+     */
+    s3BucketPattern: '<orgPrefix>-<Prefix>-<ProjectId>-<StageId>-<Region>-<AccountId>',
+    
+    /**
+     * S3 bucket naming pattern (alternative)
+     * @type {string}
+     */
+    s3BucketPatternAlt: '<orgPrefix>-<Prefix>-<ProjectId>-<Region>',
+    
+    /**
+     * CloudFormation parameters
+     */
+    parameters: {
+      prefix: process.env.PREFIX || '',
+      projectId: process.env.PROJECT_ID || '',
+      stageId: process.env.STAGE_ID || ''
+    }
+  },
+
+  // Template Categories
+  templates: {
+    /**
+     * Available template categories
+     * @type {Array<{name: string, description: string}>}
+     */
+    categories: TEMPLATE_CATEGORIES,
+    
+    /**
+     * Get category names only
+     * @returns {Array<string>} Array of category names
+     */
+    getCategoryNames() {
+      return TEMPLATE_CATEGORIES.map(cat => cat.name);
+    },
+    
+    /**
+     * Get category by name
+     * @param {string} name - Category name
+     * @returns {Object|null} Category object or null if not found
+     */
+    getCategory(name) {
+      return TEMPLATE_CATEGORIES.find(cat => cat.name === name) || null;
+    }
+  },
+
+  // AWS Configuration
+  aws: {
+    /**
+     * AWS region
+     * @type {string}
+     */
+    region: process.env.AWS_REGION || 'us-east-1',
+    
+    /**
+     * SSM parameter name for GitHub token
+     * @type {string}
+     */
+    githubTokenParameter: process.env.GITHUB_TOKEN_PARAMETER || '/atlantis-mcp/github-token'
+  },
+
+  // Rate Limiting Configuration
+  rateLimit: {
+    /**
+     * Public rate limit (requests per hour per IP)
+     * @type {number}
+     */
+    publicLimit: parseInt(process.env.PUBLIC_RATE_LIMIT || '100', 10)
+  }
+};
+
+/**
+ * Validate settings on module load
+ * Logs warnings for missing required configuration
+ */
+function validateSettings() {
+  const warnings = [];
+  
+  if (settings.s3.buckets.length === 0) {
+    warnings.push('ATLANTIS_S3_BUCKETS not configured - template discovery will be limited');
+  }
+  
+  if (settings.github.userOrgs.length === 0) {
+    warnings.push('ATLANTIS_GITHUB_USER_ORGS not configured - repository discovery will be limited');
+  }
+  
+  if (!settings.cache.dynamoDbTable) {
+    warnings.push('CACHE_DYNAMODB_TABLE not configured - DynamoDB caching disabled');
+  }
+  
+  if (!settings.cache.s3Bucket) {
+    warnings.push('CACHE_S3_BUCKET not configured - S3 caching disabled');
+  }
+  
+  if (warnings.length > 0) {
+    console.warn('Configuration warnings:');
+    warnings.forEach(warning => console.warn(`  - ${warning}`));
+  }
+}
+
+// Validate settings on module load
+validateSettings();
+
+module.exports = settings;

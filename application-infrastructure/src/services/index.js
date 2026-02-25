@@ -1,5 +1,2 @@
-const ExampleSvc = require("./example.service");
-
-module.exports = {
-	ExampleSvc
-};
+// Services will be added here as they are implemented
+module.exports = {};

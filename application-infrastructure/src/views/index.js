@@ -1,5 +1,2 @@
-const ExampleView = require("./example.view");
-
-module.exports = {
-	ExampleView
-};
+// Views will be added here as they are implemented
+module.exports = {};

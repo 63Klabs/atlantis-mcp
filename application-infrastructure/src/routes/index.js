@@ -27,37 +27,52 @@ const process = async function(event, context) {
 
 	try {
 		
-
 		if (REQ.isValid()) {
 			/*
-			Logic for routing to appropriate controller goes here
-			Try to keep it to just the method, path, and path variables (or a common query string parameter)
-			Handle further routing in the controller
-			
-			Use if, switch/case, or a combination against method, path, and querystring routers.
+			MCP Protocol Routing
+			Extract MCP tool name from request and route to appropriate controller
 			*/
 
 			const props = REQ.getProps();
 
-			REQ.addPathLog(); // we can do this here because we are using simple routing
+			REQ.addPathLog();
 
-			// Use any number of evaluations for routing, but keep it simple and organized
-			if (props.method !== "GET") {
-				return RESP.reset({statusCode: 405}); // we only allow GET (for now)
+			// MCP tools are accessed via POST requests
+			if (props.method !== "POST") {
+				return RESP.reset({statusCode: 405}); // MCP protocol uses POST
 			}
 
-			const route = `${props.method}:${props.resource}`
-			DebugAndLog.debug(`Routing to: ${route}`);
+			// Extract tool name from request body
+			const tool = props.body?.tool || props.queryStringParameters?.tool;
+			
+			if (!tool) {
+				return RESP.reset({statusCode: 400, body: { error: 'Missing tool parameter' }});
+			}
 
-			switch (route) {
-				case "GET:api/example":
-					RESP.setBody( await Controllers.ExampleCtrl.get(props));
-					break;
-				case"GET:api/example/{id}":
-					RESP.setBody( await Controllers.ExampleCtrl.get(props));
+			DebugAndLog.debug(`Routing to MCP tool: ${tool}`);
+
+			// Route to appropriate controller based on MCP tool name
+			// Controllers will be implemented in subsequent tasks
+			switch (tool) {
+				// Template operations
+				case "list_templates":
+				case "get_template":
+				case "list_template_versions":
+				case "list_categories":
+				// Starter operations
+				case "list_starters":
+				case "get_starter_info":
+				// Documentation operations
+				case "search_documentation":
+				// Validation operations
+				case "validate_naming":
+				// Update operations
+				case "check_template_updates":
+					// Controllers not yet implemented
+					RESP.reset({statusCode: 501, body: { error: 'Tool not yet implemented' }});
 					break;
 				default:
-					RESP.reset({statusCode: 404});
+					RESP.reset({statusCode: 404, body: { error: 'Unknown tool' }});
 					break;
 			}
 
