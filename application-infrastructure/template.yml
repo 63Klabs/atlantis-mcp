@@ -532,10 +532,12 @@ Resources:
         AllowOrigin: "'*'"
         MaxAge: "'86400'"
 
-      # Rate limiting for public access
-      ThrottleSettings:
-        BurstLimit: !Ref PublicRateLimit
-        RateLimit: !Ref PublicRateLimit
+      # Configure throttling via MethodSettings (SAM-supported approach)
+      MethodSettings:
+        - ResourcePath: '/*'
+          HttpMethod: '*'
+          ThrottlingBurstLimit: !Ref PublicRateLimit
+          ThrottlingRateLimit: !Ref PublicRateLimit
 
       DefinitionBody:
         "Fn::Transform":
@@ -583,6 +585,52 @@ Resources:
     Properties:
       LogGroupName: !Sub 'API-Gateway-Execution-Logs_${WebApi}/${ApiPathBase}' # AWS default
       RetentionInDays: !If [ IsProduction, !Ref LogRetentionInDaysForPROD,  !Ref LogRetentionInDaysForDEVTEST]
+
+  # ---------------------------------------------------------------------------
+  # API Gateway Usage Plan for Rate Limiting
+  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-apigateway-usageplan.html
+  #
+  # Note: SAM creates implicit Stage and Deployment resources. We reference them using
+  # the logical ID pattern: {ApiLogicalId}{StageName}Stage
+  #
+
+  # -- API Key for Public Access --
+  MCPPublicApiKey:
+    Type: AWS::ApiGateway::ApiKey
+    DependsOn: 
+      - WebApi
+      - WebApiApiPathBaseStage
+    Properties:
+      Name: !Sub '${Prefix}-${ProjectId}-${StageId}-MCP-Public-Key'
+      Description: "API Key for public MCP server access with rate limiting"
+      Enabled: true
+
+  # -- Usage Plan with Rate Limiting --
+  MCPPublicUsagePlan:
+    Type: AWS::ApiGateway::UsagePlan
+    DependsOn:
+      - WebApi
+      - WebApiApiPathBaseStage
+    Properties:
+      UsagePlanName: !Sub '${Prefix}-${ProjectId}-${StageId}-MCP-Public-Plan'
+      Description: "Usage plan for public MCP server access with rate limiting"
+      ApiStages:
+        - ApiId: !Ref WebApi
+          Stage: !Ref ApiPathBase
+      Throttle:
+        BurstLimit: !Ref PublicRateLimit
+        RateLimit: !Ref PublicRateLimit
+      Quota:
+        Limit: !Ref PublicRateLimit
+        Period: HOUR
+
+  # -- Associate API Key with Usage Plan --
+  MCPUsagePlanKey:
+    Type: AWS::ApiGateway::UsagePlanKey
+    Properties:
+      KeyId: !Ref MCPPublicApiKey
+      KeyType: API_KEY
+      UsagePlanId: !Ref MCPPublicUsagePlan
 
   # ---------------------------------------------------------------------------
   # Lambda Functions
