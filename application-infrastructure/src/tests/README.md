@@ -88,6 +88,90 @@ test('should get parameter from SSM', async () => {
 });
 ```
 
+## Testing Config Module
+
+### Config.settings() Pattern
+
+The Config module uses a getter pattern for accessing settings. Tests should:
+
+1. Call `Config.init()` in `beforeAll()` or `beforeEach()`
+2. Access settings via `Config.settings()` getter
+3. Mock settings by spying on the getter
+
+Example:
+
+```javascript
+const { Config } = require('../lambda/read/config');
+
+beforeAll(async () => {
+  await Config.init();
+});
+
+test('should access settings', () => {
+  const settings = Config.settings();
+  expect(settings.s3.buckets).toBeDefined();
+});
+```
+
+### Mocking Config.settings()
+
+To mock settings in tests:
+
+```javascript
+const { Config } = require('../lambda/read/config');
+
+// Spy on the settings getter
+jest.spyOn(Config, 'settings', 'get').mockReturnValue({
+  s3: { buckets: ['test-bucket'] },
+  github: { userOrgs: ['test-org'] },
+  rateLimits: {
+    public: { limit: 100, window: 3600 }
+  }
+});
+
+// Restore after test
+afterEach(() => {
+  jest.restoreAllMocks();
+});
+```
+
+### Testing CachedSSMParameter
+
+The `settings.github.token` is a CachedSSMParameter instance. To test:
+
+```javascript
+const { CachedSSMParameter } = require('@63klabs/cache-data');
+
+test('should use CachedSSMParameter for token', () => {
+  const settings = Config.settings();
+  expect(settings.github.token).toBeInstanceOf(CachedSSMParameter);
+});
+```
+
+### Integration Testing Config
+
+Integration tests should verify:
+
+1. Config.init() completes successfully
+2. Config.getConnCacheProfile() returns valid profiles
+3. Settings structure is complete and valid
+4. CachedSSMParameter instances work correctly
+
+Example:
+
+```javascript
+describe('Config Integration', () => {
+  beforeAll(async () => {
+    await Config.init();
+  });
+
+  test('should retrieve connection profiles', () => {
+    const profile = Config.getConnCacheProfile('s3-templates', 'templates-list');
+    expect(profile.defaultExpirationInSeconds).toBeGreaterThan(0);
+  });
+});
+```
+
 ## Best Practices
 
 1. **Reset mocks between tests** - Use `beforeEach()` to reset mocks
@@ -95,6 +179,8 @@ test('should get parameter from SSM', async () => {
 3. **Test business logic** - Focus on your code, not AWS SDK behavior
 4. **Use descriptive test names** - Make it clear what each test validates
 5. **Keep tests isolated** - Each test should be independent
+6. **Initialize Config before use** - Always call `Config.init()` before accessing settings
+7. **Mock Config.settings() properly** - Use `jest.spyOn()` on the getter, not the module
 
 ## Coverage
 

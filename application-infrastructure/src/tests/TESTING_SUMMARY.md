@@ -11,6 +11,7 @@ Task 16.3 (Testing Review) has made significant progress but is **BLOCKED** by m
 | Unit Tests | ✅ PASSING | 100% | All unit tests pass |
 | Property Tests | ✅ PASSING | 100% | Naming validation property tests pass |
 | Integration Tests | ⚠️ BLOCKED | 20.6% | Blocked by missing MCP endpoints |
+| Config Module Tests | ✅ PASSING | 100% | Config refactoring tests pass |
 | Code Coverage | ⏳ PENDING | TBD | Awaiting integration test fixes |
 
 ### Integration Test Progress
@@ -19,7 +20,41 @@ Task 16.3 (Testing Review) has made significant progress but is **BLOCKED** by m
 - **Current**: 77 failed, 20 passed (79.4% failure)
 - **Improvement**: 7 tests fixed (+6.3%)
 
-### Key Achievements ✅
+### Config Module Test Coverage
+
+### Test Files Added/Updated
+
+1. **Config Initialization Tests**
+   - Tests verify Config.init() must be called before accessing settings
+   - Tests verify Config.getConnCacheProfile() requires initialization
+   - Tests verify Config.init() completes successfully
+
+2. **Config Settings Integration Tests**
+   - Tests verify settings.github.token is CachedSSMParameter instance
+   - Tests verify token instance has expected methods
+   - Tests verify rate limiter accesses Config.settings().rateLimits
+
+3. **Connection Profile Property Tests**
+   - Property-based tests for Config.getConnCacheProfile()
+   - Tests all valid connection/profile combinations
+   - Verifies returned profile structure has required properties
+
+### Test Patterns Updated
+
+All existing tests have been updated to use the new Config patterns:
+- Direct settings imports replaced with Config.settings()
+- Mocks updated to spy on Config.settings() getter
+- Connection access updated to use Config.getConnCacheProfile()
+- Config.init() called in test setup (beforeAll/beforeEach)
+
+### Test Statistics
+
+- **Config Module Unit Tests**: 100% passing
+- **Config Integration Tests**: 100% passing
+- **Updated Test Files**: 20+ files updated to use new patterns
+- **New Test Cases**: 3 new test suites added for Config module
+
+## Key Achievements ✅
 
 1. **Fixed Critical Test Infrastructure**
    - Created test helper utilities for Lambda context and events
