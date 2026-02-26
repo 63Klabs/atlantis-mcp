@@ -240,7 +240,7 @@ Edit `config-mcp-server-prod.json`:
     "AtlantisS3Buckets": "acme-atlantis-templates-us-east-1,acme-finance-templates-us-east-1",
     "AtlantisGitHubUserOrgs": "acme-org,63klabs",
     "PublicRateLimit": "100",
-    "GitHubTokenParameter": "/atlantis/mcp/github-token",
+    "GitHubToken": "/atlantis/mcp/github-token",
     "LogLevel": "INFO",
     "ReadLambdaExecRoleIncludeManagedPolicyArns": "",
     "CacheTTLTemplateList": "3600",

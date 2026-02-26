@@ -45,7 +45,7 @@ This report documents the comprehensive security validation performed on the Atl
   Effect: Allow
   Resource:
     - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${ParameterStoreHierarchy}*"
-    - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${GitHubTokenParameter}"
+    - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${GitHubToken}"
 ```
 ✅ **COMPLIANT** - Scoped to specific parameter paths only
 
@@ -147,7 +147,7 @@ Environment:
     # MCP Server Configuration (Non-Sensitive)
     ATLANTIS_S3_BUCKETS: !Join [',', !Ref AtlantisS3Buckets]
     ATLANTIS_GITHUB_USER_ORGS: !Join [',', !Ref AtlantisGitHubUserOrgs]
-    GITHUB_TOKEN_PARAMETER: !Ref GitHubTokenParameter  # ✅ Path only, not token
+    GITHUB_TOKEN_PARAMETER: !Ref GitHubToken  # ✅ Path only, not token
     
     # Cache TTL Settings (Non-Sensitive)
     CACHE_TTL_FULL_TEMPLATE_CONTENT: !Ref CacheTTLFullTemplateContent
@@ -178,7 +178,7 @@ Environment:
 The application correctly uses SSM Parameter Store paths:
 
 ```yaml
-GITHUB_TOKEN_PARAMETER: !Ref GitHubTokenParameter  # "/atlantis-mcp/github/token"
+GITHUB_TOKEN_PARAMETER: !Ref GitHubToken  # "/atlantis-mcp/github/token"
 ```
 
 This stores the **path** to the secret, not the secret itself. The actual token is retrieved at runtime via SSM API.
@@ -197,7 +197,7 @@ This stores the **path** to the secret, not the secret itself. The actual token 
 
 ```javascript
 async function loadGitHubToken() {
-  const parameterName = settings.aws.githubTokenParameter;
+  const parameterName = settings.github.token;
 
   if (!parameterName) {
     DebugAndLog.warn('GitHub token parameter name not configured');

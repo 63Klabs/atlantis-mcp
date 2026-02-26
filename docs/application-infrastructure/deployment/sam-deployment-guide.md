@@ -60,9 +60,9 @@ Before deploying, you MUST update the following parameters in your samconfig fil
    AtlantisGitHubUserOrgs=63Klabs,myorg,myuser
    ```
 
-8. **GitHubTokenParameter**: SSM Parameter Store path for GitHub token
+8. **GitHubToken**: SSM Parameter Store path for GitHub token
    ```
-   GitHubTokenParameter=/atlantis-mcp/github/token
+   GitHubToken=/atlantis-mcp/github/token
    ```
    - Token must have `repo` and `read:org` scopes
    - Store token in SSM Parameter Store before deployment

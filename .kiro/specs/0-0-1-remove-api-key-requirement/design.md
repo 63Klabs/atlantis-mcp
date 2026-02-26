@@ -309,7 +309,7 @@ Metadata:
           - AtlantisGitHubUserOrgs
           - PublicRateLimit  # REMOVE THIS LINE
           - ReadLambdaExecRoleIncludeManagedPolicyArns
-          - GitHubTokenParameter
+          - GitHubToken
           - LogLevel
 ```
 
@@ -327,7 +327,7 @@ Metadata:
           - AtlantisS3Buckets
           - AtlantisGitHubUserOrgs
           - ReadLambdaExecRoleIncludeManagedPolicyArns
-          - GitHubTokenParameter
+          - GitHubToken
           - LogLevel
 ```
 

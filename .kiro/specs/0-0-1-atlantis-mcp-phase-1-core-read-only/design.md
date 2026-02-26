@@ -2591,7 +2591,7 @@ Parameters:
     Description: "Cache TTL for documentation index (seconds)"
     Default: 21600  # 6 hours
     
-  GitHubTokenParameter:
+  GitHubToken:
     Type: String
     Description: "SSM parameter name for GitHub access token (optional)"
     Default: ""
@@ -3329,7 +3329,7 @@ Environment:
     ATLANTIS_FULL_TEMPLATE_CONTENT_TTL: !Ref AtlantisFullTemplateContentTTL
     
     # GitHub token (optional)
-    GITHUB_TOKEN_PARAMETER: !Ref GitHubTokenParameter
+    GITHUB_TOKEN_PARAMETER: !Ref GitHubToken
     
     # Naming convention
     NAMING_PREFIX: !Ref Prefix
@@ -3808,7 +3808,7 @@ aws lambda update-alias \
 - Add `AtlantisTemplateCacheTTL`
 - Add `AtlantisStarterCacheTTL`
 - Add `AtlantisDocumentationCacheTTL`
-- Add `GitHubTokenParameter`
+- Add `GitHubToken`
 
 **Environment Variables**:
 - Add `ATLANTIS_S3_BUCKETS`

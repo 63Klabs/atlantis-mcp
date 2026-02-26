@@ -250,7 +250,7 @@ Update your CloudFormation configuration to reference the SSM parameter:
 
 ```yaml
 Parameters:
-  GitHubTokenParameter: /atlantis/mcp/github-token
+  GitHubToken: /atlantis/mcp/github-token
 ```
 
 The Lambda function will retrieve the token at runtime using:
@@ -495,10 +495,10 @@ Update CloudFormation configuration per environment:
 
 ```yaml
 # test environment
-GitHubTokenParameter: /atlantis/mcp/test/github-token
+GitHubToken: /atlantis/mcp/test/github-token
 
 # prod environment
-GitHubTokenParameter: /atlantis/mcp/prod/github-token
+GitHubToken: /atlantis/mcp/prod/github-token
 ```
 
 ---

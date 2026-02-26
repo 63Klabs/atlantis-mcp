@@ -180,7 +180,7 @@ Reference the SSM parameter in your CloudFormation template:
 
 ```yaml
 Parameters:
-  GitHubTokenParameter:
+  GitHubToken:
     Type: String
     Default: "/atlantis/mcp/github-token"
     Description: SSM Parameter Store path for GitHub token
@@ -191,7 +191,7 @@ Resources:
     Properties:
       Environment:
         Variables:
-          GITHUB_TOKEN_PARAMETER: !Ref GitHubTokenParameter
+          GITHUB_TOKEN_PARAMETER: !Ref GitHubToken
 ```
 
 See [GitHub Token Setup](./github-token-setup.md) for detailed instructions.

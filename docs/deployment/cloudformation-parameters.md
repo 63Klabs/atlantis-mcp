@@ -155,7 +155,7 @@ AtlantisGitHubUserOrgs: 63klabs,acme-org,finance-team
 
 ---
 
-### GitHubTokenParameter
+### GitHubToken
 
 **Type:** String  
 **Required:** Yes (for private repositories)  
@@ -170,7 +170,7 @@ AtlantisGitHubUserOrgs: 63klabs,acme-org,finance-team
 
 **Example Values:**
 ```yaml
-GitHubTokenParameter: /atlantis/mcp/github-token
+GitHubToken: /atlantis/mcp/github-token
 ```
 
 **Creating the Parameter:**
@@ -475,7 +475,7 @@ AtlantisS3Buckets: acme-atlantis-templates-us-east-1,acme-finance-templates-us-e
 
 # GitHub Configuration
 AtlantisGitHubUserOrgs: 63klabs,acme-org
-GitHubTokenParameter: /atlantis/mcp/github-token
+GitHubToken: /atlantis/mcp/github-token
 
 # Rate Limiting
 PublicRateLimit: 500
@@ -512,7 +512,7 @@ AtlantisS3Buckets: acme-atlantis-templates-us-east-1,acme-finance-templates-us-e
 
 # GitHub Configuration
 AtlantisGitHubUserOrgs: 63klabs,acme-org
-GitHubTokenParameter: /atlantis/mcp/github-token
+GitHubToken: /atlantis/mcp/github-token
 
 # Rate Limiting
 PublicRateLimit: 1000

@@ -768,7 +768,6 @@ Resources:
             Effect: Allow
             Resource: 
             - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${ParameterStoreHierarchy}*"
-            - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${GitHubTokenParameter}"
 
           - Sid: S3ReadOnlyAccess
             Action:

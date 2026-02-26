@@ -139,7 +139,7 @@ Edit `config-mcp-server-test.json` with your deployment parameters:
     "AtlantisS3Buckets": "acme-atlantis-templates-us-east-1,acme-finance-templates-us-east-1",
     "AtlantisGitHubUserOrgs": "63klabs,acme-org",
     "PublicRateLimit": "100",
-    "GitHubTokenParameter": "/atlantis/mcp/github-token",
+    "GitHubToken": "/atlantis/mcp/github-token",
     "LogLevel": "INFO",
     "ReadLambdaExecRoleIncludeManagedPolicyArns": "",
     "CacheTTLTemplateList": "3600",
@@ -169,7 +169,7 @@ Edit `config-mcp-server-test.json` with your deployment parameters:
 - **AtlantisS3Buckets**: Comma-delimited list of S3 buckets containing templates and starters
 - **AtlantisGitHubUserOrgs**: Comma-delimited list of GitHub users/organizations
 - **PublicRateLimit**: Requests per hour per IP (default: 100)
-- **GitHubTokenParameter**: SSM Parameter Store path for GitHub token
+- **GitHubToken**: SSM Parameter Store path for GitHub token
 - **LogLevel**: Logging level (ERROR, WARN, INFO, DEBUG, DIAG)
 - **ReadLambdaExecRoleIncludeManagedPolicyArns**: Additional managed policy ARNs (comma-delimited)
 - **CacheTTL***: Cache TTL values in seconds for each resource type

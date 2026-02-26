@@ -42,7 +42,7 @@ The test branch deploys to the TEST environment with the following characteristi
     "AtlantisS3Buckets": "test-bucket-1,test-bucket-2",
     "AtlantisGitHubUserOrgs": "63Klabs",
     "PublicRateLimit": 100,
-    "GitHubTokenParameter": "/atlantis-mcp/test/github/token"
+    "GitHubToken": "/atlantis-mcp/test/github/token"
   }
 }
 ```
@@ -74,7 +74,7 @@ The main branch deploys to the PROD environment with the following characteristi
     "AtlantisS3Buckets": "prod-bucket-1,prod-bucket-2",
     "AtlantisGitHubUserOrgs": "63Klabs",
     "PublicRateLimit": 100,
-    "GitHubTokenParameter": "/atlantis-mcp/prod/github/token"
+    "GitHubToken": "/atlantis-mcp/prod/github/token"
   }
 }
 ```

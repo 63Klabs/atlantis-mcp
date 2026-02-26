@@ -475,7 +475,7 @@ The MCP server follows Atlantis deployment patterns, using the atlantis-starter-
 4. THE MCP_Server SHALL accept a ReadLambdaExecRoleIncludeManagedPolicyArns parameter (CommaDelimitedList) for attaching additional managed policies to Read Lambda execution role
 5. THE ReadLambdaExecRoleIncludeManagedPolicyArns parameter SHALL follow the pattern from Atlantis templates with proper validation
 6. THE MCP_Server SHALL accept CacheTTL parameters for each resource type (templates, starters, documentation)
-7. THE MCP_Server SHALL accept a GitHubTokenParameter parameter specifying the SSM parameter name for GitHub access token
+7. THE MCP_Server SHALL accept a GitHubToken parameter specifying the SSM parameter name for GitHub access token
 8. THE MCP_Server SHALL accept a LogLevel parameter (ERROR, WARN, INFO, DEBUG)
 9. THE MCP_Server SHALL accept a Prefix parameter for resource naming following Naming_Convention
 10. THE MCP_Server SHALL accept a ProjectId parameter for resource naming following Naming_Convention

@@ -48,7 +48,7 @@ This document outlines the implementation tasks for Phase 1 of the Atlantis MCP 
   - [x] 1.4.6 Add PublicRateLimit parameter (default 100)
   - [x] 1.4.7 Add ReadLambdaExecRoleIncludeManagedPolicyArns parameter (CommaDelimitedList)
   - [x] 1.4.8 Add CacheTTL parameters for each resource type
-  - [x] 1.4.9 Add GitHubTokenParameter parameter
+  - [x] 1.4.9 Add GitHubToken parameter
   - [x] 1.4.10 Add LogLevel parameter (ERROR, WARN, INFO, DEBUG)
   - [x] 1.4.11 Configure Read_Lambda IAM role with minimal permissions (S3 GetObject, ListBucket, GetObjectVersion, DynamoDB read, SSM GetParameter)
   - [x] 1.4.12 Add support for attaching managed policies via ReadLambdaExecRoleIncludeManagedPolicyArns
