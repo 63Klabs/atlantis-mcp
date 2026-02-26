@@ -14,9 +14,17 @@
  * @module lambda/read
  */
 
-const Config = require('./config');
+const { tools: {DebugAndLog, Response, Timer} } = require("@63klabs/cache-data");
+
+const { Config } = require("./config");
 const Routes = require('./routes');
 const RateLimiter = require('./utils/rate-limiter');
+
+// >! Log a cold start and time it using Timer - stop Timer in finally
+const coldStartInitTimer = new Timer("coldStartTimer", true);
+
+// >! Initialize Config - done outside of handler so it is only done on cold start
+Config.init(); // >! we will await completion in the handler
 
 /**
  * Lambda handler for MCP server read-only requests
@@ -53,11 +61,15 @@ exports.handler = async (event, context) => {
   const ip = event.requestContext?.identity?.sourceIp || 'unknown';
 
   try {
-    // >! Initialize configuration during cold start
-    // >! Config.init() is idempotent - safe to call on every invocation
-    // >! First call initializes cache, secrets, and logging
-    // >! Subsequent calls return immediately
-    await Config.init();
+
+    // >! Ensure Cold Start init is done and primed (all async complete) before continuing.
+    // >! If this is a cold start, we may need to wait
+    // >! If this is not a cold start then all promises will have already been resolved previously and we will move on
+		await Config.promise(); // >! makes sure general config init is complete
+		await Config.prime(); // >! makes sure all prime tasks (tasks that need to be completed AFTER init but BEFORE handler) are completed
+		// >! If the cold start init timer is running, stop it and log. This won't run again until next cold start
+		if (coldStartInitTimer.isRunning()) { DebugAndLog.log(coldStartInitTimer.stop(),"COLDSTART"); }
+    // >! Now that we have verified that all cold start tasks have completed we can continue handling the request
 
     // >! Check rate limit before processing request
     // >! Rate limit is per IP address, resets every hour

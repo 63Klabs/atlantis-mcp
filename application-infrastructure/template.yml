@@ -72,8 +72,6 @@ Metadata:
           - AtlantisS3Buckets
           - AtlantisGitHubUserOrgs
           - ReadLambdaExecRoleIncludeManagedPolicyArns
-          - GitHubTokenParameter
-          - LogLevel
       -
         Label:
           default: "Cache TTL Settings"
@@ -302,20 +300,6 @@ Parameters:
     Description: "Comma-delimited list of managed policy ARNs to attach to the Read Lambda execution role for extended permissions. Leave empty if no additional policies needed."
     Default: ""
     ConstraintDescription: "Comma-delimited list of valid IAM policy ARNs"
-
-  GitHubTokenParameter:
-    Type: String
-    Description: "SSM Parameter Store path containing GitHub personal access token for API access. Token should have 'repo' and 'read:org' scopes. Example: /atlantis-mcp/github/token"
-    Default: "/atlantis-mcp/github/token"
-    AllowedPattern: "^/[a-zA-Z0-9/_.-]+$"
-    ConstraintDescription: "Must be a valid SSM Parameter Store path starting with /"
-
-  LogLevel:
-    Type: String
-    Description: "Logging level for the MCP server Lambda functions"
-    Default: "INFO"
-    AllowedValues: ["ERROR", "WARN", "INFO", "DEBUG"]
-    ConstraintDescription: "Must be ERROR, WARN, INFO, or DEBUG"
 
   # ---------------------------------------------------------------------------
   # Cache TTL Parameters (in seconds)
@@ -624,17 +608,16 @@ Resources:
 
           NODE_ENV: "production"
           DEPLOY_ENVIRONMENT: !Ref DeployEnvironment
-          LOG_LEVEL: !Ref LogLevel
+          LOG_LEVEL: !If [ IsProduction, "INFO", "DEBUG"] # 0-2 (ERROR, WARN, INFO) for prod, 3-5 (MSG, DIAG, DEBUG) for non-prod
           PARAM_STORE_PATH: !Ref ParameterStoreHierarchy
 
-          PARAMETERS_SECRETS_EXTENSION_LOG_LEVEL: !If [ IsProduction, "INFO", "DEBUG"]
-          AWS_LAMBDA_LOG_LEVEL: !Ref LogLevel
+          PARAMETERS_SECRETS_EXTENSION_LOG_LEVEL: !If [ IsProduction, "INFO", "DEBUG"] # 'DEBUG', 'WARN', 'ERROR', 'NONE', 'INFO'
+          AWS_LAMBDA_LOG_LEVEL: !If [ IsProduction, "INFO", "DEBUG"] # 'DEBUG', 'WARN', 'ERROR', 'INFO' - 'CRITICAL' and 'SILENT' are not currently recognized by Cache Data logging
           AWS_LAMBDA_LOG_FORMAT: 'text'
 
           # MCP Server Configuration
           ATLANTIS_S3_BUCKETS: !Join [',', !Ref AtlantisS3Buckets]
           ATLANTIS_GITHUB_USER_ORGS: !Join [',', !Ref AtlantisGitHubUserOrgs]
-          GITHUB_TOKEN_PARAMETER: !Ref GitHubTokenParameter
 
           # Cache TTL Settings (in seconds)
           CACHE_TTL_FULL_TEMPLATE_CONTENT: !Ref CacheTTLFullTemplateContent

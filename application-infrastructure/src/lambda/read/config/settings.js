@@ -7,7 +7,7 @@
  * @module config/settings
  */
 
-const { tools: { DebugAndLog } } = require('@63klabs/cache-data');
+const { tools: { DebugAndLog, CachedSSMParameter } } = require('@63klabs/cache-data');
 
 /**
  * Parse comma-delimited environment variable into array
@@ -100,6 +100,13 @@ const settings = {
 
   // GitHub Configuration
   github: {
+
+    /**
+     * GitHub token from SSM Parameter Store
+     * @type {string}
+     */
+    token: new CachedSSMParameter(process.env.PARAM_STORE_PATH+'GitHubToken'),
+
     /**
      * List of GitHub users/organizations to search for repositories
      * Parsed from ATLANTIS_GITHUB_USER_ORGS environment variable
@@ -192,34 +199,7 @@ const settings = {
        * @type {number}
        */
       documentationIndex: parseTTL('TTL_DOCUMENTATION_INDEX', 3600)
-    },
-
-    /**
-     * DynamoDB table name for cache storage
-     * @type {string}
-     */
-    dynamoDbTable: process.env.CACHE_DYNAMODB_TABLE || '',
-
-    /**
-     * S3 bucket name for cache storage
-     * @type {string}
-     */
-    s3Bucket: process.env.CACHE_S3_BUCKET || ''
-  },
-
-  // Logging Configuration
-  logging: {
-    /**
-     * Log level (ERROR, WARN, INFO, DEBUG)
-     * @type {string}
-     */
-    level: process.env.LOG_LEVEL || 'INFO',
-
-    /**
-     * Whether to enable verbose logging
-     * @type {boolean}
-     */
-    verbose: process.env.LOG_VERBOSE === 'true'
+    }
   },
 
   // Naming Convention Configuration
@@ -278,21 +258,6 @@ const settings = {
     }
   },
 
-  // AWS Configuration
-  aws: {
-    /**
-     * AWS region
-     * @type {string}
-     */
-    region: process.env.AWS_REGION || 'us-east-1',
-
-    /**
-     * SSM parameter name for GitHub token
-     * @type {string}
-     */
-    githubTokenParameter: process.env.GITHUB_TOKEN_PARAMETER || '/atlantis-mcp/github-token'
-  },
-
   // Rate Limiting Configuration
   rateLimit: {
     /**
@@ -316,14 +281,6 @@ function validateSettings() {
 
   if (settings.github.userOrgs.length === 0) {
     warnings.push('ATLANTIS_GITHUB_USER_ORGS not configured - repository discovery will be limited');
-  }
-
-  if (!settings.cache.dynamoDbTable) {
-    warnings.push('CACHE_DYNAMODB_TABLE not configured - DynamoDB caching disabled');
-  }
-
-  if (!settings.cache.s3Bucket) {
-    warnings.push('CACHE_S3_BUCKET not configured - S3 caching disabled');
   }
 
   if (warnings.length > 0) {

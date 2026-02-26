@@ -15,7 +15,7 @@
 
 const Config = require('../config');
 const NamingRules = require('../utils/naming-rules');
-const { tools: { DebugAndLog } } = require('@63klabs/cache-data');
+const { tools: { DebugAndLog, AWS } } = require('@63klabs/cache-data');
 
 /**
  * Validate resource name against Atlantis naming conventions
@@ -119,7 +119,7 @@ async function validateNaming(options = {}) {
 
   // Add AWS region and account ID for S3 validation
   if (detectedType === 's3') {
-    config.region = settings.aws.region;
+    config.region = AWS.REGION;
     // Account ID would come from AWS STS in production, but we don't validate it strictly
   }
 

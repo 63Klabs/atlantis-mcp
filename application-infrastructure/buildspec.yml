@@ -105,6 +105,8 @@ phases:
 
       # Generate a random 256 bit key (hexidecimal) in SSM for cache data:
       - python3 ./build-scripts/generate-put-ssm.py ${PARAM_STORE_HIERARCHY}CacheData_SecureDataKey --generate 256
+      # Save a spot for GitHub Token
+      - python3 ./build-scripts/generate-put-ssm.py ${PARAM_STORE_HIERARCHY}GitHubToken
 
 
   build:
