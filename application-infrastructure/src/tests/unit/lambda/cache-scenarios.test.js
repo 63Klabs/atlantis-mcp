@@ -36,12 +36,14 @@ jest.mock('@63klabs/cache-data', () => ({
 
 // Mock Config module
 jest.mock('../../../lambda/read/config', () => ({
-  getConnCacheProfile: jest.fn(),
-  settings: jest.fn()
+  Config: {
+    getConnCacheProfile: jest.fn(),
+    settings: jest.fn()
+  }
 }));
 
 const { cache } = require('@63klabs/cache-data');
-const Config = require('../../../lambda/read/config');
+const { Config } = require('../../../lambda/read/config');
 const TemplatesService = require('../../../lambda/read/services/templates');
 
 describe('Cache Scenarios', () => {

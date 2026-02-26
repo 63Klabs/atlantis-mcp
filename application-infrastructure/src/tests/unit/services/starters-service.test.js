@@ -26,8 +26,10 @@ jest.mock('@63klabs/cache-data', () => ({
 }));
 
 jest.mock('../../../lambda/read/config', () => ({
-  getConnCacheProfile: jest.fn(),
-  settings: jest.fn()
+  Config: {
+    getConnCacheProfile: jest.fn(),
+    settings: jest.fn()
+  }
 }));
 
 jest.mock('../../../lambda/read/models', () => ({
@@ -42,7 +44,7 @@ jest.mock('../../../lambda/read/models', () => ({
 }));
 
 const { cache: { CacheableDataAccess } } = require('@63klabs/cache-data');
-const Config = require('../../../lambda/read/config');
+const { Config } = require('../../../lambda/read/config');
 const Models = require('../../../lambda/read/models');
 const Starters = require('../../../lambda/read/services/starters');
 

@@ -43,12 +43,15 @@ describe('Multiple S3 Bucket Handling', () => {
 
     // Mock config
     jest.mock('../../../lambda/read/config', () => ({
-      getConnCacheProfile: jest.fn(),
-      settings: jest.fn()
+      Config: {
+        getConnCacheProfile: jest.fn(),
+        settings: jest.fn()
+      }
     }));
 
     S3Templates = require('../../../lambda/read/models/s3-templates');
-    Config = require('../../../lambda/read/config');
+    const { Config: ConfigModule } = require('../../../lambda/read/config');
+    Config = ConfigModule;
 
     Config.settings.mockReturnValue({
       s3: {

@@ -33,13 +33,15 @@ describe('Templates Service - Error Handling', () => {
     }));
 
     // Mock config
-    jest.mock('../../../config', () => ({
-      getConnCacheProfile: jest.fn(),
-      settings: jest.fn()
+    jest.mock('../../../lambda/read/config', () => ({
+      Config: {
+        getConnCacheProfile: jest.fn(),
+        settings: jest.fn()
+      }
     }));
 
     // Mock models
-    jest.mock('../../../models', () => ({
+    jest.mock('../../../lambda/read/models', () => ({
       S3Templates: {
         get: jest.fn(),
         list: jest.fn()
@@ -52,8 +54,9 @@ describe('Templates Service - Error Handling', () => {
     DebugAndLog = cacheData.tools.DebugAndLog;
 
     Templates = require('../../../lambda/read/services/templates');
-    Models = require('../../../models');
-    Config = require('../../../config');
+    Models = require('../../../lambda/read/models');
+    const { Config: ConfigModule } = require('../../../lambda/read/config');
+    Config = ConfigModule;
 
     // Setup default config mocks
     Config.getConnCacheProfile.mockReturnValue({

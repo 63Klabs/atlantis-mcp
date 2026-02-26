@@ -6,7 +6,7 @@ This implementation plan updates existing documentation, tests, and code to refl
 
 ## Tasks
 
-- [-] 1. Phase 1: Documentation Updates - Parameter Naming
+- [x] 1. Phase 1: Documentation Updates - Parameter Naming
   - [x] 1.1 Create documentation update automation script
     - Create scripts/update-documentation.js with dry-run capability
     - Define update patterns for GitHubTokenParameter → GitHubToken
@@ -32,15 +32,15 @@ This implementation plan updates existing documentation, tests, and code to refl
     - Update .kiro/specs/0-0-1-remove-api-key-requirement/design.md
     - _Requirements: 2.1-2.5_
   
-  - [-] 1.4 Manual review and verification of documentation changes
+  - [x] 1.4 Manual review and verification of documentation changes
     - Review all changes with git diff
     - Verify context accuracy for each change
     - Ensure code examples are updated correctly
     - Commit documentation updates with clear message
     - _Requirements: 1.1-1.9, 2.1-2.5_
 
-- [ ] 2. Phase 2: Test Code Updates
-  - [ ] 2.1 Search and identify test files needing updates
+- [x] 2. Phase 2: Test Code Updates
+  - [x] 2.1 Search and identify test files needing updates
     - Find all test files in application-infrastructure/src
     - Find all test files in test directory
     - Identify tests with direct settings imports
@@ -48,7 +48,7 @@ This implementation plan updates existing documentation, tests, and code to refl
     - Identify tests accessing connections directly
     - _Requirements: 3.1-3.8_
   
-  - [ ] 2.2 Update existing test patterns to use Config.settings()
+  - [x] 2.2 Update existing test patterns to use Config.settings()
     - Replace direct settings imports with Config.settings()
     - Update mocks to spy on Config.settings() getter
     - Update connection access to use Config.getConnCacheProfile()
@@ -83,50 +83,61 @@ This implementation plan updates existing documentation, tests, and code to refl
     - Use fast-check with 100 iterations
     - _Requirements: 3.5_
   
-  - [ ] 2.7 Run full test suite and verify all tests pass
+  - [x] 2.7 Run full test suite and verify all tests pass
     - Run npm test to execute all tests
     - Fix any test failures
     - Verify new tests pass
     - Commit test updates with clear message
     - _Requirements: 3.1-3.8_
+  
+  - [x] 2.8 Fix remaining test failures from Config refactoring
+    - Fix service tests (starters, documentation, templates) with incorrect Config mocks
+    - Update controller tests to properly mock Config.settings()
+    - Fix cache scenario tests that need CacheableDataAccess.getData mocking
+    - Fix brown-out support tests with missing GitHub token mocks
+    - Fix multi-bucket handling tests with incomplete Config.settings() mocks
+    - Ensure all tests use consistent Config mock pattern: `{ Config: { init, settings, getConnCacheProfile } }`
+    - Run npm test after each batch of fixes to verify progress
+    - Continue until all non-skipped tests pass
+    - _Requirements: 3.1-3.8_
 
-- [ ] 3. Checkpoint - Verify documentation and tests updated
+- [x] 3. Checkpoint - Verify documentation and tests updated
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 4. Phase 3: JSDoc Documentation Updates
-  - [ ] 4.1 Update Config module JSDoc (application-infrastructure/src/lambda/read/config/index.js)
+- [x] 4. Phase 3: JSDoc Documentation Updates
+  - [x] 4.1 Update Config module JSDoc (application-infrastructure/src/lambda/read/config/index.js)
     - Add JSDoc for Config.init() with cold start explanation
     - Add JSDoc for Config.prime() cache priming
     - Note: Config.settings() and Config.getConnCacheProfile() inherited from _ConfigSuperClass
     - Verify no deprecated patterns in JSDoc
     - _Requirements: 4.1-4.2, 7.1-7.6_
   
-  - [ ] 4.2 Update Settings module JSDoc (application-infrastructure/src/lambda/read/config/settings.js)
+  - [x] 4.2 Update Settings module JSDoc (application-infrastructure/src/lambda/read/config/settings.js)
     - Document settings.github.token as CachedSSMParameter
     - Remove any references to deprecated settings.aws.githubTokenParameter
     - Document rate limits structure
     - Document cache TTL structure
     - _Requirements: 4.3-4.4_
   
-  - [ ] 4.3 Update Connections module JSDoc (application-infrastructure/src/lambda/read/config/connections.js)
+  - [x] 4.3 Update Connections module JSDoc (application-infrastructure/src/lambda/read/config/connections.js)
     - Document connections array structure
     - Document cache profile properties
     - Document dynamic host setting pattern
     - _Requirements: 4.5_
   
-  - [ ] 4.4 Update Rate Limiter JSDoc (application-infrastructure/src/lambda/read/utils/rate-limiter.js)
+  - [x] 4.4 Update Rate Limiter JSDoc (application-infrastructure/src/lambda/read/utils/rate-limiter.js)
     - Document integration with Config.settings()
     - Document rate limit structure access
     - _Requirements: 4.6_
   
-  - [ ] 4.5 Update Handler JSDoc (application-infrastructure/src/lambda/read/index.js)
+  - [x] 4.5 Update Handler JSDoc (application-infrastructure/src/lambda/read/index.js)
     - Document Config.init() call and cold start behavior
     - Document Config.prime() call
     - Document Config.settings() usage
     - Add comments explaining rate limiter integration with config
     - _Requirements: 4.7, 7.1-7.6_
   
-  - [ ] 4.6 Verify JSDoc accuracy across all modules
+  - [x] 4.6 Verify JSDoc accuracy across all modules
     - Check @param names match function signatures
     - Check @returns types match actual return values
     - Ensure @example code is executable
@@ -134,8 +145,8 @@ This implementation plan updates existing documentation, tests, and code to refl
     - Commit JSDoc updates with clear message
     - _Requirements: 4.1-4.8_
 
-- [ ] 5. Phase 4: Code Search and Refactor
-  - [ ] 5.1 Search for deprecated patterns in codebase
+- [x] 5. Phase 4: Code Search and Refactor
+  - [x] 5.1 Search for deprecated patterns in codebase
     - Search for direct settings imports (excluding config module)
     - Search for settings.aws.githubTokenParameter references
     - Search for old connection access patterns
@@ -143,22 +154,22 @@ This implementation plan updates existing documentation, tests, and code to refl
     - Document search results
     - _Requirements: 6.1-6.6_
   
-  - [ ] 5.2 Refactor code to use new Config patterns
+  - [x] 5.2 Refactor code to use new Config patterns
     - Update direct settings imports to use Config.settings()
     - Update old parameter name references to new pattern
     - Update direct connections access to use Config.getConnCacheProfile()
     - Ensure no imports of index-old.js
     - _Requirements: 6.1-6.6_
   
-  - [ ] 5.3 Test refactored code
+  - [x] 5.3 Test refactored code
     - Run unit tests
     - Run integration tests
     - Verify no regressions
     - Commit refactored code with clear message
     - _Requirements: 6.1-6.6_
 
-- [ ] 6. Phase 5: Test Documentation Updates
-  - [ ] 6.1 Update test README with new patterns
+- [x] 6. Phase 5: Test Documentation Updates
+  - [x] 6.1 Update test README with new patterns
     - Add section on Config.settings() testing patterns
     - Document how to mock Config.settings()
     - Document how to test CachedSSMParameter usage
@@ -166,39 +177,39 @@ This implementation plan updates existing documentation, tests, and code to refl
     - Add testing examples for new patterns
     - _Requirements: 5.1-5.6_
   
-  - [ ] 6.2 Update TESTING_SUMMARY.md (if exists)
+  - [x] 6.2 Update TESTING_SUMMARY.md (if exists)
     - Reflect current test coverage for config modules
     - Document new test cases added
     - Update test statistics
     - _Requirements: 5.5_
   
-  - [ ] 6.3 Commit test documentation updates
+  - [x] 6.3 Commit test documentation updates
     - Verify documentation is clear and complete
     - Commit with clear message
     - _Requirements: 5.1-5.6_
 
-- [ ] 7. Phase 6: Link Validation and Repair
-  - [ ] 7.1 Create link validation automation script
+- [-] 7. Phase 6: Link Validation and Repair
+  - [x] 7.1 Create link validation automation script
     - Create scripts/validate-links.js
     - Scan for all markdown links
     - Check if link targets exist
     - Generate validation report
     - _Requirements: 8.1-8.5_
   
-  - [ ] 7.2 Run link validation and identify broken links
+  - [x] 7.2 Run link validation and identify broken links
     - Execute link validation script
     - Review broken links report
     - Categorize link issues (moved files, wrong paths, etc.)
     - _Requirements: 8.1-8.3_
   
-  - [ ] 7.3 Fix broken documentation links
+  - [x] 7.3 Fix broken documentation links
     - Update paths for moved files
     - Convert absolute paths to relative paths
     - Add missing file extensions
     - Remove links to deleted files
     - _Requirements: 8.1-8.5_
   
-  - [ ] 7.4 Verify link fixes and commit
+  - [-] 7.4 Verify link fixes and commit
     - Re-run link validation script
     - Verify all links work
     - Test links manually from source file locations

@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-#### Core MCP Server Infrastructure [Spec: 0-0-1-atlantis-mcp-phase-1-core-read-only](../.kiro/specs/0-0-1-atlantis-mcp-phase-1-core-read-only/)
+#### Core MCP Server Infrastructure [Spec: 0-0-1-atlantis-mcp-phase-1-core-read-only](.kiro/specs/0-0-1-atlantis-mcp-phase-1-core-read-only/)
 - **MCP Protocol v1.0 Implementation** - Full compliance with Model Context Protocol specification
   - Protocol negotiation and capability discovery
   - JSON Schema validation for all tool inputs

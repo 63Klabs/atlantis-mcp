@@ -56,14 +56,17 @@ describe('Brown-Out Support', () => {
 
     // Mock config
     jest.mock('../../../lambda/read/config', () => ({
-      getConnCacheProfile: jest.fn(),
-      settings: jest.fn()
+      Config: {
+        getConnCacheProfile: jest.fn(),
+        settings: jest.fn()
+      }
     }));
 
     // Import after mocking
     S3Templates = require('../../../lambda/read/models/s3-templates');
     GitHubAPI = require('../../../lambda/read/models/github-api');
-    Config = require('../../../lambda/read/config');
+    const { Config: ConfigModule } = require('../../../lambda/read/config');
+    Config = ConfigModule;
 
     // Setup default config
     Config.settings.mockReturnValue({
@@ -71,7 +74,8 @@ describe('Brown-Out Support', () => {
         buckets: ['bucket-1', 'bucket-2', 'bucket-3']
       },
       github: {
-        users: ['org1', 'org2', 'org3']
+        userOrgs: ['org1', 'org2', 'org3'],
+        token: { getValue: jest.fn().mockResolvedValue('mock-github-token') }
       }
     });
   });

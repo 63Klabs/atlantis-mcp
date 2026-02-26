@@ -1,5 +1,5 @@
 const { tools: { DebugAndLog } } = require('@63klabs/cache-data');
-const Config = require('../config');
+const { Config } = require('../config');
 const GitHubAPI = require('./github-api');
 const S3Templates = require('./s3-templates');
 

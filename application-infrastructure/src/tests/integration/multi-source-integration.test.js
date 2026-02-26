@@ -22,7 +22,7 @@ const s3Mock = mockClient(S3Client);
 // Import modules under test
 const S3TemplatesDAO = require('../../lambda/read/models/s3-templates');
 const TemplatesService = require('../../lambda/read/services/templates');
-const Config = require('../../lambda/read/config');
+const { Config } = require('../../lambda/read/config');
 
 // Skip these tests - they need AWS SDK v3 migration
 describe.skip('Multi-Source Integration Tests', () => {

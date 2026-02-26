@@ -20,7 +20,7 @@
 
 const { cache: { CacheableDataAccess } } = require('@63klabs/cache-data');
 const { tools: { DebugAndLog } } = require('@63klabs/cache-data');
-const Config = require('../config');
+const { Config } = require('../config');
 const Models = require('../models');
 
 /**

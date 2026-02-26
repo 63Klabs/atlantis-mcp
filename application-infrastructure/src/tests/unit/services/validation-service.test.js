@@ -21,7 +21,9 @@ jest.mock('@63klabs/cache-data', () => ({
 }));
 
 jest.mock('../../../lambda/read/config', () => ({
-  settings: jest.fn()
+  Config: {
+    settings: jest.fn()
+  }
 }));
 
 jest.mock('../../../lambda/read/utils/naming-rules', () => ({
@@ -29,7 +31,7 @@ jest.mock('../../../lambda/read/utils/naming-rules', () => ({
   validateNaming: jest.fn()
 }));
 
-const Config = require('../../../lambda/read/config');
+const { Config } = require('../../../lambda/read/config');
 const NamingRules = require('../../../lambda/read/utils/naming-rules');
 const Validation = require('../../../lambda/read/services/validation');
 

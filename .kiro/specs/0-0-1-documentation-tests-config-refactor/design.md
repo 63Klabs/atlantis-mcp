@@ -269,8 +269,8 @@ grep -r "index-old" application-infrastructure/src \
 
 1. **Scan for Internal Links**
    ```bash
-   # Find all markdown links
-   grep -r "\[.*\](.*\.md)" docs/ .kiro/specs/ --include="*.md"
+   # Find all markdown links (example pattern)
+   grep -r "\\[.*\\](.*\\.md)" docs/ .kiro/specs/ --include="*.md"
    ```
 
 2. **Check Link Targets**
@@ -288,15 +288,15 @@ grep -r "index-old" application-infrastructure/src \
 
 ```markdown
 # Pattern 1: Relative links to config files
-[Config Module](../application-infrastructure/src/lambda/read/config/index.js)
+[Config Module](../../../application-infrastructure/src/lambda/read/config/index.js)
 
 # Pattern 2: Links to test documentation
-[Testing Guide](../application-infrastructure/src/tests/README.md)
+[Testing Guide](../../../application-infrastructure/src/tests/README.md)
 
 # Pattern 3: Cross-spec references
-[Phase 1 Spec](../.kiro/specs/0-0-1-atlantis-mcp-phase-1-core-read-only/design.md)
+[Phase 1 Spec](../0-0-1-atlantis-mcp-phase-1-core-read-only/design.md)
 
-# Pattern 4: Links to deployment docs
+# Pattern 4: Links to deployment docs (example only)
 [GitHub Token Setup](./github-token-setup.md)
 ```
 
@@ -960,8 +960,9 @@ describe('Config Integration', () => {
 
 1. **Scan for Links**
    ```bash
-   grep -r "\[.*\](.*\.md)" docs/ .kiro/specs/ --include="*.md"
-   grep -r "\[.*\](.*\.js)" docs/ .kiro/specs/ --include="*.md"
+   # Example grep patterns (escaped for documentation)
+   grep -r "\\[.*\\](.*\\.md)" docs/ .kiro/specs/ --include="*.md"
+   grep -r "\\[.*\\](.*\\.js)" docs/ .kiro/specs/ --include="*.md"
    ```
 
 2. **Validate Link Targets**

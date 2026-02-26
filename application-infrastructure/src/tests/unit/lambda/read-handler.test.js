@@ -20,12 +20,19 @@ const s3Mock = mockClient(S3Client);
 const ssmMock = mockClient(SSMClient);
 
 // Mock dependencies
-jest.mock('../../../lambda/read/config');
+jest.mock('../../../lambda/read/config', () => ({
+  Config: {
+    init: jest.fn(),
+    prime: jest.fn(),
+    settings: jest.fn(),
+    getConnCacheProfile: jest.fn()
+  }
+}));
 jest.mock('../../../lambda/read/routes');
 jest.mock('../../../lambda/read/utils/rate-limiter');
 jest.mock('../../../lambda/read/utils/error-handler');
 
-const Config = require('../../../lambda/read/config');
+const { Config } = require('../../../lambda/read/config');
 const Routes = require('../../../lambda/read/routes');
 const RateLimiter = require('../../../lambda/read/utils/rate-limiter');
 const ErrorHandler = require('../../../lambda/read/utils/error-handler');
@@ -78,6 +85,16 @@ describe('Read Lambda Handler', () => {
 
     // Set up default mock implementations
     Config.init.mockResolvedValue(undefined);
+    Config.settings.mockReturnValue({
+      s3: { buckets: ['bucket1', 'bucket2'] },
+      github: { 
+        userOrgs: ['org1', 'org2'],
+        token: { getValue: jest.fn().mockResolvedValue('mock-token') }
+      },
+      rateLimits: {
+        public: { limit: 100, window: 3600 }
+      }
+    });
 
     RateLimiter.checkRateLimit.mockReturnValue({
       allowed: true,

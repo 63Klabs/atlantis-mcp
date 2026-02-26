@@ -13,7 +13,7 @@
  * @module services/validation
  */
 
-const Config = require('../config');
+const { Config } = require('../config');
 const NamingRules = require('../utils/naming-rules');
 const { tools: { DebugAndLog, AWS } } = require('@63klabs/cache-data');
 

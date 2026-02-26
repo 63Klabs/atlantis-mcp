@@ -7,17 +7,23 @@
  */
 
 const DocIndex = require('../../../lambda/read/models/doc-index');
-const Config = require('../../../lambda/read/config');
+const { Config } = require('../../../lambda/read/config');
 const GitHubAPI = require('../../../lambda/read/models/github-api');
 const S3Templates = require('../../../lambda/read/models/s3-templates');
 
 // Mock Config
 jest.mock('../../../lambda/read/config', () => ({
-  settings: jest.fn(() => ({
-    githubToken: 'test-token-123',
-    githubUsers: ['63klabs'],
-    atlantisS3Buckets: ['test-bucket']
-  }))
+  Config: {
+    settings: jest.fn(() => ({
+      github: {
+        token: { getValue: jest.fn().mockResolvedValue('test-token-123') },
+        userOrgs: ['63klabs']
+      },
+      s3: {
+        buckets: ['test-bucket']
+      }
+    }))
+  }
 }));
 
 // Mock GitHubAPI

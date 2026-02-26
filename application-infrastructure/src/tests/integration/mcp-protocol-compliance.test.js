@@ -8,16 +8,25 @@
 
 // Mock Config module before importing handler
 jest.mock('../../lambda/read/config', () => ({
-  init: jest.fn().mockResolvedValue(undefined),
-  settings: () => ({
-    s3: { buckets: ['test-bucket'] },
-    github: { userOrgs: ['test-org'] },
-    cache: { dynamoDbTable: 'test-table', s3Bucket: 'test-cache-bucket' },
-    aws: { region: 'us-east-1' },
-    logging: { level: 'INFO' }
-  }),
-  getGitHubToken: () => 'test-token',
-  isInitialized: () => true
+  Config: {
+    init: jest.fn().mockResolvedValue(undefined),
+    prime: jest.fn().mockResolvedValue(undefined),
+    settings: jest.fn().mockReturnValue({
+      s3: { buckets: ['test-bucket'] },
+      github: { 
+        userOrgs: ['test-org'],
+        token: { getValue: jest.fn().mockResolvedValue('test-token') }
+      },
+      cache: { dynamoDbTable: 'test-table', s3Bucket: 'test-cache-bucket' },
+      aws: { region: 'us-east-1' },
+      logging: { level: 'INFO' },
+      rateLimits: {
+        public: { limit: 100, window: 3600 }
+      }
+    }),
+    getConnCacheProfile: jest.fn(),
+    isInitialized: jest.fn().mockReturnValue(true)
+  }
 }));
 
 // Mock RateLimiter to always allow requests

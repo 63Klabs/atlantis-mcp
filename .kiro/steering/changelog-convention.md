@@ -70,7 +70,7 @@ When CloudFormation templates are modified, the changelog MUST be updated to ref
 **For multiple templates in a single spec:**
 ```markdown
 ### Added
-- **Post-Deployment Validation Feature** [Spec: post-deploy-validation](../.kiro/specs/post-deploy-validation/)
+- **Post-Deployment Validation Feature** [Spec: post-deploy-validation](../.kiro/specs/post-deploy-validation/) *(example)*
   - Pipeline: template-pipeline.yml v2.1.0 - Added post-deployment stage support
   - Storage: template-storage-s3-artifacts.yml v1.3.2 - Added validation artifact storage
   - Service Role: template-service-role-pipeline.yml v1.2.1 - Added permissions for validation tasks
@@ -118,7 +118,7 @@ Breaking changes require special handling and should be placed in a dedicated **
 ```markdown
 ### Breaking Changes
 - **Pipeline: template-pipeline-v3-0.yml v3.0.0** - Renamed parameter `S3ArtifactsBucket` to `ArtifactsBucketName` and restructured IAM permissions
-  - **Migration Guide:** [docs/templates/v2/pipeline/template-pipeline-v3-0-README.md#migration-from-v2x-to-v30](../docs/templates/v2/pipeline/template-pipeline-v3-0-README.md#migration-from-v2x-to-v30)
+  - **Migration Guide:** [docs/templates/v2/pipeline/template-pipeline-v3-0-README.md#migration-from-v2x-to-v30](../docs/templates/v2/pipeline/template-pipeline-v3-0-README.md#migration-from-v2x-to-v30) *(example)*
   - **Deprecation:** v2.0.x deprecated with 24-month support period ending 2028-01-29
 ```
 
@@ -133,7 +133,7 @@ When a changelog entry is related to a Kiro spec, reference and link to the spec
 **Example:**
 ```markdown
 ### Added
-- **CloudFormation Template Validation** [Spec: cfn-validation](../.kiro/specs/cfn-validation/)
+- **CloudFormation Template Validation** [Spec: cfn-validation](../.kiro/specs/cfn-validation/) *(example)*
   - Automated validation of all CloudFormation templates using cfn-lint
   - Integration with pytest for local development testing
 ```
@@ -153,7 +153,7 @@ When a changelog entry addresses a GitHub issue, include the issue reference wit
 **Combined spec and issue reference:**
 ```markdown
 ### Added
-- **Post-Deployment Validation** [Spec: post-deploy-validation](../.kiro/specs/post-deploy-validation/) addresses [#78](https://github.com/63klabs/atlantis-cfn-template-repo-for-serverless-deployments/issues/78)
+- **Post-Deployment Validation** [Spec: post-deploy-validation](../.kiro/specs/post-deploy-validation/) addresses [#78](https://github.com/63klabs/atlantis-cfn-template-repo-for-serverless-deployments/issues/78) *(example)*
   - Pipeline: template-pipeline.yml v2.1.0 - Added post-deployment stage support
 ```
 
@@ -302,7 +302,7 @@ Before completing a spec, verify the changelog entry:
 ## v0.0.30 - unreleased
 
 ### Changed
-- **Documentation: Template READMEs** - Updated all pipeline template documentation with new parameter examples and troubleshooting sections [Spec: docs-enhancement](../.kiro/specs/docs-enhancement/)
+- **Documentation: Template READMEs** - Updated all pipeline template documentation with new parameter examples and troubleshooting sections [Spec: docs-enhancement](../.kiro/specs/docs-enhancement/) *(example)*
 ```
 
 ## Complete Example Release
