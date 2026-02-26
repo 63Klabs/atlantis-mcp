@@ -259,12 +259,48 @@ const settings = {
   },
 
   // Rate Limiting Configuration
-  rateLimit: {
+  rateLimits: {
     /**
-     * Public rate limit (requests per hour per IP)
-     * @type {number}
+     * Public rate limit (requests per publicTimeRange per IP)
+     * @type {object}
+     * @property {number} limit - Request limit
+     * @property {number} window - Time window in seconds
      */
-    publicLimit: parseInt(process.env.PUBLIC_RATE_LIMIT || '100', 10)
+    public: {
+      limit: parseInt(process.env.PUBLIC_RATE_LIMIT || '100', 10),
+      window: parseInt(process.env.PUBLIC_RATE_TIME_RANGE || '3600', 10)
+    },
+    /**
+     * Registered rate limit 
+     * @type {object}
+     * @property {number} limit - Request limit
+     * @property {number} window - Time window in seconds
+     */
+    registered: {
+      limit: parseInt(process.env.REGISTERED_RATE_LIMIT || '500', 10),
+      window: parseInt(process.env.REGISTERED_RATE_TIME_RANGE || '3600', 10)
+    },
+    /**
+     * Paid rate limit
+     * @type {object}
+     * @property {number} limit - Request limit
+     * @property {number} window - Time window in seconds
+     */
+    paid: {
+      limit: parseInt(process.env.PAID_RATE_LIMIT || '2500', 10),
+      window: parseInt(process.env.PAID_RATE_TIME_RANGE || '3600', 10)
+    },
+    /**
+     * Private rate limit (requests per privateTimeRange per IP)
+     * @type {object}
+     * @property {number} limit - Request limit
+     * @property {number} window - Time window in seconds
+     */
+    private: {
+      limit: parseInt(process.env.PRIVATE_RATE_LIMIT || '1000', 10),
+      window: parseInt(process.env.PRIVATE_RATE_TIME_RANGE || '3600', 10)
+    }
+
   }
 };
 

@@ -3,6 +3,8 @@
  *
  * Implements per-IP rate limiting for MCP server public access.
  * Tracks request counts per IP address and enforces hourly limits.
+ * 
+ * TODO: Move this to a proper DynamoDB implementation later
  *
  * @module utils/rate-limiter
  */
@@ -32,30 +34,31 @@ function cleanupExpiredEntries() {
 }
 
 /**
- * Get rate limit data for an IP address
+ * Get rate limit data for client
  *
- * @param {string} ipAddress - Client IP address
+ * @param {string} user - Client IP address or User Id
  * @param {number} limit - Rate limit threshold
+ * @param {number} window - Time window in seconds
  * @returns {{count: number, resetTime: number, remaining: number, isLimited: boolean}}
  */
-function getRateLimitData(ipAddress, limit) {
+function getRateLimitData(user, limit, window) {
   const now = Date.now();
-  const oneHour = 60 * 60 * 1000; // 1 hour in milliseconds
+  const resetWindow = window * 1000; // 1 hour in milliseconds
 
   // Clean up expired entries periodically
   if (Math.random() < 0.1) { // 10% chance to cleanup on each request
     cleanupExpiredEntries();
   }
 
-  let data = rateLimitStore.get(ipAddress);
+  let data = rateLimitStore.get(user);
 
   // Initialize or reset if expired
   if (!data || now >= data.resetTime) {
     data = {
       count: 0,
-      resetTime: now + oneHour
+      resetTime: now + resetWindow
     };
-    rateLimitStore.set(ipAddress, data);
+    rateLimitStore.set(user, data);
   }
 
   const remaining = Math.max(0, limit - data.count);
@@ -72,10 +75,10 @@ function getRateLimitData(ipAddress, limit) {
 /**
  * Increment request count for an IP address
  *
- * @param {string} ipAddress - Client IP address
+ * @param {string} user - Client IP address or User Id
  */
-function incrementRequestCount(ipAddress) {
-  const data = rateLimitStore.get(ipAddress);
+function incrementRequestCount(user) {
+  const data = rateLimitStore.get(user);
   if (data) {
     data.count++;
   }
@@ -85,17 +88,32 @@ function incrementRequestCount(ipAddress) {
  * Check if request should be rate limited
  *
  * @param {Object} event - API Gateway event
- * @param {number} limit - Rate limit threshold (requests per hour)
+ * @param {Object} limits - Rate limit configurations
+ * @param {{limit: number, window: number}} limits.public - Rate limit threshold (requests per window)
+ * @param {{limit: number, window: number}} limits.registered - Rate limit threshold (requests per window)
+ * @param {{limit: number, window: number}} limits.paid - Rate limit threshold (requests per window)
+ * @param {{limit: number, window: number}} limits.private - Rate limit threshold (requests per window)
  * @returns {{allowed: boolean, headers: Object, retryAfter: number|null}}
  */
-function checkRateLimit(event, limit) {
-  // Extract IP address from event
-  const ipAddress = event.requestContext?.identity?.sourceIp ||
-                    event.headers?.['X-Forwarded-For']?.split(',')[0]?.trim() ||
-                    'unknown';
+function checkRateLimit(event, limits) {
 
-  // Get current rate limit data
-  const rateLimitData = getRateLimitData(ipAddress, limit);
+  // is it public or auth? - TODO: we will update in the future for auth plans
+  const isPublic = true;
+
+  // we are just going to use the public limit for now - TODO: we will update in the future for auth plans
+  const limit = limits.public.limit;
+  const window = limits.public.window;
+
+  const ipAddress = event.requestContext?.identity?.sourceIp ||
+      event.headers?.['X-Forwarded-For']?.split(',')[0]?.trim() ||
+      'unknown'
+  
+  // Extract IP address or user info from event - TODO: we will update in the future for auth plans
+  const user = (isPublic) ? ipAddress : 'auth-user';
+  const client = {user, limit, window};
+
+  // Get current rate limit data for user/ip
+  const rateLimitData = getRateLimitData(client);
 
   // Prepare rate limit headers
   const headers = {

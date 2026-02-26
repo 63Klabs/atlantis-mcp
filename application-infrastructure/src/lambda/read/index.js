@@ -10,17 +10,22 @@
  *
  * The handler performs cold start initialization via Config.init() and delegates
  * request routing to the Routes module.
+ * 
+ * Uncaught errors are handled within try/catch/finally to provide logs and
+ * error messages back to the client.
  *
  * @module lambda/read
  */
 
+// >! Web service and cache framework package
 const { tools: {DebugAndLog, Response, Timer} } = require("@63klabs/cache-data");
 
+// >! Application Modules
 const { Config } = require("./config");
 const Routes = require('./routes');
 const RateLimiter = require('./utils/rate-limiter');
 
-// >! Log a cold start and time it using Timer - stop Timer in finally
+// >! Log a cold start and time it using Timer - stop Timer in finally block
 const coldStartInitTimer = new Timer("coldStartTimer", true);
 
 // >! Initialize Config - done outside of handler so it is only done on cold start
@@ -30,7 +35,9 @@ Config.init(); // >! we will await completion in the handler
  * Lambda handler for MCP server read-only requests
  *
  * This function is invoked by API Gateway for all incoming MCP requests.
- * On cold start, it initializes configuration (cache, secrets, logging).
+ * The handler will ensure the cold start init was resolved (either during
+ * the current or prior invocation) and then sends the request to
+ * Routes.process()
  * For all requests, it checks rate limits before processing.
  *
  * @async
@@ -56,9 +63,8 @@ Config.init(); // >! we will await completion in the handler
  * @throws {Error} If critical initialization fails (cache, configuration)
  */
 exports.handler = async (event, context) => {
-  const startTime = Date.now();
-  const requestId = context.requestId;
-  const ip = event.requestContext?.identity?.sourceIp || 'unknown';
+
+  let response = null;
 
   try {
 
@@ -74,8 +80,7 @@ exports.handler = async (event, context) => {
     // >! Check rate limit before processing request
     // >! Rate limit is per IP address, resets every hour
     // >! Returns 429 if limit exceeded with Retry-After header
-    const rateLimit = parseInt(process.env.PUBLIC_RATE_LIMIT || '100', 10);
-    const rateLimitCheck = RateLimiter.checkRateLimit(event, rateLimit);
+    const rateLimitCheck = RateLimiter.checkRateLimit(event, Config.settings().rateLimits);
 
     if (!rateLimitCheck.allowed) {
       // >! Return 429 Too Many Requests with rate limit headers
@@ -90,8 +95,8 @@ exports.handler = async (event, context) => {
     // >! Routes.process() handles tool routing and controller invocation
     const response = await Routes.process(event, context);
 
-    // >! Calculate execution time for logging and metrics
-    const executionTime = Date.now() - startTime;
+
+    // TODO: A lot of this metric and logging stuff is already handled by Response so we should clean up and ensure this isn't used by a downstream process. Or, if it is, figure out what data is needed and use already provided methods from DebugAndLog and Response
 
     // >! Log successful request with execution time
     const ErrorHandler = require('./utils/error-handler');
@@ -116,7 +121,7 @@ exports.handler = async (event, context) => {
 
     // >! Convert Response object to API Gateway format
     // >! Add rate limit headers to all successful responses
-    const apiGatewayResponse = response.toAPIGateway();
+    const apiGatewayResponse = response.finalize();
     apiGatewayResponse.headers = {
       ...apiGatewayResponse.headers,
       ...rateLimitCheck.headers,
@@ -132,7 +137,6 @@ exports.handler = async (event, context) => {
     // >! Handle top-level errors that escape routing layer
     // >! These are typically initialization failures or unexpected errors
     const ErrorHandler = require('./utils/error-handler');
-    const executionTime = Date.now() - startTime;
 
     // >! Log all errors with stack traces and request context
     ErrorHandler.logError(error, {

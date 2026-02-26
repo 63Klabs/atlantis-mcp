@@ -10,18 +10,20 @@
  * @module config/connections
  */
 
+// >! Web service and cache framework package
+const { tools: {DebugAndLog} } = require("@63klabs/cache-data");
+
+// >! Application Modules
 const settings = require('./settings');
 
+// >! Script Globals
 /**
- * Determine if running in production environment
- * Production environments have longer cache TTLs and more conservative settings
+ * Environment check for production vs non-production
+ * environment for determining cache TTL values
  *
- * @returns {boolean} True if production environment
+ * @constant {boolean}
  */
-function isProduction() {
-  const stageId = process.env.STAGE_ID || '';
-  return stageId.toLowerCase() === 'prod' || stageId.toLowerCase() === 'production';
-}
+const IS_PRODUCTION = DebugAndLog.isProduction();
 
 /**
  * Connection and cache profile definitions
@@ -59,7 +61,7 @@ const connections = [
         overrideOriginHeaderExpiration: true,
         // >! Production: 1 hour TTL for template lists (changes infrequently)
         // >! Test: 5 minute TTL for rapid iteration during development
-        defaultExpirationInSeconds: isProduction() ? 3600 : 300,
+        defaultExpirationInSeconds: IS_PRODUCTION ? (60 * 60) : 300,
         expirationIsOnInterval: false,
         headersToRetain: '',
         hostId: 's3-templates',
@@ -72,7 +74,7 @@ const connections = [
         overrideOriginHeaderExpiration: true,
         // >! Production: 24 hour TTL for full template content (large YAML files, rarely change)
         // >! Test: 5 minute TTL for rapid iteration
-        defaultExpirationInSeconds: isProduction() ? 86400 : 300,
+        defaultExpirationInSeconds: IS_PRODUCTION ? (24 * 60 * 60) : 300,
         expirationIsOnInterval: false,
         headersToRetain: '',
         hostId: 's3-templates',
@@ -85,7 +87,7 @@ const connections = [
         overrideOriginHeaderExpiration: true,
         // >! Production: 1 hour TTL for version history (moderate change rate)
         // >! Test: 1 minute TTL for rapid iteration
-        defaultExpirationInSeconds: isProduction() ? 3600 : 60,
+        defaultExpirationInSeconds: IS_PRODUCTION ? 3600 : 60,
         expirationIsOnInterval: false,
         headersToRetain: '',
         hostId: 's3-templates',
@@ -98,7 +100,7 @@ const connections = [
         overrideOriginHeaderExpiration: true,
         // >! Production: 1 hour TTL for update checks
         // >! Test: 5 minute TTL for rapid iteration
-        defaultExpirationInSeconds: isProduction() ? 3600 : 300,
+        defaultExpirationInSeconds: IS_PRODUCTION ? 3600 : 300,
         expirationIsOnInterval: false,
         headersToRetain: '',
         hostId: 's3-templates',
@@ -121,7 +123,7 @@ const connections = [
         overrideOriginHeaderExpiration: true,
         // >! Production: 1 hour TTL for starter lists (changes infrequently)
         // >! Test: 5 minute TTL for rapid iteration
-        defaultExpirationInSeconds: isProduction() ? 3600 : 300,
+        defaultExpirationInSeconds: IS_PRODUCTION ? 3600 : 300,
         expirationIsOnInterval: false,
         headersToRetain: '',
         hostId: 's3-app-starters',
@@ -134,7 +136,7 @@ const connections = [
         overrideOriginHeaderExpiration: true,
         // >! Production: 1 hour TTL for starter metadata (sidecar files)
         // >! Test: 5 minute TTL for rapid iteration
-        defaultExpirationInSeconds: isProduction() ? 3600 : 300,
+        defaultExpirationInSeconds: IS_PRODUCTION ? 3600 : 300,
         expirationIsOnInterval: false,
         headersToRetain: '',
         hostId: 's3-app-starters',
@@ -157,7 +159,7 @@ const connections = [
         // >! Production: 30 minute TTL for GitHub repository metadata
         // >! Test: 5 minute TTL for rapid iteration
         // >! Respects GitHub API rate limits by caching aggressively
-        defaultExpirationInSeconds: isProduction() ? 1800 : 300,
+        defaultExpirationInSeconds: IS_PRODUCTION ? 1800 : 300,
         expirationIsOnInterval: false,
         headersToRetain: '',
         hostId: 'github',
@@ -170,7 +172,7 @@ const connections = [
         overrideOriginHeaderExpiration: true,
         // >! Production: 1 hour TTL for GitHub custom properties (rarely change)
         // >! Test: 5 minute TTL for rapid iteration
-        defaultExpirationInSeconds: isProduction() ? 3600 : 300,
+        defaultExpirationInSeconds: IS_PRODUCTION ? 3600 : 300,
         expirationIsOnInterval: false,
         headersToRetain: '',
         hostId: 'github',
@@ -183,7 +185,7 @@ const connections = [
         overrideOriginHeaderExpiration: true,
         // >! Production: 1 hour TTL for README content
         // >! Test: 5 minute TTL for rapid iteration
-        defaultExpirationInSeconds: isProduction() ? 3600 : 300,
+        defaultExpirationInSeconds: IS_PRODUCTION ? 3600 : 300,
         expirationIsOnInterval: false,
         headersToRetain: '',
         hostId: 'github',
@@ -196,7 +198,7 @@ const connections = [
         overrideOriginHeaderExpiration: true,
         // >! Production: 30 minute TTL for release information
         // >! Test: 5 minute TTL for rapid iteration
-        defaultExpirationInSeconds: isProduction() ? 1800 : 300,
+        defaultExpirationInSeconds: IS_PRODUCTION ? 1800 : 300,
         expirationIsOnInterval: false,
         headersToRetain: '',
         hostId: 'github',
@@ -219,7 +221,7 @@ const connections = [
         // >! Production: 6 hour TTL for documentation index (large, daily updates)
         // >! Test: 5 minute TTL for rapid iteration
         // >! Refresh on interval to keep index current
-        defaultExpirationInSeconds: isProduction() ? 21600 : 300,
+        defaultExpirationInSeconds: IS_PRODUCTION ? 21600 : 300,
         expirationIsOnInterval: true, // Refresh on interval
         headersToRetain: '',
         hostId: 'docs',
@@ -233,7 +235,7 @@ const connections = [
         // >! Production: 6 hour TTL for indexed code patterns
         // >! Test: 5 minute TTL for rapid iteration
         // >! Downstream cache for processed template/starter code
-        defaultExpirationInSeconds: isProduction() ? 21600 : 300,
+        defaultExpirationInSeconds: IS_PRODUCTION ? 21600 : 300,
         expirationIsOnInterval: false,
         headersToRetain: '',
         hostId: 'docs',
@@ -246,7 +248,7 @@ const connections = [
         overrideOriginHeaderExpiration: true,
         // >! Production: 1 hour TTL for search results
         // >! Test: 5 minute TTL for rapid iteration
-        defaultExpirationInSeconds: isProduction() ? 3600 : 300,
+        defaultExpirationInSeconds: IS_PRODUCTION ? 3600 : 300,
         expirationIsOnInterval: false,
         headersToRetain: '',
         hostId: 'docs',
@@ -257,66 +259,6 @@ const connections = [
   }
 ];
 
-/**
- * Get connection by name
- *
- * @param {string} name - Connection name
- * @returns {Object|null} Connection object or null if not found
- */
-function getConnection(name) {
-  return connections.find(conn => conn.name === name) || null;
-}
-
-/**
- * Get cache profile from connection
- *
- * @param {string} connectionName - Connection name
- * @param {string} profileName - Cache profile name
- * @returns {Object|null} Cache profile object or null if not found
- */
-function getCacheProfile(connectionName, profileName) {
-  const connection = getConnection(connectionName);
-  if (!connection) {
-    return null;
-  }
-
-  return connection.cache.find(profile => profile.profile === profileName) || null;
-}
-
-/**
- * Get connection and cache profile together
- * Used by services to retrieve both connection and cache configuration
- *
- * @param {string} connectionName - Connection name
- * @param {string} profileName - Cache profile name
- * @returns {{conn: Object, cacheProfile: Object}|null} Connection and profile or null
- *
- * @example
- * const { conn, cacheProfile } = getConnCacheProfile('s3-templates', 'templates-list');
- * conn.host = ['bucket1', 'bucket2']; // Set dynamically in service
- * const result = await CacheableDataAccess.getData(cacheProfile, fetchFn, conn, {});
- */
-function getConnCacheProfile(connectionName, profileName) {
-  const connection = getConnection(connectionName);
-  if (!connection) {
-    return null;
-  }
-
-  const cacheProfile = connection.cache.find(profile => profile.profile === profileName);
-  if (!cacheProfile) {
-    return null;
-  }
-
-  // Return deep copy to prevent mutation of original connection
-  return {
-    conn: JSON.parse(JSON.stringify(connection)),
-    cacheProfile: JSON.parse(JSON.stringify(cacheProfile))
-  };
-}
-
 module.exports = {
-  connections,
-  getConnection,
-  getCacheProfile,
-  getConnCacheProfile
+  connections
 };
