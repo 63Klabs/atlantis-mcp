@@ -26,25 +26,54 @@ const settings = require('./settings');
 const IS_PRODUCTION = DebugAndLog.isProduction();
 
 /**
- * Connection and cache profile definitions
- *
- * Each connection defines:
- * - name: Unique identifier for the connection
+ * Connection and cache profile definitions.
+ * 
+ * This array defines all data source connections and their associated cache
+ * profiles for the Atlantis MCP Server. Each connection represents a data
+ * source (S3 buckets, GitHub API, documentation index) with multiple cache
+ * profiles for different access patterns.
+ * 
+ * Connection Structure:
+ * - name: Unique identifier for the connection (e.g., 's3-templates')
  * - host: Target host (set dynamically in services for S3, static for GitHub)
  * - path: Base path for requests
- * - cache: Array of cache profiles with TTL and caching strategy
- *
- * Cache profiles define:
- * - profile: Unique identifier within the connection
+ * - cache: Array of cache profiles with different TTL and caching strategies
+ * 
+ * Cache Profile Structure:
+ * - profile: Unique identifier within the connection (e.g., 'templates-list')
  * - overrideOriginHeaderExpiration: Whether to override origin cache headers
  * - defaultExpirationInSeconds: TTL for cached data
  * - expirationIsOnInterval: Whether to refresh on interval vs on-demand
- * - headersToRetain: HTTP headers to preserve in cache
+ * - headersToRetain: HTTP headers to preserve in cache (comma-separated)
  * - hostId: Host identifier for cache key generation
  * - pathId: Path identifier for cache key generation
  * - encrypt: Whether to encrypt cached data
- *
- * @type {Array<Object>}
+ * 
+ * Dynamic Host Setting Pattern:
+ * For S3 connections, the host is set to null and dynamically assigned in
+ * services based on filtering requirements (e.g., specific S3 buckets from
+ * settings.s3.buckets). This allows filtering by bucket while maintaining
+ * consistent cache keys via hostId/pathId.
+ * 
+ * Production vs Test TTLs:
+ * Cache profiles use different TTL values based on environment:
+ * - Production (IS_PRODUCTION=true): Longer TTLs for stability and performance
+ * - Test (IS_PRODUCTION=false): Shorter TTLs for rapid iteration during development
+ * 
+ * @type {Array<{name: string, host: string|null, path: string, cache: Array<Object>}>}
+ * @example
+ * // Access connection profiles via Config.getConnCacheProfile()
+ * const { Config } = require('./config');
+ * 
+ * // Get cache profile for S3 template list
+ * const profile = Config.getConnCacheProfile('s3-templates', 'templates-list');
+ * console.log(profile.defaultExpirationInSeconds); // 3600 (production) or 300 (test)
+ * 
+ * @example
+ * // Get cache profile for GitHub repository metadata
+ * const profile = Config.getConnCacheProfile('github-api', 'repo-metadata');
+ * console.log(profile.hostId); // 'github'
+ * console.log(profile.pathId); // 'metadata'
  */
 const connections = [
   // S3 Templates Connection

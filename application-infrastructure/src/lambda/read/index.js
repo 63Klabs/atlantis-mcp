@@ -32,13 +32,49 @@ const coldStartInitTimer = new Timer("coldStartTimer", true);
 Config.init(); // >! we will await completion in the handler
 
 /**
- * Lambda handler for MCP server read-only requests
+ * Lambda handler for MCP server read-only requests.
  *
  * This function is invoked by API Gateway for all incoming MCP requests.
- * The handler will ensure the cold start init was resolved (either during
- * the current or prior invocation) and then sends the request to
- * Routes.process()
- * For all requests, it checks rate limits before processing.
+ * It performs the following operations in order:
+ * 
+ * 1. Cold Start Initialization:
+ *    - Waits for Config.promise() to ensure Config.init() completed
+ *    - Calls Config.prime() to pre-populate caches
+ *    - Logs cold start timing (only on first invocation)
+ * 
+ * 2. Rate Limiting:
+ *    - Checks rate limits using Config.settings().rateLimits
+ *    - Returns 429 Too Many Requests if limit exceeded
+ *    - Adds rate limit headers to all responses
+ * 
+ * 3. Request Processing:
+ *    - Delegates to Routes.process() for tool routing
+ *    - Adds standard MCP and CORS headers
+ *    - Logs request metrics and execution time
+ * 
+ * 4. Error Handling:
+ *    - Catches and logs all errors with context
+ *    - Returns sanitized error responses to clients
+ *    - Emits CloudWatch metrics for monitoring
+ * 
+ * Config Usage:
+ * - Config.promise(): Waits for async initialization to complete
+ * - Config.prime(): Pre-loads caches for optimal performance
+ * - Config.settings(): Accesses application settings (rate limits, S3 buckets, etc.)
+ * - Config.getConnCacheProfile(): Retrieves cache profiles for data sources
+ * 
+ * Rate Limiter Integration:
+ * The handler integrates with the rate limiter using Config.settings().rateLimits
+ * to enforce request limits per IP address. Rate limit configuration includes:
+ * - public: 100 requests/hour (unauthenticated)
+ * - registered: 500 requests/hour (authenticated free tier)
+ * - paid: 2500 requests/hour (authenticated paid tier)
+ * - private: 1000 requests/hour (internal/admin)
+ * 
+ * Cold Start Behavior:
+ * - First invocation: Config.init() runs, typically 200-500ms
+ * - Subsequent invocations: Config already initialized, returns immediately
+ * - Documentation index builds asynchronously without blocking
  *
  * @async
  * @param {Object} event - API Gateway event object
@@ -46,21 +82,64 @@ Config.init(); // >! we will await completion in the handler
  * @param {Object} event.headers - Request headers
  * @param {Object} event.queryStringParameters - Query parameters
  * @param {Object} event.requestContext - Request context with requestId, IP, etc.
+ * @param {Object} event.requestContext.identity - Identity information
+ * @param {string} event.requestContext.identity.sourceIp - Client IP address
  * @param {Object} context - Lambda context object
  * @param {string} context.requestId - Lambda request ID
  * @param {string} context.functionName - Lambda function name
  * @param {number} context.getRemainingTimeInMillis - Function to get remaining execution time
  * @returns {Promise<Object>} API Gateway response object
- * @returns {number} returns.statusCode - HTTP status code
- * @returns {Object} returns.headers - Response headers
+ * @returns {number} returns.statusCode - HTTP status code (200, 429, 500, etc.)
+ * @returns {Object} returns.headers - Response headers including rate limit headers
  * @returns {string} returns.body - Response body (JSON string)
  *
  * @example
- * // API Gateway invokes handler with event
+ * // Lambda handler invocation (cold start)
+ * const event = {
+ *   body: JSON.stringify({ tool: 'list_templates' }),
+ *   headers: { 'Content-Type': 'application/json' },
+ *   requestContext: {
+ *     requestId: 'abc-123',
+ *     identity: { sourceIp: '192.168.1.1' }
+ *   }
+ * };
+ * 
  * const response = await handler(event, context);
- * // Returns: { statusCode: 200, headers: {...}, body: '{"result": ...}' }
+ * // First invocation: Config.init() runs, cold start logged
+ * // Returns: {
+ * //   statusCode: 200,
+ * //   headers: {
+ * //     'X-RateLimit-Limit': '100',
+ * //     'X-RateLimit-Remaining': '99',
+ * //     'X-RateLimit-Reset': '1234567890',
+ * //     'X-MCP-Version': '1.0',
+ * //     ...
+ * //   },
+ * //   body: '{"templates": [...]}'
+ * // }
+ * 
+ * @example
+ * // Subsequent invocation (warm start)
+ * const response = await handler(event, context);
+ * // Config already initialized, no cold start delay
+ * // Rate limit headers updated with remaining count
+ * 
+ * @example
+ * // Rate limit exceeded
+ * // After 100 requests from same IP
+ * const response = await handler(event, context);
+ * // Returns: {
+ * //   statusCode: 429,
+ * //   headers: {
+ * //     'X-RateLimit-Limit': '100',
+ * //     'X-RateLimit-Remaining': '0',
+ * //     'Retry-After': '3600',
+ * //     ...
+ * //   },
+ * //   body: '{"error": "Too Many Requests", "retryAfter": 3600}'
+ * // }
  *
- * @throws {Error} If critical initialization fails (cache, configuration)
+ * @throws {Error} If critical initialization fails (cache, configuration, SSM)
  */
 exports.handler = async (event, context) => {
 

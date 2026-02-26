@@ -85,15 +85,66 @@ function incrementRequestCount(user) {
 }
 
 /**
- * Check if request should be rate limited
- *
+ * Check if request should be rate limited.
+ * 
+ * This function integrates with Config.settings().rateLimits to enforce
+ * rate limits based on the configured thresholds for different access tiers.
+ * 
+ * Rate Limit Integration:
+ * - Retrieves rate limit configuration from Config.settings().rateLimits
+ * - Supports multiple access tiers: public, registered, paid, private
+ * - Currently enforces public tier limits (TODO: implement authentication)
+ * - Tracks requests per IP address with automatic expiration
+ * 
+ * Rate Limit Headers:
+ * - X-RateLimit-Limit: Maximum requests allowed in window
+ * - X-RateLimit-Remaining: Requests remaining in current window
+ * - X-RateLimit-Reset: Unix timestamp when limit resets
+ * - Retry-After: Seconds to wait before retrying (only when limited)
+ * 
  * @param {Object} event - API Gateway event
- * @param {Object} limits - Rate limit configurations
- * @param {{limit: number, window: number}} limits.public - Rate limit threshold (requests per window)
- * @param {{limit: number, window: number}} limits.registered - Rate limit threshold (requests per window)
- * @param {{limit: number, window: number}} limits.paid - Rate limit threshold (requests per window)
- * @param {{limit: number, window: number}} limits.private - Rate limit threshold (requests per window)
- * @returns {{allowed: boolean, headers: Object, retryAfter: number|null}}
+ * @param {Object} event.requestContext - Request context
+ * @param {Object} event.requestContext.identity - Identity information
+ * @param {string} event.requestContext.identity.sourceIp - Client IP address
+ * @param {Object} event.headers - Request headers
+ * @param {string} [event.headers['X-Forwarded-For']] - Forwarded IP addresses
+ * @param {Object} limits - Rate limit configurations from Config.settings().rateLimits
+ * @param {{limit: number, window: number}} limits.public - Public tier rate limit
+ * @param {{limit: number, window: number}} limits.registered - Registered tier rate limit
+ * @param {{limit: number, window: number}} limits.paid - Paid tier rate limit
+ * @param {{limit: number, window: number}} limits.private - Private tier rate limit
+ * @returns {{allowed: boolean, headers: Object, retryAfter: number|null}} Rate limit result
+ * @returns {boolean} returns.allowed - Whether request is allowed
+ * @returns {Object} returns.headers - Rate limit headers to include in response
+ * @returns {number|null} returns.retryAfter - Seconds until limit resets (null if allowed)
+ * @example
+ * // In Lambda handler
+ * const { Config } = require('./config');
+ * const RateLimiter = require('./utils/rate-limiter');
+ * 
+ * exports.handler = async (event, context) => {
+ *   // Check rate limit using Config.settings()
+ *   const rateLimitCheck = RateLimiter.checkRateLimit(
+ *     event,
+ *     Config.settings().rateLimits
+ *   );
+ *   
+ *   if (!rateLimitCheck.allowed) {
+ *     // Return 429 Too Many Requests
+ *     return RateLimiter.createRateLimitResponse(
+ *       rateLimitCheck.headers,
+ *       rateLimitCheck.retryAfter
+ *     );
+ *   }
+ *   
+ *   // Process request with rate limit headers
+ *   const response = await processRequest(event);
+ *   response.headers = {
+ *     ...response.headers,
+ *     ...rateLimitCheck.headers
+ *   };
+ *   return response;
+ * };
  */
 function checkRateLimit(event, limits) {
 

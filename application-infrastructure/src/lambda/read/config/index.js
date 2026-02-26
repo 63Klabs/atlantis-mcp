@@ -74,16 +74,57 @@ function buildDocumentationIndexAsync() {
 }
 
 /**
- * Extends tools._ConfigSuperClass
- * Used to create a custom Config interface
+ * Configuration class for Atlantis MCP Server Read Lambda.
+ * 
+ * Extends _ConfigSuperClass from @63klabs/cache-data to provide:
+ * - Config.settings() - Getter for accessing application settings
+ * - Config.getConnCacheProfile() - Method for retrieving connection cache profiles
+ * - Config.init() - Async initialization (documented below)
+ * - Config.prime() - Cache priming after initialization
+ * 
+ * Note: Config.settings() and Config.getConnCacheProfile() are inherited from
+ * _ConfigSuperClass and do not need separate documentation in this module.
+ * 
+ * @extends _ConfigSuperClass
  */
 class Config extends _ConfigSuperClass {
 
 	/**
-	 * This is custom initialization code for the application. Depending 
-	 * upon needs, the _init functions from the super class may be used
-	 * as needed. Init is async, and a promise is stored, allowing the 
-	 * lambda function to wait until the promise is finished.
+	 * Initialize configuration for Lambda cold start.
+	 * 
+	 * This method performs async initialization that should be called once during
+	 * Lambda cold start before processing any requests. It initializes:
+	 * - ClientRequest validation framework
+	 * - Response formatting utilities
+	 * - Connections configuration for S3, GitHub API, and documentation index
+	 * - Cache system with secure data key from SSM Parameter Store
+	 * - Documentation index building (async, non-blocking)
+	 * 
+	 * The initialization is stored as a promise that can be awaited in the Lambda
+	 * handler to ensure all setup is complete before processing requests.
+	 * 
+	 * Cold Start Behavior:
+	 * - First invocation: Performs full initialization (typically 200-500ms)
+	 * - Subsequent invocations: Promise already resolved, returns immediately
+	 * - Documentation index builds asynchronously without blocking Lambda startup
+	 * 
+	 * @async
+	 * @returns {Promise<boolean>} Resolves to true when initialization completes
+	 * @throws {Error} If cache initialization fails or SSM parameter retrieval fails
+	 * @example
+	 * // In Lambda handler (outside handler function for cold start optimization)
+	 * const { Config } = require('./config');
+	 * Config.init(); // Start initialization
+	 * 
+	 * // In handler function
+	 * exports.handler = async (event, context) => {
+	 *   await Config.promise(); // Wait for init to complete
+	 *   await Config.prime();   // Prime caches
+	 *   
+	 *   // Now safe to use Config.settings() and Config.getConnCacheProfile()
+	 *   const settings = Config.settings();
+	 *   const profile = Config.getConnCacheProfile('s3-templates', 'templates-list');
+	 * };
 	 */
 	static async init() {
 		
@@ -123,6 +164,30 @@ class Config extends _ConfigSuperClass {
 
 	};
 
+	/**
+	 * Prime caches after initialization.
+	 * 
+	 * This method should be called after Config.init() completes to pre-populate
+	 * caches with frequently accessed data. Priming reduces latency for the first
+	 * requests by loading data into cache during cold start.
+	 * 
+	 * Primes:
+	 * - CacheableDataAccess: Pre-loads cache metadata and connection profiles
+	 * - CachedParameterSecrets: Pre-fetches SSM parameters and secrets
+	 * 
+	 * @async
+	 * @returns {Promise<Array>} Resolves when all priming operations complete
+	 * @example
+	 * // In Lambda handler
+	 * exports.handler = async (event, context) => {
+	 *   await Config.promise(); // Wait for init
+	 *   await Config.prime();   // Prime caches
+	 *   
+	 *   // Process request with primed caches
+	 *   const response = await processRequest(event);
+	 *   return response;
+	 * };
+	 */
 	static async prime() {
 		return Promise.all([
 			CacheableDataAccess.prime(),

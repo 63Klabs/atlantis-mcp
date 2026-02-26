@@ -102,8 +102,31 @@ const settings = {
   github: {
 
     /**
-     * GitHub token from SSM Parameter Store
-     * @type {string}
+     * GitHub token from SSM Parameter Store.
+     * 
+     * This is a CachedSSMParameter instance that automatically retrieves and
+     * refreshes the GitHub personal access token from AWS Systems Manager
+     * Parameter Store. The token is used for GitHub API authentication.
+     * 
+     * The parameter path is constructed as: PARAM_STORE_PATH + 'GitHubToken'
+     * Example: /atlantis/mcp/GitHubToken
+     * 
+     * Token refresh behavior:
+     * - Cached for the lifetime specified in CachedSSMParameter configuration
+     * - Automatically refreshed when cache expires
+     * - Decrypted automatically if stored as SecureString
+     * 
+     * @type {CachedSSMParameter}
+     * @example
+     * // Access token value (automatically retrieved from SSM)
+     * const token = await settings.github.token.getValue();
+     * 
+     * // Use in GitHub API request
+     * const response = await fetch('https://api.github.com/user/repos', {
+     *   headers: {
+     *     'Authorization': `Bearer ${await settings.github.token.getValue()}`
+     *   }
+     * });
      */
     token: new CachedSSMParameter(process.env.PARAM_STORE_PATH+'GitHubToken'),
 
@@ -137,7 +160,18 @@ const settings = {
   // Cache Configuration
   cache: {
     /**
-     * Cache TTL values in seconds for different resource types
+     * Cache TTL (Time To Live) values in seconds for different resource types.
+     * 
+     * TTL values control how long cached data remains valid before requiring
+     * refresh from the origin. Longer TTLs reduce API calls and improve
+     * performance but may serve stale data. Shorter TTLs ensure fresher data
+     * but increase API calls and latency.
+     * 
+     * All TTL values are configurable via environment variables with sensible
+     * defaults. Production deployments typically use longer TTLs than test
+     * environments.
+     * 
+     * @type {Object}
      */
     ttl: {
       /**
@@ -261,40 +295,71 @@ const settings = {
   // Rate Limiting Configuration
   rateLimits: {
     /**
-     * Public rate limit (requests per publicTimeRange per IP)
-     * @type {object}
-     * @property {number} limit - Request limit
-     * @property {number} window - Time window in seconds
+     * Rate limit configuration for different access tiers.
+     * 
+     * Rate limits control the maximum number of requests allowed per time window
+     * to prevent abuse and ensure fair resource allocation. Each tier has:
+     * - limit: Maximum number of requests allowed
+     * - window: Time window in seconds for the limit
+     * 
+     * Access tiers:
+     * - public: Unauthenticated requests (identified by IP address)
+     * - registered: Authenticated free-tier users
+     * - paid: Authenticated paid-tier users
+     * - private: Internal/admin access
+     * 
+     * Rate limits are enforced per IP address for public access and per user ID
+     * for authenticated access. Limits reset after the time window expires.
+     * 
+     * @type {Object}
+     */
+    /**
+     * Public rate limit (requests per window per IP address).
+     * 
+     * Applied to unauthenticated requests. Default: 100 requests per hour.
+     * 
+     * @type {Object}
+     * @property {number} limit - Maximum requests allowed (default: 100)
+     * @property {number} window - Time window in seconds (default: 3600 = 1 hour)
      */
     public: {
       limit: parseInt(process.env.PUBLIC_RATE_LIMIT || '100', 10),
       window: parseInt(process.env.PUBLIC_RATE_TIME_RANGE || '3600', 10)
     },
     /**
-     * Registered rate limit 
-     * @type {object}
-     * @property {number} limit - Request limit
-     * @property {number} window - Time window in seconds
+     * Registered user rate limit (requests per window per user).
+     * 
+     * Applied to authenticated free-tier users. Default: 500 requests per hour.
+     * 
+     * @type {Object}
+     * @property {number} limit - Maximum requests allowed (default: 500)
+     * @property {number} window - Time window in seconds (default: 3600 = 1 hour)
      */
     registered: {
       limit: parseInt(process.env.REGISTERED_RATE_LIMIT || '500', 10),
       window: parseInt(process.env.REGISTERED_RATE_TIME_RANGE || '3600', 10)
     },
     /**
-     * Paid rate limit
-     * @type {object}
-     * @property {number} limit - Request limit
-     * @property {number} window - Time window in seconds
+     * Paid user rate limit (requests per window per user).
+     * 
+     * Applied to authenticated paid-tier users. Default: 2500 requests per hour.
+     * 
+     * @type {Object}
+     * @property {number} limit - Maximum requests allowed (default: 2500)
+     * @property {number} window - Time window in seconds (default: 3600 = 1 hour)
      */
     paid: {
       limit: parseInt(process.env.PAID_RATE_LIMIT || '2500', 10),
       window: parseInt(process.env.PAID_RATE_TIME_RANGE || '3600', 10)
     },
     /**
-     * Private rate limit (requests per privateTimeRange per IP)
-     * @type {object}
-     * @property {number} limit - Request limit
-     * @property {number} window - Time window in seconds
+     * Private/admin rate limit (requests per window per user).
+     * 
+     * Applied to internal/admin access. Default: 1000 requests per hour.
+     * 
+     * @type {Object}
+     * @property {number} limit - Maximum requests allowed (default: 1000)
+     * @property {number} window - Time window in seconds (default: 3600 = 1 hour)
      */
     private: {
       limit: parseInt(process.env.PRIVATE_RATE_LIMIT || '1000', 10),
