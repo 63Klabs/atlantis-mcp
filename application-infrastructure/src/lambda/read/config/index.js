@@ -136,6 +136,7 @@ class Config extends _ConfigSuperClass {
 
 				ClientRequest.init( { validations } );
 				Response.init( { settings: settings.clientRequestInit } );
+				_ConfigSuperClass._settings = settings;
 				_ConfigSuperClass._connections = new Connections(connections);
 
 				// Cache settings

@@ -298,27 +298,27 @@ const settings = {
     }
   },
 
-  // Rate Limiting Configuration
+  /**
+   * Rate limit configuration for different access tiers.
+   * 
+   * Rate limits control the maximum number of requests allowed per time window
+   * to prevent abuse and ensure fair resource allocation. Each tier has:
+   * - limit: Maximum number of requests allowed
+   * - window: Time window in seconds for the limit
+   * 
+   * Access tiers:
+   * - public: Unauthenticated requests (identified by IP address)
+   * - registered: Authenticated free-tier users
+   * - paid: Authenticated paid-tier users
+   * - private: Internal access
+   * 
+   * Rate limits are enforced per IP address for public access and per user ID
+   * for authenticated access. Limits reset after the time window expires.
+   * 
+   * @type {Object}
+   */
   rateLimits: {
-    /**
-     * Rate limit configuration for different access tiers.
-     * 
-     * Rate limits control the maximum number of requests allowed per time window
-     * to prevent abuse and ensure fair resource allocation. Each tier has:
-     * - limit: Maximum number of requests allowed
-     * - window: Time window in seconds for the limit
-     * 
-     * Access tiers:
-     * - public: Unauthenticated requests (identified by IP address)
-     * - registered: Authenticated free-tier users
-     * - paid: Authenticated paid-tier users
-     * - private: Internal/admin access
-     * 
-     * Rate limits are enforced per IP address for public access and per user ID
-     * for authenticated access. Limits reset after the time window expires.
-     * 
-     * @type {Object}
-     */
+
     /**
      * Public rate limit (requests per window per IP address).
      * 
