@@ -5,29 +5,40 @@
  * the get() function returns templates matching EITHER criterion.
  */
 
-const { mockClient } = require('aws-sdk-client-mock');
-const { S3Client, GetObjectCommand, ListObjectVersionsCommand } = require('@aws-sdk/client-s3');
+// Mock @63klabs/cache-data AWS.s3.client
+const mockS3Send = jest.fn();
+jest.mock('@63klabs/cache-data', () => ({
+  tools: {
+    DebugAndLog: {
+      debug: jest.fn(),
+      info: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn()
+    },
+    AWS: {
+      s3: {
+        client: {
+          send: mockS3Send
+        }
+      }
+    }
+  }
+}));
+
+// Mock ErrorHandler
+jest.mock('../../../utils/error-handler', () => ({
+  logS3Error: jest.fn()
+}));
+
 const { Readable } = require('stream');
 
-// Mock S3 client
-const s3Mock = mockClient(S3Client);
-
-// Import module under test
-const S3Templates = require('../../../lambda/read/models/s3-templates');
+// Import module under test (it will use the mocked AWS.s3.client)
+const S3Templates = require('../../../models/s3-templates');
 
 describe('S3 Templates DAO - OR Condition', () => {
   beforeEach(() => {
-    s3Mock.reset();
-
-    // Mock checkBucketAccess to always return true
-    jest.spyOn(S3Templates, 'checkBucketAccess').mockResolvedValue(true);
-
-    // Mock getIndexedNamespaces to return test namespace
-    jest.spyOn(S3Templates, 'getIndexedNamespaces').mockResolvedValue(['test-namespace']);
-  });
-
-  afterEach(() => {
-    jest.restoreAllMocks();
+    mockS3Send.mockReset();
+    jest.clearAllMocks();
   });
 
   /**
@@ -37,6 +48,10 @@ describe('S3 Templates DAO - OR Condition', () => {
     const stream = new Readable();
     stream.push(content);
     stream.push(null);
+    
+    // Add transformToString method for AWS SDK v3 compatibility
+    stream.transformToString = async () => content;
+    
     return stream;
   }
 
@@ -67,8 +82,13 @@ Outputs:
       }
     };
 
-    // Mock ListObjectVersions to return multiple versions
-    s3Mock.on(ListObjectVersionsCommand).resolves({
+    // Mock namespace discovery (ListObjectsV2Command)
+    mockS3Send.mockResolvedValueOnce({
+      CommonPrefixes: [{ Prefix: 'test-namespace/' }]
+    });
+
+    // Mock ListObjectVersions to return multiple versions (for .yml extension)
+    mockS3Send.mockResolvedValueOnce({
       Versions: [
         { VersionId: 'version-id-123', IsLatest: true },
         { VersionId: 'version-id-456', IsLatest: false },
@@ -77,30 +97,38 @@ Outputs:
     });
 
     // Mock GetObject for version-id-123 (matches version criterion)
-    s3Mock.on(GetObjectCommand, {
-      Bucket: 'test-bucket',
-      Key: 'test-namespace/templates/v2/Storage/test-template.yml',
-      VersionId: 'version-id-123'
-    }).resolves({
+    mockS3Send.mockResolvedValueOnce({
       Body: createStream(createTemplateContent('v1.0.0/2024-01-15')),
       VersionId: 'version-id-123',
       LastModified: new Date('2024-01-15'),
       ContentLength: 100
     });
 
-    // Mock GetObject for version-id-456 (doesn't match)
-    s3Mock.on(GetObjectCommand, {
-      Bucket: 'test-bucket',
-      Key: 'test-namespace/templates/v2/Storage/test-template.yml',
-      VersionId: 'version-id-456'
-    }).resolves({
+    // Mock GetObject for version-id-456 (in case first doesn't match)
+    mockS3Send.mockResolvedValueOnce({
       Body: createStream(createTemplateContent('v0.9.0/2024-01-10')),
       VersionId: 'version-id-456',
       LastModified: new Date('2024-01-10'),
       ContentLength: 100
     });
 
+    // Mock GetObject for version-id-789 (in case second doesn't match)
+    mockS3Send.mockResolvedValueOnce({
+      Body: createStream(createTemplateContent('v0.8.0/2024-01-05')),
+      VersionId: 'version-id-789',
+      LastModified: new Date('2024-01-05'),
+      ContentLength: 100
+    });
+
+    // Mock ListObjectVersions for .yaml extension (no versions found)
+    mockS3Send.mockResolvedValueOnce({
+      Versions: []
+    });
+
     const result = await S3Templates.get(connection);
+
+    // Debug: Check how many times mockS3Send was called
+    console.log('mockS3Send call count:', mockS3Send.mock.calls.length);
 
     expect(result).not.toBeNull();
     expect(result.version).toBe('v1.0.0/2024-01-15');
@@ -121,8 +149,13 @@ Outputs:
       }
     };
 
+    // Mock namespace discovery
+    mockS3Send.mockResolvedValueOnce({
+      CommonPrefixes: [{ Prefix: 'test-namespace/' }]
+    });
+
     // Mock ListObjectVersions
-    s3Mock.on(ListObjectVersionsCommand).resolves({
+    mockS3Send.mockResolvedValueOnce({
       Versions: [
         { VersionId: 'version-id-123', IsLatest: true },
         { VersionId: 'version-id-456', IsLatest: false },
@@ -131,11 +164,7 @@ Outputs:
     });
 
     // Mock GetObject for version-id-123 (doesn't match)
-    s3Mock.on(GetObjectCommand, {
-      Bucket: 'test-bucket',
-      Key: 'test-namespace/templates/v2/Storage/test-template.yml',
-      VersionId: 'version-id-123'
-    }).resolves({
+    mockS3Send.mockResolvedValueOnce({
       Body: createStream(createTemplateContent('v0.9.0/2024-01-10')),
       VersionId: 'version-id-123',
       LastModified: new Date('2024-01-10'),
@@ -143,11 +172,7 @@ Outputs:
     });
 
     // Mock GetObject for version-id-456 (matches versionId criterion)
-    s3Mock.on(GetObjectCommand, {
-      Bucket: 'test-bucket',
-      Key: 'test-namespace/templates/v2/Storage/test-template.yml',
-      VersionId: 'version-id-456'
-    }).resolves({
+    mockS3Send.mockResolvedValueOnce({
       Body: createStream(createTemplateContent('v0.8.0/2024-01-05')),
       VersionId: 'version-id-456',
       LastModified: new Date('2024-01-05'),
@@ -174,8 +199,13 @@ Outputs:
       }
     };
 
+    // Mock namespace discovery
+    mockS3Send.mockResolvedValueOnce({
+      CommonPrefixes: [{ Prefix: 'test-namespace/' }]
+    });
+
     // Mock ListObjectVersions
-    s3Mock.on(ListObjectVersionsCommand).resolves({
+    mockS3Send.mockResolvedValueOnce({
       Versions: [
         { VersionId: 'version-id-123', IsLatest: true },
         { VersionId: 'version-id-456', IsLatest: false }
@@ -183,11 +213,7 @@ Outputs:
     });
 
     // Mock GetObject for version-id-123 (doesn't match)
-    s3Mock.on(GetObjectCommand, {
-      Bucket: 'test-bucket',
-      Key: 'test-namespace/templates/v2/Storage/test-template.yml',
-      VersionId: 'version-id-123'
-    }).resolves({
+    mockS3Send.mockResolvedValueOnce({
       Body: createStream(createTemplateContent('v0.9.0/2024-01-10')),
       VersionId: 'version-id-123',
       LastModified: new Date('2024-01-10'),
@@ -195,11 +221,7 @@ Outputs:
     });
 
     // Mock GetObject for version-id-456 (doesn't match)
-    s3Mock.on(GetObjectCommand, {
-      Bucket: 'test-bucket',
-      Key: 'test-namespace/templates/v2/Storage/test-template.yml',
-      VersionId: 'version-id-456'
-    }).resolves({
+    mockS3Send.mockResolvedValueOnce({
       Body: createStream(createTemplateContent('v0.8.0/2024-01-05')),
       VersionId: 'version-id-456',
       LastModified: new Date('2024-01-05'),
@@ -222,11 +244,13 @@ Outputs:
       }
     };
 
+    // Mock namespace discovery
+    mockS3Send.mockResolvedValueOnce({
+      CommonPrefixes: [{ Prefix: 'test-namespace/' }]
+    });
+
     // Mock GetObject for latest version
-    s3Mock.on(GetObjectCommand, {
-      Bucket: 'test-bucket',
-      Key: 'test-namespace/templates/v2/Storage/test-template.yml'
-    }).resolves({
+    mockS3Send.mockResolvedValueOnce({
       Body: createStream(createTemplateContent('v1.0.0/2024-01-15')),
       VersionId: 'version-id-latest',
       LastModified: new Date('2024-01-15'),
@@ -250,12 +274,13 @@ Outputs:
       }
     };
 
+    // Mock namespace discovery
+    mockS3Send.mockResolvedValueOnce({
+      CommonPrefixes: [{ Prefix: 'test-namespace/' }]
+    });
+
     // Mock GetObject for specific version
-    s3Mock.on(GetObjectCommand, {
-      Bucket: 'test-bucket',
-      Key: 'test-namespace/templates/v2/Storage/test-template.yml',
-      VersionId: 'version-id-456'
-    }).resolves({
+    mockS3Send.mockResolvedValueOnce({
       Body: createStream(createTemplateContent('v0.8.0/2024-01-05')),
       VersionId: 'version-id-456',
       LastModified: new Date('2024-01-05'),

@@ -123,8 +123,11 @@ function parseCloudFormationTemplate(templateContent) {
       new yaml.Type('!Condition', { kind: 'scalar', construct: data => ({ Condition: data }) })
     ];
 
-    // Create custom schema with CloudFormation types (js-yaml 4.x uses Schema.create)
-    const CFN_SCHEMA = yaml.Schema.create(cfnTypes);
+    // Create custom schema with CloudFormation types (js-yaml 4.x uses new Schema constructor)
+    const CFN_SCHEMA = new yaml.Schema({
+      include: [yaml.DEFAULT_SCHEMA],
+      explicit: cfnTypes
+    });
 
     const template = yaml.load(templateContent, { schema: CFN_SCHEMA });
 

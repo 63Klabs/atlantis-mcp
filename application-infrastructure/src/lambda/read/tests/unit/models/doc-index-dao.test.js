@@ -6,13 +6,13 @@
  * - search() function with relevance ranking
  */
 
-const DocIndex = require('../../../lambda/read/models/doc-index');
-const { Config } = require('../../../lambda/read/config');
-const GitHubAPI = require('../../../lambda/read/models/github-api');
-const S3Templates = require('../../../lambda/read/models/s3-templates');
+const DocIndex = require('../../../models/doc-index');
+const { Config } = require('../../../config');
+const GitHubAPI = require('../../../models/github-api');
+const S3Templates = require('../../../models/s3-templates');
 
 // Mock Config
-jest.mock('../../../lambda/read/config', () => ({
+jest.mock('../../../config', () => ({
   Config: {
     settings: jest.fn(() => ({
       github: {
@@ -27,10 +27,10 @@ jest.mock('../../../lambda/read/config', () => ({
 }));
 
 // Mock GitHubAPI
-jest.mock('../../../lambda/read/models/github-api');
+jest.mock('../../../models/github-api');
 
 // Mock S3Templates
-jest.mock('../../../lambda/read/models/s3-templates');
+jest.mock('../../../models/s3-templates');
 
 // Mock DebugAndLog
 jest.mock('@63klabs/cache-data', () => ({
@@ -166,7 +166,7 @@ Outputs:
 `
       });
 
-      const result = await DocIndex.buildIndex({ includeStarters: false });
+      const result = await DocIndex.buildIndex({ includeStarters: false, force: true });
 
       expect(result.entryCount).toBeGreaterThan(0);
     });
@@ -199,12 +199,15 @@ Outputs:
         errors: []
       });
 
-      const result = await DocIndex.buildIndex({ includeStarters: true });
+      const result = await DocIndex.buildIndex({ includeStarters: true, force: true });
 
       expect(result.entryCount).toBeGreaterThan(0);
     });
 
     it('should handle errors gracefully', async () => {
+      // Reset cache to ensure fresh build
+      DocIndex.TestHarness.resetCache();
+      
       GitHubAPI.listRepositories.mockRejectedValue(new Error('GitHub API error'));
 
       S3Templates.list.mockResolvedValue({
@@ -334,9 +337,8 @@ The Lambda function template creates a serverless function.
     });
 
     it('should build index if not already built', async () => {
-      // Reset module to clear index
-      jest.resetModules();
-      const DocIndexFresh = require('../../../lambda/read/models/doc-index');
+      // Reset cache to clear index
+      DocIndex.TestHarness.resetCache();
 
       GitHubAPI.listRepositories.mockResolvedValue({
         repositories: [],
@@ -348,7 +350,7 @@ The Lambda function template creates a serverless function.
         errors: []
       });
 
-      const result = await DocIndexFresh.search({
+      const result = await DocIndex.search({
         query: 'test',
         limit: 10
       });

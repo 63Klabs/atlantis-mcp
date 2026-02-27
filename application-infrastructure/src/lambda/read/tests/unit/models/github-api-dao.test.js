@@ -10,15 +10,17 @@
  * - Rate limit handling
  */
 
-const GitHubAPI = require('../../../lambda/read/models/github-api');
-const _Config = require('../../../lambda/read/config');
+const GitHubAPI = require('../../../models/github-api');
+const { Config } = require('../../../config');
 
 // Mock Config
-jest.mock('../../../lambda/read/config', () => ({
-  settings: jest.fn(() => ({
-    githubToken: 'test-token-123',
-    githubUsers: ['63klabs', 'test-org']
-  }))
+jest.mock('../../../config', () => ({
+  Config: {
+    settings: jest.fn(() => ({
+      githubToken: 'test-token-123',
+      githubUsers: ['63klabs', 'test-org']
+    }))
+  }
 }));
 
 // Mock DebugAndLog
@@ -39,7 +41,7 @@ global.fetch = jest.fn();
 describe('GitHub API DAO', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    global.fetch.mockReset();
+    // Note: jest.clearAllMocks() also resets global.fetch mock
   });
 
   describe('11.5.10 - listRepositories()', () => {

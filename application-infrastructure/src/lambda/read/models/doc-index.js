@@ -110,47 +110,36 @@ const buildIndex = async (options = {}) => {
  * Index markdown documentation from template repository
  */
 const indexTemplateRepository = async (index) => {
-  try {
-    const settings = Config.settings();
-    const githubUsers = settings.githubUsers || [];
+  const settings = Config.settings();
+  const githubUsers = settings.githubUsers || settings.github?.userOrgs || [];
 
-    // Look for template repository in configured GitHub users/orgs
-    for (const userOrg of githubUsers) {
-      try {
-        // Get repositories with atlantis_repository-type: templates
-        const connection = {
-          host: userOrg,
-          path: '/repos',
-          parameters: { repositoryType: 'templates' }
-        };
+  // Look for template repository in configured GitHub users/orgs
+  for (const userOrg of githubUsers) {
+    // Get repositories with atlantis_repository-type: templates
+    const connection = {
+      host: userOrg,
+      path: '/repos',
+      parameters: { repositoryType: 'templates' }
+    };
 
-        const repos = await GitHubAPI.listRepositories(connection, {});
+    const repos = await GitHubAPI.listRepositories(connection, {});
 
-        for (const repo of repos.repositories || []) {
-          // Index markdown files from repository
-          await indexMarkdownFiles(index, repo, 'templates');
-        }
-
-        index.metadata.sources.push({
-          type: 'github',
-          userOrg,
-          repositoryType: 'templates',
-          indexed: true
-        });
-
-      } catch (error) {
-        DebugAndLog.warn(`Failed to index template repository from ${userOrg}: ${error.message}`);
-        index.metadata.sources.push({
-          type: 'github',
-          userOrg,
-          repositoryType: 'templates',
-          indexed: false,
-          error: error.message
-        });
-      }
+    // Handle case where repos might be undefined (e.g., API error)
+    if (!repos || !repos.repositories) {
+      continue;
     }
-  } catch (error) {
-    DebugAndLog.warn(`Failed to index template repositories: ${error.message}`);
+
+    for (const repo of repos.repositories) {
+      // Index markdown files from repository
+      await indexMarkdownFiles(index, repo, 'templates');
+    }
+
+    index.metadata.sources.push({
+      type: 'github',
+      userOrg,
+      repositoryType: 'templates',
+      indexed: true
+    });
   }
 };
 
@@ -160,7 +149,7 @@ const indexTemplateRepository = async (index) => {
 const indexCacheDataPackage = async (index) => {
   try {
     const settings = Config.settings();
-    const githubUsers = settings.githubUsers || [];
+    const githubUsers = settings.githubUsers || settings.github?.userOrgs || [];
 
     // Look for cache-data package in configured GitHub users/orgs
     for (const userOrg of githubUsers) {
@@ -208,58 +197,42 @@ const indexCacheDataPackage = async (index) => {
  * Index CloudFormation templates
  */
 const indexCloudFormationTemplates = async (index) => {
-  try {
-    const settings = Config.settings();
-    const buckets = settings.atlantisS3Buckets || [];
+  const settings = Config.settings();
+  const buckets = settings.atlantisS3Buckets || settings.s3?.buckets || [];
 
-    for (const bucket of buckets) {
-      try {
-        const connection = {
-          host: bucket,
-          path: 'templates/v2',
-          parameters: {}
-        };
+  for (const bucket of buckets) {
+    const connection = {
+      host: bucket,
+      path: 'templates/v2',
+      parameters: {}
+    };
 
-        const result = await S3Templates.list(connection, {});
-        const templates = result.templates || [];
+    const result = await S3Templates.list(connection, {});
+    const templates = result.templates || [];
 
-        for (const template of templates) {
-          // Get full template content
-          const fullTemplate = await S3Templates.get({
-            host: bucket,
-            path: 'templates/v2',
-            parameters: {
-              category: template.category,
-              templateName: template.name
-            }
-          }, {});
-
-          if (fullTemplate) {
-            // Index template sections
-            await indexTemplateContent(index, fullTemplate, bucket);
-          }
+    for (const template of templates) {
+      // Get full template content
+      const fullTemplate = await S3Templates.get({
+        host: bucket,
+        path: 'templates/v2',
+        parameters: {
+          category: template.category,
+          templateName: template.name
         }
+      }, {});
 
-        index.metadata.sources.push({
-          type: 's3',
-          bucket,
-          resourceType: 'templates',
-          indexed: true
-        });
-
-      } catch (error) {
-        DebugAndLog.warn(`Failed to index templates from bucket ${bucket}: ${error.message}`);
-        index.metadata.sources.push({
-          type: 's3',
-          bucket,
-          resourceType: 'templates',
-          indexed: false,
-          error: error.message
-        });
+      if (fullTemplate) {
+        // Index template sections
+        await indexTemplateContent(index, fullTemplate, bucket);
       }
     }
-  } catch (error) {
-    DebugAndLog.warn(`Failed to index CloudFormation templates: ${error.message}`);
+
+    index.metadata.sources.push({
+      type: 's3',
+      bucket,
+      resourceType: 'templates',
+      indexed: true
+    });
   }
 };
 
@@ -269,7 +242,7 @@ const indexCloudFormationTemplates = async (index) => {
 const indexAppStarters = async (index) => {
   try {
     const settings = Config.settings();
-    const githubUsers = settings.githubUsers || [];
+    const githubUsers = settings.githubUsers || settings.github?.userOrgs || [];
 
     for (const userOrg of githubUsers) {
       try {
@@ -314,45 +287,40 @@ const indexAppStarters = async (index) => {
  * Index markdown files from a GitHub repository
  */
 const indexMarkdownFiles = async (index, repo, repositoryType) => {
-  try {
-    // Get README content
-    const readme = await GitHubAPI.getReadme({
-      host: repo.owner,
-      path: `/repos/${repo.owner}/${repo.name}`,
-      parameters: {}
-    }, {});
+  // Get README content
+  const readme = await GitHubAPI.getReadme({
+    host: repo.owner,
+    path: `/repos/${repo.owner}/${repo.name}`,
+    parameters: {}
+  }, {});
 
-    if (readme && readme.content) {
-      // Parse README headings and content
-      const headings = extractMarkdownHeadings(readme.content);
+  if (readme && readme.content) {
+    // Parse README headings and content
+    const headings = extractMarkdownHeadings(readme.content);
 
-      for (const heading of headings) {
-        index.entries.push({
-          title: heading.title,
-          excerpt: heading.excerpt,
-          content: heading.content,
-          filePath: 'README.md',
-          githubUrl: `https://github.com/${repo.owner}/${repo.name}#${heading.anchor}`,
-          type: 'documentation',
-          subType: determineDocumentationType(heading.title),
-          repository: repo.name,
-          repositoryType,
-          owner: repo.owner,
-          keywords: extractKeywords(heading.title + ' ' + heading.content),
-          metadata: {
-            level: heading.level,
-            lineNumber: heading.lineNumber
-          }
-        });
-      }
+    for (const heading of headings) {
+      index.entries.push({
+        title: heading.title,
+        excerpt: heading.excerpt,
+        content: heading.content,
+        filePath: 'README.md',
+        githubUrl: `https://github.com/${repo.owner}/${repo.name}#${heading.anchor}`,
+        type: 'documentation',
+        subType: determineDocumentationType(heading.title),
+        repository: repo.name,
+        repositoryType,
+        owner: repo.owner,
+        keywords: extractKeywords(heading.title + ' ' + heading.content),
+        metadata: {
+          level: heading.level,
+          lineNumber: heading.lineNumber
+        }
+      });
     }
-
-    // TODO: Index other markdown files from docs/ directory
-    // This would require additional GitHub API calls to list directory contents
-
-  } catch (error) {
-    DebugAndLog.warn(`Failed to index markdown files from ${repo.name}: ${error.message}`);
   }
+
+  // TODO: Index other markdown files from docs/ directory
+  // This would require additional GitHub API calls to list directory contents
 };
 
 /**
@@ -417,68 +385,94 @@ const indexCodeExamples = async (index, repo, repositoryType) => {
  * Index CloudFormation template content
  */
 const indexTemplateContent = async (index, template, bucket) => {
-  try {
-    const yaml = require('js-yaml');
-    const parsed = yaml.load(template.content);
+  const yaml = require('js-yaml');
+  
+  // Define custom types for CloudFormation intrinsic functions
+  const cfnTypes = [
+    new yaml.Type('!GetAtt', { kind: 'scalar', construct: data => ({ 'Fn::GetAtt': data }) }),
+    new yaml.Type('!GetAtt', { kind: 'sequence', construct: data => ({ 'Fn::GetAtt': data }) }),
+    new yaml.Type('!Ref', { kind: 'scalar', construct: data => ({ Ref: data }) }),
+    new yaml.Type('!Sub', { kind: 'scalar', construct: data => ({ 'Fn::Sub': data }) }),
+    new yaml.Type('!Sub', { kind: 'sequence', construct: data => ({ 'Fn::Sub': data }) }),
+    new yaml.Type('!Join', { kind: 'sequence', construct: data => ({ 'Fn::Join': data }) }),
+    new yaml.Type('!Select', { kind: 'sequence', construct: data => ({ 'Fn::Select': data }) }),
+    new yaml.Type('!Split', { kind: 'sequence', construct: data => ({ 'Fn::Split': data }) }),
+    new yaml.Type('!FindInMap', { kind: 'sequence', construct: data => ({ 'Fn::FindInMap': data }) }),
+    new yaml.Type('!GetAZs', { kind: 'scalar', construct: data => ({ 'Fn::GetAZs': data }) }),
+    new yaml.Type('!GetAZs', { kind: 'sequence', construct: data => ({ 'Fn::GetAZs': data }) }),
+    new yaml.Type('!ImportValue', { kind: 'scalar', construct: data => ({ 'Fn::ImportValue': data }) }),
+    new yaml.Type('!Base64', { kind: 'scalar', construct: data => ({ 'Fn::Base64': data }) }),
+    new yaml.Type('!Cidr', { kind: 'sequence', construct: data => ({ 'Fn::Cidr': data }) }),
+    new yaml.Type('!And', { kind: 'sequence', construct: data => ({ 'Fn::And': data }) }),
+    new yaml.Type('!Equals', { kind: 'sequence', construct: data => ({ 'Fn::Equals': data }) }),
+    new yaml.Type('!If', { kind: 'sequence', construct: data => ({ 'Fn::If': data }) }),
+    new yaml.Type('!Not', { kind: 'sequence', construct: data => ({ 'Fn::Not': data }) }),
+    new yaml.Type('!Or', { kind: 'sequence', construct: data => ({ 'Fn::Or': data }) }),
+    new yaml.Type('!Condition', { kind: 'scalar', construct: data => ({ Condition: data }) })
+  ];
 
-    // Index template sections
-    const sections = ['Metadata', 'Parameters', 'Mappings', 'Conditions', 'Resources', 'Outputs'];
+  // Create custom schema with CloudFormation types
+  const CFN_SCHEMA = new yaml.Schema({
+    include: [yaml.DEFAULT_SCHEMA],
+    explicit: cfnTypes
+  });
 
-    for (const section of sections) {
-      if (parsed[section]) {
-        const sectionContent = JSON.stringify(parsed[section], null, 2);
+  const parsed = yaml.load(template.content, { schema: CFN_SCHEMA });
 
-        index.entries.push({
-          title: `${template.name} - ${section}`,
-          excerpt: `CloudFormation ${section} section from ${template.name}`,
-          content: sectionContent,
-          filePath: template.s3Path,
-          githubUrl: null,
-          type: 'template-pattern',
-          subType: 'resource',
-          repository: null,
-          repositoryType: 'templates',
-          namespace: template.namespace,
-          bucket,
-          keywords: extractKeywords(`${section} ${template.category} ${template.name}`),
-          context: {
-            templateSection: section,
-            templateName: template.name,
-            category: template.category
-          }
-        });
+  // Index template sections
+  const sections = ['Metadata', 'Parameters', 'Mappings', 'Conditions', 'Resources', 'Outputs'];
 
-        // Index individual resources
-        if (section === 'Resources') {
-          for (const [resourceName, resourceDef] of Object.entries(parsed[section])) {
-            index.entries.push({
-              title: `${resourceName} (${resourceDef.Type})`,
-              excerpt: `CloudFormation resource: ${resourceDef.Type}`,
-              content: JSON.stringify(resourceDef, null, 2),
-              filePath: template.s3Path,
-              githubUrl: null,
-              type: 'template-pattern',
-              subType: 'resource',
-              repository: null,
-              repositoryType: 'templates',
-              namespace: template.namespace,
-              bucket,
-              keywords: extractKeywords(`${resourceName} ${resourceDef.Type} ${template.category}`),
-              context: {
-                templateSection: 'Resources',
-                resourceType: resourceDef.Type,
-                resourceName,
-                templateName: template.name,
-                category: template.category
-              }
-            });
-          }
+  for (const section of sections) {
+    if (parsed[section]) {
+      const sectionContent = JSON.stringify(parsed[section], null, 2);
+
+      index.entries.push({
+        title: `${template.name} - ${section}`,
+        excerpt: `CloudFormation ${section} section from ${template.name}`,
+        content: sectionContent,
+        filePath: template.s3Path,
+        githubUrl: null,
+        type: 'template-pattern',
+        subType: 'resource',
+        repository: null,
+        repositoryType: 'templates',
+        namespace: template.namespace,
+        bucket,
+        keywords: extractKeywords(`${section} ${template.category} ${template.name}`),
+        context: {
+          templateSection: section,
+          templateName: template.name,
+          category: template.category
+        }
+      });
+
+      // Index individual resources
+      if (section === 'Resources') {
+        for (const [resourceName, resourceDef] of Object.entries(parsed[section])) {
+          index.entries.push({
+            title: `${resourceName} (${resourceDef.Type})`,
+            excerpt: `CloudFormation resource: ${resourceDef.Type}`,
+            content: JSON.stringify(resourceDef, null, 2),
+            filePath: template.s3Path,
+            githubUrl: null,
+            type: 'template-pattern',
+            subType: 'resource',
+            repository: null,
+            repositoryType: 'templates',
+            namespace: template.namespace,
+            bucket,
+            keywords: extractKeywords(`${resourceName} ${resourceDef.Type} ${template.category}`),
+            context: {
+              templateSection: 'Resources',
+              resourceType: resourceDef.Type,
+              resourceName,
+              templateName: template.name,
+              category: template.category
+            }
+          });
         }
       }
     }
-
-  } catch (error) {
-    DebugAndLog.warn(`Failed to index template content for ${template.name}: ${error.message}`);
   }
 };
 
@@ -509,8 +503,28 @@ const search = async (options = {}) => {
     };
   }
 
+  // Handle empty query - return no results
+  if (!query || query.trim() === '') {
+    return {
+      results: [],
+      totalResults: 0,
+      query,
+      suggestions: ['Please provide a search query']
+    };
+  }
+
   // Normalize query
   const queryKeywords = extractKeywords(query);
+
+  // If no valid keywords after extraction, return no results
+  if (queryKeywords.length === 0) {
+    return {
+      results: [],
+      totalResults: 0,
+      query,
+      suggestions: ['Try using more specific keywords']
+    };
+  }
 
   // Search and rank results
   let results = documentationIndex.entries
@@ -725,7 +739,28 @@ const generateSuggestions = (query, index) => {
   return suggestions;
 };
 
+/**
+ * Test harness for accessing internal state for testing purposes.
+ * WARNING: This class is for testing only and should NEVER be used in production code.
+ * 
+ * @private
+ */
+class TestHarness {
+  /**
+   * Reset the documentation index cache for testing purposes.
+   * WARNING: This method is for testing only and should never be used in production.
+   * 
+   * @private
+   */
+  static resetCache() {
+    documentationIndex = null;
+    indexBuildInProgress = false;
+    indexLastBuilt = null;
+  }
+}
+
 module.exports = {
   buildIndex,
-  search
+  search,
+  TestHarness
 };
