@@ -128,7 +128,7 @@ class Config extends _ConfigSuperClass {
 	 */
 	static async init() {
 		
-		_ConfigSuperClass._promise = new Promise(async (resolve, reject) => {
+		_ConfigSuperClass._promise = new Promise(async (resolve) => {
 
 			const timerConfigInit = new Timer("timerConfigInit", true);
 				
@@ -145,20 +145,18 @@ class Config extends _ConfigSuperClass {
 				});
 
 				DebugAndLog.debug("Cache: ", Cache.info());
-				DebugAndLog.debug("Settings: ", settings);
+				DebugAndLog.debug("Settings: ", _ConfigSuperClass.settings());
 				// DebugAndLog.debug("Connections: ", Connections.toObject());
 
 				// >! Documentation index building is async and non-blocking
 				// >! Lambda can start processing requests while index builds in background
 				buildDocumentationIndexAsync();
 
-				
-				resolve(true);
 			} catch (error) {
 				DebugAndLog.error(`Could not initialize Config ${error.message}`, error.stack);
-				reject(false);
 			} finally {
 				timerConfigInit.stop();
+				resolve(true);
 			};
 			
 		});

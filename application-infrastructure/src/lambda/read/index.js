@@ -161,6 +161,7 @@ exports.handler = async (event, context) => {
     // >! Returns 429 if limit exceeded with Retry-After header
     const rateLimitCheck = RateLimiter.checkRateLimit(event, Config.settings().rateLimits);
 
+    console.log("SETTINGS", Config.settings());
     if (!rateLimitCheck.allowed) {
       // >! Return 429 Too Many Requests with rate limit headers
       // >! Include Retry-After header indicating when to retry
