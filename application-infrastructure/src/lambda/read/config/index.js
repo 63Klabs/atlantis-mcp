@@ -29,7 +29,7 @@ const {
 } = require("@63klabs/cache-data");
 
 const settings = require("./settings.js");
-// const validations = require("./validations.js");
+const validations = require("./validations.js");
 const connections = require("./connections.js");
 
 
@@ -134,8 +134,8 @@ class Config extends _ConfigSuperClass {
 				
 			try {
 
-				ClientRequest.init( /*{ validations }*/ );
-				Response.init( { settings } );
+				ClientRequest.init( { validations } );
+				Response.init( { settings: settings.clientRequestInit } );
 				_ConfigSuperClass._connections = new Connections(connections);
 
 				// Cache settings
