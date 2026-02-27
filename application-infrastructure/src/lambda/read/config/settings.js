@@ -76,6 +76,12 @@ const TEMPLATE_CATEGORIES = [
  * Organized into logical sections for S3, GitHub, cache, logging, and naming
  */
 const settings = {
+  // ClientRequest.init Settings
+  clientRequestInit: {
+    "errorExpirationInSeconds": 300,
+    "routeExpirationInSeconds": 3600,
+    "externalRequestHeadroomInMs": 8000,
+  },
   // S3 Configuration
   s3: {
     /**
