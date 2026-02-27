@@ -15,7 +15,7 @@
  */
 
 // Mock dependencies before requiring controller
-jest.mock('../../../lambda/read/services', () => ({
+jest.mock('../../../services', () => ({
   Templates: {
     list: jest.fn(),
     get: jest.fn(),
@@ -24,11 +24,11 @@ jest.mock('../../../lambda/read/services', () => ({
   }
 }));
 
-jest.mock('../../../lambda/read/utils/schema-validator', () => ({
+jest.mock('../../../utils/schema-validator', () => ({
   validate: jest.fn()
 }));
 
-jest.mock('../../../lambda/read/utils/mcp-protocol', () => ({
+jest.mock('../../../utils/mcp-protocol', () => ({
   successResponse: jest.fn((tool, data) => ({ success: true, tool, data })),
   errorResponse: jest.fn((code, details, tool) => ({ success: false, code, details, tool }))
 }));
@@ -44,10 +44,10 @@ jest.mock('@63klabs/cache-data', () => ({
   }
 }));
 
-const TemplatesController = require('../../../lambda/read/controllers/templates');
-const Services = require('../../../lambda/read/services');
-const SchemaValidator = require('../../../lambda/read/utils/schema-validator');
-const MCPProtocol = require('../../../lambda/read/utils/mcp-protocol');
+const TemplatesController = require('../../../controllers/templates');
+const Services = require('../../../services');
+const SchemaValidator = require('../../../utils/schema-validator');
+const MCPProtocol = require('../../../utils/mcp-protocol');
 const { tools } = require('@63klabs/cache-data');
 
 describe('Templates Controller', () => {

@@ -8,11 +8,13 @@
  */
 
 const Templates = require('./templates');
+const Starters = require('./starters');
+const Documentation = require('./documentation');
+const Validation = require('./validation');
 
 module.exports = {
-  Templates
-  // TODO: Add other services as they are implemented
-  // Starters: require('./starters'),
-  // Documentation: require('./documentation'),
-  // Validation: require('./validation')
+  Templates,
+  Starters,
+  Documentation,
+  Validation
 };
