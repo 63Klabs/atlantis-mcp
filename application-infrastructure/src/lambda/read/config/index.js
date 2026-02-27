@@ -145,7 +145,7 @@ class Config extends _ConfigSuperClass {
 
 				DebugAndLog.debug("Cache: ", Cache.info());
 				DebugAndLog.debug("Settings: ", settings);
-				DebugAndLog.debug("Connections: ", Connections.toObject());
+				// DebugAndLog.debug("Connections: ", Connections.toObject());
 
 				// >! Documentation index building is async and non-blocking
 				// >! Lambda can start processing requests while index builds in background
