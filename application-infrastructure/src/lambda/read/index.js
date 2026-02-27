@@ -213,46 +213,54 @@ exports.handler = async (event, context) => {
     return apiGatewayResponse;
 
   } catch (error) {
-    // >! Handle top-level errors that escape routing layer
-    // >! These are typically initialization failures or unexpected errors
-    const ErrorHandler = require('./utils/error-handler');
+    // // >! Handle top-level errors that escape routing layer
+    // // >! These are typically initialization failures or unexpected errors
+    // const ErrorHandler = require('./utils/error-handler');
 
-    // >! Log all errors with stack traces and request context
-    ErrorHandler.logError(error, {
-      requestId,
-      ip,
-      tool: event.body ? JSON.parse(event.body).tool : event.queryStringParameters?.tool,
-      parameters: event.body ? JSON.parse(event.body) : event.queryStringParameters
-    });
+    // // >! Log all errors with stack traces and request context
+    // ErrorHandler.logError(error, {
+    //   requestId,
+    //   ip,
+    //   tool: event.body ? JSON.parse(event.body).tool : event.queryStringParameters?.tool,
+    //   parameters: event.body ? JSON.parse(event.body) : event.queryStringParameters
+    // });
 
-    // >! Emit error metric
-    ErrorHandler.emitErrorMetric({
-      tool: event.body ? JSON.parse(event.body).tool : event.queryStringParameters?.tool,
-      errorCode: error.code || 'INTERNAL_ERROR',
-      statusCode: ErrorHandler.getStatusCode(error)
-    });
+    // // >! Emit error metric
+    // ErrorHandler.emitErrorMetric({
+    //   tool: event.body ? JSON.parse(event.body).tool : event.queryStringParameters?.tool,
+    //   errorCode: error.code || 'INTERNAL_ERROR',
+    //   statusCode: ErrorHandler.getStatusCode(error)
+    // });
 
-    // >! Emit latency metric even for errors
-    ErrorHandler.emitLatencyMetric({
-      tool: event.body ? JSON.parse(event.body).tool : event.queryStringParameters?.tool,
-      latency: executionTime,
-      cacheHit: false
-    });
+    // // >! Emit latency metric even for errors
+    // ErrorHandler.emitLatencyMetric({
+    //   tool: event.body ? JSON.parse(event.body).tool : event.queryStringParameters?.tool,
+    //   latency: executionTime,
+    //   cacheHit: false
+    // });
+
+    // Get requestId from event
+    const requestId = event.requestContext?.requestId || context?.awsRequestId || 'unknown';
 
     // >! Return sanitized error response to client
     // >! Don't expose internal implementation details
     // >! Include request IDs in error responses
-    return {
-      statusCode: ErrorHandler.getStatusCode(error),
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Request-Id': requestId,
-        'X-MCP-Version': '1.0',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With'
-      },
-      body: JSON.stringify(ErrorHandler.toUserResponse(error, requestId))
-    };
+    
+		/* Log the error */
+		DebugAndLog.error(`Unhandled Execution Error in Handler  Error: ${error.message}`, error.stack);
+
+		/* This failed before we even got to parsing the request so we don't have all the log info */
+		response = new Response({statusCode: 500});
+    response.setHeader('Content-Type', 'application/json');
+    response.setHeader('X-Request-Id', requestId);
+		response.setHeader('X-MCP-Version', '1.0');
+		response.setHeader('Access-Control-Allow-Origin', '*');
+		response.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+		response.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+		response.setBody({
+			message: 'Error initializing request - 1701-D', // 1701-D just so we know it is an app and not API Gateway error
+      requestId: requestId
+		});
+    return response.finalize();
   }
 };
