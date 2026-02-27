@@ -10,9 +10,7 @@
  * - Service-level bucket filtering
  */
 
-const { describe, it, expect, beforeEach, afterEach } = require('@jest/globals');
-
-// Mock dependencies before importing service
+// Mock dependencies before importing service  
 jest.mock('@63klabs/cache-data', () => ({
   cache: {
     CacheableDataAccess: {
@@ -43,9 +41,14 @@ jest.mock('../../../lambda/read/models', () => ({
   }
 }));
 
+const { describe, it, expect, beforeEach, afterEach } = require('@jest/globals');
+
+// Import mocked modules - these will use the mocks defined above
 const { cache: { CacheableDataAccess } } = require('@63klabs/cache-data');
 const { Config } = require('../../../lambda/read/config');
-const _Models = require('../../../lambda/read/models');
+const Models = require('../../../lambda/read/models');
+
+// Import service LAST to ensure it gets the mocked dependencies
 const Templates = require('../../../lambda/read/services/templates');
 
 describe('Templates Service', () => {
@@ -75,7 +78,28 @@ describe('Templates Service', () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
-    // Default mock implementations
+    // Setup default Config.getConnCacheProfile mock
+    Config.getConnCacheProfile.mockReturnValue({
+      conn: {
+        name: 's3-templates',
+        host: [],
+        path: 'templates/v2',
+        parameters: {},
+        cache: []
+      },
+      cacheProfile: {
+        profile: 'templates-list',
+        overrideOriginHeaderExpiration: true,
+        defaultExpirationInSeconds: 3600,
+        expirationIsOnInterval: false,
+        headersToRetain: '',
+        hostId: 's3-templates',
+        pathId: 'list',
+        encrypt: false
+      }
+    });
+
+    // Setup default Config.settings mock
     Config.settings.mockReturnValue({
       s3: {
         buckets: ['bucket1', 'bucket2', 'bucket3']
@@ -132,7 +156,7 @@ describe('Templates Service', () => {
       ];
 
       // Mock the S3Templates.list to return data
-      _Models.S3Templates.list.mockResolvedValue({
+      Models.S3Templates.list.mockResolvedValue({
         templates: mockTemplates,
         errors: undefined,
         partialData: false
@@ -144,6 +168,7 @@ describe('Templates Service', () => {
       // Assert
       expect(Config.getConnCacheProfile).toHaveBeenCalledWith('s3-templates', 'templates-list');
       expect(CacheableDataAccess.getData).toHaveBeenCalled();
+      expect(Models.S3Templates.list).toHaveBeenCalled();
       expect(result.templates).toEqual(mockTemplates);
       expect(mockConn.host).toEqual(['bucket1', 'bucket2', 'bucket3']);
     });

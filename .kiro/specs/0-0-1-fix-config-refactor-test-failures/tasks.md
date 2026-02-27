@@ -14,14 +14,14 @@ This task list provides a systematic, incremental approach to fixing 217 test fa
 
 ### 1.1 Fix templates-service.test.js
 
-- [ ] Apply fix pattern from design.md Template 1
+- [x] Apply fix pattern from design.md Template 1
   - Move jest.mock() calls to module level (before imports)
   - Add complete Config.getConnCacheProfile() mock structure
   - Add complete Config.settings() mock structure
   - Replace CacheableDataAccess.getData() mockResolvedValue with mockImplementation
   - Mock S3Templates.get() and S3Templates.list() with test data
   - Add jest.clearAllMocks() in beforeEach()
-- [ ] Run individual test file to verify
+- [x] Run individual test file to verify
   - Command: `npm test -- application-infrastructure/src/tests/unit/services/templates-service.test.js`
   - Expected: All tests pass (0 failures)
 - [ ] Run full test suite to check for regressions
