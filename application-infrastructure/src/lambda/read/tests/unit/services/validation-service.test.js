@@ -16,24 +16,27 @@ jest.mock('@63klabs/cache-data', () => ({
       debug: jest.fn(),
       warn: jest.fn(),
       error: jest.fn()
+    },
+    AWS: {
+      REGION: 'us-east-1'
     }
   }
 }));
 
-jest.mock('../../../lambda/read/config', () => ({
+jest.mock('../../../config', () => ({
   Config: {
     settings: jest.fn()
   }
 }));
 
-jest.mock('../../../lambda/read/utils/naming-rules', () => ({
+jest.mock('../../../utils/naming-rules', () => ({
   detectResourceType: jest.fn(),
   validateNaming: jest.fn()
 }));
 
-const { Config } = require('../../../lambda/read/config');
-const NamingRules = require('../../../lambda/read/utils/naming-rules');
-const Validation = require('../../../lambda/read/services/validation');
+const { Config } = require('../../../config');
+const NamingRules = require('../../../utils/naming-rules');
+const Validation = require('../../../services/validation');
 
 describe('Validation Service', () => {
   beforeEach(() => {

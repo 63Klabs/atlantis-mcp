@@ -22,7 +22,7 @@ jest.mock('@63klabs/cache-data', () => ({
 }));
 
 // Mock config at module level
-jest.mock('../../../lambda/read/config', () => ({
+jest.mock('../../../config', () => ({
   Config: {
     getConnCacheProfile: jest.fn(),
     settings: jest.fn()
@@ -30,7 +30,7 @@ jest.mock('../../../lambda/read/config', () => ({
 }));
 
 // Mock models at module level
-jest.mock('../../../lambda/read/models', () => ({
+jest.mock('../../../models', () => ({
   S3Templates: {
     get: jest.fn(),
     list: jest.fn()
@@ -39,9 +39,9 @@ jest.mock('../../../lambda/read/models', () => ({
 
 // Import after mocking
 const { cache: { CacheableDataAccess }, tools: { DebugAndLog } } = require('@63klabs/cache-data');
-const Templates = require('../../../lambda/read/services/templates');
-const Models = require('../../../lambda/read/models');
-const { Config } = require('../../../lambda/read/config');
+const Templates = require('../../../services/templates');
+const Models = require('../../../models');
+const { Config } = require('../../../config');
 
 describe('Templates Service - Error Handling', () => {
   beforeEach(() => {

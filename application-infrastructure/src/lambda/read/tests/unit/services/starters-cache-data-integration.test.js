@@ -5,75 +5,66 @@
  * include cache-data integration based on sidecar metadata.
  */
 
-describe('Starters Service - Cache-Data Integration Detection', () => {
-  let Starters;
-  let Models;
-  let CacheableDataAccess;
-
-  beforeEach(() => {
-    // Reset modules
-    jest.resetModules();
-
-    // Mock cache-data package
-    const mockCacheableDataAccess = {
+// Mock dependencies before importing service
+jest.mock('@63klabs/cache-data', () => ({
+  cache: {
+    CacheableDataAccess: {
       getData: jest.fn()
-    };
+    }
+  },
+  tools: {
+    DebugAndLog: {
+      debug: jest.fn(),
+      info: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn()
+    }
+  }
+}));
 
-    jest.mock('@63klabs/cache-data', () => ({
-      cache: {
-        CacheableDataAccess: mockCacheableDataAccess
+jest.mock('../../../config', () => ({
+  Config: {
+    settings: jest.fn(() => ({
+      github: {
+        userOrgs: ['63klabs', 'testorg']
       },
-      tools: {
-        DebugAndLog: {
-          debug: jest.fn(),
-          info: jest.fn(),
-          warn: jest.fn(),
-          error: jest.fn()
-        }
+      s3: {
+        buckets: ['test-bucket-1', 'test-bucket-2'],
+        starterPrefix: 'app-starters/v2'
       }
-    }));
-
-    CacheableDataAccess = mockCacheableDataAccess;
-
-    // Mock Config
-    jest.mock('../../../lambda/read/config', () => ({
-      settings: jest.fn(() => ({
-        github: {
-          userOrgs: ['63klabs', 'testorg']
-        },
-        s3: {
-          buckets: ['test-bucket-1', 'test-bucket-2'],
-          starterPrefix: 'app-starters/v2'
-        }
-      })),
-      getConnCacheProfile: jest.fn(() => ({
-        conn: {
-          host: [],
-          path: '/repos',
-          parameters: {}
-        },
-        cacheProfile: {
-          hostId: 'github-api',
-          pathId: 'starters-list',
-          profile: 'default'
-        }
-      }))
-    }));
-
-    // Mock Models
-    jest.mock('../../../lambda/read/models', () => ({
-      S3Starters: {
-        list: jest.fn()
+    })),
+    getConnCacheProfile: jest.fn(() => ({
+      conn: {
+        host: [],
+        path: '/repos',
+        parameters: {}
       },
-      GitHubAPI: {
-        listRepositories: jest.fn()
+      cacheProfile: {
+        hostId: 'github-api',
+        pathId: 'starters-list',
+        profile: 'default'
       }
-    }));
+    }))
+  }
+}));
 
-    Models = require('../../../lambda/read/models');
+jest.mock('../../../models', () => ({
+  S3Starters: {
+    list: jest.fn()
+  },
+  GitHubAPI: {
+    listRepositories: jest.fn()
+  }
+}));
 
-    // Import service after mocks
-    Starters = require('../../../lambda/read/services/starters');
+const { cache: { CacheableDataAccess } } = require('@63klabs/cache-data');
+const Models = require('../../../models');
+const Starters = require('../../../services/starters');
+
+describe('Starters Service - Cache-Data Integration Detection', () => {
+  beforeEach(() => {
+    // Clear all mocks before each test
+    jest.clearAllMocks();
   });
 
   afterEach(() => {

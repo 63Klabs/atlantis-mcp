@@ -177,26 +177,26 @@ exports.handler = async (event, context) => {
 
     // TODO: A lot of this metric and logging stuff is already handled by Response so we should clean up and ensure this isn't used by a downstream process. Or, if it is, figure out what data is needed and use already provided methods from DebugAndLog and Response
 
-    // >! Log successful request with execution time
-    const ErrorHandler = require('./utils/error-handler');
-    const props = response.getProps ? response.getProps() : {};
-    ErrorHandler.logRequest({
-      tool: event.body ? JSON.parse(event.body).tool : event.queryStringParameters?.tool,
-      method: event.httpMethod,
-      path: event.path,
-      ip,
-      requestId,
-      executionTime,
-      statusCode: props.statusCode || 200,
-      cacheHit: props.cacheHit || false
-    });
+    // // >! Log successful request with execution time
+    // const ErrorHandler = require('./utils/error-handler');
+    // const props = response.getProps ? response.getProps() : {};
+    // ErrorHandler.logRequest({
+    //   tool: event.body ? JSON.parse(event.body).tool : event.queryStringParameters?.tool,
+    //   method: event.httpMethod,
+    //   path: event.path,
+    //   ip,
+    //   requestId,
+    //   executionTime,
+    //   statusCode: props.statusCode || 200,
+    //   cacheHit: props.cacheHit || false
+    // });
 
-    // >! Emit latency metric
-    ErrorHandler.emitLatencyMetric({
-      tool: event.body ? JSON.parse(event.body).tool : event.queryStringParameters?.tool,
-      latency: executionTime,
-      cacheHit: props.cacheHit || false
-    });
+    // // >! Emit latency metric
+    // ErrorHandler.emitLatencyMetric({
+    //   tool: event.body ? JSON.parse(event.body).tool : event.queryStringParameters?.tool,
+    //   latency: executionTime,
+    //   cacheHit: props.cacheHit || false
+    // });
 
     // >! Convert Response object to API Gateway format
     // >! Add rate limit headers to all successful responses

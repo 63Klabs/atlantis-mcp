@@ -24,23 +24,23 @@ jest.mock('@63klabs/cache-data', () => ({
   }
 }));
 
-jest.mock('../../../lambda/read/config', () => ({
+jest.mock('../../../config', () => ({
   Config: {
     getConnCacheProfile: jest.fn(),
     settings: jest.fn()
   }
 }));
 
-jest.mock('../../../lambda/read/models', () => ({
+jest.mock('../../../models', () => ({
   DocIndex: {
     search: jest.fn()
   }
 }));
 
 const { cache: { CacheableDataAccess } } = require('@63klabs/cache-data');
-const { Config } = require('../../../lambda/read/config');
-const Models = require('../../../lambda/read/models');
-const Documentation = require('../../../lambda/read/services/documentation');
+const { Config } = require('../../../config');
+const Models = require('../../../models');
+const Documentation = require('../../../services/documentation');
 
 describe('Documentation Service', () => {
   // Helper function to create properly structured mock connection and cache profile
@@ -67,7 +67,11 @@ describe('Documentation Service', () => {
   };
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    // Clear all mocks before each test
+    CacheableDataAccess.getData.mockClear();
+    Config.settings.mockClear();
+    Config.getConnCacheProfile.mockClear();
+    Models.DocIndex.search.mockClear();
 
     // Default mock implementations
     Config.settings.mockReturnValue({

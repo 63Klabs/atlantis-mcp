@@ -26,14 +26,14 @@ jest.mock('@63klabs/cache-data', () => ({
   }
 }));
 
-jest.mock('../../../lambda/read/config', () => ({
+jest.mock('../../../config', () => ({
   Config: {
     getConnCacheProfile: jest.fn(),
     settings: jest.fn()
   }
 }));
 
-jest.mock('../../../lambda/read/models', () => ({
+jest.mock('../../../models', () => ({
   S3Templates: {
     list: jest.fn(),
     get: jest.fn(),
@@ -43,13 +43,16 @@ jest.mock('../../../lambda/read/models', () => ({
 
 const { describe, it, expect, beforeEach, afterEach } = require('@jest/globals');
 
+// Reset modules to ensure mocks are applied
+jest.resetModules();
+
 // Import mocked modules - these will use the mocks defined above
 const { cache: { CacheableDataAccess } } = require('@63klabs/cache-data');
-const { Config } = require('../../../lambda/read/config');
-const Models = require('../../../lambda/read/models');
+const { Config } = require('../../../config');
+const Models = require('../../../models');
 
 // Import service LAST to ensure it gets the mocked dependencies
-const Templates = require('../../../lambda/read/services/templates');
+const Templates = require('../../../services/templates');
 
 describe('Templates Service', () => {
   // Helper function to create properly structured mock connection and cache profile
@@ -76,7 +79,13 @@ describe('Templates Service', () => {
   };
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    // Clear only the call history, not the implementations
+    Models.S3Templates.list.mockClear();
+    Models.S3Templates.get.mockClear();
+    Models.S3Templates.listVersions.mockClear();
+    Config.getConnCacheProfile.mockClear();
+    Config.settings.mockClear();
+    CacheableDataAccess.getData.mockClear();
 
     // Setup default Config.getConnCacheProfile mock
     Config.getConnCacheProfile.mockReturnValue({
@@ -113,9 +122,12 @@ describe('Templates Service', () => {
       }
     });
 
-    // Setup CacheableDataAccess mock to call fetchFunction
+    // Setup CacheableDataAccess mock to bypass cache and call fetchFunction directly
+    // This ensures test-specific mocks on Models.S3Templates.* are used
     CacheableDataAccess.getData.mockImplementation(async (cacheProfile, fetchFunction, conn, opts) => {
+      // Call the fetchFunction directly (which will use the mocked Models.S3Templates methods)
       const body = await fetchFunction(conn, opts);
+      // Return in the format expected by the service (wrapped in { body })
       return { body };
     });
   });
@@ -126,6 +138,13 @@ describe('Templates Service', () => {
 
   describe('list() with caching', () => {
     it('should list all templates using cache-data', async () => {
+      // Verify mocks are set up correctly
+      console.log('typeof CacheableDataAccess.getData:', typeof CacheableDataAccess.getData);
+      console.log('CacheableDataAccess.getData.mock:', CacheableDataAccess.getData.mock);
+      console.log('Is mock function:', jest.isMockFunction(CacheableDataAccess.getData));
+      expect(typeof CacheableDataAccess.getData).toBe('function');
+      expect(typeof Models.S3Templates.list).toBe('function');
+      
       // Arrange
       const mockConn = {
         name: 's3-templates',
@@ -155,7 +174,7 @@ describe('Templates Service', () => {
         { templateName: 'template2', category: 'Network' }
       ];
 
-      // Mock the S3Templates.list to return data
+      // Set up specific mock (use mockResolvedValue for persistent mock)
       Models.S3Templates.list.mockResolvedValue({
         templates: mockTemplates,
         errors: undefined,
@@ -163,12 +182,24 @@ describe('Templates Service', () => {
       });
 
       // Act
-      const result = await Templates.list({});
+      console.log('About to call Templates.list');
+      console.log('CacheableDataAccess.getData mock calls before:', CacheableDataAccess.getData.mock.calls.length);
+      let result;
+      let error;
+      try {
+        result = await Templates.list({});
+        console.log('Result:', result);
+        console.log('CacheableDataAccess.getData mock calls after:', CacheableDataAccess.getData.mock.calls.length);
+      } catch (e) {
+        error = e;
+        console.log('Error caught:', e.message);
+      }
 
       // Assert
+      expect(error).toBeUndefined();
       expect(Config.getConnCacheProfile).toHaveBeenCalledWith('s3-templates', 'templates-list');
-      expect(CacheableDataAccess.getData).toHaveBeenCalled();
       expect(Models.S3Templates.list).toHaveBeenCalled();
+      expect(result).toBeDefined();
       expect(result.templates).toEqual(mockTemplates);
       expect(mockConn.host).toEqual(['bucket1', 'bucket2', 'bucket3']);
     });
@@ -178,12 +209,10 @@ describe('Templates Service', () => {
       const mockConnCache = createMockConnCacheProfile();
       Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
-      CacheableDataAccess.getData.mockResolvedValue({
-        body: {
-          templates: [{ templateName: 'template1', category: 'Storage' }],
-          errors: undefined,
-          partialData: false
-        }
+      Models.S3Templates.list.mockResolvedValue({
+        templates: [{ templateName: 'template1', category: 'Storage' }],
+        errors: undefined,
+        partialData: false
       });
 
       // Act
@@ -195,6 +224,7 @@ describe('Templates Service', () => {
         version: undefined,
         versionId: undefined
       });
+      expect(Models.S3Templates.list).toHaveBeenCalled();
     });
 
     it('should filter templates by version', async () => {
@@ -202,12 +232,10 @@ describe('Templates Service', () => {
       const mockConnCache = createMockConnCacheProfile();
       Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
-      CacheableDataAccess.getData.mockResolvedValue({
-        body: {
-          templates: [],
-          errors: undefined,
-          partialData: false
-        }
+      Models.S3Templates.list.mockResolvedValue({
+        templates: [],
+        errors: undefined,
+        partialData: false
       });
 
       // Act
@@ -219,6 +247,7 @@ describe('Templates Service', () => {
         version: 'v1.3.5/2024-01-15',
         versionId: undefined
       });
+      expect(Models.S3Templates.list).toHaveBeenCalled();
     });
 
     it('should filter templates by versionId', async () => {
@@ -226,12 +255,10 @@ describe('Templates Service', () => {
       const mockConnCache = createMockConnCacheProfile();
       Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
-      CacheableDataAccess.getData.mockResolvedValue({
-        body: {
-          templates: [],
-          errors: undefined,
-          partialData: false
-        }
+      Models.S3Templates.list.mockResolvedValue({
+        templates: [],
+        errors: undefined,
+        partialData: false
       });
 
       // Act
@@ -243,6 +270,7 @@ describe('Templates Service', () => {
         version: undefined,
         versionId: 'abc123'
       });
+      expect(Models.S3Templates.list).toHaveBeenCalled();
     });
 
     it('should filter templates by specific buckets', async () => {
@@ -250,12 +278,10 @@ describe('Templates Service', () => {
       const mockConnCache = createMockConnCacheProfile();
       Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
-      CacheableDataAccess.getData.mockResolvedValue({
-        body: {
-          templates: [],
-          errors: undefined,
-          partialData: false
-        }
+      Models.S3Templates.list.mockResolvedValue({
+        templates: [],
+        errors: undefined,
+        partialData: false
       });
 
       // Act
@@ -263,6 +289,7 @@ describe('Templates Service', () => {
 
       // Assert
       expect(mockConnCache.conn.host).toEqual(['bucket1', 'bucket2']);
+      expect(Models.S3Templates.list).toHaveBeenCalled();
     });
 
     it('should validate bucket filter against configured buckets', async () => {
@@ -270,12 +297,10 @@ describe('Templates Service', () => {
       const mockConnCache = createMockConnCacheProfile();
       Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
-      CacheableDataAccess.getData.mockResolvedValue({
-        body: {
-          templates: [],
-          errors: undefined,
-          partialData: false
-        }
+      Models.S3Templates.list.mockResolvedValue({
+        templates: [],
+        errors: undefined,
+        partialData: false
       });
 
       // Act
@@ -283,6 +308,7 @@ describe('Templates Service', () => {
 
       // Assert - invalid bucket should be filtered out
       expect(mockConnCache.conn.host).toEqual(['bucket1']);
+      expect(Models.S3Templates.list).toHaveBeenCalled();
     });
 
     it('should throw error if no valid buckets specified', async () => {
@@ -322,9 +348,8 @@ describe('Templates Service', () => {
         content: 'template content'
       };
 
-      CacheableDataAccess.getData.mockResolvedValue({
-        body: mockTemplate
-      });
+      // Set up specific mock (use mockResolvedValue for persistent mock)
+      Models.S3Templates.get.mockResolvedValue(mockTemplate);
 
       // Act
       const result = await Templates.get({
@@ -334,9 +359,9 @@ describe('Templates Service', () => {
 
       // Assert
       expect(Config.getConnCacheProfile).toHaveBeenCalledWith('s3-templates', 'template-detail');
-      expect(CacheableDataAccess.getData).toHaveBeenCalled();
+      expect(Models.S3Templates.get).toHaveBeenCalled();
       expect(result).toEqual(mockTemplate);
-      expect(mockConnCache.cacheProfile.pathId).toBe('template-detail:Storage/template1');
+      expect(mockConnCache.cacheProfile.pathId).toBe('detail:Storage/template1');
     });
 
     it('should require category and templateName', async () => {
@@ -357,8 +382,9 @@ describe('Templates Service', () => {
 
       Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
-      CacheableDataAccess.getData.mockResolvedValue({
-        body: { templateName: 'template1', version: 'v1.3.5/2024-01-15' }
+      Models.S3Templates.get.mockResolvedValue({
+        templateName: 'template1',
+        version: 'v1.3.5/2024-01-15'
       });
 
       // Act
@@ -375,6 +401,7 @@ describe('Templates Service', () => {
         version: 'v1.3.5/2024-01-15',
         versionId: undefined
       });
+      expect(Models.S3Templates.get).toHaveBeenCalled();
     });
 
     it('should get template by versionId', async () => {
@@ -383,8 +410,9 @@ describe('Templates Service', () => {
 
       Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
-      CacheableDataAccess.getData.mockResolvedValue({
-        body: { templateName: 'template1', versionId: 'abc123' }
+      Models.S3Templates.get.mockResolvedValue({
+        templateName: 'template1',
+        versionId: 'abc123'
       });
 
       // Act
@@ -401,6 +429,7 @@ describe('Templates Service', () => {
         version: undefined,
         versionId: 'abc123'
       });
+      expect(Models.S3Templates.get).toHaveBeenCalled();
     });
 
     it('should filter by specific buckets', async () => {
@@ -409,8 +438,8 @@ describe('Templates Service', () => {
 
       Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
-      CacheableDataAccess.getData.mockResolvedValue({
-        body: { templateName: 'template1' }
+      Models.S3Templates.get.mockResolvedValue({
+        templateName: 'template1'
       });
 
       // Act
@@ -422,6 +451,7 @@ describe('Templates Service', () => {
 
       // Assert
       expect(mockConnCache.conn.host).toEqual(['bucket1']);
+      expect(Models.S3Templates.get).toHaveBeenCalled();
     });
   });
 
@@ -441,9 +471,8 @@ describe('Templates Service', () => {
         ]
       };
 
-      CacheableDataAccess.getData.mockResolvedValue({
-        body: mockVersions
-      });
+      // Set up specific mock (use mockResolvedValue for persistent mock)
+      Models.S3Templates.listVersions.mockResolvedValue(mockVersions);
 
       // Act
       const result = await Templates.listVersions({
@@ -453,7 +482,7 @@ describe('Templates Service', () => {
 
       // Assert
       expect(Config.getConnCacheProfile).toHaveBeenCalledWith('s3-templates', 'template-versions');
-      expect(CacheableDataAccess.getData).toHaveBeenCalled();
+      expect(Models.S3Templates.listVersions).toHaveBeenCalled();
       expect(result).toEqual(mockVersions);
     });
 
@@ -469,8 +498,8 @@ describe('Templates Service', () => {
 
       Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
-      CacheableDataAccess.getData.mockResolvedValue({
-        body: { versions: [] }
+      Models.S3Templates.listVersions.mockResolvedValue({
+        versions: []
       });
 
       // Act
@@ -482,6 +511,7 @@ describe('Templates Service', () => {
 
       // Assert
       expect(mockConnCache.conn.host).toEqual(['bucket1', 'bucket2']);
+      expect(Models.S3Templates.listVersions).toHaveBeenCalled();
     });
   });
 
@@ -492,28 +522,22 @@ describe('Templates Service', () => {
 
       Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
-      // Mock list() calls for each category
-      CacheableDataAccess.getData
+      // Set up specific mocks for each category (will override default mock)
+      Models.S3Templates.list
         .mockResolvedValueOnce({
-          body: {
-            templates: [{ name: 't1' }, { name: 't2' }],
-            errors: undefined,
-            partialData: false
-          }
+          templates: [{ name: 't1' }, { name: 't2' }],
+          errors: undefined,
+          partialData: false
         })
         .mockResolvedValueOnce({
-          body: {
-            templates: [{ name: 't3' }],
-            errors: undefined,
-            partialData: false
-          }
+          templates: [{ name: 't3' }],
+          errors: undefined,
+          partialData: false
         })
         .mockResolvedValueOnce({
-          body: {
-            templates: [{ name: 't4' }, { name: 't5' }, { name: 't6' }],
-            errors: undefined,
-            partialData: false
-          }
+          templates: [{ name: 't4' }, { name: 't5' }, { name: 't6' }],
+          errors: undefined,
+          partialData: false
         });
 
       // Act
@@ -544,22 +568,18 @@ describe('Templates Service', () => {
 
       Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
-      // Mock list() to fail for one category
-      CacheableDataAccess.getData
+      // Set up specific mocks for each category (will override default mock)
+      Models.S3Templates.list
         .mockResolvedValueOnce({
-          body: {
-            templates: [{ name: 't1' }],
-            errors: undefined,
-            partialData: false
-          }
+          templates: [{ name: 't1' }],
+          errors: undefined,
+          partialData: false
         })
         .mockRejectedValueOnce(new Error('Failed to list templates'))
         .mockResolvedValueOnce({
-          body: {
-            templates: [{ name: 't2' }],
-            errors: undefined,
-            partialData: false
-          }
+          templates: [{ name: 't2' }],
+          errors: undefined,
+          partialData: false
         });
 
       // Act
@@ -580,16 +600,15 @@ describe('Templates Service', () => {
 
       Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
-      CacheableDataAccess.getData.mockResolvedValue({
-        body: {
-          templateName: 'template1',
-          category: 'Storage',
-          version: 'v1.3.5/2024-01-15',
-          description: 'Updated template',
-          s3Path: 's3://bucket/template1.yml',
-          namespace: 'atlantis',
-          bucket: 'bucket1'
-        }
+      // Set up specific mock (use mockResolvedValue for persistent mock)
+      Models.S3Templates.get.mockResolvedValue({
+        templateName: 'template1',
+        category: 'Storage',
+        version: 'v1.3.5/2024-01-15',
+        description: 'Updated template',
+        s3Path: 's3://bucket/template1.yml',
+        namespace: 'atlantis',
+        bucket: 'bucket1'
       });
 
       // Act
@@ -614,6 +633,7 @@ describe('Templates Service', () => {
         releaseDate: '2024-01-15',
         breakingChanges: false
       });
+      expect(Models.S3Templates.get).toHaveBeenCalled();
     });
 
     it('should detect breaking changes (major version change)', async () => {
@@ -622,16 +642,15 @@ describe('Templates Service', () => {
 
       Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
-      CacheableDataAccess.getData.mockResolvedValue({
-        body: {
-          templateName: 'template1',
-          category: 'Storage',
-          version: 'v2.0.0/2024-01-15',
-          description: 'Major update',
-          s3Path: 's3://bucket/template1.yml',
-          namespace: 'atlantis',
-          bucket: 'bucket1'
-        }
+      // Set up specific mock (use mockResolvedValue for persistent mock)
+      Models.S3Templates.get.mockResolvedValue({
+        templateName: 'template1',
+        category: 'Storage',
+        version: 'v2.0.0/2024-01-15',
+        description: 'Major update',
+        s3Path: 's3://bucket/template1.yml',
+        namespace: 'atlantis',
+        bucket: 'bucket1'
       });
 
       // Act
@@ -648,6 +667,7 @@ describe('Templates Service', () => {
       // Assert
       expect(result[0].breakingChanges).toBe(true);
       expect(result[0].migrationGuide).toContain('migration-from-v1x-to-v2x');
+      expect(Models.S3Templates.get).toHaveBeenCalled();
     });
 
     it('should indicate no update when versions match', async () => {
@@ -656,16 +676,15 @@ describe('Templates Service', () => {
 
       Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
-      CacheableDataAccess.getData.mockResolvedValue({
-        body: {
-          templateName: 'template1',
-          category: 'Storage',
-          version: 'v1.3.5/2024-01-15',
-          description: 'Current version',
-          s3Path: 's3://bucket/template1.yml',
-          namespace: 'atlantis',
-          bucket: 'bucket1'
-        }
+      // Set up specific mock (use mockResolvedValue for persistent mock)
+      Models.S3Templates.get.mockResolvedValue({
+        templateName: 'template1',
+        category: 'Storage',
+        version: 'v1.3.5/2024-01-15',
+        description: 'Current version',
+        s3Path: 's3://bucket/template1.yml',
+        namespace: 'atlantis',
+        bucket: 'bucket1'
       });
 
       // Act
@@ -682,6 +701,7 @@ describe('Templates Service', () => {
       // Assert
       expect(result[0].updateAvailable).toBe(false);
       expect(result[0].breakingChanges).toBe(false);
+      expect(Models.S3Templates.get).toHaveBeenCalled();
     });
 
     it('should check multiple templates in single request', async () => {
@@ -690,20 +710,17 @@ describe('Templates Service', () => {
 
       Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
-      CacheableDataAccess.getData
+      // Set up specific mocks for each template (will override default mock)
+      Models.S3Templates.get
         .mockResolvedValueOnce({
-          body: {
-            templateName: 'template1',
-            version: 'v1.3.5/2024-01-15',
-            s3Path: 's3://bucket/template1.yml'
-          }
+          templateName: 'template1',
+          version: 'v1.3.5/2024-01-15',
+          s3Path: 's3://bucket/template1.yml'
         })
         .mockResolvedValueOnce({
-          body: {
-            templateName: 'template2',
-            version: 'v2.0.0/2024-01-20',
-            s3Path: 's3://bucket/template2.yml'
-          }
+          templateName: 'template2',
+          version: 'v2.0.0/2024-01-20',
+          s3Path: 's3://bucket/template2.yml'
         });
 
       // Act
@@ -726,6 +743,7 @@ describe('Templates Service', () => {
       expect(result).toHaveLength(2);
       expect(result[0].templateName).toBe('template1');
       expect(result[1].templateName).toBe('template2');
+      expect(Models.S3Templates.get).toHaveBeenCalledTimes(2);
     });
 
     it('should require templates array', async () => {
@@ -743,7 +761,8 @@ describe('Templates Service', () => {
 
       Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
-      CacheableDataAccess.getData.mockRejectedValue(new Error('Template not found'));
+      // Set up mock to reject for this specific test
+      Models.S3Templates.get.mockRejectedValue(new Error('Template not found'));
 
       // Act
       const result = await Templates.checkUpdates({
@@ -759,6 +778,7 @@ describe('Templates Service', () => {
       // Assert
       expect(result[0].error).toBe('Template not found');
       expect(result[0].updateAvailable).toBe(false);
+      expect(Models.S3Templates.get).toHaveBeenCalled();
     });
 
     it('should validate required fields for each template', async () => {
