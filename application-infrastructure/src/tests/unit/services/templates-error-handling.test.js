@@ -6,62 +6,61 @@
  * - Helpful error messages for users
  */
 
+// Mock cache-data at module level
+jest.mock('@63klabs/cache-data', () => ({
+  cache: {
+    CacheableDataAccess: {
+      getData: jest.fn()
+    }
+  },
+  tools: {
+    DebugAndLog: {
+      debug: jest.fn(),
+      warn: jest.fn()
+    }
+  }
+}));
+
+// Mock config at module level
+jest.mock('../../../lambda/read/config', () => ({
+  Config: {
+    getConnCacheProfile: jest.fn(),
+    settings: jest.fn()
+  }
+}));
+
+// Mock models at module level
+jest.mock('../../../lambda/read/models', () => ({
+  S3Templates: {
+    get: jest.fn(),
+    list: jest.fn()
+  }
+}));
+
+// Import after mocking
+const { cache: { CacheableDataAccess }, tools: { DebugAndLog } } = require('@63klabs/cache-data');
+const Templates = require('../../../lambda/read/services/templates');
+const Models = require('../../../lambda/read/models');
+const { Config } = require('../../../lambda/read/config');
+
 describe('Templates Service - Error Handling', () => {
-  let Templates;
-  let Models;
-  let Config;
-  let CacheableDataAccess;
-  let DebugAndLog;
-
   beforeEach(() => {
-    // Reset modules before each test
-    jest.resetModules();
-
-    // Mock cache-data
-    jest.mock('@63klabs/cache-data', () => ({
-      cache: {
-        CacheableDataAccess: {
-          getData: jest.fn()
-        }
-      },
-      tools: {
-        DebugAndLog: {
-          debug: jest.fn(),
-          warn: jest.fn()
-        }
-      }
-    }));
-
-    // Mock config
-    jest.mock('../../../lambda/read/config', () => ({
-      Config: {
-        getConnCacheProfile: jest.fn(),
-        settings: jest.fn()
-      }
-    }));
-
-    // Mock models
-    jest.mock('../../../lambda/read/models', () => ({
-      S3Templates: {
-        get: jest.fn(),
-        list: jest.fn()
-      }
-    }));
-
-    // Import after mocking
-    const cacheData = require('@63klabs/cache-data');
-    CacheableDataAccess = cacheData.cache.CacheableDataAccess;
-    DebugAndLog = cacheData.tools.DebugAndLog;
-
-    Templates = require('../../../lambda/read/services/templates');
-    Models = require('../../../lambda/read/models');
-    const { Config: ConfigModule } = require('../../../lambda/read/config');
-    Config = ConfigModule;
+    // Clear all mocks before each test
+    jest.clearAllMocks();
 
     // Setup default config mocks
     Config.getConnCacheProfile.mockReturnValue({
-      conn: { host: [], parameters: {} },
-      cacheProfile: { pathId: 'test-path' }
+      conn: { 
+        host: ['test-bucket-1', 'test-bucket-2'], 
+        path: '/templates',
+        parameters: {} 
+      },
+      cacheProfile: { 
+        pathId: 'test-path',
+        defaultExpirationInSeconds: 300,
+        hostId: 's3-templates',
+        profile: 'template-detail'
+      }
     });
 
     Config.settings.mockReturnValue({
@@ -75,10 +74,16 @@ describe('Templates Service - Error Handling', () => {
         ]
       }
     });
+
+    // Setup default CacheableDataAccess.getData mock
+    // This mock calls the fetchFunction and returns the result wrapped in { body }
+    CacheableDataAccess.getData.mockImplementation(async (cacheProfile, fetchFunction, conn, opts) => {
+      const body = await fetchFunction(conn, opts);
+      return { body };
+    });
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
     jest.clearAllMocks();
   });
 
@@ -96,12 +101,6 @@ describe('Templates Service - Error Handling', () => {
         ],
         errors: [],
         partialData: false
-      });
-
-      // Mock CacheableDataAccess.getData to call fetchFunction directly
-      CacheableDataAccess.getData.mockImplementation(async (cacheProfile, fetchFunction, conn, opts) => {
-        const body = await fetchFunction(conn, opts);
-        return { body };
       });
 
       // Attempt to get non-existent template
@@ -141,11 +140,6 @@ describe('Templates Service - Error Handling', () => {
         partialData: false
       });
 
-      CacheableDataAccess.getData.mockImplementation(async (cacheProfile, fetchFunction, conn, opts) => {
-        const body = await fetchFunction(conn, opts);
-        return { body };
-      });
-
       try {
         await Templates.get({
           category: 'Storage',
@@ -167,11 +161,6 @@ describe('Templates Service - Error Handling', () => {
         partialData: false
       });
 
-      CacheableDataAccess.getData.mockImplementation(async (cacheProfile, fetchFunction, conn, opts) => {
-        const body = await fetchFunction(conn, opts);
-        return { body };
-      });
-
       try {
         await Templates.get({
           category: 'Storage',
@@ -188,11 +177,6 @@ describe('Templates Service - Error Handling', () => {
     it('should handle list() failure gracefully when building error message', async () => {
       Models.S3Templates.get.mockResolvedValue(null);
       Models.S3Templates.list.mockRejectedValue(new Error('S3 access denied'));
-
-      CacheableDataAccess.getData.mockImplementation(async (cacheProfile, fetchFunction, conn, opts) => {
-        const body = await fetchFunction(conn, opts);
-        return { body };
-      });
 
       try {
         await Templates.get({
@@ -225,11 +209,6 @@ describe('Templates Service - Error Handling', () => {
       };
 
       Models.S3Templates.get.mockResolvedValue(mockTemplate);
-
-      CacheableDataAccess.getData.mockImplementation(async (cacheProfile, fetchFunction, conn, opts) => {
-        const body = await fetchFunction(conn, opts);
-        return { body };
-      });
 
       const result = await Templates.get({
         category: 'Storage',

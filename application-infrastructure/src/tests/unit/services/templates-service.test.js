@@ -88,6 +88,12 @@ describe('Templates Service', () => {
         ]
       }
     });
+
+    // Setup CacheableDataAccess mock to call fetchFunction
+    CacheableDataAccess.getData.mockImplementation(async (cacheProfile, fetchFunction, conn, opts) => {
+      const body = await fetchFunction(conn, opts);
+      return { body };
+    });
   });
 
   afterEach(() => {
@@ -125,12 +131,11 @@ describe('Templates Service', () => {
         { templateName: 'template2', category: 'Network' }
       ];
 
-      CacheableDataAccess.getData.mockResolvedValue({
-        body: {
-          templates: mockTemplates,
-          errors: undefined,
-          partialData: false
-        }
+      // Mock the S3Templates.list to return data
+      _Models.S3Templates.list.mockResolvedValue({
+        templates: mockTemplates,
+        errors: undefined,
+        partialData: false
       });
 
       // Act
