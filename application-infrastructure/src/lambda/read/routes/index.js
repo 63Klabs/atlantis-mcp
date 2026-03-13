@@ -170,6 +170,8 @@ const process = async (event, context) => {
       });
     }
 
+    DebugAndLog.debug("RETURNING RESPONSE", RESP);
+
     return RESP;
 
   } catch (error) {
