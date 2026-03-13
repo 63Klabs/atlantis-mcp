@@ -85,6 +85,7 @@ async function list(options = {}) {
 			body: JSON.stringify(list),
 			message: "SUCCESS"
     });
+    DebugAndLog.debug("RESPONSE FROM FETCH FUNCTION", response);
     return response;
   };
 
