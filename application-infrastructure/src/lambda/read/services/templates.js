@@ -13,7 +13,7 @@
  */
 
 const { cache: { CacheableDataAccess } } = require('@63klabs/cache-data');
-const { tools: { DebugAndLog } } = require('@63klabs/cache-data');
+const { tools: { DebugAndLog, ApiRequest } } = require('@63klabs/cache-data');
 const { Config } = require('../config');
 const Models = require('../models');
 
@@ -78,7 +78,13 @@ async function list(options = {}) {
     });
     const list = await Models.S3Templates.list(connection, opts);
     DebugAndLog.debug('Fetched templates from S3', list);
-    return list;
+    const response = ApiRequest.responseFormat({
+			success: true,
+			statusCode: 200,
+			body: list,
+			message: "SUCCESS"
+    });
+    return response;
   };
 
   // >! Use cache-data pass-through caching
