@@ -65,6 +65,17 @@ const isStringOfNumbers = (value) => {
 	return /^\d+$/.test(value);
 };
 
+/**
+ * Ensure value is one of the valid tools
+ * @param {string} value - The value to validate
+ * @returns {boolean} - True if the value is a valid tool, false otherwise
+ */
+const isValidTool = (value) => {
+	const validTools = ['list_templates', 'get_template', 'list_starters', 'get_starter_info', 'search_documentation', 'validate_naming', 'check_template_updates', 'list_template_versions', 'list_categories'];
+	return validTools.includes(value);
+};
+
+
 /* ============================================================================
 	Exported validators for use in ClientRequest.init
 ============================================================================ */
@@ -93,7 +104,9 @@ module.exports = {
 	referrers: ALLOWED_REFERRERS,
 	excludeParamsWithNoValidationMatch: EXCLUDE_PARAMS_WITH_NO_VALIDATION_MATCH,
 	parameters: {
-		// pathParameters: {},
+		pathParameters: {
+			tool: isValidTool,
+		},
 		queryStringParameters: {
 			id: isStringOfNumbers,
 			// BY_ROUTE: [{route: "GET:api/example?plyrs", validate: playersQueryParameter}]

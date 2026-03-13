@@ -647,60 +647,66 @@ Resources:
                 'Fn::Sub': '${Prefix}-CacheDataS3Bucket'
 
       Events:
-        ListTemplates:
+        UseTool:
           Type: Api
           Properties:
-            Path: /mcp/list_templates
+            Path: /mcp/{tool}
             Method: post
             RestApiId: !Ref WebApi
-        GetTemplate:
-          Type: Api
-          Properties:
-            Path: /mcp/get_template
-            Method: post
-            RestApiId: !Ref WebApi
-        ListStarters:
-          Type: Api
-          Properties:
-            Path: /mcp/list_starters
-            Method: post
-            RestApiId: !Ref WebApi
-        GetStarterInfo:
-          Type: Api
-          Properties:
-            Path: /mcp/get_starter_info
-            Method: post
-            RestApiId: !Ref WebApi
-        SearchDocumentation:
-          Type: Api
-          Properties:
-            Path: /mcp/search_documentation
-            Method: post
-            RestApiId: !Ref WebApi
-        ValidateNaming:
-          Type: Api
-          Properties:
-            Path: /mcp/validate_naming
-            Method: post
-            RestApiId: !Ref WebApi
-        CheckTemplateUpdates:
-          Type: Api
-          Properties:
-            Path: /mcp/check_template_updates
-            Method: post
-            RestApiId: !Ref WebApi
-        ListTemplateVersions:
-          Type: Api
-          Properties:
-            Path: /mcp/list_template_versions
-            Method: post
-            RestApiId: !Ref WebApi
-        ListCategories:
-          Type: Api
-          Properties:
-            Path: /mcp/list_categories
-            Method: post
-            RestApiId: !Ref WebApi
+        # ListTemplates:
+        #   Type: Api
+        #   Properties:
+        #     Path: /mcp/list_templates
+        #     Method: post
+        #     RestApiId: !Ref WebApi
+        # GetTemplate:
+        #   Type: Api
+        #   Properties:
+        #     Path: /mcp/get_template
+        #     Method: post
+        #     RestApiId: !Ref WebApi
+        # ListStarters:
+        #   Type: Api
+        #   Properties:
+        #     Path: /mcp/list_starters
+        #     Method: post
+        #     RestApiId: !Ref WebApi
+        # GetStarterInfo:
+        #   Type: Api
+        #   Properties:
+        #     Path: /mcp/get_starter_info
+        #     Method: post
+        #     RestApiId: !Ref WebApi
+        # SearchDocumentation:
+        #   Type: Api
+        #   Properties:
+        #     Path: /mcp/search_documentation
+        #     Method: post
+        #     RestApiId: !Ref WebApi
+        # ValidateNaming:
+        #   Type: Api
+        #   Properties:
+        #     Path: /mcp/validate_naming
+        #     Method: post
+        #     RestApiId: !Ref WebApi
+        # CheckTemplateUpdates:
+        #   Type: Api
+        #   Properties:
+        #     Path: /mcp/check_template_updates
+        #     Method: post
+        #     RestApiId: !Ref WebApi
+        # ListTemplateVersions:
+        #   Type: Api
+        #   Properties:
+        #     Path: /mcp/list_template_versions
+        #     Method: post
+        #     RestApiId: !Ref WebApi
+        # ListCategories:
+        #   Type: Api
+        #   Properties:
+        #     Path: /mcp/list_categories
+        #     Method: post
+        #     RestApiId: !Ref WebApi
 
   # -- Write Lambda Function (Phase 2 - Placeholder) --
   # Uncomment and configure in Phase 2 for write operations
