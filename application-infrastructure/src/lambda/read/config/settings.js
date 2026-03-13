@@ -89,7 +89,7 @@ const settings = {
      * Parsed from ATLANTIS_S3_BUCKETS environment variable
      * @type {Array<string>}
      */
-    buckets: parseCommaSeparated('ATLANTIS_S3_BUCKETS', []),
+    buckets: parseCommaSeparated('ATLANTIS_S3_BUCKETS', ['63klabs']),
 
     /**
      * S3 path prefix for templates
