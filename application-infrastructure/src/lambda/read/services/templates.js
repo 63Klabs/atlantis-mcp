@@ -72,9 +72,9 @@ async function list(options = {}) {
   const fetchFunction = async (connection, opts) => {
     DebugAndLog.debug('Fetching templates from S3 (cache miss)', {
       buckets: connection.host,
-      category,
-      version,
-      versionId
+      category: connection.parameters?.category,
+      version: connection.parameters?.version,
+      versionId: connection.parameters?.versionId
     });
     const list = await Models.S3Templates.list(connection, opts);
     DebugAndLog.debug('Fetched templates from S3', list);
@@ -95,7 +95,7 @@ async function list(options = {}) {
     {}, // options: for functions, tokens, non-cache data
   );
 
-  return result.body;
+  return result.getBody(true);
 }
 
 /**
