@@ -81,7 +81,7 @@ const connections = [
     name: 's3-templates',
     // >! Host is set dynamically in services based on atlantisS3Buckets from settings
     // >! This allows filtering by specific buckets while maintaining cache key consistency
-    host: null,
+    host: "",
     path: settings.s3.templatePrefix, // 'templates/v2' - namespace prepended in DAO
     cache: [
       // Template list cache profile
@@ -143,7 +143,7 @@ const connections = [
   {
     name: 's3-app-starters',
     // >! Host is set dynamically in services based on atlantisS3Buckets from settings
-    host: null,
+    host: "",
     path: settings.s3.starterPrefix, // 'app-starters/v2' - namespace prepended in DAO
     cache: [
       // App starters list cache profile
