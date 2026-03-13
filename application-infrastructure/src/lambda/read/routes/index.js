@@ -84,7 +84,7 @@ const process = async (event, context) => {
   // >! Log routing decision
   DebugAndLog.info('Routing request', {
     tool,
-    method: props.httpMethod,
+    method: props.method,
     path: props.path,
     requestId: context.requestId
   });
@@ -96,7 +96,6 @@ const process = async (event, context) => {
         // Import controller dynamically to avoid circular dependencies
         const TemplatesController = require('../controllers/templates');
         RESP.setBody(await TemplatesController.list(props));
-        DebugAndLog.debug("RESPONSE IN SWITCH", RESP.toObject());
         break;
 
       case 'get_template':
@@ -170,8 +169,6 @@ const process = async (event, context) => {
           body: ErrorHandler.toUserResponse(error, context.requestId)
         });
     }
-
-    DebugAndLog.debug("RETURNING RESPONSE", RESP);
 
     return RESP;
 
