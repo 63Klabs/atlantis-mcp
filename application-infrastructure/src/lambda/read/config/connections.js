@@ -288,6 +288,4 @@ const connections = [
   }
 ];
 
-module.exports = {
-  connections
-};
+module.exports = connections;
