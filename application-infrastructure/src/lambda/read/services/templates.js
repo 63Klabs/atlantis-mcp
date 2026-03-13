@@ -78,6 +78,7 @@ async function list(options = {}) {
     });
     const list = await Models.S3Templates.list(connection, opts);
     DebugAndLog.debug('Fetched templates from S3', list);
+    // >! We need to wrap the list in a response format suitable for CacheableDataAccess
     const response = ApiRequest.responseFormat({
 			success: true,
 			statusCode: 200,
@@ -88,14 +89,16 @@ async function list(options = {}) {
   };
 
   // >! Use cache-data pass-through caching
-  const result = await CacheableDataAccess.getData(
+  const cacheObj = await CacheableDataAccess.getData(
     cacheProfile,
     fetchFunction,
     conn,
     {}, // options: for functions, tokens, non-cache data
   );
 
-  return result.getBody(true);
+  const body = cacheObj.getBody(true);
+  DebugAndLog.debug("BODY", body);
+  return body;
 }
 
 /**
