@@ -83,7 +83,7 @@ async function list(options = {}) {
     if ("errors" in list) {
       return ApiRequest.responseFormat(false, 500, "ERROR", {}, JSON.stringify(list));
     } else {
-      return ApiRequest.responseFormat(true,200,"SUCCESS",{},JSON.stringify(list));
+      return ApiRequest.responseFormat(true, 200, "SUCCESS", {}, JSON.stringify(list));
     }
     
   };
@@ -96,9 +96,7 @@ async function list(options = {}) {
     {}, // options: for functions, tokens, non-cache data
   );
 
-  const body = cacheObj.getBody(true);
-  DebugAndLog.debug("BODY", body);
-  return body;
+  return cacheObj.getBody(true);
 }
 
 /**

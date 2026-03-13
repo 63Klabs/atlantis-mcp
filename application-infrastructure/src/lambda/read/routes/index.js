@@ -73,6 +73,7 @@ const process = async (event, context) => {
         // Import controller dynamically to avoid circular dependencies
         const TemplatesController = require('../controllers/templates');
         RESP.setBody(await TemplatesController.list(props));
+        DebugAndLog.debug("RESPONSE IN SWITCH", RESP.toObject());
         break;
 
       case 'get_template':

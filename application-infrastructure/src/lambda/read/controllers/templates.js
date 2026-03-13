@@ -65,8 +65,6 @@ async function list(props) {
       s3Buckets
     });
 
-    DebugAndLog.debug("Template Service Result", result);
-
     DebugAndLog.info('list_templates response', {
       templateCount: result.templates ? result.templates.length : 0,
       partialData: result.partialData || false,
