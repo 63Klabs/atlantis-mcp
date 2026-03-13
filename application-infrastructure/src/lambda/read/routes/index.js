@@ -41,6 +41,29 @@ const process = async (event, context) => {
 
   const props = REQ.getProps();
 
+  // Check for unsupported HTTP methods
+  // MCP protocol typically uses POST, but we support GET for some operations
+  const supportedMethods = ['GET', 'POST'];
+  if (!supportedMethods.includes(props.method)) {
+    DebugAndLog.warn('Unsupported HTTP method', { method: props.method });
+    const error = ErrorHandler.createError({
+      code: ErrorHandler.ErrorCode.METHOD_NOT_ALLOWED,
+      message: `Method not allowed: ${props.method}`,
+      category: ErrorHandler.ErrorCategory.CLIENT_ERROR,
+      statusCode: 405,
+      requestId: context.requestId,
+      details: {
+        method: props.method,
+        allowedMethods: supportedMethods
+      }
+    });
+    ErrorHandler.logError(error, { tool, requestId: context.requestId });
+    return RESP.reset({
+      statusCode: 405,
+      body: ErrorHandler.toUserResponse(error, context.requestId)
+    });
+  }
+
   // Extract MCP tool name from request body or path parameters
   // MCP protocol typically sends tool name in request body
   const tool = props.bodyParameters?.tool || props.pathParameters?.tool || props?.pathArray[1];
@@ -146,29 +169,6 @@ const process = async (event, context) => {
           statusCode: 404,
           body: ErrorHandler.toUserResponse(error, context.requestId)
         });
-    }
-
-    // Check for unsupported HTTP methods
-    // MCP protocol typically uses POST, but we support GET for some operations
-    const supportedMethods = ['GET', 'POST'];
-    if (!supportedMethods.includes(props.httpMethod)) {
-      DebugAndLog.warn('Unsupported HTTP method', { method: props.httpMethod });
-      const error = ErrorHandler.createError({
-        code: ErrorHandler.ErrorCode.METHOD_NOT_ALLOWED,
-        message: `Method not allowed: ${props.httpMethod}`,
-        category: ErrorHandler.ErrorCategory.CLIENT_ERROR,
-        statusCode: 405,
-        requestId: context.requestId,
-        details: {
-          method: props.httpMethod,
-          allowedMethods: supportedMethods
-        }
-      });
-      ErrorHandler.logError(error, { tool, requestId: context.requestId });
-      return RESP.reset({
-        statusCode: 405,
-        body: ErrorHandler.toUserResponse(error, context.requestId)
-      });
     }
 
     DebugAndLog.debug("RETURNING RESPONSE", RESP);
