@@ -89,7 +89,7 @@ def process_data():
 ```
 existing-files/
   userService.js      (camelCase)
-  apiRequest.js       (camelCase)
+  ApiRequest.js       (camelCase)
   cacheManager.js     (camelCase)
   data-processor.js   (kebab-case) - outlier
 

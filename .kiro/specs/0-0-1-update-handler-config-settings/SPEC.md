@@ -22,11 +22,11 @@ const { conn, cacheProfile } = Config.getConnCacheProfile('myConnection', 'myCac
 
 ## SSM Parameters
 
-cache-data also supplies tools.CachedSSMParameter which can be used to access parameters from SSM parameter store. (There is also a method for SecretsManager). This uses an async method to set and periodically update the value from the SSM Parameter Store or Secrets Manger automatically.
+cache-data also supplies tools.CachedSsmParameter which can be used to access parameters from SSM parameter store. (There is also a method for SecretsManager). This uses an async method to set and periodically update the value from the SSM Parameter Store or Secrets Manger automatically.
 
 To set a value:
 ```js
-const gitHubToken = new CachedSSMParameter(process.env.PARAM_STORE_PATH+'GitHubToken', {refreshAfter: 43200})`
+const gitHubToken = new CachedSsmParameter(process.env.PARAM_STORE_PATH+'GitHubToken', {refreshAfter: 43200})`
 ```
 
 The `refreshAfter` option is how long the value should remain in lambda memory before checking for any updates.

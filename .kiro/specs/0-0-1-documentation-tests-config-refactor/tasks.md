@@ -64,7 +64,7 @@ This implementation plan updates existing documentation, tests, and code to refl
   
   - [ ]* 2.4 Create unit test for GitHub token type verification
     - Create test/config/config-settings-integration.jest.mjs
-    - Test settings.github.token is CachedSSMParameter instance
+    - Test settings.github.token is CachedSsmParameter instance
     - Verify token instance has expected methods
     - _Requirements: 3.6_
   
@@ -113,7 +113,7 @@ This implementation plan updates existing documentation, tests, and code to refl
     - _Requirements: 4.1-4.2, 7.1-7.6_
   
   - [x] 4.2 Update Settings module JSDoc (application-infrastructure/src/lambda/read/config/settings.js)
-    - Document settings.github.token as CachedSSMParameter
+    - Document settings.github.token as CachedSsmParameter
     - Remove any references to deprecated settings.aws.githubTokenParameter
     - Document rate limits structure
     - Document cache TTL structure
@@ -172,7 +172,7 @@ This implementation plan updates existing documentation, tests, and code to refl
   - [x] 6.1 Update test README with new patterns
     - Add section on Config.settings() testing patterns
     - Document how to mock Config.settings()
-    - Document how to test CachedSSMParameter usage
+    - Document how to test CachedSsmParameter usage
     - Document integration test setup for config system
     - Add testing examples for new patterns
     - _Requirements: 5.1-5.6_

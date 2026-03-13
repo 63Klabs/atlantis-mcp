@@ -2,7 +2,7 @@
 
 ## Overview
 
-This design document provides the technical approach for updating existing documentation, tests, and code to reflect the new configuration patterns introduced when aligning the Atlantis MCP Server Read Lambda with the @63klabs/cache-data package. The recent updates introduced Config.settings() getter, Config.getConnCacheProfile() method, and CachedSSMParameter for SSM Parameter Store access. This specification ensures consistency across all documentation, test code, and implementation code.
+This design document provides the technical approach for updating existing documentation, tests, and code to reflect the new configuration patterns introduced when aligning the Atlantis MCP Server Read Lambda with the @63klabs/cache-data package. The recent updates introduced Config.settings() getter, Config.getConnCacheProfile() method, and CachedSsmParameter for SSM Parameter Store access. This specification ensures consistency across all documentation, test code, and implementation code.
 
 ### Scope
 
@@ -29,7 +29,7 @@ The codebase has recently been updated to use new configuration patterns:
 **New Patterns:**
 - `Config.settings()` - Getter method for accessing settings
 - `Config.getConnCacheProfile(name)` - Method for accessing connection profiles
-- `settings.github.token` - CachedSSMParameter instance for GitHub token
+- `settings.github.token` - CachedSsmParameter instance for GitHub token
 - `PARAM_STORE_PATH + 'GitHubToken'` - SSM parameter path pattern
 
 **Deprecated Patterns:**
@@ -91,7 +91,7 @@ New: GITHUB_TOKEN_PARAMETER: !Ref GitHubToken
 
 # Pattern 4: Code Reference
 Old: settings.aws.githubTokenParameter
-New: settings.github.token (CachedSSMParameter)
+New: settings.github.token (CachedSsmParameter)
 
 # Pattern 5: SSM Parameter Path Pattern
 Ensure: PARAM_STORE_PATH + 'GitHubToken'
@@ -148,7 +148,7 @@ const profile = Config.getConnCacheProfile('s3-templates', 'templates-list');
 
 1. Config.init() must be called before Config.settings()
 2. Config.getConnCacheProfile() returns correct profiles
-3. settings.github.token is CachedSSMParameter instance
+3. settings.github.token is CachedSsmParameter instance
 4. Rate limiter works with new settings structure
 
 
@@ -166,7 +166,7 @@ const profile = Config.getConnCacheProfile('s3-templates', 'templates-list');
    - Note: `Config.settings()` and `Config.getConnCacheProfile()` are inherited from `_ConfigSuperClass` and do not need documentation in this module
 
 2. **Settings Module** (`application-infrastructure/src/lambda/read/config/settings.js`)
-   - Document `settings.github.token` as CachedSSMParameter
+   - Document `settings.github.token` as CachedSsmParameter
    - Remove any references to deprecated `settings.aws.githubTokenParameter`
    - Document rate limit structure
    - Document cache TTL structure
@@ -250,7 +250,7 @@ grep -r "index-old" application-infrastructure/src \
    const tokenParam = settings.aws.githubTokenParameter;
    
    // After:
-   const token = settings.github.token; // CachedSSMParameter instance
+   const token = settings.github.token; // CachedSsmParameter instance
    ```
 
 **Files to Exclude from Search:**
@@ -379,7 +379,7 @@ After reviewing the prework analysis, the following observations were made:
 **Testable Properties Identified:**
 - Property 1: Config.init() must be called before Config.settings() (from 3.3)
 - Property 2: Config.getConnCacheProfile() returns correct profiles (from 3.5)
-- Property 3: settings.github.token is CachedSSMParameter instance (from 3.6)
+- Property 3: settings.github.token is CachedSsmParameter instance (from 3.6)
 - Property 4: Rate limiter works with new settings structure (from 3.7)
 
 **Redundancy Analysis:**
@@ -410,7 +410,7 @@ After reviewing the prework analysis, the following observations were made:
 
 ### Property 3: GitHub Token Type Verification
 
-*For any* initialized Config instance, settings.github.token should be an instance of CachedSSMParameter, ensuring the GitHub token is retrieved from SSM Parameter Store with automatic refresh capabilities.
+*For any* initialized Config instance, settings.github.token should be an instance of CachedSsmParameter, ensuring the GitHub token is retrieved from SSM Parameter Store with automatic refresh capabilities.
 
 **Validates: Requirements 3.6**
 
@@ -506,7 +506,7 @@ This specification requires both unit tests and property-based tests to ensure c
 - Test specific JSDoc corrections
 - Validate specific link fixes
 - Test Config initialization preconditions
-- Verify CachedSSMParameter instance type
+- Verify CachedSsmParameter instance type
 
 **Property-Based Tests:**
 - Test Config.getConnCacheProfile() with generated connection names
@@ -554,7 +554,7 @@ describe('Config Initialization', () => {
 
 ```javascript
 import { describe, it, expect, beforeAll } from '@jest/globals';
-import { CachedSSMParameter } from '@63klabs/cache-data';
+import { CachedSsmParameter } from '@63klabs/cache-data';
 
 describe('Settings GitHub Token', () => {
   beforeAll(async () => {
@@ -562,12 +562,12 @@ describe('Settings GitHub Token', () => {
     await Config.init();
   });
 
-  it('should use CachedSSMParameter for GitHub token', () => {
+  it('should use CachedSsmParameter for GitHub token', () => {
     const { Config } = require('../src/lambda/read/config/index.js');
     const settings = Config.settings();
     
-    // Verify token is CachedSSMParameter instance
-    expect(settings.github.token).toBeInstanceOf(CachedSSMParameter);
+    // Verify token is CachedSsmParameter instance
+    expect(settings.github.token).toBeInstanceOf(CachedSsmParameter);
   });
 });
 ```
@@ -714,16 +714,16 @@ afterEach(() => {
 });
 ```
 
-### Testing CachedSSMParameter
+### Testing CachedSsmParameter
 
-The `settings.github.token` is a CachedSSMParameter instance. To test:
+The `settings.github.token` is a CachedSsmParameter instance. To test:
 
 ```javascript
-import { CachedSSMParameter } from '@63klabs/cache-data';
+import { CachedSsmParameter } from '@63klabs/cache-data';
 
-it('should use CachedSSMParameter for token', () => {
+it('should use CachedSsmParameter for token', () => {
   const settings = Config.settings();
-  expect(settings.github.token).toBeInstanceOf(CachedSSMParameter);
+  expect(settings.github.token).toBeInstanceOf(CachedSsmParameter);
 });
 ```
 
@@ -734,7 +734,7 @@ Integration tests should verify:
 1. Config.init() completes successfully
 2. Config.getConnCacheProfile() returns valid profiles
 3. Settings structure is complete and valid
-4. CachedSSMParameter instances work correctly
+4. CachedSsmParameter instances work correctly
 
 Example:
 ```javascript
@@ -839,7 +839,7 @@ describe('Config Integration', () => {
    - Add JSDoc for Config.prime()
 
 2. **Update Settings Module JSDoc**
-   - Document settings.github.token as CachedSSMParameter
+   - Document settings.github.token as CachedSsmParameter
    - Remove any references to settings.aws.githubTokenParameter
    - Document rate limits structure
    - Document cache TTL structure
@@ -932,7 +932,7 @@ describe('Config Integration', () => {
 1. **Update Test README**
    - Add section on Config.settings() testing patterns
    - Document how to mock Config.settings()
-   - Document how to test CachedSSMParameter usage
+   - Document how to test CachedSsmParameter usage
    - Document integration test setup for config system
 
 2. **Update TESTING_SUMMARY.md**
@@ -943,7 +943,7 @@ describe('Config Integration', () => {
 3. **Add Testing Examples**
    - Example of testing with Config.settings()
    - Example of mocking Config.settings()
-   - Example of testing CachedSSMParameter
+   - Example of testing CachedSsmParameter
    - Example of integration testing config
 
 **Deliverables:**
@@ -1145,7 +1145,7 @@ grep -n "GitHubTokenParameter" docs/deployment/github-token-setup.md
 #### 2. application-infrastructure/src/lambda/read/config/settings.js
 
 **Updates Required:**
-- Enhance JSDoc for `settings.github.token` to specify CachedSSMParameter
+- Enhance JSDoc for `settings.github.token` to specify CachedSsmParameter
 - Verify no references to deprecated `settings.aws.githubTokenParameter`
 - Document rate limits structure
 - Document cache TTL structure
@@ -1212,7 +1212,7 @@ find test -name "*.js" -o -name "*.mjs"
 **Purpose:** Test settings integration
 
 **Content:**
-- Test GitHub token is CachedSSMParameter
+- Test GitHub token is CachedSsmParameter
 - Test rate limiter accesses settings correctly
 - Test settings structure is complete
 

@@ -1549,7 +1549,7 @@ const {
 		DebugAndLog,
 		Timer,
 		CachedParameterSecrets,
-		CachedSSMParameter,
+		CachedSsmParameter,
 		_ConfigSuperClass,
 		ClientRequest,
 		Response,
@@ -1587,7 +1587,7 @@ class Config extends _ConfigSuperClass {
 
 				// Cache settings
 				Cache.init({
-					secureDataKey: new CachedSSMParameter(process.env.PARAM_STORE_PATH+'CacheData_SecureDataKey', {refreshAfter: 43200}), // 12 hours
+					secureDataKey: new CachedSsmParameter(process.env.PARAM_STORE_PATH+'CacheData_SecureDataKey', {refreshAfter: 43200}), // 12 hours
 				});
 
 				DebugAndLog.debug("Cache: ", Cache.info());

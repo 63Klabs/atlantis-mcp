@@ -197,7 +197,7 @@ data-processor.ts
 
 ```
 userService.js
-apiRequest.js
+ApiRequest.js
 cacheManager.js
 dataProcessor.ts
 ```

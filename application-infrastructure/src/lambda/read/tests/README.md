@@ -135,16 +135,16 @@ afterEach(() => {
 });
 ```
 
-### Testing CachedSSMParameter
+### Testing CachedSsmParameter
 
-The `settings.github.token` is a CachedSSMParameter instance. To test:
+The `settings.github.token` is a CachedSsmParameter instance. To test:
 
 ```javascript
-const { CachedSSMParameter } = require('@63klabs/cache-data');
+const { CachedSsmParameter } = require('@63klabs/cache-data');
 
-test('should use CachedSSMParameter for token', () => {
+test('should use CachedSsmParameter for token', () => {
   const settings = Config.settings();
-  expect(settings.github.token).toBeInstanceOf(CachedSSMParameter);
+  expect(settings.github.token).toBeInstanceOf(CachedSsmParameter);
 });
 ```
 
@@ -155,7 +155,7 @@ Integration tests should verify:
 1. Config.init() completes successfully
 2. Config.getConnCacheProfile() returns valid profiles
 3. Settings structure is complete and valid
-4. CachedSSMParameter instances work correctly
+4. CachedSsmParameter instances work correctly
 
 Example:
 

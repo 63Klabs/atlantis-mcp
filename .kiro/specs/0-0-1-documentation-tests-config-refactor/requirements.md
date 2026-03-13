@@ -2,14 +2,14 @@
 
 ## Introduction
 
-This specification defines requirements for updating existing documentation and tests to reflect configuration and settings changes made to align the Atlantis MCP Server Read Lambda with the @63klabs/cache-data package patterns. The recent updates introduced new configuration patterns including Config.settings() getter, Config.getConnCacheProfile() method, and CachedSSMParameter for SSM Parameter Store access. This specification ensures that existing documentation, tests, and code references are updated to use the new patterns consistently.
+This specification defines requirements for updating existing documentation and tests to reflect configuration and settings changes made to align the Atlantis MCP Server Read Lambda with the @63klabs/cache-data package patterns. The recent updates introduced new configuration patterns including Config.settings() getter, Config.getConnCacheProfile() method, and CachedSsmParameter for SSM Parameter Store access. This specification ensures that existing documentation, tests, and code references are updated to use the new patterns consistently.
 
 ## Glossary
 
 - **Config**: The configuration initialization module extending _ConfigSuperClass from @63klabs/cache-data
 - **Settings**: Application configuration object containing S3, GitHub, cache, naming, and rate limit settings
 - **Connections**: Connection and cache profile definitions for S3, GitHub API, and documentation index
-- **CachedSSMParameter**: Tool from @63klabs/cache-data for accessing SSM Parameter Store with automatic refresh
+- **CachedSsmParameter**: Tool from @63klabs/cache-data for accessing SSM Parameter Store with automatic refresh
 - **Rate_Limiter**: Utility module for implementing per-IP or per-user rate limiting
 - **SSM_Parameter_Store**: AWS Systems Manager Parameter Store for storing configuration parameters
 - **GitHubTokenParameter**: Old parameter name (deprecated) - should be updated to GitHubToken
@@ -57,7 +57,7 @@ This specification defines requirements for updating existing documentation and 
 3. THE tests SHALL verify Config.init() is called before accessing settings
 4. THE tests SHALL mock Config.settings() instead of mocking settings module directly
 5. THE integration tests SHALL verify Config.getConnCacheProfile() works correctly
-6. THE tests SHALL verify CachedSSMParameter is used for GitHub token access
+6. THE tests SHALL verify CachedSsmParameter is used for GitHub token access
 7. THE tests SHALL verify rate limiter uses the new settings structure
 8. ALL test mocks SHALL reflect the current code structure
 
@@ -69,7 +69,7 @@ This specification defines requirements for updating existing documentation and 
 
 1. THE Config module JSDoc SHALL document Config.settings() getter
 2. THE Config module JSDoc SHALL document Config.getConnCacheProfile() method
-3. THE Settings module JSDoc SHALL document settings.github.token (CachedSSMParameter)
+3. THE Settings module JSDoc SHALL document settings.github.token (CachedSsmParameter)
 4. THE Settings module JSDoc SHALL NOT reference deprecated settings.aws.githubTokenParameter
 5. THE Connections module JSDoc SHALL document the connections array structure
 6. THE Rate Limiter JSDoc SHALL document the updated rate limit structure
@@ -84,7 +84,7 @@ This specification defines requirements for updating existing documentation and 
 
 1. THE application-infrastructure/src/tests/README.md SHALL document Config.settings() testing patterns
 2. THE test documentation SHALL explain how to mock Config.settings()
-3. THE test documentation SHALL explain how to test CachedSSMParameter usage
+3. THE test documentation SHALL explain how to test CachedSsmParameter usage
 4. THE test documentation SHALL document integration test setup for config system
 5. THE TESTING_SUMMARY.md SHALL reflect current test coverage for config modules
 6. THE test documentation SHALL provide examples of testing with the new patterns

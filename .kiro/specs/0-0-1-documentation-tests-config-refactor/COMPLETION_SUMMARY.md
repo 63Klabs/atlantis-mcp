@@ -110,7 +110,7 @@ Tests:       217 failed, 126 skipped, 392 passed, 735 total
    - Noted that `Config.settings()` and `Config.getConnCacheProfile()` are inherited
 
 2. **Settings Module** (`application-infrastructure/src/lambda/read/config/settings.js`)
-   - Documented `settings.github.token` as CachedSSMParameter
+   - Documented `settings.github.token` as CachedSsmParameter
    - Removed references to deprecated `settings.aws.githubTokenParameter`
    - Documented rate limits structure
    - Documented cache TTL structure
@@ -159,7 +159,7 @@ Tests:       217 failed, 126 skipped, 392 passed, 735 total
 **Content Added:**
 - Config.settings() testing patterns
 - How to mock Config.settings()
-- How to test CachedSSMParameter usage
+- How to test CachedSsmParameter usage
 - Integration test setup for config system
 - Testing examples for new patterns
 

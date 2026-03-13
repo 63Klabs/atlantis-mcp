@@ -30,7 +30,7 @@ Task 16.3 (Testing Review) has made significant progress but is **BLOCKED** by m
    - Tests verify Config.init() completes successfully
 
 2. **Config Settings Integration Tests**
-   - Tests verify settings.github.token is CachedSSMParameter instance
+   - Tests verify settings.github.token is CachedSsmParameter instance
    - Tests verify token instance has expected methods
    - Tests verify rate limiter accesses Config.settings().rateLimits
 

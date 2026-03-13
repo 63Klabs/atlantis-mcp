@@ -7,7 +7,7 @@
  * @module config/settings
  */
 
-const { tools: { DebugAndLog, CachedSSMParameter } } = require('@63klabs/cache-data');
+const { tools: { DebugAndLog, CachedSsmParameter } } = require('@63klabs/cache-data');
 
 /**
  * Parse comma-delimited environment variable into array
@@ -110,7 +110,7 @@ const settings = {
     /**
      * GitHub token from SSM Parameter Store.
      * 
-     * This is a CachedSSMParameter instance that automatically retrieves and
+     * This is a CachedSsmParameter instance that automatically retrieves and
      * refreshes the GitHub personal access token from AWS Systems Manager
      * Parameter Store. The token is used for GitHub API authentication.
      * 
@@ -118,11 +118,11 @@ const settings = {
      * Example: /atlantis/mcp/GitHubToken
      * 
      * Token refresh behavior:
-     * - Cached for the lifetime specified in CachedSSMParameter configuration
+     * - Cached for the lifetime specified in CachedSsmParameter configuration
      * - Automatically refreshed when cache expires
      * - Decrypted automatically if stored as SecureString
      * 
-     * @type {CachedSSMParameter}
+     * @type {CachedSsmParameter}
      * @example
      * // Access token value (automatically retrieved from SSM)
      * const token = await settings.github.token.getValue();
@@ -134,7 +134,7 @@ const settings = {
      *   }
      * });
      */
-    token: new CachedSSMParameter(process.env.PARAM_STORE_PATH+'GitHubToken'),
+    token: new CachedSsmParameter(process.env.PARAM_STORE_PATH+'GitHubToken'),
 
     /**
      * List of GitHub users/organizations to search for repositories

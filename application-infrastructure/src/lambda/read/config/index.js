@@ -22,7 +22,7 @@ const {
 		DebugAndLog,
 		Timer,
 		CachedParameterSecrets,
-		CachedSSMParameter,
+		CachedSsmParameter,
 		AppConfig
 	} 
 } = require("@63klabs/cache-data");
@@ -65,9 +65,7 @@ class Config extends AppConfig {
 	 * - First invocation: Performs full initialization (typically 200-500ms)
 	 * - Subsequent invocations: Promise already resolved, returns immediately
 	 * 
-	 * @async
 	 * @returns {Promise<boolean>} Resolves to true when initialization completes
-	 * @throws {Error} If cache initialization fails or SSM parameter retrieval fails
 	 * @example
 	 * // In Lambda handler (outside handler function for cold start optimization)
 	 * const { Config } = require('./config');
@@ -83,7 +81,7 @@ class Config extends AppConfig {
 	 *   const profile = Config.getConnCacheProfile('s3-templates', 'templates-list');
 	 * };
 	 */
-	static async init() {
+	static init() {
 		
 		const timerConfigInit = new Timer("timerConfigInit", true);
 			
@@ -93,7 +91,7 @@ class Config extends AppConfig {
 
 			// Cache settings
 			Cache.init({
-				secureDataKey: new CachedSSMParameter(process.env.PARAM_STORE_PATH+'CacheData_SecureDataKey', {refreshAfter: 43200}), // 12 hours
+				secureDataKey: new CachedSsmParameter(process.env.PARAM_STORE_PATH+'CacheData_SecureDataKey', {refreshAfter: 43200}), // 12 hours
 			});
 
 			DebugAndLog.debug("Cache: ", Cache.info());
