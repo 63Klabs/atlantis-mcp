@@ -784,8 +784,8 @@ Resources:
             - s3:GetBucketTagging
             Effect: Allow
             Resource:
-            - !Sub "arn:aws:s3:::*"
-            - !Sub "arn:aws:s3:::*/*"
+            - !Sub "arn:aws:s3:::*" # TODO: Scope - CDK generated managed policy?
+            - !Sub "arn:aws:s3:::*/*" # TODO: Scope
 
           - Sid: DynamoDBReadOnlyAccess
             Action:

@@ -76,7 +76,9 @@ async function list(options = {}) {
       version,
       versionId
     });
-    return await Models.S3Templates.list(connection, opts);
+    const list = await Models.S3Templates.list(connection, opts);
+    DebugAndLog.debug('Fetched templates from S3', list);
+    return list;
   };
 
   // >! Use cache-data pass-through caching
