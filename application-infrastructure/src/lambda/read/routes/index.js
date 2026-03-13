@@ -43,7 +43,7 @@ const process = async (event, context) => {
 
   // Extract MCP tool name from request body or path parameters
   // MCP protocol typically sends tool name in request body
-  const tool = props.body?.tool || props.pathParameters?.tool || props?.pathArray[1];
+  const tool = props.bodyParameters?.tool || props.pathParameters?.tool || props?.pathArray[1];
 
   if (!tool) {
     DebugAndLog.warn('No tool specified in request', { props });
