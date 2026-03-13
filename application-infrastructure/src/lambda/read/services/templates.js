@@ -82,7 +82,7 @@ async function list(options = {}) {
     const response = ApiRequest.responseFormat({
 			success: true,
 			statusCode: 200,
-			body: list,
+			body: JSON.stringify(list),
 			message: "SUCCESS"
     });
     return response;
