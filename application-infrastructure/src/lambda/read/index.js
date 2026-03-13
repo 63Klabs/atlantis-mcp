@@ -175,6 +175,8 @@ exports.handler = async (event, context) => {
     // >! Routes.process() handles tool routing and controller invocation
     const response = await Routes.process(event, context);
 
+    DebugAndLog.debug("RESPONSE FROM ROUTES", response);
+
 
     // TODO: A lot of this metric and logging stuff is already handled by Response so we should clean up and ensure this isn't used by a downstream process. Or, if it is, figure out what data is needed and use already provided methods from DebugAndLog and Response
 
