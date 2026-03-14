@@ -40,25 +40,33 @@ const Models = require('../models');
  * const result = await Templates.list({ s3Buckets: ['bucket1', 'bucket2'] });
  */
 async function list(options = {}) {
+  const logName = "service.templates.list";
   const { category, version, versionId, s3Buckets } = options;
 
   // >! Get connection and cache profile from config
   const { conn, cacheProfile } = Config.getConnCacheProfile('s3-templates', 'templates-list');
 
   if (!conn || !cacheProfile) {
-    throw new Error('Failed to get connection and cache profile for s3-templates/templates-list');
+    const errorMsg = `${logName}: Failed to get connection and/or cache profile for s3-templates/templates-list`
+    DebugAndLog.error(errorMsg);
+    throw new Error(errorMsg);
   }
 
   // >! Determine which buckets to search (filtered or all)
   let bucketsToSearch = s3Buckets;
+
   if (!bucketsToSearch || bucketsToSearch.length === 0) {
     bucketsToSearch = Config.settings().s3.buckets;
   } else {
     // >! Validate that requested buckets are in configured buckets
     const validBuckets = Config.settings().s3.buckets;
+
     bucketsToSearch = bucketsToSearch.filter(b => validBuckets.includes(b));
+
     if (bucketsToSearch.length === 0) {
-      throw new Error('No valid S3 buckets specified');
+      const errorMsg = `${logName}: No valid S3 buckets specified`;
+      DebugAndLog.error(errorMsg);
+      throw new Error(errorMsg);
     }
   }
 
@@ -70,7 +78,7 @@ async function list(options = {}) {
 
   // >! Define fetch function for cache miss
   const fetchFunction = async (connection, opts) => {
-    DebugAndLog.debug('Fetching templates from S3 (cache miss)', {
+    DebugAndLog.debug(`${logName}.fetchFunction: Fetching templates from S3 (cache miss)`, {
       buckets: connection.host,
       category: connection.parameters?.category,
       version: connection.parameters?.version,
@@ -78,9 +86,13 @@ async function list(options = {}) {
     });
 
     const list = await Models.S3Templates.list(connection, opts);
+    DebugAndLog.debug(`${logName}.fetchFunction: Fetched templates from S3`, {
+      count: list.templates?.length || 0,
+    });
 
     // >! We need to wrap the list in a response format suitable for CacheableDataAccess
     if ("errors" in list) {
+      DebugAndLog.warn(`${logName}.fetchFunction: Template list contains errors`, { errors: list.errors });
       return ApiRequest.error({body: list});
     } else {
       return ApiRequest.success({body: list});
@@ -135,16 +147,21 @@ async function list(options = {}) {
  * });
  */
 async function get(options = {}) {
+  const logName = "service.templates.get";
   const { category, templateName, version, versionId, s3Buckets } = options;
 
   if (!category || !templateName) {
-    throw new Error('category and templateName are required');
+    const errorMsg = `${logName}: category and templateName are required`;
+    DebugAndLog.error(errorMsg);
+    throw new Error(errorMsg);
   }
 
   const { conn, cacheProfile } = Config.getConnCacheProfile('s3-templates', 'template-detail');
 
   if (!conn || !cacheProfile) {
-    throw new Error('Failed to get connection and cache profile for s3-templates/template-detail');
+    const errorMsg = `${logName}: Failed to get connection and/or cache profile for s3-templates/template-detail`;
+    DebugAndLog.error(errorMsg);
+    throw new Error(errorMsg);
   }
 
   // >! Determine which buckets to search
@@ -165,7 +182,7 @@ async function get(options = {}) {
   conn.parameters = { category, templateName, version, versionId };
 
   const fetchFunction = async (connection, opts) => {
-    DebugAndLog.debug('Fetching template from S3 (cache miss)', {
+    DebugAndLog.debug(`${logName}.fetchFunction: Fetching template from S3 (cache miss)`, {
       category,
       templateName,
       version,
@@ -182,7 +199,7 @@ async function get(options = {}) {
         const listResult = await list({ category: p.category, s3Buckets });
         availableTemplates = listResult.templates.map(t => t.templateName);
       } catch (listError) {
-        DebugAndLog.warn('Failed to get available templates for error message', {
+        DebugAndLog.warn(`${logName}.fetchFunction: Failed to get available templates`, {
           error: listError.message
         });
       }
@@ -199,17 +216,25 @@ async function get(options = {}) {
       error.availableTemplates = availableTemplates;
       throw error;
     }
-    return template;
+
+    // >! We need to wrap the list in a response format suitable for CacheableDataAccess
+    if ("errors" in template) {
+      DebugAndLog.warn(`${logName}.fetchFunction: Template data contains errors`, { errors: template.errors });
+      return ApiRequest.error({body: template});
+    } else {
+      return ApiRequest.success({body: template});
+    }
+
   };
 
-  const result = await CacheableDataAccess.getData(
+  const cacheObj = await CacheableDataAccess.getData(
     cacheProfile,
     fetchFunction,
     conn,
     {},
   );
 
-  return result.body;
+  return cacheObj.getBody(true);
 }
 
 /**
@@ -229,16 +254,21 @@ async function get(options = {}) {
  * // Returns: { templateName, category, namespace, bucket, versions: [...] }
  */
 async function listVersions(options = {}) {
+  const logName = "service.templates.listVersions";
   const { category, templateName, s3Buckets } = options;
 
   if (!category || !templateName) {
-    throw new Error('category and templateName are required');
+    const errorMsg = `${logName}: category and templateName are required`;
+    DebugAndLog.error(errorMsg);
+    throw new Error(errorMsg);
   }
 
   const { conn, cacheProfile } = Config.getConnCacheProfile('s3-templates', 'template-versions');
 
   if (!conn || !cacheProfile) {
-    throw new Error('Failed to get connection and cache profile for s3-templates/template-versions');
+    const errorMsg = `${logName}: Failed to get connection and/or cache profile for s3-templates/template-versions`;
+    DebugAndLog.error(errorMsg);
+    throw new Error(errorMsg);
   }
 
   // >! Determine which buckets to search
@@ -254,21 +284,31 @@ async function listVersions(options = {}) {
   conn.parameters = { category, templateName };
 
   const fetchFunction = async (connection, opts) => {
-    DebugAndLog.debug('Fetching template versions from S3 (cache miss)', {
+    DebugAndLog.debug(`${logName}.fetchFunction: Fetching template versions from S3 (cache miss)`, {
       category,
       templateName
     });
-    return await Models.S3Templates.listVersions(connection, opts);
+
+    const versionList = await Models.S3Templates.listVersions(connection, opts);
+
+    // >! We need to wrap the list in a response format suitable for CacheableDataAccess
+    if ("errors" in versionList) {
+      DebugAndLog.warn(`${logName}.fetchFunction: Template version list contains errors`, { errors: versionList.errors });
+      return ApiRequest.error({body: versionList});
+    } else {
+      return ApiRequest.success({body: versionList});
+    }
+
   };
 
-  const result = await CacheableDataAccess.getData(
+  const cacheObj = await CacheableDataAccess.getData(
     cacheProfile,
     fetchFunction,
     conn,
     {},
   );
 
-  return result.body;
+  return cacheObj.getBody(true);
 }
 
 /**
@@ -285,6 +325,7 @@ async function listVersions(options = {}) {
  * // ]
  */
 async function listCategories() {
+  const logName = "service.templates.listCategories";
   // >! Use settings.templates.categories for category list
   const categories = Config.settings().templates.categories;
 
@@ -302,7 +343,7 @@ async function listCategories() {
           templateCount: result.templates ? result.templates.length : 0
         };
       } catch (error) {
-        DebugAndLog.warn(`Failed to get template count for category ${category.name}`, {
+        DebugAndLog.warn(`${logName}: Failed to get template count for category ${category.name}`, {
           error: error.message
         });
 
@@ -352,10 +393,13 @@ async function listCategories() {
  * // ]
  */
 async function checkUpdates(options = {}) {
+  const logName = "service.templates.checkUpdates";
   const { templates, s3Buckets } = options;
 
   if (!templates || !Array.isArray(templates) || templates.length === 0) {
-    throw new Error('templates array is required');
+    const errorMsg = `${logName}: templates array is required`;
+    DebugAndLog.error(errorMsg);
+    throw new Error(errorMsg);
   }
 
   // >! Support checking multiple templates in single request
@@ -368,7 +412,7 @@ async function checkUpdates(options = {}) {
           category,
           templateName,
           currentVersion,
-          error: 'category, templateName, and currentVersion are required'
+          error: `${logName}: category, templateName, and currentVersion are required`
         };
       }
 
@@ -416,7 +460,7 @@ async function checkUpdates(options = {}) {
           bucket: latestTemplate.bucket
         };
       } catch (error) {
-        DebugAndLog.warn(`Failed to check updates for ${category}/${templateName}`, {
+        DebugAndLog.warn(`${logName}: Failed to check updates for ${category}/${templateName}`, {
           error: error.message
         });
 
