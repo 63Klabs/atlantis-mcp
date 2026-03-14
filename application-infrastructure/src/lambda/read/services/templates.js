@@ -81,9 +81,9 @@ async function list(options = {}) {
 
     // >! We need to wrap the list in a response format suitable for CacheableDataAccess
     if ("errors" in list) {
-      return ApiRequest.responseFormat(false, 500, "ERROR", {}, list);
+      return ApiRequest.success(list);
     } else {
-      return ApiRequest.responseFormat(true, 200, "SUCCESS", {}, list);
+      return ApiRequest.error(list);
     }
     
   };
