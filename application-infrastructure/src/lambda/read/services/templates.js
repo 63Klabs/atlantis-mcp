@@ -92,7 +92,8 @@ async function list(options = {}) {
     });
 
     // >! We need to wrap the list in a response format suitable for CacheableDataAccess
-    if ("errors" in list) {
+    // if ("errors" in list) {
+    if (list?.errors) {
       DebugAndLog.warn(`${logName}.fetchFunction: Template list contains errors`, { errors: list.errors });
       return ApiRequest.error({body: list});
     } else {
