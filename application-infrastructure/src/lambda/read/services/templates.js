@@ -88,6 +88,7 @@ async function list(options = {}) {
     const list = await Models.S3Templates.list(connection, opts);
     DebugAndLog.debug(`${logName}.fetchFunction: Fetched templates from S3`, {
       count: list.templates?.length || 0,
+      list
     });
 
     // >! We need to wrap the list in a response format suitable for CacheableDataAccess
