@@ -20,7 +20,7 @@ const schemas = {
     properties: {
       category: {
         type: 'string',
-        enum: ['Storage', 'Network', 'Pipeline', 'Service Role', 'Modules'],
+        enum: ['storage', 'network', 'pipeline', 'service-role', 'modules'],
         description: 'Filter templates by category'
       },
       version: {
@@ -60,7 +60,7 @@ const schemas = {
       },
       category: {
         type: 'string',
-        enum: ['Storage', 'Network', 'Pipeline', 'Service Role', 'Modules'],
+        enum: ['storage', 'network', 'pipeline', 'service-role', 'modules'],
         description: 'Template category'
       },
       version: {
@@ -101,7 +101,7 @@ const schemas = {
       },
       category: {
         type: 'string',
-        enum: ['Storage', 'Network', 'Pipeline', 'Service Role', 'Modules'],
+        enum: ['storage', 'network', 'pipeline', 'service-role', 'modules'],
         description: 'Template category'
       },
       s3Buckets: {
@@ -247,7 +247,7 @@ const schemas = {
       },
       category: {
         type: 'string',
-        enum: ['Storage', 'Network', 'Pipeline', 'Service Role', 'Modules'],
+        enum: ['storage', 'network', 'pipeline', 'service-role', 'modules'],
         description: 'Template category'
       },
       s3Buckets: {
