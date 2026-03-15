@@ -50,23 +50,23 @@ function parseTTL(envVar, defaultValue) {
  */
 const TEMPLATE_CATEGORIES = [
   {
-    name: 'Storage',
+    name: 'storage',
     description: 'S3 buckets, DynamoDB tables, and data storage resources'
   },
   {
-    name: 'Network',
+    name: 'network',
     description: 'CloudFront distributions, Route53, VPC, and networking resources'
   },
   {
-    name: 'Pipeline',
+    name: 'pipeline',
     description: 'CodePipeline, CodeBuild, and CI/CD infrastructure'
   },
   {
-    name: 'Service Role',
+    name: 'service-role',
     description: 'IAM roles and policies for AWS services'
   },
   {
-    name: 'Modules',
+    name: 'modules',
     description: 'Reusable CloudFormation definitions and nested stacks'
   }
 ];

@@ -21,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `list_templates` - List available CloudFormation templates with filtering by category, version, and S3 buckets
   - `get_template` - Retrieve specific template with full metadata, parameters, and outputs
   - `list_template_versions` - List all versions of a template with Human_Readable_Version and S3_VersionId
-  - `list_categories` - List template categories (Storage, Network, Pipeline, Service Role, Modules)
+  - `list_categories` - List template categories (storage, network, pipeline, service-role, modules)
   
 - **Starter Code Tools**
   - `list_starters` - List available app starters with language, framework, and feature information

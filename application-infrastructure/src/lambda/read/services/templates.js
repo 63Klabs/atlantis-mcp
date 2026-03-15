@@ -184,10 +184,10 @@ async function get(options = {}) {
 
   const fetchFunction = async (connection, opts) => {
     DebugAndLog.debug(`${logName}.fetchFunction: Fetching template from S3 (cache miss)`, {
-      category,
-      templateName,
-      version,
-      versionId
+      category: conn.parameters?.category,
+      templateName: conn.parameters?.templateName,
+      version: conn.parameters?.version,
+      versionId: conn.parameters?.versionId
     });
 
     const template = await Models.S3Templates.get(connection, opts);
