@@ -102,8 +102,8 @@ const isValidTool = (value) => {
  */
 module.exports = {
 	referrers: ALLOWED_REFERRERS,
-	excludeParamsWithNoValidationMatch: EXCLUDE_PARAMS_WITH_NO_VALIDATION_MATCH,
 	parameters: {
+		excludeParamsWithNoValidationMatch: EXCLUDE_PARAMS_WITH_NO_VALIDATION_MATCH,
 		pathParameters: {
 			tool: isValidTool,
 		},
