@@ -33,7 +33,7 @@ const { tools: { DebugAndLog } } = require('@63klabs/cache-data');
 async function list(props) {
   try {
     // >! Validate input against JSON Schema
-    const input = props.body?.input || {};
+    const input = props.getBodyParameters()?.input || {};
     const validation = SchemaValidator.validate('list_templates', input);
 
     if (!validation.valid) {
@@ -91,7 +91,7 @@ async function list(props) {
  * Get specific template details
  *
  * @param {Object} props - Request properties from ClientRequest
- * @param {Object} props.body - Request body containing tool input
+ * @param {Object} props.bodyParameters - Request body containing tool input
  * @returns {Promise<Object>} MCP-formatted response with template details
  *
  * @example
@@ -106,8 +106,9 @@ async function list(props) {
  */
 async function get(props) {
   try {
+    DebugAndLog.debug("PROPS", props);
     // >! Validate input against JSON Schema
-    const input = props.body?.input || {};
+    const input = props.bodyParameters?.input || {};
     const validation = SchemaValidator.validate('get_template', input);
 
     if (!validation.valid) {
