@@ -33,7 +33,7 @@ const { tools: { DebugAndLog } } = require('@63klabs/cache-data');
 async function list(props) {
   try {
     // >! Validate input against JSON Schema
-    const input = props.getBodyParameters()?.input || {};
+    const input = props.bodyParameters?.input || {};
     const validation = SchemaValidator.validate('list_templates', input);
 
     if (!validation.valid) {
