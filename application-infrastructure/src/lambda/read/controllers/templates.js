@@ -106,7 +106,6 @@ async function list(props) {
  */
 async function get(props) {
   try {
-    DebugAndLog.debug("PROPS", props);
     // >! Validate input against JSON Schema
     const input = props.bodyParameters?.input || {};
     const validation = SchemaValidator.validate('get_template', input);
@@ -199,7 +198,7 @@ async function get(props) {
 async function listVersions(props) {
   try {
     // >! Validate input against JSON Schema
-    const input = props.body?.input || {};
+    const input = props.bodyParameters?.input || {};
     const validation = SchemaValidator.validate('list_template_versions', input);
 
     if (!validation.valid) {
@@ -265,7 +264,7 @@ async function listVersions(props) {
 async function listCategories(props) {
   try {
     // >! Validate input against JSON Schema
-    const input = props.body?.input || {};
+    const input = props.bodyParameters?.input || {};
     const validation = SchemaValidator.validate('list_categories', input);
 
     if (!validation.valid) {

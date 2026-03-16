@@ -184,10 +184,10 @@ async function get(options = {}) {
 
   const fetchFunction = async (connection, opts) => {
     DebugAndLog.debug(`${logName}.fetchFunction: Fetching template from S3 (cache miss)`, {
-      category: conn.parameters?.category,
-      templateName: conn.parameters?.templateName,
-      version: conn.parameters?.version,
-      versionId: conn.parameters?.versionId
+      category: connection.parameters?.category,
+      templateName: connection.parameters?.templateName,
+      version: connection.parameters?.version,
+      versionId: connection.parameters?.versionId
     });
 
     const template = await Models.S3Templates.get(connection, opts);
@@ -286,8 +286,8 @@ async function listVersions(options = {}) {
 
   const fetchFunction = async (connection, opts) => {
     DebugAndLog.debug(`${logName}.fetchFunction: Fetching template versions from S3 (cache miss)`, {
-      category,
-      templateName
+      category: connection.parameters?.category,
+      templateName: connection.parameters?.templateName,
     });
 
     const versionList = await Models.S3Templates.listVersions(connection, opts);
