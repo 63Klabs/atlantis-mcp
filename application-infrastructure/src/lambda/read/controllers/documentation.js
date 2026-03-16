@@ -36,7 +36,7 @@ const { tools: { DebugAndLog } } = require('@63klabs/cache-data');
 async function search(props) {
   try {
     // >! Validate input against JSON Schema
-    const input = props.body?.input || {};
+    const input = props.bodyParameters?.input || {};
     const validation = SchemaValidator.validate('search_documentation', input);
 
     if (!validation.valid) {

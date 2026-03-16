@@ -31,7 +31,7 @@ const { tools: { DebugAndLog } } = require('@63klabs/cache-data');
 async function list(props) {
   try {
     // >! Validate input against JSON Schema
-    const input = props.body?.input || {};
+    const input = props.bodyParameters?.input || {};
     const validation = SchemaValidator.validate('list_starters', input);
 
     if (!validation.valid) {
@@ -99,7 +99,7 @@ async function list(props) {
 async function get(props) {
   try {
     // >! Validate input against JSON Schema
-    const input = props.body?.input || {};
+    const input = props.bodyParameters?.input || {};
     const validation = SchemaValidator.validate('get_starter_info', input);
 
     if (!validation.valid) {

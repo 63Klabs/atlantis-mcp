@@ -54,7 +54,7 @@ const { tools: { DebugAndLog } } = require('@63klabs/cache-data');
 async function check(props) {
   try {
     // >! Validate input against JSON Schema
-    const input = props.body?.input || {};
+    const input = props.bodyParameters?.input || {};
     const validation = SchemaValidator.validate('check_template_updates', input);
 
     if (!validation.valid) {

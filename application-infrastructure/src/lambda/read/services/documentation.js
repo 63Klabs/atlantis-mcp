@@ -135,7 +135,7 @@ async function search(options = {}) {
     });
 
     // >! Return search results with metadata
-    return {
+    const returnObject = {
       results: searchResult.results || [],
       totalResults: searchResult.totalResults || 0,
       query: connection.parameters.query,
@@ -144,17 +144,21 @@ async function search(options = {}) {
       errors: undefined,
       partialData: false
     };
+
+    // >! We need to wrap the list in a response format suitable for CacheableDataAccess
+    // if ("errors" in list) {
+    return ApiRequest.success({body: returnObject});
   };
 
   // >! Use cache-data pass-through caching
-  const result = await CacheableDataAccess.getData(
+  const cacheObj = await CacheableDataAccess.getData(
     cacheProfile,
     fetchFunction,
     conn,
     {}, // options: for functions, tokens, non-cache data
   );
 
-  return result.body;
+  return cacheObj.getBody(true);
 }
 
 module.exports = {

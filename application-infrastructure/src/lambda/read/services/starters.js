@@ -42,6 +42,7 @@ const Models = require('../models');
  * const result = await Starters.list({ ghusers: ['63klabs', 'myorg'] });
  */
 async function list(options = {}) {
+  const logName = "service.starters.list";
   const { ghusers } = options;
 
   // >! Get connection and cache profile from config
@@ -142,22 +143,32 @@ async function list(options = {}) {
     // >! Deduplicate starters by name (S3 takes precedence over GitHub)
     const uniqueStarters = deduplicateStarters(allStarters);
 
-    return {
+    const returnObject = {
       starters: uniqueStarters,
       errors: allErrors.length > 0 ? allErrors : undefined,
       partialData: allErrors.length > 0
     };
+
+    // >! We need to wrap the list in a response format suitable for CacheableDataAccess
+    // if ("errors" in list) {
+    if (returnObject?.errors) {
+      DebugAndLog.warn(`${logName}.fetchFunction: Starters list contains errors`, { errors: returnObject.errors });
+      return ApiRequest.error({body: returnObject});
+    } else {
+      return ApiRequest.success({body: returnObject});
+    }
+
   };
 
   // >! Use cache-data pass-through caching
-  const result = await CacheableDataAccess.getData(
+  const cacheObj = await CacheableDataAccess.getData(
     cacheProfile,
     fetchFunction,
     conn,
     {}, // options: for functions, tokens, non-cache data
   );
 
-  return result.body;
+  return cacheObj.getBody(true);
 }
 
 /**
@@ -230,6 +241,7 @@ function deduplicateStarters(starters) {
  * });
  */
 async function get(options = {}) {
+  const logName = "service.starters.get";
   const { starterName, ghusers } = options;
 
   if (!starterName) {
@@ -310,7 +322,7 @@ async function get(options = {}) {
         };
       }
 
-      return {
+      const returnObject = {
         name: s3Result.name,
         description: s3Result.description,
         language: s3Result.language,
@@ -345,6 +357,10 @@ async function get(options = {}) {
         isPrivate: githubStats ? githubStats.isPrivate : false,
         source: 's3'
       };
+
+      // >! We need to wrap the list in a response format suitable for CacheableDataAccess
+      // if ("errors" in list) {
+      return ApiRequest.success({body: returnObject});
     }
 
     // >! Skip starters without sidecar metadata and log warning
@@ -352,22 +368,22 @@ async function get(options = {}) {
       DebugAndLog.warn(`Starter ${starterName} found on GitHub but has no S3 sidecar metadata, skipping`);
 
       // Return null to trigger STARTER_NOT_FOUND error
-      return null;
+      return ApiRequest.error({statusCode: 404, body: null});
     }
 
     // Starter not found in any source
-    return null;
+    return ApiRequest.error({statusCode: 404, body: null});
   };
 
   // >! Use cache-data pass-through caching
-  const result = await CacheableDataAccess.getData(
+  const cacheObj = await CacheableDataAccess.getData(
     cacheProfile,
     fetchFunction,
     conn,
     {}, // options: for functions, tokens, non-cache data
   );
 
-  const starter = result.body;
+  const starter = cacheObj.getBody(true);
 
   if (!starter) {
     // >! Get list of available starters to help user discover what exists

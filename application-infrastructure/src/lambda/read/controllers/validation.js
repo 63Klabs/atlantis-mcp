@@ -58,7 +58,7 @@ const validate = async (props) => {
   DebugAndLog.info('Validation controller: validate() called');
 
   // Extract input from request body
-  const input = props.body?.input || {};
+  const input = props.bodyParameters?.input || {};
 
   // Validate input against JSON Schema
   const validation = SchemaValidator.validate('validate_naming', input);
