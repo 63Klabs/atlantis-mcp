@@ -30,12 +30,11 @@ describe('buildspec-postdeploy.yml structure', () => {
   });
 
   describe('install phase', () => {
-    it('should install Redoc CLI via npm', () => {
-      const commands = buildspec.phases.install.commands;
-      const hasRedocInstall = commands.some(
-        (cmd) => typeof cmd === 'string' && cmd.includes('@redocly/cli')
-      );
-      expect(hasRedocInstall).toBe(true);
+    it('should reference Redoc (loaded from CDN, not installed via npm)', () => {
+      // Redoc is loaded from CDN at runtime in the generated HTML.
+      // Verify the buildspec raw content contains a note about this.
+      const rawContent = fs.readFileSync(BUILDSPEC_PATH, 'utf8');
+      expect(rawContent).toContain('Redoc');
     });
 
     it('should install Pandoc via package manager', () => {

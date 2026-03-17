@@ -26,40 +26,47 @@ echo "${LOG_PREFIX} INFO: Found OpenAPI spec at ${SPEC_FILE}"
 mkdir -p "${OUTPUT_DIR}"
 echo "${LOG_PREFIX} INFO: Created output directory ${OUTPUT_DIR}"
 
-# Sanitize the OpenAPI spec to remove circular reference markers
-# API Gateway exports can contain circular $ref chains. Redocly's bundler resolves
-# them but leaves "x-circular-ref" marker properties set to null, which causes
-# build-docs to crash with: TypeError: Cannot read properties of null (reading 'x-circular-ref')
-# This step strips those markers so build-docs can render cleanly.
-CLEAN_SPEC="build/staging/api-spec/openapi-clean.json"
-echo "${LOG_PREFIX} INFO: Sanitizing OpenAPI spec (removing circular ref markers)..."
+# Generate a self-contained HTML page that embeds the OpenAPI spec inline and
+# loads Redoc from CDN at runtime. This avoids the SSR prerendering step in
+# "redocly build-docs" which crashes on API Gateway specs containing circular
+# $ref chains (TypeError: Cannot read properties of null reading 'x-circular-ref').
+# The client-side Redoc renderer handles circular refs without issue.
+echo "${LOG_PREFIX} INFO: Generating API documentation HTML with embedded spec..."
 node -e "
   const fs = require('fs');
-  const spec = JSON.parse(fs.readFileSync('${SPEC_FILE}', 'utf8'));
-  function clean(obj) {
-    if (Array.isArray(obj)) return obj.map(clean);
-    if (obj && typeof obj === 'object') {
-      const out = {};
-      for (const [k, v] of Object.entries(obj)) {
-        if (k === 'x-circular-ref') continue;
-        out[k] = clean(v);
-      }
-      return out;
-    }
-    return obj;
-  }
-  fs.writeFileSync('${CLEAN_SPEC}', JSON.stringify(clean(spec), null, 2));
-" || {
-  echo "${LOG_PREFIX} ERROR: Failed to sanitize OpenAPI spec at ${SPEC_FILE}" >&2
-  exit 1
-}
+  const specJson = fs.readFileSync('${SPEC_FILE}', 'utf8');
 
-# Generate API documentation using Redoc CLI
-echo "${LOG_PREFIX} INFO: Generating API documentation with Redoc CLI..."
-npx @redocly/cli build-docs \
-  "${CLEAN_SPEC}" \
-  --output "${OUTPUT_DIR}/index.html" || {
-  echo "${LOG_PREFIX} ERROR: Redoc CLI failed to generate documentation from ${CLEAN_SPEC}" >&2
+  // Extract title from spec for the page heading
+  let title = 'API Reference';
+  try {
+    const spec = JSON.parse(specJson);
+    if (spec.info && spec.info.title) title = spec.info.title;
+  } catch (e) { /* use default */ }
+
+  const html = \`<!DOCTYPE html>
+<html lang=\"en\">
+<head>
+  <meta charset=\"utf-8\" />
+  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
+  <title>\${title}</title>
+  <style>body { margin: 0; padding: 0; }</style>
+</head>
+<body>
+  <div id=\"redoc-container\"></div>
+  <script src=\"https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js\"></script>
+  <script>
+    var spec = \${specJson};
+    Redoc.init(spec, {
+      scrollYOffset: 0,
+      hideDownloadButton: false
+    }, document.getElementById('redoc-container'));
+  </script>
+</body>
+</html>\`;
+
+  fs.writeFileSync('${OUTPUT_DIR}/index.html', html);
+" || {
+  echo "${LOG_PREFIX} ERROR: Failed to generate API documentation HTML" >&2
   exit 1
 }
 

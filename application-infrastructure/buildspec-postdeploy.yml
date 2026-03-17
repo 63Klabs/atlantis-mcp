@@ -14,9 +14,7 @@ phases:
     runtime-versions:
       nodejs: latest
     commands:
-      # Install Redoc CLI for API documentation generation
-      - echo "Installing @redocly/cli..."
-      - npm install -g @redocly/cli
+      # Note: Redoc is loaded from CDN at runtime in the generated HTML (no CLI install needed)
 
       # Install Pandoc for markdown-to-HTML conversion
       # Pandoc is not available in Amazon Linux 2023 repos; install from official GitHub release
@@ -29,7 +27,6 @@ phases:
 
       # Print tool versions for build log debugging
       - echo "Tool versions:"
-      - redocly --version || echo "redocly CLI version check failed"
       - pandoc --version | head -n 1
       - node --version
       - aws --version
