@@ -53,7 +53,10 @@ function resolvePointer(root, pointer) {
  */
 function deref(node, root, seen) {
   if (Array.isArray(node)) {
-    return node.map(item => deref(item, root, seen));
+    // Filter out null/undefined entries — API Gateway exports sometimes include
+    // literal null values in oneOf/anyOf arrays which crash Redoc when it tries
+    // to access properties on them (e.g. "Cannot read properties of null")
+    return node.filter(item => item != null).map(item => deref(item, root, seen));
   }
   if (node && typeof node === 'object') {
     // Handle $ref
