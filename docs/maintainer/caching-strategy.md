@@ -559,4 +559,4 @@ ttl: {
 - [Architecture Overview](./architecture.md)
 - [Lambda Function Structure](./lambda-structure.md)
 - [Performance Optimization](./performance.md)
-- [Troubleshooting Guide](../troubleshooting.md)
+- [Troubleshooting Guide](../troubleshooting/README.md)

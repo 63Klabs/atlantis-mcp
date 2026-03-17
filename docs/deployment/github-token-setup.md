@@ -508,7 +508,7 @@ GitHubToken: /atlantis/mcp/prod/github-token
 - [CloudFormation Parameters Reference](./cloudformation-parameters.md)
 - [GitHub Custom Properties Setup](./github-custom-properties.md)
 - [Deployment Guide](./README.md)
-- [Troubleshooting Guide](../troubleshooting.md)
+- [Troubleshooting Guide](../troubleshooting/README.md)
 
 ## External Resources
 

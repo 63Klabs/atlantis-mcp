@@ -513,4 +513,4 @@ After successful deployment:
 - [Pipeline Configuration Guide](pipeline-configuration.md)
 - [Deployment Approval Guide](deployment-approval-guide.md)
 - [SAM Deployment Guide](sam-deployment-guide.md)
-- [Troubleshooting Guide](../../troubleshooting.md)
+- [Troubleshooting Guide](../../troubleshooting/README.md)

@@ -311,7 +311,7 @@ GPT: [Uses get_template to show changelog]
 
 - [MCP Tools Reference](../tools/README.md)
 - [Common Use Cases](../use-cases/README.md)
-- [Troubleshooting Guide](../troubleshooting.md)
+- [Troubleshooting Guide](../troubleshooting/README.md)
 
 ## Support
 

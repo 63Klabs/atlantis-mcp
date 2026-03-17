@@ -640,7 +640,7 @@ All tools are subject to rate limiting:
 - Rate limit headers included in all responses
 - HTTP 429 returned when exceeded
 
-See [Troubleshooting Guide](../troubleshooting.md) for handling rate limits.
+See [Troubleshooting Guide](../troubleshooting/README.md) for handling rate limits.
 
 ---
 
@@ -661,4 +661,4 @@ Cached responses include cache metadata in headers.
 
 - [Integration Guides](../integration/) - Set up your AI assistant
 - [Common Use Cases](../use-cases/README.md) - Practical examples
-- [Troubleshooting](../troubleshooting.md) - Common issues and solutions
+- [Troubleshooting](../troubleshooting/README.md) - Common issues and solutions

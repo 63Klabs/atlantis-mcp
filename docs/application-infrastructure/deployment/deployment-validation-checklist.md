@@ -680,7 +680,7 @@ After successful validation:
 
 If validation fails, see:
 - [Deployment Testing Guide](deployment-testing-guide.md) - Troubleshooting section
-- [Troubleshooting Guide](../../troubleshooting.md) - General troubleshooting
+- [Troubleshooting Guide](../../troubleshooting/README.md) - General troubleshooting
 - CloudWatch Logs - Detailed error information
 - CloudWatch Insights - Query patterns and analysis
 

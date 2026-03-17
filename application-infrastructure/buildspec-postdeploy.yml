@@ -34,8 +34,8 @@ phases:
   build:
     commands:
       # >! Define PUBLIC_DOC_DIRS as a configurable variable controlling which doc directories are published.
-      # >! Default is "tools". Does not include deployment, integration, or maintainer.
-      - export PUBLIC_DOC_DIRS="${PUBLIC_DOC_DIRS:-tools}"
+      # >! Default includes tools, integration, use-cases, and troubleshooting. Does not include deployment or maintainer.
+      - export PUBLIC_DOC_DIRS="${PUBLIC_DOC_DIRS:-tools integration use-cases troubleshooting}"
       - echo "PUBLIC_DOC_DIRS=${PUBLIC_DOC_DIRS}"
 
       # Create staging directory structure

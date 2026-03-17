@@ -59,7 +59,7 @@ The server exposes the following tools through the MCP protocol:
 ### For Users
 - [MCP Tools Reference](docs/tools/README.md) - Detailed documentation for each MCP tool
 - [Common Use Cases](docs/use-cases/README.md) - Patterns and examples
-- [Troubleshooting Guide](docs/troubleshooting.md) - Common issues and solutions
+- [Troubleshooting Guide](docs/troubleshooting/README.md) - Common issues and solutions
 
 ### For Organizations
 - [Deployment Guide](docs/deployment/README.md) - How to deploy your own instance

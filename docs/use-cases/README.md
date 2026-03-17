@@ -522,7 +522,7 @@ Ask AI: "Show me code examples for [feature]"
 
 - [MCP Tools Reference](../tools/README.md) - Detailed tool documentation
 - [Integration Guides](../integration/) - Set up your AI assistant
-- [Troubleshooting Guide](../troubleshooting.md) - Common issues and solutions
+- [Troubleshooting Guide](../troubleshooting/README.md) - Common issues and solutions
 
 ## Support
 

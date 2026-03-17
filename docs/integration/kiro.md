@@ -401,7 +401,7 @@ Kiro can validate before deployments:
 
 - [MCP Tools Reference](../tools/README.md)
 - [Common Use Cases](../use-cases/README.md)
-- [Troubleshooting Guide](../troubleshooting.md)
+- [Troubleshooting Guide](../troubleshooting/README.md)
 
 ## Support
 

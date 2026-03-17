@@ -632,4 +632,4 @@ fields @timestamp, @message, requestId
 - [CloudWatch Logs Insights Sample Queries](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_QuerySyntax-examples.html)
 - [CloudWatch Logs Pricing](https://aws.amazon.com/cloudwatch/pricing/)
 - [MCP Server Architecture Documentation](../docs/maintainer/architecture.md)
-- [MCP Server Troubleshooting Guide](../docs/troubleshooting.md)
+- [MCP Server Troubleshooting Guide](../docs/troubleshooting/README.md)

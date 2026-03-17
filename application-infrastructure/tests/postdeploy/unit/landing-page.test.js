@@ -28,11 +28,11 @@ describe('Landing page (index.html)', () => {
   });
 
   it('should contain a navigation link to docs/api/', () => {
-    expect(html).toMatch(/href=["']docs\/api\/["']/);
+    expect(html).toMatch(/href=["']\/?docs\/api\/["']/);
   });
 
   it('should contain a navigation link to docs/tools/', () => {
-    expect(html).toMatch(/href=["']docs\/tools\/["']/);
+    expect(html).toMatch(/href=["']\/?docs\/tools\/["']/);
   });
 
   it('should not reference any JavaScript framework or external JS files', () => {

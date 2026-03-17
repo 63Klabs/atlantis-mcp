@@ -352,13 +352,13 @@ Search documentation for Lambda best practices
 
 - [MCP Tools Reference](../tools/README.md) - Detailed tool documentation
 - [Common Use Cases](../use-cases/README.md) - Practical examples
-- [Troubleshooting Guide](../troubleshooting.md) - Common issues
+- [Troubleshooting Guide](../troubleshooting/README.md) - Common issues
 
 ## Support
 
 If you encounter issues:
 
-1. Check the [Troubleshooting Guide](../troubleshooting.md)
+1. Check the [Troubleshooting Guide](../troubleshooting/README.md)
 2. Review Claude Desktop logs
 3. Verify MCP server status
 4. Contact support: support@63klabs.com

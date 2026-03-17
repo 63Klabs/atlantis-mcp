@@ -718,7 +718,7 @@ If issues are detected after deployment:
 
 - [User Documentation](../README.md)
 - [Deployment Guide](../deployment/README.md)
-- [Troubleshooting Guide](../troubleshooting.md)
+- [Troubleshooting Guide](../troubleshooting/README.md)
 - [API Reference](../tools/README.md)
 
 ### Support

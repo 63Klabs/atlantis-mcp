@@ -53,7 +53,7 @@ describe('buildspec-postdeploy.yml structure', () => {
       buildCommands = buildspec.phases.build.commands;
     });
 
-    it('should define PUBLIC_DOC_DIRS with default value of tools', () => {
+    it('should define PUBLIC_DOC_DIRS with default value including tools', () => {
       const publicDocDirsCmd = buildCommands.find(
         (cmd) =>
           typeof cmd === 'string' &&
@@ -63,20 +63,32 @@ describe('buildspec-postdeploy.yml structure', () => {
       expect(publicDocDirsCmd).toBeDefined();
     });
 
-    it('should not include deployment, integration, or maintainer in PUBLIC_DOC_DIRS default', () => {
+    it('should include integration, use-cases, and troubleshooting in PUBLIC_DOC_DIRS default', () => {
       const publicDocDirsCmd = buildCommands.find(
         (cmd) =>
           typeof cmd === 'string' &&
           cmd.includes('export PUBLIC_DOC_DIRS')
       );
       expect(publicDocDirsCmd).toBeDefined();
-      // The default value portion is "${PUBLIC_DOC_DIRS:-tools}"
-      // It should not contain deployment, integration, or maintainer as defaults
+      const defaultMatch = publicDocDirsCmd.match(/:-([^}]+)}/);
+      expect(defaultMatch).not.toBeNull();
+      const defaultValue = defaultMatch[1];
+      expect(defaultValue).toMatch(/integration/);
+      expect(defaultValue).toMatch(/use-cases/);
+      expect(defaultValue).toMatch(/troubleshooting/);
+    });
+
+    it('should not include deployment or maintainer in PUBLIC_DOC_DIRS default', () => {
+      const publicDocDirsCmd = buildCommands.find(
+        (cmd) =>
+          typeof cmd === 'string' &&
+          cmd.includes('export PUBLIC_DOC_DIRS')
+      );
+      expect(publicDocDirsCmd).toBeDefined();
       const defaultMatch = publicDocDirsCmd.match(/:-([^}]+)}/);
       if (defaultMatch) {
         const defaultValue = defaultMatch[1];
         expect(defaultValue).not.toMatch(/deployment/);
-        expect(defaultValue).not.toMatch(/integration/);
         expect(defaultValue).not.toMatch(/maintainer/);
       }
     });

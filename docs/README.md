@@ -46,7 +46,7 @@ Welcome to the Atlantis MCP Server documentation. This documentation is organize
 
 ### Troubleshooting
 
-- [Troubleshooting Guide](troubleshooting.md) - Common issues and solutions
+- [Troubleshooting Guide](troubleshooting/README.md) - Common issues and solutions
 
 ## Quick Links
 
