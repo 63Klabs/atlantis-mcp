@@ -1,0 +1,58 @@
+version: 0.2
+
+# POST-DEPLOYMENT BUILDSPEC
+# Orchestrates static site generation after the application CloudFormation stack deploys.
+# Executes scripts in sequence to export the API spec, generate HTML docs, and sync to S3.
+#
+# Required environment variables (provided by the pipeline):
+#   PREFIX, PROJECT_ID, STAGE_ID - CloudFormation stack name derivation
+#   S3_STATIC_HOST_BUCKET        - Target S3 bucket for static hosting
+#   PARAM_STORE_HIERARCHY         - Available but not directly used by these scripts
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: latest
+    commands:
+      # Install Redoc CLI for API documentation generation
+      - echo "Installing @redocly/cli..."
+      - npm install -g @redocly/cli
+
+      # Install Pandoc for markdown-to-HTML conversion
+      - echo "Installing Pandoc..."
+      - yum install -y pandoc || dnf install -y pandoc || apt-get install -y pandoc
+
+      # Print tool versions for build log debugging
+      - echo "Tool versions:"
+      - redocly --version || echo "redocly CLI version check failed"
+      - pandoc --version | head -n 1
+      - node --version
+      - aws --version
+
+  build:
+    commands:
+      # >! Define PUBLIC_DOC_DIRS as a configurable variable controlling which doc directories are published.
+      # >! Default is "tools". Does not include deployment, integration, or maintainer.
+      - export PUBLIC_DOC_DIRS="${PUBLIC_DOC_DIRS:-tools}"
+      - echo "PUBLIC_DOC_DIRS=${PUBLIC_DOC_DIRS}"
+
+      # Create staging directory structure
+      - mkdir -p build/staging/api-spec
+      - mkdir -p build/staging/api-docs
+      - mkdir -p build/staging/markdown-docs
+
+      # Execute post-deploy scripts in sequence
+      # >! Each script uses set -euo pipefail; a non-zero exit halts the build
+      - echo "Running 01-export-api-spec.sh..."
+      - bash -e application-infrastructure/postdeploy-scripts/01-export-api-spec.sh
+
+      - echo "Running 02-generate-api-docs.sh..."
+      - bash -e application-infrastructure/postdeploy-scripts/02-generate-api-docs.sh
+
+      - echo "Running 03-generate-markdown-docs.sh..."
+      - bash -e application-infrastructure/postdeploy-scripts/03-generate-markdown-docs.sh
+
+      - echo "Running 04-consolidate-and-deploy.sh..."
+      - bash -e application-infrastructure/postdeploy-scripts/04-consolidate-and-deploy.sh
+
+      - echo "Post-deployment static generation complete"

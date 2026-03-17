@@ -1,0 +1,9 @@
+{
+  "name": "postdeploy-tests",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Post-deployment static generation tests",
+  "scripts": {
+    "test": "../../src/node_modules/.bin/jest --config jest.config.js"
+  }
+}

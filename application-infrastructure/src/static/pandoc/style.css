@@ -1,0 +1,206 @@
+/* Pandoc HTML output stylesheet */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    Oxygen, Ubuntu, Cantarell, "Helvetica Neue", Arial, sans-serif;
+  font-size: 1rem;
+  line-height: 1.7;
+  color: #1a1a2e;
+  background-color: #f8f9fa;
+  margin: 0;
+  padding: 0;
+}
+
+.container,
+body > :not(script) {
+  max-width: 760px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+}
+
+/* Typography */
+
+h1, h2, h3, h4, h5, h6 {
+  margin-top: 1.8em;
+  margin-bottom: 0.6em;
+  font-weight: 600;
+  line-height: 1.3;
+  color: #1a1a2e;
+}
+
+h1 { font-size: 1.75rem; margin-top: 1rem; }
+h2 { font-size: 1.4rem; border-bottom: 1px solid #e0e0e8; padding-bottom: 0.3em; }
+h3 { font-size: 1.15rem; }
+h4 { font-size: 1rem; }
+
+p {
+  margin-top: 0;
+  margin-bottom: 1em;
+}
+
+a {
+  color: #4a6cf7;
+  text-decoration: none;
+}
+
+a:hover,
+a:focus {
+  text-decoration: underline;
+}
+
+a:focus-visible {
+  outline: 2px solid #4a6cf7;
+  outline-offset: 2px;
+}
+
+/* Lists */
+
+ul, ol {
+  padding-left: 1.5em;
+  margin-bottom: 1em;
+}
+
+li {
+  margin-bottom: 0.3em;
+}
+
+/* Code */
+
+code {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.875em;
+  background-color: #eef0f4;
+  padding: 0.15em 0.35em;
+  border-radius: 3px;
+}
+
+pre {
+  background-color: #1e1e2e;
+  color: #cdd6f4;
+  padding: 1rem 1.25rem;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin-bottom: 1.25em;
+  line-height: 1.5;
+}
+
+pre code {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  font-size: 0.85em;
+  color: inherit;
+}
+
+/* Tables */
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1.25em;
+  font-size: 0.925rem;
+}
+
+th, td {
+  text-align: left;
+  padding: 0.5em 0.75em;
+  border: 1px solid #e0e0e8;
+}
+
+th {
+  background-color: #eef0f4;
+  font-weight: 600;
+}
+
+tr:nth-child(even) {
+  background-color: #fafbfc;
+}
+
+/* Blockquotes */
+
+blockquote {
+  border-left: 4px solid #4a6cf7;
+  margin: 0 0 1em;
+  padding: 0.5em 1em;
+  color: #4a4a68;
+  background-color: #f0f2ff;
+  border-radius: 0 4px 4px 0;
+}
+
+blockquote p:last-child {
+  margin-bottom: 0;
+}
+
+/* Horizontal rules */
+
+hr {
+  border: none;
+  border-top: 1px solid #e0e0e8;
+  margin: 2em 0;
+}
+
+/* Images */
+
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Responsive */
+
+@media (max-width: 480px) {
+  body {
+    font-size: 0.95rem;
+  }
+
+  h1 { font-size: 1.4rem; }
+  h2 { font-size: 1.2rem; }
+
+  pre {
+    padding: 0.75rem 1rem;
+    font-size: 0.8em;
+  }
+}
+
+/* Print */
+
+@media print {
+  body {
+    background: #fff;
+    color: #000;
+    font-size: 11pt;
+  }
+
+  a {
+    color: #000;
+    text-decoration: underline;
+  }
+
+  a[href^="http"]::after {
+    content: " (" attr(href) ")";
+    font-size: 0.85em;
+    color: #555;
+  }
+
+  pre {
+    background-color: #f5f5f5;
+    color: #000;
+    border: 1px solid #ccc;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+
+  h1, h2, h3 {
+    page-break-after: avoid;
+  }
+
+  pre, blockquote, table {
+    page-break-inside: avoid;
+  }
+}
