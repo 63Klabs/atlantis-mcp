@@ -26,25 +26,40 @@ echo "${LOG_PREFIX} INFO: Found OpenAPI spec at ${SPEC_FILE}"
 mkdir -p "${OUTPUT_DIR}"
 echo "${LOG_PREFIX} INFO: Created output directory ${OUTPUT_DIR}"
 
-# Dereference the OpenAPI spec to resolve circular $ref entries
-# API Gateway exports often contain circular references that cause Redocly build-docs to fail
-# with "Cannot read properties of null (reading 'x-circular-ref')"
-DEREFERENCED_SPEC="build/staging/api-spec/openapi-dereferenced.json"
-echo "${LOG_PREFIX} INFO: Dereferencing OpenAPI spec to resolve circular references..."
-npx @redocly/cli bundle \
-  "${SPEC_FILE}" \
-  --dereferenced \
-  --output "${DEREFERENCED_SPEC}" || {
-  echo "${LOG_PREFIX} ERROR: Failed to dereference OpenAPI spec at ${SPEC_FILE}" >&2
+# Sanitize the OpenAPI spec to remove circular reference markers
+# API Gateway exports can contain circular $ref chains. Redocly's bundler resolves
+# them but leaves "x-circular-ref" marker properties set to null, which causes
+# build-docs to crash with: TypeError: Cannot read properties of null (reading 'x-circular-ref')
+# This step strips those markers so build-docs can render cleanly.
+CLEAN_SPEC="build/staging/api-spec/openapi-clean.json"
+echo "${LOG_PREFIX} INFO: Sanitizing OpenAPI spec (removing circular ref markers)..."
+node -e "
+  const fs = require('fs');
+  const spec = JSON.parse(fs.readFileSync('${SPEC_FILE}', 'utf8'));
+  function clean(obj) {
+    if (Array.isArray(obj)) return obj.map(clean);
+    if (obj && typeof obj === 'object') {
+      const out = {};
+      for (const [k, v] of Object.entries(obj)) {
+        if (k === 'x-circular-ref') continue;
+        out[k] = clean(v);
+      }
+      return out;
+    }
+    return obj;
+  }
+  fs.writeFileSync('${CLEAN_SPEC}', JSON.stringify(clean(spec), null, 2));
+" || {
+  echo "${LOG_PREFIX} ERROR: Failed to sanitize OpenAPI spec at ${SPEC_FILE}" >&2
   exit 1
 }
 
-# Generate API documentation using Redoc CLI with the dereferenced spec
+# Generate API documentation using Redoc CLI
 echo "${LOG_PREFIX} INFO: Generating API documentation with Redoc CLI..."
 npx @redocly/cli build-docs \
-  "${DEREFERENCED_SPEC}" \
+  "${CLEAN_SPEC}" \
   --output "${OUTPUT_DIR}/index.html" || {
-  echo "${LOG_PREFIX} ERROR: Redoc CLI failed to generate documentation from ${DEREFERENCED_SPEC}" >&2
+  echo "${LOG_PREFIX} ERROR: Redoc CLI failed to generate documentation from ${CLEAN_SPEC}" >&2
   exit 1
 }
 
