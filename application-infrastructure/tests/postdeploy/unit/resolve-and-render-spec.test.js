@@ -119,6 +119,30 @@ describe('resolve-and-render-spec.js', () => {
     expect(html).toContain('<title>prod63k-atlantis-mcp-test-WebApi</title>');
   });
 
+  it('should substitute server URL template variables with their defaults', () => {
+    execFileSync('node', [SCRIPT_PATH, FIXTURE_PATH, outputPath], {
+      timeout: 15000
+    });
+
+    const html = fs.readFileSync(outputPath, 'utf8');
+    const match = html.match(/var spec = ({[\s\S]*?});\s*\n\s*Redoc\.init/);
+    const embedded = JSON.parse(match[1]);
+
+    // The sample spec has {basePath} with default "atlantis-mcp-test"
+    expect(embedded.servers).toBeDefined();
+    expect(embedded.servers.length).toBeGreaterThan(0);
+
+    for (const server of embedded.servers) {
+      // URL should not contain any unresolved template variables
+      expect(server.url).not.toMatch(/\{[^}]+\}/);
+      // Variables should be removed after substitution
+      expect(server.variables).toBeUndefined();
+    }
+
+    // Specifically, the default should have been substituted
+    expect(embedded.servers[0].url).toContain('atlantis-mcp-test');
+  });
+
   it('should exit with error when called without arguments', () => {
     expect(() => {
       execFileSync('node', [SCRIPT_PATH], {

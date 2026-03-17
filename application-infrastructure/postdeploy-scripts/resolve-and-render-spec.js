@@ -88,6 +88,25 @@ function deref(node, root, seen) {
 }
 
 const resolved = deref(spec, spec, new Set());
+
+// Substitute server URL template variables with their default values.
+// API Gateway exports use "{basePath}" in the URL and provide the actual
+// stage name in servers[].variables.basePath.default.  Redoc displays the
+// raw template literal, so we resolve it here.
+if (Array.isArray(resolved.servers)) {
+  for (const server of resolved.servers) {
+    if (server.url && server.variables && typeof server.variables === 'object') {
+      for (const [name, variable] of Object.entries(server.variables)) {
+        if (variable && variable.default != null) {
+          server.url = server.url.replace(`{${name}}`, String(variable.default));
+        }
+      }
+      // Variables are no longer needed after substitution
+      delete server.variables;
+    }
+  }
+}
+
 const title = (resolved.info && resolved.info.title) || 'API Reference';
 
 const html = `<!DOCTYPE html>
