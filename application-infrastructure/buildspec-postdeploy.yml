@@ -19,8 +19,13 @@ phases:
       - npm install -g @redocly/cli
 
       # Install Pandoc for markdown-to-HTML conversion
+      # Pandoc is not available in Amazon Linux 2023 repos; install from official GitHub release
       - echo "Installing Pandoc..."
-      - yum install -y pandoc || dnf install -y pandoc || apt-get install -y pandoc
+      - PANDOC_VERSION="${PANDOC_VERSION:-3.6.4}"
+      - curl -sL "https://github.com/jgm/pandoc/releases/download/${PANDOC_VERSION}/pandoc-${PANDOC_VERSION}-linux-amd64.tar.gz" -o /tmp/pandoc.tar.gz
+      - tar xzf /tmp/pandoc.tar.gz -C /tmp
+      - cp /tmp/pandoc-${PANDOC_VERSION}/bin/pandoc /usr/local/bin/
+      - rm -rf /tmp/pandoc* 
 
       # Print tool versions for build log debugging
       - echo "Tool versions:"
