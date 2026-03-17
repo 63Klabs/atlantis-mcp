@@ -26,12 +26,25 @@ echo "${LOG_PREFIX} INFO: Found OpenAPI spec at ${SPEC_FILE}"
 mkdir -p "${OUTPUT_DIR}"
 echo "${LOG_PREFIX} INFO: Created output directory ${OUTPUT_DIR}"
 
-# Generate API documentation using Redoc CLI
+# Dereference the OpenAPI spec to resolve circular $ref entries
+# API Gateway exports often contain circular references that cause Redocly build-docs to fail
+# with "Cannot read properties of null (reading 'x-circular-ref')"
+DEREFERENCED_SPEC="build/staging/api-spec/openapi-dereferenced.json"
+echo "${LOG_PREFIX} INFO: Dereferencing OpenAPI spec to resolve circular references..."
+npx @redocly/cli bundle \
+  "${SPEC_FILE}" \
+  --dereferenced \
+  --output "${DEREFERENCED_SPEC}" || {
+  echo "${LOG_PREFIX} ERROR: Failed to dereference OpenAPI spec at ${SPEC_FILE}" >&2
+  exit 1
+}
+
+# Generate API documentation using Redoc CLI with the dereferenced spec
 echo "${LOG_PREFIX} INFO: Generating API documentation with Redoc CLI..."
 npx @redocly/cli build-docs \
-  "${SPEC_FILE}" \
+  "${DEREFERENCED_SPEC}" \
   --output "${OUTPUT_DIR}/index.html" || {
-  echo "${LOG_PREFIX} ERROR: Redoc CLI failed to generate documentation from ${SPEC_FILE}" >&2
+  echo "${LOG_PREFIX} ERROR: Redoc CLI failed to generate documentation from ${DEREFERENCED_SPEC}" >&2
   exit 1
 }
 
