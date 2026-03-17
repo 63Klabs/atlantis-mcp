@@ -94,6 +94,22 @@ for dir in ${PUBLIC_DOC_DIRS}; do
     mv "${output_dir}/README.html" "${output_dir}/index.html"
     echo "${LOG_PREFIX} INFO: Renamed README.html to index.html in ${output_dir}"
   fi
+
+  # >! Rewrite internal markdown links in generated HTML files so they resolve
+  # >! correctly in the static site.  Two passes:
+  # >!   1. README.md -> index.html  (directory index files)
+  # >!   2. *.md      -> *.html      (all other markdown links)
+  find "${output_dir}" -name '*.html' -type f | while read -r html_file; do
+    sed -i \
+      -e 's|href="\([^"]*\)README\.md|href="\1index.html|g' \
+      -e "s|href='\([^']*\)README\.md|href='\1index.html|g" \
+      -e 's|href="\([^"]*\)\.md"|href="\1.html"|g' \
+      -e "s|href='\([^']*\)\.md'|href='\1.html'|g" \
+      -e 's|href="\([^"]*\)\.md#|href="\1.html#|g' \
+      -e "s|href='\([^']*\)\.md#|href='\1.html#|g" \
+      "${html_file}"
+  done
+  echo "${LOG_PREFIX} INFO: Rewrote .md links to .html in ${output_dir}"
 done
 
 # Copy CSS stylesheet to staging directory so it is available at /docs/css/style.css
