@@ -16,7 +16,6 @@ body {
 }
 
 .container,
-.sourceCode,
 body > :not(script) {
   max-width: 760px;
   margin-left: auto;
@@ -24,6 +23,12 @@ body > :not(script) {
   padding-left: 1.5rem;
   padding-right: 1.5rem;
 }
+
+div.sourceCode {
+  margin-left: auto;
+  margin-right: auto;
+}
+
 
 /* Typography */
 
