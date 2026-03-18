@@ -280,3 +280,7 @@ class InMemoryCache {
 
 module.exports = InMemoryCache;
 ```
+
+Review documentation and tests to determine if anything needs to be updated.
+
+Ask any clarifying questions or make recomendations that I should pick from in SPEC-QUESTIONS.md and I will answer them there before we move on to the requirements stage.
