@@ -1,18 +1,18 @@
 {
   "Parameters": {
-    "UserAgent": "Web Service - $STAGE_ID$",
+    "UserAgent": "Atlantis MCP - $STAGE_ID$",
     "ApiPathBase": "$PROJECT_ID$-$STAGE_ID$",
     "FunctionMaxMemoryInMB": "2048",
-    "FunctionTimeOutInSeconds": "10",
-    "ApiGatewayLoggingEnabled": "FALSE",
+    "FunctionTimeOutInSeconds": "15",
+    "ApiGatewayLoggingEnabled": "TRUE",
     "CacheDataS3BucketName": "",
     "CacheDataDynamoDbTableName": ""
   },
   "Tags": {
 
-    "Application":"Web Service API",
-    "Name":"Web Service API $PREFIX$-$PROJECT_ID$",
-    "Project": "Web Service API",
+    "Application":"Atlantis MCP",
+    "Name":"Atlantis MCP Service $PREFIX$-$PROJECT_ID$",
+    "Project": "Atlantis MCP",
     "Owner": "teamlead@yourorg.com",
     "Creator":"you@yourorg.com",
     "CostCenter":"7G",
