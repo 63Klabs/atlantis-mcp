@@ -74,6 +74,11 @@ for dir in ${PUBLIC_DOC_DIRS}; do
     # Extract title for the HTML document
     title=$(extract_title "${md_file}")
 
+    # >! Strip the first H1 heading from the temp copy to avoid duplicate H1 in output.
+    # >! Pandoc --standalone --metadata title= renders the title in a <header> block,
+    # >! so the original # Heading in the body would create a second <h1>.
+    sed -i '0,/^# /{/^# /d}' "${md_file}"
+
     echo "${LOG_PREFIX} INFO: Converting ${md_file} -> ${html_name} (title: ${title})"
 
     pandoc "${md_file}" \
