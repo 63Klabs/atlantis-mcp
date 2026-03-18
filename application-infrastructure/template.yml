@@ -646,6 +646,9 @@ Resources:
             - Fn::ImportValue:
                 'Fn::Sub': '${Prefix}-CacheDataS3Bucket'
 
+          # Rate Limiter Sessions Table
+          MCP_DYNAMODB_SESSIONS_TABLE: !Ref DynamoDbSessions
+
       Events:
         UseTool:
           Type: Api
@@ -725,6 +728,33 @@ Resources:
   #     Role: !GetAtt WriteLambdaExecutionRole.Arn
   #     # ... additional configuration for write operations
 
+  # -- DynamoDB Sessions Table for Rate Limiting --
+  # Stores per-client rate limit counters with atomic updates and TTL cleanup
+
+  DynamoDbSessions:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: !If [IsProduction, Retain, Delete]
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Sub '${Prefix}-${ProjectId}-${StageId}-sessions'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref StageId
+        - Key: Project
+          Value: !Ref ProjectId
+        - Key: ManagedBy
+          Value: CloudFormation
+
   # -- Read Lambda Execution Role --
   # Minimal permissions: S3 GetObject/ListBucket/GetObjectVersion, DynamoDB read, SSM GetParameter
 
@@ -802,6 +832,15 @@ Resources:
                 - "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${TableName}"
                 - TableName:
                     Fn::ImportValue: !Sub '${Prefix}-CacheDataDynamoDbTable'
+
+          - Sid: DynamoDBSessionsTableAccess
+            Action:
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            Effect: Allow
+            Resource:
+            - !GetAtt DynamoDbSessions.Arn
 
   # -- Lambda permissions allowing API Gateway to Execute Read Lambda --
 

@@ -8,13 +8,9 @@ This steering document establishes critical rules and monitoring practices to pr
 
 **NEVER create tests that recursively execute the full test suite.** Tests that spawn child processes to run other tests MUST be carefully designed to avoid infinite loops and exponential process growth.
 
-**CRITICAL: Test Framework Migration in Progress**
-
-This project is migrating from Mocha to Jest:
-- **Mocha tests** (legacy): `*-tests.mjs` files
 - **Jest tests** (current): `*.jest.mjs` files
 - **ALL NEW TESTS MUST BE WRITTEN IN JEST**
-- Both test suites must pass in CI/CD
+- Test suites must pass in CI/CD
 
 ## Critical Rules for Test Execution
 
@@ -45,11 +41,9 @@ function runTests(testFile, framework) {
 **Good Example** (runs specific test file directly):
 ```javascript
 // test/migration/property/test-execution-equivalence-property-tests.mjs
-function runTests(testFile, framework) {
+function runTests(testFile) {
     // ✅ CORRECT - runs mocha/jest directly on specific file
-    const command = framework === 'mocha' 
-        ? `./node_modules/.bin/mocha ${testFile}`
-        : `node --experimental-vm-modules ./node_modules/jest/bin/jest.js ${testFile}`;
+    const command = `node --experimental-vm-modules ./node_modules/jest/bin/jest.js ${testFile}`;
     execSync(command);
 }
 ```
@@ -58,15 +52,12 @@ function runTests(testFile, framework) {
 
 When tests need to execute other tests (e.g., for migration validation), they MUST:
 
-1. **Invoke the test runner directly** (mocha or jest binary)
+1. **Invoke the test runner directly** (jest binary)
 2. **Specify the exact test file** to run
 3. **Never use npm scripts** that might trigger the full test suite
 
 **Correct patterns:**
 ```javascript
-// Run Mocha directly on specific file
-execSync(`./node_modules/.bin/mocha test/endpoint/api-request-tests.mjs`);
-
 // Run Jest directly on specific file
 execSync(`node --experimental-vm-modules ./node_modules/jest/bin/jest.js test/endpoint/api-request-tests.jest.mjs`);
 ```
@@ -111,12 +102,12 @@ Before running tests that spawn child processes:
 
 1. **Check for existing test processes:**
    ```bash
-   ps aux | grep -E "(mocha|jest|node.*test)" | grep -v grep
+   ps aux | grep -E "(jest|node.*test)" | grep -v grep
    ```
 
 2. **Monitor process count during test execution:**
    ```bash
-   watch -n 1 'ps aux | grep -E "(mocha|jest)" | wc -l'
+   watch -n 1 'ps aux | grep -E "(jest)" | wc -l'
    ```
 
 3. **Set a timeout for test execution:**
@@ -126,7 +117,6 @@ Before running tests that spawn child processes:
 
 4. **Kill runaway test processes immediately:**
    ```bash
-   pkill -f "mocha.*test"
    pkill -f "jest.*test"
    ```
 

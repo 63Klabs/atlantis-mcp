@@ -311,59 +311,84 @@ const settings = {
    * 
    * @type {Object}
    */
+  /**
+   * Session hash salt from SSM Parameter Store.
+   * 
+   * This is a CachedSsmParameter instance that retrieves and caches the
+   * secret salt used for SHA-256 hashing of client identifiers in the
+   * rate limiter. The salt prevents correlation of client identifiers
+   * across rate limit windows.
+   * 
+   * The parameter path is constructed as: PARAM_STORE_PATH + 'Mcp_SessionHashSalt'
+   * 
+   * @type {CachedSsmParameter}
+   */
+  sessionHashSalt: new CachedSsmParameter(process.env.PARAM_STORE_PATH+'Mcp_SessionHashSalt'),
+
+  /**
+   * DynamoDB sessions table name for distributed rate limiting.
+   * 
+   * Read from the MCP_DYNAMODB_SESSIONS_TABLE environment variable.
+   * This table stores per-client rate limit counters with atomic updates
+   * and TTL-based automatic cleanup.
+   * 
+   * @type {string}
+   */
+  dynamoDbSessionsTable: process.env.MCP_DYNAMODB_SESSIONS_TABLE || '',
+
   rateLimits: {
 
     /**
      * Public rate limit (requests per window per IP address).
      * 
-     * Applied to unauthenticated requests. Default: 100 requests per hour.
+     * Applied to unauthenticated requests. Default: 50 requests per hour.
      * 
      * @type {Object}
-     * @property {number} limit - Maximum requests allowed (default: 100)
-     * @property {number} window - Time window in seconds (default: 3600 = 1 hour)
+     * @property {number} limitPerWindow - Maximum requests allowed (default: 50)
+     * @property {number} windowInMinutes - Time window in minutes (default: 60 = 1 hour)
      */
     public: {
-      limit: parseInt(process.env.PUBLIC_RATE_LIMIT || '100', 10),
-      window: parseInt(process.env.PUBLIC_RATE_TIME_RANGE || '3600', 10)
+      limitPerWindow: parseInt(process.env.MCP_PUBLIC_RATE_LIMIT || '50', 10),
+      windowInMinutes: parseInt(process.env.MCP_PUBLIC_RATE_TIME_RANGE_MINUTES || '60', 10)
     },
     /**
      * Registered user rate limit (requests per window per user).
      * 
-     * Applied to authenticated free-tier users. Default: 500 requests per hour.
+     * Applied to authenticated free-tier users. Default: 100 requests per hour.
      * 
      * @type {Object}
-     * @property {number} limit - Maximum requests allowed (default: 500)
-     * @property {number} window - Time window in seconds (default: 3600 = 1 hour)
+     * @property {number} limitPerWindow - Maximum requests allowed (default: 100)
+     * @property {number} windowInMinutes - Time window in minutes (default: 60 = 1 hour)
      */
     registered: {
-      limit: parseInt(process.env.REGISTERED_RATE_LIMIT || '500', 10),
-      window: parseInt(process.env.REGISTERED_RATE_TIME_RANGE || '3600', 10)
+      limitPerWindow: parseInt(process.env.MCP_REGISTERED_RATE_LIMIT || '100', 10),
+      windowInMinutes: parseInt(process.env.MCP_REGISTERED_RATE_TIME_RANGE_MINUTES || '60', 10)
     },
     /**
      * Paid user rate limit (requests per window per user).
      * 
-     * Applied to authenticated paid-tier users. Default: 2500 requests per hour.
+     * Applied to authenticated paid-tier users. Default: 3000 requests per day.
      * 
      * @type {Object}
-     * @property {number} limit - Maximum requests allowed (default: 2500)
-     * @property {number} window - Time window in seconds (default: 86400 = 24 hours)
+     * @property {number} limitPerWindow - Maximum requests allowed (default: 3000)
+     * @property {number} windowInMinutes - Time window in minutes (default: 1440 = 24 hours)
      */
     paid: {
-      limit: parseInt(process.env.PAID_RATE_LIMIT || '2500', 10),
-      window: parseInt(process.env.PAID_RATE_TIME_RANGE || '86400', 10)
+      limitPerWindow: parseInt(process.env.MCP_PAID_RATE_LIMIT || '3000', 10),
+      windowInMinutes: parseInt(process.env.MCP_PAID_RATE_TIME_RANGE_MINUTES || '1440', 10)
     },
     /**
      * Private/admin rate limit (requests per window per user).
      * 
-     * Applied to internal/admin access. Default: 1000 requests per hour.
+     * Applied to internal/admin access. Default: 6000 requests per day.
      * 
      * @type {Object}
-     * @property {number} limit - Maximum requests allowed (default: 1000)
-     * @property {number} window - Time window in seconds (default: 86400 = 24 hours)
+     * @property {number} limitPerWindow - Maximum requests allowed (default: 6000)
+     * @property {number} windowInMinutes - Time window in minutes (default: 1440 = 24 hours)
      */
     private: {
-      limit: parseInt(process.env.PRIVATE_RATE_LIMIT || '1000', 10),
-      window: parseInt(process.env.PRIVATE_RATE_TIME_RANGE || '86400', 10)
+      limitPerWindow: parseInt(process.env.MCP_PRIVATE_RATE_LIMIT || '6000', 10),
+      windowInMinutes: parseInt(process.env.MCP_PRIVATE_RATE_TIME_RANGE_MINUTES || '1440', 10)
     }
 
   }

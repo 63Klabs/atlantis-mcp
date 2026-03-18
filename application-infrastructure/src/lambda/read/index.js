@@ -159,10 +159,12 @@ exports.handler = async (event, context) => {
     // >! Check rate limit before processing request
     // >! Rate limit is per IP address, resets every hour
     // >! Returns 429 if limit exceeded with Retry-After header
-    const rateLimitCheck = RateLimiter.checkRateLimit(event, Config.settings().rateLimits);
+    const rateLimitCheck = await RateLimiter.checkRateLimit(event, Config.settings().rateLimits);
 
     console.log("SETTINGS", Config.settings());
     if (!rateLimitCheck.allowed) {
+      // >! Await DynamoDB update before returning to ensure state is persisted
+      if (rateLimitCheck.dynamoPromise) { await rateLimitCheck.dynamoPromise; }
       // >! Return 429 Too Many Requests with rate limit headers
       // >! Include Retry-After header indicating when to retry
       return RateLimiter.createRateLimitResponse(
@@ -212,6 +214,9 @@ exports.handler = async (event, context) => {
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With'
     };
+
+    // >! Await DynamoDB update before returning to ensure state is persisted
+    if (rateLimitCheck.dynamoPromise) { await rateLimitCheck.dynamoPromise; }
 
     return apiGatewayResponse;
 
