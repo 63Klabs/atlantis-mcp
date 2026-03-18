@@ -359,12 +359,11 @@ Search documentation for Lambda best practices
 If you encounter issues:
 
 1. Check the [Troubleshooting Guide](../troubleshooting/README.md)
-2. Review Claude Desktop logs
+2. Review Desktop App logs
 3. Verify MCP server status
-4. Contact support: support@63klabs.com
 
 ## Additional Resources
 
 - [Claude Desktop Documentation](https://claude.ai/docs)
-- [MCP Protocol Specification](https://modelcontextprotocol.io/)
-- [Atlantis Platform Documentation](https://github.com/63Klabs/atlantis-cfn-template-repo-for-serverless-deployments)
+- [Atlantis MCP Server: GitHub](https://github.com/63klabs/atlantis-mcp-server/) ([Issues](https://github.com/63klabs/atlantis-mcp-server/issues))
+- [Atlantis Platform Documentation](https://github.com/63Klabs/atlantis)

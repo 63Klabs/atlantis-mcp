@@ -405,6 +405,14 @@ Kiro can validate before deployments:
 
 ## Support
 
+If you encounter issues:
+
+1. Check the [Troubleshooting Guide](../troubleshooting/README.md)
+2. Review Desktop App logs
+3. Verify MCP server status
+
+## Additional Resources
+
 - Kiro Documentation: [kiro.ai/docs](https://kiro.ai/docs)
-- Atlantis Support: support@63klabs.com
-- GitHub Issues: [atlantis-mcp-server/issues](https://github.com/63klabs/atlantis-mcp-server/issues)
+- [Atlantis MCP Server: GitHub](https://github.com/63klabs/atlantis-mcp-server/) ([Issues](https://github.com/63klabs/atlantis-mcp-server/issues))
+- [Atlantis Platform Documentation](https://github.com/63Klabs/atlantis)

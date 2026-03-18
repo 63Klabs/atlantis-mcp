@@ -315,6 +315,14 @@ GPT: [Uses get_template to show changelog]
 
 ## Support
 
-- Email: support@63klabs.com
+If you encounter issues:
+
+1. Check the [Troubleshooting Guide](../troubleshooting/README.md)
+2. Review Desktop App logs
+3. Verify MCP server status
+
+## Additional Resources
+
 - Documentation: [Full Docs](../README.md)
-- Issues: [GitHub Issues](https://github.com/63klabs/atlantis-mcp-server/issues)
+- [Atlantis MCP Server: GitHub](https://github.com/63klabs/atlantis-mcp-server/) ([Issues](https://github.com/63klabs/atlantis-mcp-server/issues))
+- [Atlantis Platform Documentation](https://github.com/63Klabs/atlantis)
