@@ -346,11 +346,11 @@ const settings = {
      * 
      * @type {Object}
      * @property {number} limit - Maximum requests allowed (default: 2500)
-     * @property {number} window - Time window in seconds (default: 3600 = 1 hour)
+     * @property {number} window - Time window in seconds (default: 86400 = 24 hours)
      */
     paid: {
       limit: parseInt(process.env.PAID_RATE_LIMIT || '2500', 10),
-      window: parseInt(process.env.PAID_RATE_TIME_RANGE || '3600', 10)
+      window: parseInt(process.env.PAID_RATE_TIME_RANGE || '86400', 10)
     },
     /**
      * Private/admin rate limit (requests per window per user).
@@ -359,11 +359,11 @@ const settings = {
      * 
      * @type {Object}
      * @property {number} limit - Maximum requests allowed (default: 1000)
-     * @property {number} window - Time window in seconds (default: 3600 = 1 hour)
+     * @property {number} window - Time window in seconds (default: 86400 = 24 hours)
      */
     private: {
       limit: parseInt(process.env.PRIVATE_RATE_LIMIT || '1000', 10),
-      window: parseInt(process.env.PRIVATE_RATE_TIME_RANGE || '3600', 10)
+      window: parseInt(process.env.PRIVATE_RATE_TIME_RANGE || '86400', 10)
     }
 
   }
