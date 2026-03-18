@@ -107,6 +107,8 @@ phases:
       - python3 ./build-scripts/generate-put-ssm.py ${PARAM_STORE_HIERARCHY}CacheData_SecureDataKey --generate 256
       # Save a spot for GitHub Token
       - python3 ./build-scripts/generate-put-ssm.py ${PARAM_STORE_HIERARCHY}GitHubToken
+      # Generate a random 256 bit hash (hexidecimal) in SSM for the Session Rate Client Identifier Key
+      - python3 ./build-scripts/generate-put-ssm.py ${PARAM_STORE_HIERARCHY}Mcp_SessionHashSalt --generate 256
 
 
   build:
