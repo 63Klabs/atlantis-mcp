@@ -99,6 +99,40 @@ pre code {
   color: inherit;
 }
 
+/* Pandoc syntax highlighting tokens — light-on-dark palette
+   Targets the span classes Pandoc emits with --highlight-style.
+   Minimum contrast ratio ~7:1 against #1e1e2e background. */
+
+code span.kw { color: #cba6f7; font-weight: 600; } /* Keyword          */
+code span.cf { color: #cba6f7; font-weight: 600; } /* ControlFlow       */
+code span.dt { color: #f9e2af; }                    /* DataType          */
+code span.dv { color: #fab387; }                    /* DecVal (numbers)  */
+code span.bn { color: #fab387; }                    /* BaseN             */
+code span.fl { color: #fab387; }                    /* Float             */
+code span.ch { color: #a6e3a1; }                    /* Char              */
+code span.st { color: #a6e3a1; }                    /* String            */
+code span.vs { color: #a6e3a1; }                    /* VerbatimString    */
+code span.ss { color: #a6e3a1; }                    /* SpecialString     */
+code span.co { color: #9399b2; font-style: italic; } /* Comment         */
+code span.do { color: #9399b2; font-style: italic; } /* Documentation   */
+code span.an { color: #9399b2; font-style: italic; } /* Annotation      */
+code span.fu { color: #89b4fa; }                    /* Function          */
+code span.er { color: #f38ba8; font-weight: 600; }  /* Error            */
+code span.wa { color: #fab387; font-weight: 600; }  /* Warning          */
+code span.al { color: #f38ba8; font-weight: 600; }  /* Alert            */
+code span.cn { color: #fab387; }                    /* Constant          */
+code span.sc { color: #f2cdcd; }                    /* SpecialChar       */
+code span.im { color: #89b4fa; }                    /* Import            */
+code span.op { color: #89dceb; }                    /* Operator          */
+code span.bu { color: #89dceb; }                    /* BuiltIn           */
+code span.ex { color: #89dceb; }                    /* Extension         */
+code span.pp { color: #f38ba8; }                    /* Preprocessor      */
+code span.at { color: #89b4fa; }                    /* Attribute         */
+code span.re { color: #f5c2e7; }                    /* RegionMarker      */
+code span.in { color: #9399b2; font-style: italic; } /* Information     */
+code span.va { color: #cdd6f4; }                    /* Variable          */
+code span.ot { color: #89dceb; }                    /* Other             */
+
 /* Tables */
 
 table {
