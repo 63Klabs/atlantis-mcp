@@ -16,6 +16,68 @@ info:
 
 paths:
 
+  /mcp/list_tools:
+    post:
+      summary: "List available tools"
+      description: "Returns a list of all available MCP tools with their descriptions and input schemas"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MCPRequest'
+      responses:
+        '200':
+          description: "Success response with tool list"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPResponse'
+        '400':
+          description: "Bad request - invalid MCP protocol message"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPError'
+        '500':
+          description: "Internal server error"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPError'
+      x-amazon-apigateway-integration:
+        httpMethod: post
+        type: aws_proxy
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ReadLambdaFunction.Arn}/invocations
+    get:
+      summary: "List available tools (GET)"
+      description: "Returns a list of all available MCP tools with their descriptions and input schemas."
+      responses:
+        '200':
+          description: "Success response with tool list"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPResponse'
+        '400':
+          description: "Bad request"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPError'
+        '500':
+          description: "Internal server error"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPError'
+      x-amazon-apigateway-integration:
+        httpMethod: post
+        type: aws_proxy
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ReadLambdaFunction.Arn}/invocations
+
   /mcp/list_templates:
     post:
       summary: "List available templates"
@@ -35,6 +97,53 @@ paths:
                 $ref: '#/components/schemas/MCPResponse'
         '400':
           description: "Bad request - invalid MCP protocol message"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPError'
+        '500':
+          description: "Internal server error"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPError'
+      x-amazon-apigateway-integration:
+        httpMethod: post
+        type: aws_proxy
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ReadLambdaFunction.Arn}/invocations
+    get:
+      summary: "List available templates (GET)"
+      description: "Returns a list of available Atlantis templates from configured S3 buckets and GitHub repositories. Supports optional query string filters."
+      parameters:
+        - name: category
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: ['storage', 'network', 'pipeline', 'service-role', 'modules']
+          description: "Filter by template category"
+        - name: version
+          in: query
+          required: false
+          schema:
+            type: string
+          description: "Filter by Human_Readable_Version"
+        - name: versionId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: "Filter by S3_VersionId"
+      responses:
+        '200':
+          description: "Success response with template list"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPResponse'
+        '400':
+          description: "Bad request"
           content:
             application/json:
               schema:
@@ -111,6 +220,40 @@ paths:
                 $ref: '#/components/schemas/MCPResponse'
         '400':
           description: "Bad request - invalid MCP protocol message"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPError'
+        '500':
+          description: "Internal server error"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPError'
+      x-amazon-apigateway-integration:
+        httpMethod: post
+        type: aws_proxy
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ReadLambdaFunction.Arn}/invocations
+    get:
+      summary: "List available application starters (GET)"
+      description: "Returns a list of available application starter templates. Supports optional query string filters."
+      parameters:
+        - name: ghusers
+          in: query
+          required: false
+          schema:
+            type: string
+          description: "Filter by GitHub users/organizations"
+      responses:
+        '200':
+          description: "Success response with starter list"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPResponse'
+        '400':
+          description: "Bad request"
           content:
             application/json:
               schema:
@@ -333,6 +476,33 @@ paths:
                 $ref: '#/components/schemas/MCPResponse'
         '400':
           description: "Bad request - invalid MCP protocol message"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPError'
+        '500':
+          description: "Internal server error"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPError'
+      x-amazon-apigateway-integration:
+        httpMethod: post
+        type: aws_proxy
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ReadLambdaFunction.Arn}/invocations
+    get:
+      summary: "List template categories (GET)"
+      description: "Returns available template categories for filtering and organization."
+      responses:
+        '200':
+          description: "Success response with category list"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPResponse'
+        '400':
+          description: "Bad request"
           content:
             application/json:
               schema:

@@ -5,13 +5,24 @@
  * controllers based on the MCP tool name. It creates ClientRequest objects from
  * API Gateway events and delegates to controllers for processing.
  *
+ * Supports both POST and GET methods. GET requests are only allowed for tools
+ * whose inputSchema has no required parameters (GET-eligible tools). GET requests
+ * to non-GET-eligible tools receive a 405 Method Not Allowed response. Query
+ * string parameters on GET requests are mapped to the same structure controllers
+ * expect from POST body parameters.
+ *
  * @module routes
  */
 
 const { tools: { ClientRequest, Response, DebugAndLog } } = require('@63klabs/cache-data');
 
 /**
- * Process incoming request and route to appropriate controller
+ * Process incoming request and route to appropriate controller.
+ *
+ * For GET requests, verifies the tool is GET-eligible (no required parameters
+ * in its inputSchema) before routing. Returns 405 Method Not Allowed for
+ * known tools that require POST. Unknown tools fall through to the switch
+ * default case for a 404 response regardless of method.
  *
  * @param {Object} event - API Gateway event
  * @param {Object} context - Lambda context
@@ -88,6 +99,38 @@ const process = async (event, context) => {
     path: props.path,
     requestId: context.requestId
   });
+
+  // Check GET eligibility for GET requests to known tools
+  if (props.method === 'GET') {
+    const settings = require('../config/settings');
+    const allToolNames = settings.tools.availableToolsList.map(t => t.name);
+    const getEligibleTools = settings.tools.getGetEligibleTools();
+
+    // Only return 405 if the tool exists but isn't GET-eligible
+    // Unknown tools should fall through to the switch default for 404
+    if (allToolNames.includes(tool) && !getEligibleTools.includes(tool)) {
+      return RESP.reset({
+        statusCode: 405,
+        body: ErrorHandler.toUserResponse(
+          ErrorHandler.createError({
+            code: ErrorHandler.ErrorCode.METHOD_NOT_ALLOWED,
+            message: `Tool '${tool}' requires POST method. GET is only supported for: ${getEligibleTools.join(', ')}`,
+            category: ErrorHandler.ErrorCategory.CLIENT_ERROR,
+            statusCode: 405,
+            requestId: context.requestId,
+            details: { tool, method: 'GET', allowedMethods: ['POST'], getEligibleTools }
+          }),
+          context.requestId
+        )
+      });
+    }
+  }
+
+  // Map query string parameters to controller input for GET requests
+  if (props.method === 'GET' && props.queryStringParameters) {
+    props.bodyParameters = props.bodyParameters || {};
+    props.bodyParameters.input = { ...props.queryStringParameters };
+  }
 
   try {
     // Route to appropriate controller based on tool name

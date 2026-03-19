@@ -295,7 +295,23 @@ const settings = {
           required: ['templateName', 'category', 'currentVersion']
         }
       }
-    ]
+    ],
+
+    /**
+     * Get the list of tool names eligible for HTTP GET requests.
+     * A tool is GET-eligible if its inputSchema has no `required` array
+     * or has an empty `required` array.
+     *
+     * @returns {Array<string>} Array of GET-eligible tool names
+     * @example
+     * const eligible = settings.tools.getGetEligibleTools();
+     * // ['list_tools', 'list_templates', 'list_categories', 'list_starters']
+     */
+    getGetEligibleTools() {
+      return this.availableToolsList
+        .filter(tool => !tool.inputSchema.required || tool.inputSchema.required.length === 0)
+        .map(tool => tool.name);
+    }
   },
 
   // S3 Configuration

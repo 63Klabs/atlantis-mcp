@@ -501,8 +501,8 @@ Resources:
       Name: !Sub '${Prefix}-${ProjectId}-${StageId}-WebApi'
       StageName: !Ref ApiPathBase
 
-      Cors: # MCP server accepts POST requests from any origin
-        AllowMethods: "'POST,OPTIONS'"
+      Cors: # MCP server accepts GET and POST requests from any origin
+        AllowMethods: "'GET,POST,OPTIONS'"
         AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
         AllowOrigin: "'*'"
         MaxAge: "'86400'"
@@ -655,6 +655,12 @@ Resources:
           Properties:
             Path: /mcp/{tool}
             Method: post
+            RestApiId: !Ref WebApi
+        UseToolGet:
+          Type: Api
+          Properties:
+            Path: /mcp/{tool}
+            Method: get
             RestApiId: !Ref WebApi
         # ListTemplates:
         #   Type: Api
