@@ -287,6 +287,15 @@ const schemas = {
     },
     required: ['templateName', 'currentVersion'],
     additionalProperties: false
+  },
+
+  /**
+   * Schema for list_tools tool input - Lists all available MCP tools
+   */
+  list_tools: {
+    type: 'object',
+    properties: {},
+    additionalProperties: false
   }
 };
 

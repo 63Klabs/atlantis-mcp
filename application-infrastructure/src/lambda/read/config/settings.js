@@ -72,10 +72,232 @@ const TEMPLATE_CATEGORIES = [
 ];
 
 /**
+ * @typedef {Object} ToolDefinition
+ * @property {string} name - Tool name used for routing
+ * @property {string} description - Human-readable description of the tool
+ * @property {Object} inputSchema - JSON Schema for tool input validation
+ */
+
+/**
  * Application settings object
  * Organized into logical sections for S3, GitHub, cache, logging, and naming
  */
 const settings = {
+  // Tools Configuration
+  tools: {
+    /**
+     * Complete list of MCP tool definitions supported by this server.
+     * This is the single source of truth for tool metadata.
+     * @type {Array<ToolDefinition>}
+     */
+    availableToolsList: [
+      {
+        name: 'list_tools',
+        description: 'List all available MCP tools with their descriptions and input schemas. Returns the complete set of tools supported by this server.',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+          additionalProperties: false
+        }
+      },
+      {
+        name: 'list_templates',
+        description: 'List all available CloudFormation templates from configured S3 buckets. Returns template metadata including name, version, category, description, namespace, and S3 location.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            category: {
+              type: 'string',
+              description: 'Filter by template category (Storage, Network, Pipeline, Service Role, Modules)',
+              enum: ['Storage', 'Network', 'Pipeline', 'Service Role', 'Modules']
+            },
+            version: {
+              type: 'string',
+              description: 'Filter by Human_Readable_Version (e.g., v1.2.3/2024-01-15)'
+            },
+            versionId: {
+              type: 'string',
+              description: 'Filter by S3_VersionId'
+            },
+            s3Buckets: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Filter to specific S3 buckets from configured list'
+            }
+          }
+        }
+      },
+      {
+        name: 'get_template',
+        description: 'Retrieve a specific CloudFormation template with full content and metadata. Returns template content, parameters, outputs, version information, and S3 location.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            templateName: {
+              type: 'string',
+              description: 'Name of the template to retrieve'
+            },
+            category: {
+              type: 'string',
+              description: 'Template category',
+              enum: ['Storage', 'Network', 'Pipeline', 'Service Role', 'Modules']
+            },
+            version: {
+              type: 'string',
+              description: 'Human_Readable_Version (e.g., v1.2.3/2024-01-15)'
+            },
+            versionId: {
+              type: 'string',
+              description: 'S3_VersionId for specific version'
+            },
+            s3Buckets: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Filter to specific S3 buckets from configured list'
+            }
+          },
+          required: ['templateName', 'category']
+        }
+      },
+      {
+        name: 'list_template_versions',
+        description: 'List all versions of a specific CloudFormation template. Returns version history with Human_Readable_Version, S3_VersionId, last modified date, and size.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            templateName: {
+              type: 'string',
+              description: 'Name of the template'
+            },
+            category: {
+              type: 'string',
+              description: 'Template category',
+              enum: ['Storage', 'Network', 'Pipeline', 'Service Role', 'Modules']
+            },
+            s3Buckets: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Filter to specific S3 buckets from configured list'
+            }
+          },
+          required: ['templateName', 'category']
+        }
+      },
+      {
+        name: 'list_categories',
+        description: 'List all available template categories with descriptions and template counts. Returns category names, descriptions, and number of templates in each category.',
+        inputSchema: {
+          type: 'object',
+          properties: {}
+        }
+      },
+      {
+        name: 'list_starters',
+        description: 'List all available starter code repositories. Returns starter metadata including name, description, language, framework, features, and GitHub URL.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            ghusers: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Filter to specific GitHub users/orgs from configured list'
+            }
+          }
+        }
+      },
+      {
+        name: 'get_starter_info',
+        description: 'Retrieve detailed information about a specific starter code repository. Returns comprehensive metadata, example code snippets, and setup instructions.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            starterName: {
+              type: 'string',
+              description: 'Name of the starter repository'
+            },
+            ghusers: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Filter to specific GitHub users/orgs from configured list'
+            }
+          },
+          required: ['starterName']
+        }
+      },
+      {
+        name: 'search_documentation',
+        description: 'Search Atlantis documentation, tutorials, and code patterns. Returns search results with title, excerpt, file path, GitHub URL, and result type (documentation or code example).',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            query: {
+              type: 'string',
+              description: 'Search query keywords'
+            },
+            type: {
+              type: 'string',
+              description: 'Filter by result type',
+              enum: ['guide', 'tutorial', 'reference', 'troubleshooting', 'template pattern', 'code example']
+            },
+            ghusers: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Filter to specific GitHub users/orgs from configured list'
+            }
+          },
+          required: ['query']
+        }
+      },
+      {
+        name: 'validate_naming',
+        description: 'Validate resource names against Atlantis naming conventions. Returns validation result with specific error messages and suggestions for invalid names.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            resourceName: {
+              type: 'string',
+              description: 'Resource name to validate'
+            },
+            resourceType: {
+              type: 'string',
+              description: 'Type of AWS resource',
+              enum: ['application', 's3', 'dynamodb', 'lambda', 'cloudformation']
+            }
+          },
+          required: ['resourceName']
+        }
+      },
+      {
+        name: 'check_template_updates',
+        description: 'Check if CloudFormation templates have newer versions available. Returns update information including version, release date, changelog, and migration guide links for breaking changes.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            templateName: {
+              type: 'string',
+              description: 'Name of the template to check'
+            },
+            category: {
+              type: 'string',
+              description: 'Template category',
+              enum: ['Storage', 'Network', 'Pipeline', 'Service Role', 'Modules']
+            },
+            currentVersion: {
+              type: 'string',
+              description: 'Current Human_Readable_Version (e.g., v1.2.3/2024-01-15)'
+            },
+            s3Buckets: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Filter to specific S3 buckets from configured list'
+            }
+          },
+          required: ['templateName', 'category', 'currentVersion']
+        }
+      }
+    ]
+  },
+
   // S3 Configuration
   s3: {
     /**

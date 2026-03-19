@@ -12,11 +12,13 @@ const Starters = require('./starters');
 const Documentation = require('./documentation');
 const Validation = require('./validation');
 const Updates = require('./updates');
+const Tools = require('./tools');
 
 module.exports = {
   Templates,
   Starters,
   Documentation,
   Validation,
-  Updates
+  Updates,
+  Tools
 };

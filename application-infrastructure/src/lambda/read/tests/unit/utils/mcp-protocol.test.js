@@ -5,6 +5,10 @@
  * protocol negotiation, and capability discovery.
  */
 
+// Set required env var before loading modules
+process.env.PARAM_STORE_PATH = process.env.PARAM_STORE_PATH || '/test/';
+
+const settings = require('../../../config/settings');
 const {
   MCP_VERSION,
   MCP_CAPABILITIES,
@@ -279,6 +283,22 @@ describe('MCP Protocol Utilities', () => {
     test('should be case-sensitive', () => {
       expect(isValidTool('LIST_TEMPLATES')).toBe(false);
       expect(isValidTool('List_Templates')).toBe(false);
+    });
+  });
+
+  describe('Settings Integration (Requirements 2.2, 2.3, 2.4, 6.3)', () => {
+    test('listTools() returns availableToolsList from settings (reference identity)', () => {
+      const tools = listTools();
+      expect(tools).toBe(settings.tools.availableToolsList);
+    });
+
+    test('getCapabilities().tools returns availableToolsList from settings (reference identity)', () => {
+      const capabilities = getCapabilities();
+      expect(capabilities.tools).toBe(settings.tools.availableToolsList);
+    });
+
+    test('isValidTool("list_tools") returns true', () => {
+      expect(isValidTool('list_tools')).toBe(true);
     });
   });
 

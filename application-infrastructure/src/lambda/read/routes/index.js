@@ -138,9 +138,16 @@ const process = async (event, context) => {
         RESP.setBody(await UpdatesController.check(props));
         break;
 
+      case 'list_tools':
+        const ToolsController = require('../controllers/tools');
+        RESP.setBody(await ToolsController.list(props));
+        break;
+
       default:
         // >! Unknown tool - return 404
         DebugAndLog.warn('Unknown tool requested', { tool });
+        const settings = require('../config/settings');
+        const availableTools = settings.tools.availableToolsList.map(t => t.name);
         const error = ErrorHandler.createError({
           code: ErrorHandler.ErrorCode.UNKNOWN_TOOL,
           message: `Unknown tool: ${tool}`,
@@ -149,17 +156,7 @@ const process = async (event, context) => {
           requestId: context.requestId,
           details: {
             tool,
-            availableTools: [
-              'list_templates',
-              'get_template',
-              'list_template_versions',
-              'list_categories',
-              'list_starters',
-              'get_starter_info',
-              'search_documentation',
-              'validate_naming',
-              'check_template_updates'
-            ]
+            availableTools
           }
         });
         error.availableTools = error.details.availableTools;
