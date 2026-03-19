@@ -59,7 +59,7 @@ describe('Templates Controller', () => {
     test('should list templates successfully with valid input', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             category: 'Storage',
             version: 'v1.3.5/2024-01-15'
@@ -82,12 +82,13 @@ describe('Templates Controller', () => {
       const result = await TemplatesController.list(props);
 
       // Assert
-      expect(SchemaValidator.validate).toHaveBeenCalledWith('list_templates', props.body.input);
+      expect(SchemaValidator.validate).toHaveBeenCalledWith('list_templates', props.bodyParameters.input);
       expect(Services.Templates.list).toHaveBeenCalledWith({
         category: 'Storage',
         version: 'v1.3.5/2024-01-15',
         versionId: undefined,
-        s3Buckets: undefined
+        s3Buckets: undefined,
+        namespace: undefined
       });
       expect(MCPProtocol.successResponse).toHaveBeenCalledWith('list_templates', mockTemplates);
       expect(result.success).toBe(true);
@@ -95,7 +96,7 @@ describe('Templates Controller', () => {
 
     test('should handle empty input', async () => {
       // Arrange
-      const props = { body: { input: {} } };
+      const props = { bodyParameters: { input: {} } };
       SchemaValidator.validate.mockReturnValue({ valid: true });
       Services.Templates.list.mockResolvedValue({ templates: [] });
 
@@ -107,7 +108,8 @@ describe('Templates Controller', () => {
         category: undefined,
         version: undefined,
         versionId: undefined,
-        s3Buckets: undefined
+        s3Buckets: undefined,
+        namespace: undefined
       });
       expect(result.success).toBe(true);
     });
@@ -129,7 +131,7 @@ describe('Templates Controller', () => {
     test('should return error for invalid input', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             category: 'InvalidCategory'
           }
@@ -161,7 +163,7 @@ describe('Templates Controller', () => {
 
     test('should handle service errors', async () => {
       // Arrange
-      const props = { body: { input: {} } };
+      const props = { bodyParameters: { input: {} } };
       SchemaValidator.validate.mockReturnValue({ valid: true });
 
       const serviceError = new Error('S3 connection failed');
@@ -186,7 +188,7 @@ describe('Templates Controller', () => {
     test('should pass all filter parameters to service', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             category: 'Storage',
             version: 'v1.3.5/2024-01-15',
@@ -207,13 +209,14 @@ describe('Templates Controller', () => {
         category: 'Storage',
         version: 'v1.3.5/2024-01-15',
         versionId: 'abc123',
-        s3Buckets: ['bucket1', 'bucket2']
+        s3Buckets: ['bucket1', 'bucket2'],
+        namespace: undefined
       });
     });
 
     test('should log request and response details', async () => {
       // Arrange
-      const props = { body: { input: { category: 'Storage' } } };
+      const props = { bodyParameters: { input: { category: 'Storage' } } };
       SchemaValidator.validate.mockReturnValue({ valid: true });
       Services.Templates.list.mockResolvedValue({
         templates: [{ name: 'template1' }],
@@ -239,7 +242,7 @@ describe('Templates Controller', () => {
     test('should get template successfully with valid input', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             templateName: 'template-storage-s3-artifacts',
             category: 'Storage'
@@ -265,13 +268,14 @@ describe('Templates Controller', () => {
       const result = await TemplatesController.get(props);
 
       // Assert
-      expect(SchemaValidator.validate).toHaveBeenCalledWith('get_template', props.body.input);
+      expect(SchemaValidator.validate).toHaveBeenCalledWith('get_template', props.bodyParameters.input);
       expect(Services.Templates.get).toHaveBeenCalledWith({
         templateName: 'template-storage-s3-artifacts',
         category: 'Storage',
         version: undefined,
         versionId: undefined,
-        s3Buckets: undefined
+        s3Buckets: undefined,
+        namespace: undefined
       });
       expect(MCPProtocol.successResponse).toHaveBeenCalledWith('get_template', mockTemplate);
       expect(result.success).toBe(true);
@@ -280,7 +284,7 @@ describe('Templates Controller', () => {
     test('should return error for invalid input', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             // Missing required templateName
             category: 'Storage'
@@ -311,7 +315,7 @@ describe('Templates Controller', () => {
     test('should handle TEMPLATE_NOT_FOUND error with available templates', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             templateName: 'non-existent-template',
             category: 'Storage'
@@ -346,7 +350,7 @@ describe('Templates Controller', () => {
     test('should handle TEMPLATE_NOT_FOUND error without available templates', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             templateName: 'non-existent-template',
             category: 'Storage'
@@ -377,7 +381,7 @@ describe('Templates Controller', () => {
     test('should handle generic service errors', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             templateName: 'template-storage-s3-artifacts',
             category: 'Storage'
@@ -409,7 +413,7 @@ describe('Templates Controller', () => {
     test('should pass version and versionId parameters', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             templateName: 'template-storage-s3-artifacts',
             category: 'Storage',
@@ -431,7 +435,8 @@ describe('Templates Controller', () => {
         category: 'Storage',
         version: 'v1.3.5/2024-01-15',
         versionId: 'abc123',
-        s3Buckets: undefined
+        s3Buckets: undefined,
+        namespace: undefined
       });
     });
   });
@@ -440,7 +445,7 @@ describe('Templates Controller', () => {
     test('should list template versions successfully', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             templateName: 'template-storage-s3-artifacts',
             category: 'Storage'
@@ -465,11 +470,12 @@ describe('Templates Controller', () => {
       const result = await TemplatesController.listVersions(props);
 
       // Assert
-      expect(SchemaValidator.validate).toHaveBeenCalledWith('list_template_versions', props.body.input);
+      expect(SchemaValidator.validate).toHaveBeenCalledWith('list_template_versions', props.bodyParameters.input);
       expect(Services.Templates.listVersions).toHaveBeenCalledWith({
         templateName: 'template-storage-s3-artifacts',
         category: 'Storage',
-        s3Buckets: undefined
+        s3Buckets: undefined,
+        namespace: undefined
       });
       expect(MCPProtocol.successResponse).toHaveBeenCalledWith('list_template_versions', mockVersions);
       expect(result.success).toBe(true);
@@ -478,7 +484,7 @@ describe('Templates Controller', () => {
     test('should return error for invalid input', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             // Missing required templateName
             category: 'Storage'
@@ -508,7 +514,7 @@ describe('Templates Controller', () => {
     test('should handle service errors', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             templateName: 'template-storage-s3-artifacts',
             category: 'Storage'
@@ -539,7 +545,7 @@ describe('Templates Controller', () => {
     test('should pass s3Buckets filter parameter', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             templateName: 'template-storage-s3-artifacts',
             category: 'Storage',
@@ -558,7 +564,8 @@ describe('Templates Controller', () => {
       expect(Services.Templates.listVersions).toHaveBeenCalledWith({
         templateName: 'template-storage-s3-artifacts',
         category: 'Storage',
-        s3Buckets: ['bucket1', 'bucket2']
+        s3Buckets: ['bucket1', 'bucket2'],
+        namespace: undefined
       });
     });
   });
@@ -566,7 +573,7 @@ describe('Templates Controller', () => {
   describe('listCategories()', () => {
     test('should list categories successfully', async () => {
       // Arrange
-      const props = { body: { input: {} } };
+      const props = { bodyParameters: { input: {} } };
 
       SchemaValidator.validate.mockReturnValue({ valid: true });
 
@@ -608,7 +615,7 @@ describe('Templates Controller', () => {
     test('should return error for invalid input', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             invalidParam: 'value'
           }
@@ -636,7 +643,7 @@ describe('Templates Controller', () => {
 
     test('should handle service errors', async () => {
       // Arrange
-      const props = { body: { input: {} } };
+      const props = { bodyParameters: { input: {} } };
 
       SchemaValidator.validate.mockReturnValue({ valid: true });
 
@@ -660,7 +667,7 @@ describe('Templates Controller', () => {
 
     test('should log request and response', async () => {
       // Arrange
-      const props = { body: { input: {} } };
+      const props = { bodyParameters: { input: {} } };
 
       SchemaValidator.validate.mockReturnValue({ valid: true });
       Services.Templates.listCategories.mockResolvedValue([

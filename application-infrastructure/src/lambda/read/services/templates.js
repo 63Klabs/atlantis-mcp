@@ -25,6 +25,7 @@ const Models = require('../models');
  * @param {string} [options.version] - Template version (Human_Readable_Version, optional)
  * @param {string} [options.versionId] - S3 object Version Id (optional)
  * @param {Array<string>} [options.s3Buckets] - Filter to specific buckets (optional, validated against settings)
+ * @param {string} [options.namespace] - Filter to a specific namespace S3 root prefix (optional)
  * @returns {Promise<Object>} { templates: Array, errors: Array, partialData: boolean }
  *
  * @example
@@ -41,7 +42,7 @@ const Models = require('../models');
  */
 async function list(options = {}) {
   const logName = "service.templates.list";
-  const { category, version, versionId, s3Buckets } = options;
+  const { category, version, versionId, s3Buckets, namespace } = options;
 
   // >! Get connection and cache profile from config
   const { conn, cacheProfile } = Config.getConnCacheProfile('s3-templates', 'templates-list');
@@ -74,7 +75,7 @@ async function list(options = {}) {
   conn.host = bucketsToSearch;
 
   // >! Set parameters for cache key and DAO filtering
-  conn.parameters = { category, version, versionId };
+  conn.parameters = { category, version, versionId, namespace };
 
   // >! Define fetch function for cache miss
   const fetchFunction = async (connection, opts) => {
@@ -82,7 +83,8 @@ async function list(options = {}) {
       buckets: connection.host,
       category: connection.parameters?.category,
       version: connection.parameters?.version,
-      versionId: connection.parameters?.versionId
+      versionId: connection.parameters?.versionId,
+      namespace: connection.parameters?.namespace
     });
 
     const list = await Models.S3Templates.list(connection, opts);
@@ -121,6 +123,7 @@ async function list(options = {}) {
  * @param {string} [options.version] - Template version (Human_Readable_Version, optional)
  * @param {string} [options.versionId] - S3 object Version Id (optional)
  * @param {Array<string>} [options.s3Buckets] - Filter to specific buckets (optional)
+ * @param {string} [options.namespace] - Filter to a specific namespace S3 root prefix (optional)
  * @returns {Promise<Object>} Template details
  * @throws {Error} TEMPLATE_NOT_FOUND if template not found
  *
@@ -149,7 +152,7 @@ async function list(options = {}) {
  */
 async function get(options = {}) {
   const logName = "service.templates.get";
-  const { category, templateName, version, versionId, s3Buckets } = options;
+  const { category, templateName, version, versionId, s3Buckets, namespace } = options;
 
   if (!category || !templateName) {
     const errorMsg = `${logName}: category and templateName are required`;
@@ -180,14 +183,15 @@ async function get(options = {}) {
   cacheProfile.pathId = `${cacheProfile.pathId}:${category}/${templateName}`;
 
   // >! Set parameters for cache key and DAO query
-  conn.parameters = { category, templateName, version, versionId };
+  conn.parameters = { category, templateName, version, versionId, namespace };
 
   const fetchFunction = async (connection, opts) => {
     DebugAndLog.debug(`${logName}.fetchFunction: Fetching template from S3 (cache miss)`, {
       category: connection.parameters?.category,
       templateName: connection.parameters?.templateName,
       version: connection.parameters?.version,
-      versionId: connection.parameters?.versionId
+      versionId: connection.parameters?.versionId,
+      namespace: connection.parameters?.namespace
     });
 
     const template = await Models.S3Templates.get(connection, opts);
@@ -245,6 +249,7 @@ async function get(options = {}) {
  * @param {string} options.category - Template category
  * @param {string} options.templateName - Template name
  * @param {Array<string>} [options.s3Buckets] - Filter to specific buckets (optional)
+ * @param {string} [options.namespace] - Filter to a specific namespace S3 root prefix (optional)
  * @returns {Promise<Object>} Template version history with versions array
  *
  * @example
@@ -256,7 +261,7 @@ async function get(options = {}) {
  */
 async function listVersions(options = {}) {
   const logName = "service.templates.listVersions";
-  const { category, templateName, s3Buckets } = options;
+  const { category, templateName, s3Buckets, namespace } = options;
 
   if (!category || !templateName) {
     const errorMsg = `${logName}: category and templateName are required`;
@@ -282,7 +287,7 @@ async function listVersions(options = {}) {
   }
 
   conn.host = bucketsToSearch;
-  conn.parameters = { category, templateName };
+  conn.parameters = { category, templateName, namespace };
 
   const fetchFunction = async (connection, opts) => {
     DebugAndLog.debug(`${logName}.fetchFunction: Fetching template versions from S3 (cache miss)`, {
@@ -369,6 +374,7 @@ async function listCategories() {
  * @param {Object} options - Update check options
  * @param {Array<{category: string, templateName: string, currentVersion: string}>} options.templates - Templates to check
  * @param {Array<string>} [options.s3Buckets] - Filter to specific buckets (optional)
+ * @param {string} [options.namespace] - Filter to a specific namespace S3 root prefix (optional)
  * @returns {Promise<Array<Object>>} Array of update information objects
  *
  * @example
@@ -395,7 +401,7 @@ async function listCategories() {
  */
 async function checkUpdates(options = {}) {
   const logName = "service.templates.checkUpdates";
-  const { templates, s3Buckets } = options;
+  const { templates, s3Buckets, namespace } = options;
 
   if (!templates || !Array.isArray(templates) || templates.length === 0) {
     const errorMsg = `${logName}: templates array is required`;
@@ -422,7 +428,8 @@ async function checkUpdates(options = {}) {
         const latestTemplate = await get({
           category,
           templateName,
-          s3Buckets
+          s3Buckets,
+          namespace
         });
 
         const latestVersion = latestTemplate.version;

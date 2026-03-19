@@ -54,7 +54,7 @@ describe('Updates Controller', () => {
     test('should check for updates successfully when update available', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             templateName: 'template-storage-s3-artifacts',
             currentVersion: 'v1.3.4/2024-01-10',
@@ -88,14 +88,15 @@ describe('Updates Controller', () => {
       const result = await UpdatesController.check(props);
 
       // Assert
-      expect(SchemaValidator.validate).toHaveBeenCalledWith('check_template_updates', props.body.input);
+      expect(SchemaValidator.validate).toHaveBeenCalledWith('check_template_updates', props.bodyParameters.input);
       expect(Services.Templates.checkUpdates).toHaveBeenCalledWith({
         templates: [{
           category: 'Storage',
           templateName: 'template-storage-s3-artifacts',
           currentVersion: 'v1.3.4/2024-01-10'
         }],
-        s3Buckets: undefined
+        s3Buckets: undefined,
+        namespace: undefined
       });
       expect(MCPProtocol.successResponse).toHaveBeenCalledWith('check_template_updates', {
         templateName: 'template-storage-s3-artifacts',
@@ -117,7 +118,7 @@ describe('Updates Controller', () => {
     test('should check for updates when no update available', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             templateName: 'template-storage-s3-artifacts',
             currentVersion: 'v1.3.5/2024-01-15',
@@ -159,7 +160,7 @@ describe('Updates Controller', () => {
     test('should handle update with breaking changes', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             templateName: 'template-pipeline',
             currentVersion: 'v2.0.18/2024-01-01',
@@ -201,7 +202,7 @@ describe('Updates Controller', () => {
     test('should handle missing optional category parameter', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             templateName: 'template-storage-s3-artifacts',
             currentVersion: 'v1.3.4/2024-01-10'
@@ -232,7 +233,8 @@ describe('Updates Controller', () => {
           templateName: 'template-storage-s3-artifacts',
           currentVersion: 'v1.3.4/2024-01-10'
         }],
-        s3Buckets: undefined
+        s3Buckets: undefined,
+        namespace: undefined
       });
       expect(result.success).toBe(true);
     });
@@ -240,7 +242,7 @@ describe('Updates Controller', () => {
     test('should pass s3Buckets filter parameter', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             templateName: 'template-storage-s3-artifacts',
             currentVersion: 'v1.3.4/2024-01-10',
@@ -269,7 +271,8 @@ describe('Updates Controller', () => {
           templateName: 'template-storage-s3-artifacts',
           currentVersion: 'v1.3.4/2024-01-10'
         }],
-        s3Buckets: ['bucket1', 'bucket2']
+        s3Buckets: ['bucket1', 'bucket2'],
+        namespace: undefined
       });
     });
 
@@ -293,7 +296,7 @@ describe('Updates Controller', () => {
     test('should return error for invalid input', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             // Missing required templateName and currentVersion
             category: 'Storage'
@@ -331,7 +334,7 @@ describe('Updates Controller', () => {
     test('should handle service error from update check', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             templateName: 'template-storage-s3-artifacts',
             currentVersion: 'v1.3.4/2024-01-10',
@@ -371,7 +374,7 @@ describe('Updates Controller', () => {
     test('should handle generic service errors', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             templateName: 'template-storage-s3-artifacts',
             currentVersion: 'v1.3.4/2024-01-10',
@@ -404,7 +407,7 @@ describe('Updates Controller', () => {
     test('should log request and response details', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             templateName: 'template-storage-s3-artifacts',
             currentVersion: 'v1.3.4/2024-01-10',
@@ -454,7 +457,7 @@ describe('Updates Controller', () => {
     test('should handle invalid version format', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             templateName: 'template-storage-s3-artifacts',
             currentVersion: 'invalid-version',

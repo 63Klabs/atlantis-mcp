@@ -41,6 +41,12 @@ const schemas = {
         },
         minItems: 1,
         description: 'Filter to specific S3 buckets from configured list'
+      },
+      namespace: {
+        type: 'string',
+        pattern: '^[a-z0-9][a-z0-9-]*$',
+        maxLength: 63,
+        description: 'Filter to a specific namespace (S3 root prefix)'
       }
     },
     additionalProperties: false
@@ -81,6 +87,12 @@ const schemas = {
         },
         minItems: 1,
         description: 'Filter to specific S3 buckets from configured list'
+      },
+      namespace: {
+        type: 'string',
+        pattern: '^[a-z0-9][a-z0-9-]*$',
+        maxLength: 63,
+        description: 'Filter to a specific namespace (S3 root prefix)'
       }
     },
     required: ['templateName'],
@@ -113,6 +125,12 @@ const schemas = {
         },
         minItems: 1,
         description: 'Filter to specific S3 buckets from configured list'
+      },
+      namespace: {
+        type: 'string',
+        pattern: '^[a-z0-9][a-z0-9-]*$',
+        maxLength: 63,
+        description: 'Filter to a specific namespace (S3 root prefix)'
       }
     },
     required: ['templateName'],
@@ -259,6 +277,12 @@ const schemas = {
         },
         minItems: 1,
         description: 'Filter to specific S3 buckets from configured list'
+      },
+      namespace: {
+        type: 'string',
+        pattern: '^[a-z0-9][a-z0-9-]*$',
+        maxLength: 63,
+        description: 'Filter to a specific namespace (S3 root prefix)'
       }
     },
     required: ['templateName', 'currentVersion'],

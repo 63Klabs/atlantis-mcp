@@ -273,7 +273,7 @@ function parseTemplateMetadata(s3Object, bucketName, namespace) {
  * @returns {Promise<Object>} { templates: Array, errors: Array, partialData: boolean }
  */
 async function list(connection, options = {}) {
-  const { category, version, versionId } = connection.parameters || {};
+  const { category, version, versionId, namespace } = connection.parameters || {};
   const basePath = connection.path || 'templates/v2';
 
   // Ensure host is an array
@@ -299,8 +299,10 @@ async function list(connection, options = {}) {
         continue;
       }
 
-      // >! Get IndexPriority tag to determine which namespaces to index
-      const namespaces = await getIndexedNamespaces(bucket);
+      // >! When namespace is provided, use it directly; otherwise discover all namespaces
+      const namespaces = namespace
+        ? [namespace]
+        : await getIndexedNamespaces(bucket);
       if (namespaces.length === 0) {
         DebugAndLog.warn(`Bucket ${bucket} has no namespaces, skipping`);
         continue;
@@ -414,7 +416,7 @@ async function list(connection, options = {}) {
  * @returns {Promise<Object|null>} Template details or null
  */
 async function get(connection, options = {}) {
-  const { category, templateName, version, versionId } = connection.parameters || {};
+  const { category, templateName, version, versionId, namespace } = connection.parameters || {};
   const basePath = connection.path || 'templates/v2';
 
   const buckets = Array.isArray(connection.host) ? connection.host : [connection.host];
@@ -427,7 +429,10 @@ async function get(connection, options = {}) {
         continue;
       }
 
-      const namespaces = await getIndexedNamespaces(bucket);
+      // >! When namespace is provided, use it directly; otherwise discover all namespaces
+      const namespaces = namespace
+        ? [namespace]
+        : await getIndexedNamespaces(bucket);
 
       // >! Search namespaces in priority order
       for (const namespace of namespaces) {
@@ -574,7 +579,7 @@ async function get(connection, options = {}) {
  * @returns {Promise<Object>} Version history with versions array
  */
 async function listVersions(connection, options = {}) {
-  const { category, templateName } = connection.parameters || {};
+  const { category, templateName, namespace } = connection.parameters || {};
   const basePath = connection.path || 'templates/v2';
 
   const buckets = Array.isArray(connection.host) ? connection.host : [connection.host];
@@ -587,7 +592,10 @@ async function listVersions(connection, options = {}) {
         continue;
       }
 
-      const namespaces = await getIndexedNamespaces(bucket);
+      // >! When namespace is provided, use it directly; otherwise discover all namespaces
+      const namespaces = namespace
+        ? [namespace]
+        : await getIndexedNamespaces(bucket);
 
       for (const namespace of namespaces) {
         // Try .yml first, then .yaml

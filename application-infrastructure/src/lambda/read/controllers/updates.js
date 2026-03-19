@@ -68,13 +68,14 @@ async function check(props) {
       }, 'check_template_updates');
     }
 
-    // >! Extract parameters (templateName, currentVersion, category, s3Buckets)
-    const { templateName, currentVersion, category, s3Buckets } = input;
+    // >! Extract parameters (templateName, currentVersion, category, s3Buckets, namespace)
+    const { templateName, currentVersion, category, s3Buckets, namespace } = input;
 
     DebugAndLog.info('check_template_updates request', {
       templateName,
       currentVersion,
       category,
+      namespace,
       s3BucketsCount: s3Buckets ? s3Buckets.length : 0
     });
 
@@ -86,7 +87,8 @@ async function check(props) {
         templateName,
         currentVersion
       }],
-      s3Buckets
+      s3Buckets,
+      namespace
     });
 
     // Extract the single result (we only checked one template)

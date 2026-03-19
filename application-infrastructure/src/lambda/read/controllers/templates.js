@@ -47,13 +47,14 @@ async function list(props) {
       }, 'list_templates');
     }
 
-    // >! Extract parameters (category, version, versionId, s3Buckets)
-    const { category, version, versionId, s3Buckets } = input;
+    // >! Extract parameters (category, version, versionId, s3Buckets, namespace)
+    const { category, version, versionId, s3Buckets, namespace } = input;
 
     DebugAndLog.info('list_templates request', {
       category,
       version,
       versionId,
+      namespace,
       s3BucketsCount: s3Buckets ? s3Buckets.length : 0
     });
 
@@ -62,7 +63,8 @@ async function list(props) {
       category,
       version,
       versionId,
-      s3Buckets
+      s3Buckets,
+      namespace
     });
 
     DebugAndLog.info('list_templates response', {
@@ -121,14 +123,15 @@ async function get(props) {
       }, 'get_template');
     }
 
-    // >! Extract parameters (templateName, category, version, versionId, s3Buckets)
-    const { templateName, category, version, versionId, s3Buckets } = input;
+    // >! Extract parameters (templateName, category, version, versionId, s3Buckets, namespace)
+    const { templateName, category, version, versionId, s3Buckets, namespace } = input;
 
     DebugAndLog.info('get_template request', {
       templateName,
       category,
       version,
       versionId,
+      namespace,
       s3BucketsCount: s3Buckets ? s3Buckets.length : 0
     });
 
@@ -138,7 +141,8 @@ async function get(props) {
       category,
       version,
       versionId,
-      s3Buckets
+      s3Buckets,
+      namespace
     });
 
     DebugAndLog.info('get_template response', {
@@ -212,12 +216,13 @@ async function listVersions(props) {
       }, 'list_template_versions');
     }
 
-    // >! Extract parameters (templateName, category, s3Buckets)
-    const { templateName, category, s3Buckets } = input;
+    // >! Extract parameters (templateName, category, s3Buckets, namespace)
+    const { templateName, category, s3Buckets, namespace } = input;
 
     DebugAndLog.info('list_template_versions request', {
       templateName,
       category,
+      namespace,
       s3BucketsCount: s3Buckets ? s3Buckets.length : 0
     });
 
@@ -225,7 +230,8 @@ async function listVersions(props) {
     const versions = await Services.Templates.listVersions({
       templateName,
       category,
-      s3Buckets
+      s3Buckets,
+      namespace
     });
 
     DebugAndLog.info('list_template_versions response', {
