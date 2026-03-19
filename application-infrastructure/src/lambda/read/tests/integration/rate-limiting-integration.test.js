@@ -10,7 +10,7 @@
  * These tests verify Requirement 3: Public Access with Rate Limiting
  */
 
-const { handler } = require('../../lambda/read/index');
+const { handler } = require('../../index');
 const { createMockContext, createMCPToolRequest } = require('./test-helpers');
 
 // Rate limiting is handled by API Gateway in production, not by Lambda

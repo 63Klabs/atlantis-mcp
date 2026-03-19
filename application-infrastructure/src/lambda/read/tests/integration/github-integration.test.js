@@ -9,7 +9,7 @@
 jest.mock('@aws-sdk/client-ssm');
 jest.mock('@aws-sdk/client-s3');
 jest.mock('@aws-sdk/client-dynamodb');
-jest.mock('../../lambda/read/config', () => ({
+jest.mock('../../config', () => ({
   settings: () => ({
     githubToken: 'ghp_test_token_1234567890',
     github: {
@@ -31,7 +31,7 @@ describe.skip('GitHub Integration Tests', () => {
 
   beforeAll(async () => {
     // Import after mocking
-    GitHubAPI = require('../../lambda/read/models/github-api');
+    GitHubAPI = require('../../models/github-api');
   });
 
   afterEach(() => {

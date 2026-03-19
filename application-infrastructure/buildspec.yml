@@ -60,11 +60,11 @@ phases:
       - echo "Running application tests from src/tests/ directory"
       - cd src
       
-      # Install test dependencies
+      # Install test dependencies (include dev for jest, fast-check, etc.)
       - |
         if [ -f "package.json" ]; then
           echo "Installing test dependencies"
-          npm install
+          npm install --include=dev
         else
           echo "No package.json found in src/, skipping tests"
         fi

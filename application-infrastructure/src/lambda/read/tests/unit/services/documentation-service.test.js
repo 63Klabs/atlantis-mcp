@@ -20,6 +20,10 @@ jest.mock('@63klabs/cache-data', () => ({
       debug: jest.fn(),
       warn: jest.fn(),
       error: jest.fn()
+    },
+    ApiRequest: {
+      success: jest.fn(({ body }) => ({ getBody: (parse) => parse ? body : JSON.stringify(body), statusCode: 200 })),
+      error: jest.fn(({ body, statusCode }) => ({ getBody: (parse) => parse ? body : JSON.stringify(body), statusCode: statusCode || 500 }))
     }
   }
 }));
@@ -108,9 +112,7 @@ describe('Documentation Service', () => {
         partialData: false
       };
 
-      CacheableDataAccess.getData.mockResolvedValue({
-        body: mockResults
-      });
+      CacheableDataAccess.getData.mockResolvedValue({ getBody: (parse) => parse ? mockResults : JSON.stringify(mockResults) });
 
       // Act
       const result = await Documentation.search({ query: 'cache-data' });
@@ -140,16 +142,21 @@ describe('Documentation Service', () => {
 
       Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
-      CacheableDataAccess.getData.mockResolvedValue({
-        body: {
+      CacheableDataAccess.getData.mockResolvedValue({ getBody: (parse) => parse ? {
           results: [],
           totalResults: 0,
           query: 'Lambda',
           suggestions: [],
           errors: undefined,
           partialData: false
-        }
-      });
+        } : JSON.stringify({
+          results: [],
+          totalResults: 0,
+          query: 'Lambda',
+          suggestions: [],
+          errors: undefined,
+          partialData: false
+        }) });
 
       // Act
       await Documentation.search({
@@ -172,16 +179,21 @@ describe('Documentation Service', () => {
 
       Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
-      CacheableDataAccess.getData.mockResolvedValue({
-        body: {
+      CacheableDataAccess.getData.mockResolvedValue({ getBody: (parse) => parse ? {
           results: [],
           totalResults: 0,
           query: 'getting started',
           suggestions: [],
           errors: undefined,
           partialData: false
-        }
-      });
+        } : JSON.stringify({
+          results: [],
+          totalResults: 0,
+          query: 'getting started',
+          suggestions: [],
+          errors: undefined,
+          partialData: false
+        }) });
 
       // Act
       await Documentation.search({
@@ -205,16 +217,21 @@ describe('Documentation Service', () => {
 
       Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
-      CacheableDataAccess.getData.mockResolvedValue({
-        body: {
+      CacheableDataAccess.getData.mockResolvedValue({ getBody: (parse) => parse ? {
           results: [],
           totalResults: 0,
           query: 'test',
           suggestions: [],
           errors: undefined,
           partialData: false
-        }
-      });
+        } : JSON.stringify({
+          results: [],
+          totalResults: 0,
+          query: 'test',
+          suggestions: [],
+          errors: undefined,
+          partialData: false
+        }) });
 
       // Act
       await Documentation.search({
@@ -232,16 +249,21 @@ describe('Documentation Service', () => {
 
       Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
-      CacheableDataAccess.getData.mockResolvedValue({
-        body: {
+      CacheableDataAccess.getData.mockResolvedValue({ getBody: (parse) => parse ? {
           results: [],
           totalResults: 0,
           query: 'test',
           suggestions: [],
           errors: undefined,
           partialData: false
-        }
-      });
+        } : JSON.stringify({
+          results: [],
+          totalResults: 0,
+          query: 'test',
+          suggestions: [],
+          errors: undefined,
+          partialData: false
+        }) });
 
       // Act
       await Documentation.search({ query: 'test' });
@@ -256,16 +278,21 @@ describe('Documentation Service', () => {
 
       Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
-      CacheableDataAccess.getData.mockResolvedValue({
-        body: {
+      CacheableDataAccess.getData.mockResolvedValue({ getBody: (parse) => parse ? {
           results: [],
           totalResults: 0,
           query: 'test',
           suggestions: [],
           errors: undefined,
           partialData: false
-        }
-      });
+        } : JSON.stringify({
+          results: [],
+          totalResults: 0,
+          query: 'test',
+          suggestions: [],
+          errors: undefined,
+          partialData: false
+        }) });
 
       // Act
       await Documentation.search({
@@ -283,16 +310,21 @@ describe('Documentation Service', () => {
 
       Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
-      CacheableDataAccess.getData.mockResolvedValue({
-        body: {
+      CacheableDataAccess.getData.mockResolvedValue({ getBody: (parse) => parse ? {
           results: [],
           totalResults: 0,
           query: 'test',
           suggestions: [],
           errors: undefined,
           partialData: false
-        }
-      });
+        } : JSON.stringify({
+          results: [],
+          totalResults: 0,
+          query: 'test',
+          suggestions: [],
+          errors: undefined,
+          partialData: false
+        }) });
 
       // Act
       await Documentation.search({
@@ -323,16 +355,21 @@ describe('Documentation Service', () => {
 
       Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
-      CacheableDataAccess.getData.mockResolvedValue({
-        body: {
+      CacheableDataAccess.getData.mockResolvedValue({ getBody: (parse) => parse ? {
           results: [],
           totalResults: 0,
           query: 'test query',
           suggestions: [],
           errors: undefined,
           partialData: false
-        }
-      });
+        } : JSON.stringify({
+          results: [],
+          totalResults: 0,
+          query: 'test query',
+          suggestions: [],
+          errors: undefined,
+          partialData: false
+        }) });
 
       // Act
       await Documentation.search({ query: '  test query  ' });
@@ -356,8 +393,7 @@ describe('Documentation Service', () => {
       Models.DocIndex.search.mockResolvedValue(mockSearchResults);
 
       CacheableDataAccess.getData.mockImplementation(async (profile, fetchFn) => {
-        const result = await fetchFn(mockConnCache.conn, {});
-        return { body: result };
+        return await fetchFn(mockConnCache.conn, {});
       });
 
       // Act
@@ -380,16 +416,21 @@ describe('Documentation Service', () => {
 
       Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
-      CacheableDataAccess.getData.mockResolvedValue({
-        body: {
+      CacheableDataAccess.getData.mockResolvedValue({ getBody: (parse) => parse ? {
           results: [],
           totalResults: 0,
           query: 'nonexistent',
           suggestions: ['Did you mean: cache-data?', 'Try: Lambda function'],
           errors: undefined,
           partialData: false
-        }
-      });
+        } : JSON.stringify({
+          results: [],
+          totalResults: 0,
+          query: 'nonexistent',
+          suggestions: ['Did you mean: cache-data?', 'Try: Lambda function'],
+          errors: undefined,
+          partialData: false
+        }) });
 
       // Act
       const result = await Documentation.search({ query: 'nonexistent' });

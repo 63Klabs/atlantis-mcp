@@ -259,12 +259,12 @@ exports.handler = async (event, context) => {
 
 		/* This failed before we even got to parsing the request so we don't have all the log info */
 		response = new Response({statusCode: 500});
-    response.setHeader('Content-Type', 'application/json');
-    response.setHeader('X-Request-Id', requestId);
-		response.setHeader('X-MCP-Version', '1.0');
-		response.setHeader('Access-Control-Allow-Origin', '*');
-		response.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-		response.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+    response.addHeader('Content-Type', 'application/json');
+    response.addHeader('X-Request-Id', requestId);
+		response.addHeader('X-MCP-Version', '1.0');
+		response.addHeader('Access-Control-Allow-Origin', '*');
+		response.addHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+		response.addHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
 		response.setBody({
 			message: 'Error initializing request - 1701-D', // 1701-D just so we know it is an app and not API Gateway error
       requestId: requestId

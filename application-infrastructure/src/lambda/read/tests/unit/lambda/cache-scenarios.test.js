@@ -30,21 +30,33 @@ jest.mock('@63klabs/cache-data', () => ({
       debug: jest.fn(),
       warn: jest.fn(),
       error: jest.fn()
+    },
+    ApiRequest: {
+      success: jest.fn(({ body }) => ({ getBody: (parse) => parse ? body : JSON.stringify(body), statusCode: 200 })),
+      error: jest.fn(({ body, statusCode }) => ({ getBody: (parse) => parse ? body : JSON.stringify(body), statusCode: statusCode || 500 }))
     }
   }
 }));
 
 // Mock Config module
-jest.mock('../../../lambda/read/config', () => ({
+jest.mock('../../../config', () => ({
   Config: {
     getConnCacheProfile: jest.fn(),
     settings: jest.fn()
   }
 }));
 
+// Mock Models (used by service layer fetch functions)
+jest.mock('../../../models', () => ({
+  S3Templates: {
+    list: jest.fn().mockResolvedValue({ templates: [], errors: undefined, partialData: false }),
+    get: jest.fn().mockResolvedValue(null)
+  }
+}));
+
 const { cache } = require('@63klabs/cache-data');
-const { Config } = require('../../../lambda/read/config');
-const TemplatesService = require('../../../lambda/read/services/templates');
+const { Config } = require('../../../config');
+const TemplatesService = require('../../../services/templates');
 
 describe('Cache Scenarios', () => {
   beforeEach(() => {
@@ -86,6 +98,14 @@ describe('Cache Scenarios', () => {
     });
   });
 
+  // Helper to create a mock cache response with getBody method
+  function mockCacheResponse(body, meta = {}) {
+    return {
+      getBody: (parse) => parse ? body : JSON.stringify(body),
+      ...meta
+    };
+  }
+
   describe('Cache Hit Scenarios', () => {
     test('should return data from cache on cache hit', async () => {
       const cachedData = {
@@ -95,12 +115,9 @@ describe('Cache Scenarios', () => {
         ]
       };
 
-      // Mock cache hit
-      cache.CacheableDataAccess.getData.mockResolvedValue({
-        body: cachedData,
-        fromCache: true,
-        cacheSource: 'dynamodb'
-      });
+      cache.CacheableDataAccess.getData.mockResolvedValue(
+        mockCacheResponse(cachedData, { fromCache: true, cacheSource: 'dynamodb' })
+      );
 
       const result = await TemplatesService.list({ category: 'Storage' });
 
@@ -109,11 +126,9 @@ describe('Cache Scenarios', () => {
     });
 
     test('should indicate cache hit in response metadata', async () => {
-      cache.CacheableDataAccess.getData.mockResolvedValue({
-        body: { templates: [] },
-        fromCache: true,
-        cacheSource: 'memory'
-      });
+      cache.CacheableDataAccess.getData.mockResolvedValue(
+        mockCacheResponse({ templates: [] }, { fromCache: true, cacheSource: 'memory' })
+      );
 
       const result = await TemplatesService.list({});
 
@@ -126,16 +141,8 @@ describe('Cache Scenarios', () => {
       const cachedData = { templates: [{ name: 'template1' }] };
 
       cache.CacheableDataAccess.getData
-        .mockResolvedValueOnce({
-          body: cachedData,
-          fromCache: false,
-          cacheSource: null
-        })
-        .mockResolvedValueOnce({
-          body: cachedData,
-          fromCache: true,
-          cacheSource: 'memory'
-        });
+        .mockResolvedValueOnce(mockCacheResponse(cachedData, { fromCache: false, cacheSource: null }))
+        .mockResolvedValueOnce(mockCacheResponse(cachedData, { fromCache: true, cacheSource: 'memory' }));
 
       // First call - cache miss
       await TemplatesService.list({});
@@ -149,11 +156,9 @@ describe('Cache Scenarios', () => {
     test('should use DynamoDB cache when in-memory cache misses', async () => {
       const cachedData = { templates: [{ name: 'template1' }] };
 
-      cache.CacheableDataAccess.getData.mockResolvedValue({
-        body: cachedData,
-        fromCache: true,
-        cacheSource: 'dynamodb'
-      });
+      cache.CacheableDataAccess.getData.mockResolvedValue(
+        mockCacheResponse(cachedData, { fromCache: true, cacheSource: 'dynamodb' })
+      );
 
       await TemplatesService.list({});
 
@@ -165,11 +170,9 @@ describe('Cache Scenarios', () => {
     test('should use S3 cache when DynamoDB cache misses', async () => {
       const cachedData = { templates: [{ name: 'template1' }] };
 
-      cache.CacheableDataAccess.getData.mockResolvedValue({
-        body: cachedData,
-        fromCache: true,
-        cacheSource: 's3'
-      });
+      cache.CacheableDataAccess.getData.mockResolvedValue(
+        mockCacheResponse(cachedData, { fromCache: true, cacheSource: 's3' })
+      );
 
       await TemplatesService.list({});
 
@@ -185,22 +188,13 @@ describe('Cache Scenarios', () => {
         ]
       };
 
-      // Mock cache miss - getData will call fetch function
+      // Mock cache miss - getData calls fetch function and returns result
       cache.CacheableDataAccess.getData.mockImplementation(
         async (cacheProfile, fetchFunction, connection, options) => {
-          const data = await fetchFunction(connection, options);
-          return {
-            body: data,
-            fromCache: false,
-            cacheSource: null
-          };
+          const result = await fetchFunction(connection, options);
+          return result; // fetchFunction returns ApiRequest.success/error which has getBody
         }
       );
-
-      // Mock S3 response
-      s3Mock.on(GetObjectCommand).resolves({
-        Body: Buffer.from(JSON.stringify(sourceData))
-      });
 
       const result = await TemplatesService.list({});
 
@@ -208,18 +202,10 @@ describe('Cache Scenarios', () => {
     });
 
     test('should store fetched data in cache after cache miss', async () => {
-      const sourceData = { templates: [{ name: 'template1' }] };
-
       cache.CacheableDataAccess.getData.mockImplementation(
         async (cacheProfile, fetchFunction, connection, options) => {
-          const data = await fetchFunction(connection, options);
-          // Simulate storing in cache
-          return {
-            body: data,
-            fromCache: false,
-            cacheSource: null,
-            stored: true
-          };
+          const result = await fetchFunction(connection, options);
+          return result;
         }
       );
 
@@ -231,12 +217,8 @@ describe('Cache Scenarios', () => {
     test('should handle cache miss with multiple S3 buckets', async () => {
       cache.CacheableDataAccess.getData.mockImplementation(
         async (cacheProfile, fetchFunction, connection, options) => {
-          // Fetch function should iterate through all buckets
-          const data = await fetchFunction(connection, options);
-          return {
-            body: data,
-            fromCache: false
-          };
+          const result = await fetchFunction(connection, options);
+          return result;
         }
       );
 
@@ -250,10 +232,9 @@ describe('Cache Scenarios', () => {
 
   describe('Cache Key Generation', () => {
     test('should include bucket names in cache key', async () => {
-      cache.CacheableDataAccess.getData.mockResolvedValue({
-        body: { templates: [] },
-        fromCache: true
-      });
+      cache.CacheableDataAccess.getData.mockResolvedValue(
+        mockCacheResponse({ templates: [] }, { fromCache: true })
+      );
 
       await TemplatesService.list({ s3Buckets: ['bucket1'] });
 
@@ -262,10 +243,9 @@ describe('Cache Scenarios', () => {
     });
 
     test('should include parameters in cache key', async () => {
-      cache.CacheableDataAccess.getData.mockResolvedValue({
-        body: { templates: [] },
-        fromCache: true
-      });
+      cache.CacheableDataAccess.getData.mockResolvedValue(
+        mockCacheResponse({ templates: [] }, { fromCache: true })
+      );
 
       await TemplatesService.list({
         category: 'Storage',
@@ -280,10 +260,20 @@ describe('Cache Scenarios', () => {
     });
 
     test('should generate different cache keys for different parameters', async () => {
-      cache.CacheableDataAccess.getData.mockResolvedValue({
-        body: { templates: [] },
-        fromCache: true
-      });
+      cache.CacheableDataAccess.getData.mockResolvedValue(
+        mockCacheResponse({ templates: [] }, { fromCache: true })
+      );
+
+      // Need fresh conn objects per call since the service mutates conn.parameters
+      Config.getConnCacheProfile
+        .mockReturnValueOnce({
+          conn: { name: 's3-templates', host: ['bucket1', 'bucket2'], path: 'templates/v2', parameters: {}, cache: [] },
+          cacheProfile: { hostId: 's3-templates', pathId: 'templates-list', profile: 'templates-list', overrideOriginHeaderExpiration: true, defaultExpirationInSeconds: 3600, expirationIsOnInterval: false, headersToRetain: '', encrypt: false }
+        })
+        .mockReturnValueOnce({
+          conn: { name: 's3-templates', host: ['bucket1', 'bucket2'], path: 'templates/v2', parameters: {}, cache: [] },
+          cacheProfile: { hostId: 's3-templates', pathId: 'templates-list', profile: 'templates-list', overrideOriginHeaderExpiration: true, defaultExpirationInSeconds: 3600, expirationIsOnInterval: false, headersToRetain: '', encrypt: false }
+        });
 
       await TemplatesService.list({ category: 'Storage' });
       await TemplatesService.list({ category: 'Network' });
@@ -293,39 +283,41 @@ describe('Cache Scenarios', () => {
       const call1 = cache.CacheableDataAccess.getData.mock.calls[0];
       const call2 = cache.CacheableDataAccess.getData.mock.calls[1];
 
+      // getData(cacheProfile, fetchFunction, conn, options) - conn is arg[2]
       expect(call1[2].parameters.category).toBe('Storage');
       expect(call2[2].parameters.category).toBe('Network');
     });
 
     test('should include namespace in cache key', async () => {
-      cache.CacheableDataAccess.getData.mockResolvedValue({
-        body: { templates: [] },
-        fromCache: true
-      });
+      cache.CacheableDataAccess.getData.mockResolvedValue(
+        mockCacheResponse({ templates: [] }, { fromCache: true })
+      );
 
       await TemplatesService.list({});
 
       const call = cache.CacheableDataAccess.getData.mock.calls[0];
-      expect(call[1]).toHaveProperty('hostId', 's3-templates');
-      expect(call[1]).toHaveProperty('pathId', 'templates-list');
+      // getData(cacheProfile, fetchFunction, conn, options) - cacheProfile is arg[0]
+      expect(call[0]).toHaveProperty('hostId', 's3-templates');
+      expect(call[0]).toHaveProperty('pathId', 'templates-list');
     });
   });
 
   describe('Cache Expiration', () => {
     test('should respect TTL configuration', async () => {
-      cache.CacheableDataAccess.getData.mockResolvedValue({
-        body: { templates: [] },
-        fromCache: true
-      });
+      cache.CacheableDataAccess.getData.mockResolvedValue(
+        mockCacheResponse({ templates: [] }, { fromCache: true })
+      );
 
       await TemplatesService.list({});
 
       const call = cache.CacheableDataAccess.getData.mock.calls[0];
-      expect(call[1].defaultExpirationInSeconds).toBe(3600);
+      // getData(cacheProfile, fetchFunction, conn, options) - cacheProfile is arg[0]
+      expect(call[0].defaultExpirationInSeconds).toBe(3600);
     });
 
     test('should use different TTLs for different resource types', async () => {
       Config.settings = jest.fn().mockReturnValue({
+        s3: { buckets: ['bucket1'] },
         atlantisS3Buckets: ['bucket1'],
         ttl: {
           templateList: 1800,
@@ -336,26 +328,35 @@ describe('Cache Scenarios', () => {
 
       Config.getConnCacheProfile = jest.fn()
         .mockReturnValueOnce({
-          conn: { host: ['bucket1'], parameters: {} },
+          conn: { host: ['bucket1'], path: 'templates/v2', parameters: {}, cache: [] },
           cacheProfile: {
             hostId: 's3-templates',
             pathId: 'templates-list',
-            defaultExpirationInSeconds: 1800
+            profile: 'templates-list',
+            overrideOriginHeaderExpiration: true,
+            defaultExpirationInSeconds: 1800,
+            expirationIsOnInterval: false,
+            headersToRetain: '',
+            encrypt: false
           }
         })
         .mockReturnValueOnce({
-          conn: { host: ['bucket1'], parameters: {} },
+          conn: { host: ['bucket1'], path: 'templates/v2', parameters: {}, cache: [] },
           cacheProfile: {
             hostId: 's3-templates',
             pathId: 'template-detail',
-            defaultExpirationInSeconds: 3600
+            profile: 'template-detail',
+            overrideOriginHeaderExpiration: true,
+            defaultExpirationInSeconds: 3600,
+            expirationIsOnInterval: false,
+            headersToRetain: '',
+            encrypt: false
           }
         });
 
-      cache.CacheableDataAccess.getData.mockResolvedValue({
-        body: {},
-        fromCache: true
-      });
+      cache.CacheableDataAccess.getData.mockResolvedValue(
+        mockCacheResponse({}, { fromCache: true })
+      );
 
       await TemplatesService.list({});
       await TemplatesService.get({ templateName: 'test', category: 'Storage' });
@@ -363,19 +364,17 @@ describe('Cache Scenarios', () => {
       const listCall = cache.CacheableDataAccess.getData.mock.calls[0];
       const getCall = cache.CacheableDataAccess.getData.mock.calls[1];
 
-      expect(listCall[1].defaultExpirationInSeconds).toBe(1800);
-      expect(getCall[1].defaultExpirationInSeconds).toBe(3600);
+      // getData(cacheProfile, fetchFunction, conn, options) - cacheProfile is arg[0]
+      expect(listCall[0].defaultExpirationInSeconds).toBe(1800);
+      expect(getCall[0].defaultExpirationInSeconds).toBe(3600);
     });
 
     test('should refetch data when cache expires', async () => {
       const freshData = { templates: [{ name: 'template1', version: 'v1.1.0' }] };
 
-      // First call - expired cache, refetch
-      cache.CacheableDataAccess.getData.mockResolvedValueOnce({
-        body: freshData,
-        fromCache: false,
-        cacheSource: null
-      });
+      cache.CacheableDataAccess.getData.mockResolvedValueOnce(
+        mockCacheResponse(freshData, { fromCache: false, cacheSource: null })
+      );
 
       const result = await TemplatesService.list({});
 
@@ -386,11 +385,9 @@ describe('Cache Scenarios', () => {
 
   describe('Multi-Tier Caching', () => {
     test('should check in-memory cache first', async () => {
-      cache.CacheableDataAccess.getData.mockResolvedValue({
-        body: { templates: [] },
-        fromCache: true,
-        cacheSource: 'memory'
-      });
+      cache.CacheableDataAccess.getData.mockResolvedValue(
+        mockCacheResponse({ templates: [] }, { fromCache: true, cacheSource: 'memory' })
+      );
 
       await TemplatesService.list({});
 
@@ -400,11 +397,9 @@ describe('Cache Scenarios', () => {
     });
 
     test('should check DynamoDB cache on in-memory miss', async () => {
-      cache.CacheableDataAccess.getData.mockResolvedValue({
-        body: { templates: [] },
-        fromCache: true,
-        cacheSource: 'dynamodb'
-      });
+      cache.CacheableDataAccess.getData.mockResolvedValue(
+        mockCacheResponse({ templates: [] }, { fromCache: true, cacheSource: 'dynamodb' })
+      );
 
       await TemplatesService.list({});
 
@@ -413,11 +408,9 @@ describe('Cache Scenarios', () => {
     });
 
     test('should check S3 cache on DynamoDB miss', async () => {
-      cache.CacheableDataAccess.getData.mockResolvedValue({
-        body: { templates: [] },
-        fromCache: true,
-        cacheSource: 's3'
-      });
+      cache.CacheableDataAccess.getData.mockResolvedValue(
+        mockCacheResponse({ templates: [] }, { fromCache: true, cacheSource: 's3' })
+      );
 
       await TemplatesService.list({});
 
@@ -427,12 +420,8 @@ describe('Cache Scenarios', () => {
     test('should fetch from source on all cache misses', async () => {
       cache.CacheableDataAccess.getData.mockImplementation(
         async (cacheProfile, fetchFunction, connection, options) => {
-          const data = await fetchFunction(connection, options);
-          return {
-            body: data,
-            fromCache: false,
-            cacheSource: null
-          };
+          const result = await fetchFunction(connection, options);
+          return result; // fetchFunction returns ApiRequest response with getBody
         }
       );
 
@@ -444,14 +433,8 @@ describe('Cache Scenarios', () => {
     test('should populate all cache tiers after source fetch', async () => {
       cache.CacheableDataAccess.getData.mockImplementation(
         async (cacheProfile, fetchFunction, connection, options) => {
-          const data = await fetchFunction(connection, options);
-          // Simulate storing in all tiers
-          return {
-            body: data,
-            fromCache: false,
-            cacheSource: null,
-            storedIn: ['memory', 'dynamodb', 's3']
-          };
+          const result = await fetchFunction(connection, options);
+          return result; // fetchFunction returns ApiRequest response with getBody
         }
       );
 
@@ -464,11 +447,9 @@ describe('Cache Scenarios', () => {
   describe('Cache Performance', () => {
     test('should be faster on cache hit than cache miss', async () => {
       // Cache hit - immediate return
-      cache.CacheableDataAccess.getData.mockResolvedValue({
-        body: { templates: [] },
-        fromCache: true,
-        cacheSource: 'memory'
-      });
+      cache.CacheableDataAccess.getData.mockResolvedValue(
+        mockCacheResponse({ templates: [] }, { fromCache: true, cacheSource: 'memory' })
+      );
 
       const hitStart = Date.now();
       await TemplatesService.list({});
@@ -479,11 +460,8 @@ describe('Cache Scenarios', () => {
         async (cacheProfile, fetchFunction, connection, options) => {
           // Simulate network delay
           await new Promise(resolve => setTimeout(resolve, 100));
-          const data = await fetchFunction(connection, options);
-          return {
-            body: data,
-            fromCache: false
-          };
+          const result = await fetchFunction(connection, options);
+          return result; // fetchFunction returns ApiRequest response with getBody
         }
       );
 
@@ -496,10 +474,9 @@ describe('Cache Scenarios', () => {
     });
 
     test('should handle concurrent requests efficiently', async () => {
-      cache.CacheableDataAccess.getData.mockResolvedValue({
-        body: { templates: [] },
-        fromCache: true
-      });
+      cache.CacheableDataAccess.getData.mockResolvedValue(
+        mockCacheResponse({ templates: [] }, { fromCache: true })
+      );
 
       // Make multiple concurrent requests
       const requests = Array(10).fill(null).map(() =>

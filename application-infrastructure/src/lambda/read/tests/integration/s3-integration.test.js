@@ -7,8 +7,8 @@
 
 const { S3Client, GetBucketTaggingCommand, ListObjectsV2Command, GetObjectCommand, ListObjectVersionsCommand } = require('@aws-sdk/client-s3');
 const { mockClient } = require('aws-sdk-client-mock');
-const S3TemplatesDAO = require('../../lambda/read/models/s3-templates');
-const S3StartersDAO = require('../../lambda/read/models/s3-starters');
+const S3TemplatesDAO = require('../../models/s3-templates');
+const S3StartersDAO = require('../../models/s3-starters');
 
 const s3Mock = mockClient(S3Client);
 

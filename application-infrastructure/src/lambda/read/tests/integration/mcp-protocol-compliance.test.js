@@ -7,7 +7,7 @@
  */
 
 // Mock Config module before importing handler
-jest.mock('../../lambda/read/config', () => ({
+jest.mock('../../config', () => ({
   Config: {
     init: jest.fn().mockResolvedValue(undefined),
     prime: jest.fn().mockResolvedValue(undefined),
@@ -30,7 +30,7 @@ jest.mock('../../lambda/read/config', () => ({
 }));
 
 // Mock RateLimiter to always allow requests
-jest.mock('../../lambda/read/utils/rate-limiter', () => ({
+jest.mock('../../utils/rate-limiter', () => ({
   checkRateLimit: jest.fn().mockReturnValue({
     allowed: true,
     headers: {
@@ -42,7 +42,7 @@ jest.mock('../../lambda/read/utils/rate-limiter', () => ({
   createRateLimitResponse: jest.fn()
 }));
 
-const { handler } = require('../../lambda/read/index');
+const { handler } = require('../../index');
 const { createMockContext, createMCPToolRequest, createMockEvent } = require('./test-helpers');
 
 // Skip these tests - they need AWS SDK v3 migration and handler fixes

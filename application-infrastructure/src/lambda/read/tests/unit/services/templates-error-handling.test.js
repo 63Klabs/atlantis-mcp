@@ -17,6 +17,10 @@ jest.mock('@63klabs/cache-data', () => ({
     DebugAndLog: {
       debug: jest.fn(),
       warn: jest.fn()
+    },
+    ApiRequest: {
+      success: jest.fn(({ body }) => ({ getBody: (parse) => parse ? body : JSON.stringify(body), statusCode: 200 })),
+      error: jest.fn(({ body, statusCode }) => ({ getBody: (parse) => parse ? body : JSON.stringify(body), statusCode: statusCode || 500 }))
     }
   }
 }));
@@ -78,8 +82,7 @@ describe('Templates Service - Error Handling', () => {
     // Setup default CacheableDataAccess.getData mock
     // This mock calls the fetchFunction and returns the result wrapped in { body }
     CacheableDataAccess.getData.mockImplementation(async (cacheProfile, fetchFunction, conn, opts) => {
-      const body = await fetchFunction(conn, opts);
-      return { body };
+      return await fetchFunction(conn, opts);
     });
   });
 
@@ -192,7 +195,7 @@ describe('Templates Service - Error Handling', () => {
 
         // Verify warning was logged
         expect(DebugAndLog.warn).toHaveBeenCalledWith(
-          'Failed to get available templates for error message',
+          'service.templates.get.fetchFunction: Failed to get available templates',
           expect.objectContaining({
             error: 'S3 access denied'
           })

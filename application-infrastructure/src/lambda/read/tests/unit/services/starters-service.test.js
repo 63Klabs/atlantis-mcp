@@ -21,6 +21,10 @@ jest.mock('@63klabs/cache-data', () => ({
       debug: jest.fn(),
       warn: jest.fn(),
       error: jest.fn()
+    },
+    ApiRequest: {
+      success: jest.fn(({ body }) => ({ getBody: (parse) => parse ? body : JSON.stringify(body), statusCode: 200 })),
+      error: jest.fn(({ body, statusCode }) => ({ getBody: (parse) => parse ? body : JSON.stringify(body), statusCode: statusCode || 500 }))
     }
   }
 }));
@@ -95,8 +99,7 @@ describe('Starters Service', () => {
 
     // Mock CacheableDataAccess.getData to call fetchFunction directly
     CacheableDataAccess.getData.mockImplementation(async (cacheProfile, fetchFunction, conn, opts) => {
-      const result = await fetchFunction(conn, opts);
-      return { body: result };
+      return await fetchFunction(conn, opts);
     });
   });
 

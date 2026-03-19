@@ -9,7 +9,7 @@
  * - Configurable rate limits
  */
 
-const RateLimiter = require('../../../lambda/read/utils/rate-limiter');
+const RateLimiter = require('../../../utils/rate-limiter');
 
 // Rate limiting is handled by API Gateway in production, not by Lambda
 // These tests are skipped as they test API Gateway functionality

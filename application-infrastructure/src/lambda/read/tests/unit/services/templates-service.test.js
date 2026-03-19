@@ -22,6 +22,10 @@ jest.mock('@63klabs/cache-data', () => ({
       debug: jest.fn(),
       warn: jest.fn(),
       error: jest.fn()
+    },
+    ApiRequest: {
+      success: jest.fn(({ body }) => ({ getBody: (parse) => parse ? body : JSON.stringify(body), statusCode: 200 })),
+      error: jest.fn(({ body, statusCode }) => ({ getBody: (parse) => parse ? body : JSON.stringify(body), statusCode: statusCode || 500 }))
     }
   }
 }));
@@ -126,9 +130,8 @@ describe('Templates Service', () => {
     // This ensures test-specific mocks on Models.S3Templates.* are used
     CacheableDataAccess.getData.mockImplementation(async (cacheProfile, fetchFunction, conn, opts) => {
       // Call the fetchFunction directly (which will use the mocked Models.S3Templates methods)
-      const body = await fetchFunction(conn, opts);
-      // Return in the format expected by the service (wrapped in { body })
-      return { body };
+      // fetchFunction returns an ApiRequest-wrapped object with getBody method
+      return await fetchFunction(conn, opts);
     });
   });
 
@@ -330,7 +333,7 @@ describe('Templates Service', () => {
 
       // Act & Assert
       await expect(Templates.list({}))
-        .rejects.toThrow('Failed to get connection and cache profile');
+        .rejects.toThrow('Failed to get connection and/or cache profile');
     });
   });
 

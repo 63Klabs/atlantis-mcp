@@ -54,7 +54,7 @@ describe('Documentation Controller', () => {
     test('should search documentation successfully with valid input', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             query: 'S3 bucket configuration',
             type: 'template pattern',
@@ -93,7 +93,7 @@ describe('Documentation Controller', () => {
       const result = await DocumentationController.search(props);
 
       // Assert
-      expect(SchemaValidator.validate).toHaveBeenCalledWith('search_documentation', props.body.input);
+      expect(SchemaValidator.validate).toHaveBeenCalledWith('search_documentation', props.bodyParameters.input);
       expect(Services.Documentation.search).toHaveBeenCalledWith({
         query: 'S3 bucket configuration',
         type: 'template pattern',
@@ -106,7 +106,7 @@ describe('Documentation Controller', () => {
     test('should handle search with minimal input', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             query: 'Lambda function'
           }
@@ -145,7 +145,7 @@ describe('Documentation Controller', () => {
     test('should return error for invalid input', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             // Missing required query
             type: 'documentation'
@@ -179,7 +179,7 @@ describe('Documentation Controller', () => {
     test('should handle service errors', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             query: 'test query'
           }
@@ -210,7 +210,7 @@ describe('Documentation Controller', () => {
     test('should handle no results with suggestions', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             query: 'nonexistent topic'
           }
@@ -245,7 +245,7 @@ describe('Documentation Controller', () => {
     test('should handle partial data with errors', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             query: 'test query',
             ghusers: ['63klabs', 'failedorg']
@@ -281,7 +281,7 @@ describe('Documentation Controller', () => {
     test('should pass all filter parameters to service', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             query: 'CloudFormation',
             type: 'code example',
@@ -307,7 +307,7 @@ describe('Documentation Controller', () => {
     test('should log request and response details', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             query: 'test query',
             type: 'documentation',
@@ -348,7 +348,7 @@ describe('Documentation Controller', () => {
     test('should handle type parameter defaulting to "all"', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             query: 'test query'
             // type not provided
@@ -374,7 +374,7 @@ describe('Documentation Controller', () => {
     test('should handle results with code snippets', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             query: 'cache-data usage'
           }

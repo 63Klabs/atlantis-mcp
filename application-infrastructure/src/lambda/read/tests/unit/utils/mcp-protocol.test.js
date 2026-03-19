@@ -16,7 +16,7 @@ const {
   listTools,
   getTool,
   isValidTool
-} = require('../../../lambda/read/utils/mcp-protocol');
+} = require('../../../utils/mcp-protocol');
 
 describe('MCP Protocol Utilities', () => {
   describe('Constants', () => {

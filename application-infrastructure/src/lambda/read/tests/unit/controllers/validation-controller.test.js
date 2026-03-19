@@ -54,7 +54,7 @@ describe('Validation Controller', () => {
     test('should validate valid application resource name', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             resourceName: 'acme-myapp-prod-GetUserFunction',
             resourceType: 'application'
@@ -83,7 +83,7 @@ describe('Validation Controller', () => {
       const result = await ValidationController.validate(props);
 
       // Assert
-      expect(SchemaValidator.validate).toHaveBeenCalledWith('validate_naming', props.body.input);
+      expect(SchemaValidator.validate).toHaveBeenCalledWith('validate_naming', props.bodyParameters.input);
       expect(Services.Validation.validateNaming).toHaveBeenCalledWith({
         resourceName: 'acme-myapp-prod-GetUserFunction',
         resourceType: 'application'
@@ -103,7 +103,7 @@ describe('Validation Controller', () => {
     test('should validate valid S3 bucket name with pattern1', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             resourceName: 'myorg-acme-myapp-prod-us-east-1-123456789012',
             resourceType: 's3'
@@ -144,7 +144,7 @@ describe('Validation Controller', () => {
     test('should validate valid S3 bucket name with pattern2', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             resourceName: 'myorg-acme-myapp-us-east-1',
             resourceType: 's3'
@@ -183,7 +183,7 @@ describe('Validation Controller', () => {
     test('should handle invalid resource name with errors and suggestions', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             resourceName: 'invalid-name',
             resourceType: 'application'
@@ -223,7 +223,7 @@ describe('Validation Controller', () => {
     test('should handle auto-detection of resource type', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             resourceName: 'acme-myapp-prod-MyTable'
             // resourceType not provided - should auto-detect
@@ -279,7 +279,7 @@ describe('Validation Controller', () => {
     test('should return error for invalid input', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             // Missing required resourceName
             resourceType: 'application'
@@ -313,7 +313,7 @@ describe('Validation Controller', () => {
     test('should handle service errors', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             resourceName: 'test-name'
           }
@@ -344,7 +344,7 @@ describe('Validation Controller', () => {
     test('should validate DynamoDB table name', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             resourceName: 'acme-myapp-prod-UsersTable',
             resourceType: 'dynamodb'
@@ -380,7 +380,7 @@ describe('Validation Controller', () => {
     test('should validate Lambda function name', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             resourceName: 'acme-myapp-prod-ProcessOrderFunction',
             resourceType: 'lambda'
@@ -416,7 +416,7 @@ describe('Validation Controller', () => {
     test('should validate CloudFormation stack name', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             resourceName: 'acme-myapp-prod-StorageStack',
             resourceType: 'cloudformation'
@@ -452,7 +452,7 @@ describe('Validation Controller', () => {
     test('should log validation request and result', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             resourceName: 'acme-myapp-prod-TestResource',
             resourceType: 'application'
@@ -497,7 +497,7 @@ describe('Validation Controller', () => {
     test('should handle partial name validation', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             resourceName: 'acme-myapp',
             resourceType: 'application'

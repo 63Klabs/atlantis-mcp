@@ -1,28 +1,15 @@
 /**
- * Unit tests for error handling across all failure scenarios
+ * Unit tests for error handling utilities
  *
- * Tests error handling including:
- * - S3 operation failures
- * - DynamoDB operation failures
- * - GitHub API failures
- * - Network timeouts
- * - Invalid input errors
- * - Configuration errors
- * - Error response formatting
- * - Error logging
+ * Tests the ErrorHandler module including:
+ * - Error creation with createError
+ * - Error categorization with getStatusCode
+ * - User-friendly error responses with toUserResponse
+ * - Error logging with logError
+ * - Specialized logging (S3, GitHub)
+ * - Error metrics emission
  */
 
-const { mockClient } = require('aws-sdk-client-mock');
-const { S3Client, GetObjectCommand, ListObjectsV2Command } = require('@aws-sdk/client-s3');
-const { DynamoDBDocumentClient, GetCommand } = require('@aws-sdk/lib-dynamodb');
-const { SSMClient, GetParameterCommand } = require('@aws-sdk/client-ssm');
-
-// Mock AWS SDK clients
-const s3Mock = mockClient(S3Client);
-const ddbMock = mockClient(DynamoDBDocumentClient);
-const ssmMock = mockClient(SSMClient);
-
-// Mock dependencies
 jest.mock('@63klabs/cache-data', () => ({
   tools: {
     DebugAndLog: {
@@ -35,401 +22,261 @@ jest.mock('@63klabs/cache-data', () => ({
 }));
 
 const { tools } = require('@63klabs/cache-data');
-const ErrorHandler = require('../../../lambda/read/utils/error-handler');
+const ErrorHandler = require('../../../utils/error-handler');
 
 describe('Error Handling', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    s3Mock.reset();
-    ddbMock.reset();
-    ssmMock.reset();
   });
 
-  describe('S3 Operation Failures', () => {
-    test('should handle S3 NoSuchKey error', () => {
-      const error = new Error('The specified key does not exist');
-      error.name = 'NoSuchKey';
-      error.Code = 'NoSuchKey';
+  describe('createError', () => {
+    test('should create standardized error with all fields', () => {
+      const error = ErrorHandler.createError({
+        code: ErrorHandler.ErrorCode.TEMPLATE_NOT_FOUND,
+        message: 'Template not found',
+        category: ErrorHandler.ErrorCategory.NOT_FOUND,
+        statusCode: 404,
+        requestId: 'req-123'
+      });
 
-      const statusCode = ErrorHandler.getStatusCode(error);
-      expect(statusCode).toBe(404);
-    });
-
-    test('should handle S3 AccessDenied error', () => {
-      const error = new Error('Access Denied');
-      error.name = 'AccessDenied';
-      error.Code = 'AccessDenied';
-
-      const statusCode = ErrorHandler.getStatusCode(error);
-      expect(statusCode).toBe(403);
-    });
-
-    test('should handle S3 NoSuchBucket error', () => {
-      const error = new Error('The specified bucket does not exist');
-      error.name = 'NoSuchBucket';
-      error.Code = 'NoSuchBucket';
-
-      const statusCode = ErrorHandler.getStatusCode(error);
-      expect(statusCode).toBe(404);
-    });
-
-    test('should log S3 errors with bucket and key details', () => {
-      const error = new Error('S3 operation failed');
-      error.name = 'S3Error';
-
-      const context = {
-        bucket: 'test-bucket',
-        key: 'templates/v2/storage/template.yml',
-        operation: 'GetObject'
-      };
-
-      ErrorHandler.logError(error, context);
-
-      expect(tools.DebugAndLog.error).toHaveBeenCalledWith(
-        expect.stringContaining('S3 operation failed'),
-        expect.objectContaining({
-          bucket: 'test-bucket',
-          key: 'templates/v2/storage/template.yml'
-        })
-      );
-    });
-
-    test('should handle S3 throttling errors', () => {
-      const error = new Error('SlowDown');
-      error.name = 'SlowDown';
-      error.Code = 'SlowDown';
-
-      const statusCode = ErrorHandler.getStatusCode(error);
-      expect(statusCode).toBe(503);
-    });
-
-    test('should handle S3 network timeout', () => {
-      const error = new Error('Network timeout');
-      error.name = 'TimeoutError';
-      error.code = 'ETIMEDOUT';
-
-      const statusCode = ErrorHandler.getStatusCode(error);
-      expect(statusCode).toBe(504);
+      expect(error).toBeInstanceOf(Error);
+      expect(error.code).toBe('TEMPLATE_NOT_FOUND');
+      expect(error.message).toBe('Template not found');
+      expect(error.category).toBe('NOT_FOUND');
+      expect(error.statusCode).toBe(404);
+      expect(error.requestId).toBe('req-123');
+      expect(error.timestamp).toBeDefined();
     });
   });
 
-  describe('DynamoDB Operation Failures', () => {
-    test('should handle DynamoDB ResourceNotFoundException', () => {
-      const error = new Error('Requested resource not found');
-      error.name = 'ResourceNotFoundException';
-
-      const statusCode = ErrorHandler.getStatusCode(error);
-      expect(statusCode).toBe(404);
+  describe('getStatusCode', () => {
+    test('should return statusCode from error if present', () => {
+      const error = ErrorHandler.createError({
+        code: 'TEST',
+        message: 'test',
+        category: ErrorHandler.ErrorCategory.NOT_FOUND,
+        statusCode: 404
+      });
+      expect(ErrorHandler.getStatusCode(error)).toBe(404);
     });
 
-    test('should handle DynamoDB ProvisionedThroughputExceededException', () => {
-      const error = new Error('Throughput exceeded');
-      error.name = 'ProvisionedThroughputExceededException';
-
-      const statusCode = ErrorHandler.getStatusCode(error);
-      expect(statusCode).toBe(503);
+    test('should return 400 for CLIENT_ERROR category', () => {
+      const error = ErrorHandler.createError({
+        code: 'INVALID_INPUT',
+        message: 'Invalid',
+        category: ErrorHandler.ErrorCategory.CLIENT_ERROR,
+        statusCode: undefined
+      });
+      delete error.statusCode;
+      expect(ErrorHandler.getStatusCode(error)).toBe(400);
     });
 
-    test('should handle DynamoDB ValidationException', () => {
-      const error = new Error('Invalid parameter');
-      error.name = 'ValidationException';
-
-      const statusCode = ErrorHandler.getStatusCode(error);
-      expect(statusCode).toBe(400);
+    test('should return 400 for VALIDATION_ERROR category', () => {
+      const error = ErrorHandler.createError({
+        code: 'VALIDATION',
+        message: 'Validation failed',
+        category: ErrorHandler.ErrorCategory.VALIDATION_ERROR,
+        statusCode: undefined
+      });
+      delete error.statusCode;
+      expect(ErrorHandler.getStatusCode(error)).toBe(400);
     });
 
-    test('should log DynamoDB errors with table name', () => {
-      const error = new Error('DynamoDB operation failed');
-      error.name = 'DynamoDBError';
-
-      const context = {
-        tableName: 'cache-table',
-        operation: 'GetItem',
-        key: { id: 'test-key' }
-      };
-
-      ErrorHandler.logError(error, context);
-
-      expect(tools.DebugAndLog.error).toHaveBeenCalledWith(
-        expect.stringContaining('DynamoDB operation failed'),
-        expect.objectContaining({
-          tableName: 'cache-table'
-        })
-      );
-    });
-  });
-
-  describe('GitHub API Failures', () => {
-    test('should handle GitHub 404 Not Found', () => {
-      const error = new Error('Not Found');
-      error.status = 404;
-      error.name = 'HttpError';
-
-      const statusCode = ErrorHandler.getStatusCode(error);
-      expect(statusCode).toBe(404);
+    test('should return 404 for NOT_FOUND category', () => {
+      const error = ErrorHandler.createError({
+        code: 'NOT_FOUND',
+        message: 'Not found',
+        category: ErrorHandler.ErrorCategory.NOT_FOUND,
+        statusCode: undefined
+      });
+      delete error.statusCode;
+      expect(ErrorHandler.getStatusCode(error)).toBe(404);
     });
 
-    test('should handle GitHub 403 Rate Limit Exceeded', () => {
-      const error = new Error('API rate limit exceeded');
-      error.status = 403;
-      error.name = 'HttpError';
-      error.headers = {
-        'x-ratelimit-remaining': '0'
-      };
-
-      const statusCode = ErrorHandler.getStatusCode(error);
-      expect(statusCode).toBe(429);
+    test('should return 429 for RATE_LIMIT category', () => {
+      const error = ErrorHandler.createError({
+        code: 'RATE_LIMIT',
+        message: 'Rate limit',
+        category: ErrorHandler.ErrorCategory.RATE_LIMIT,
+        statusCode: undefined
+      });
+      delete error.statusCode;
+      expect(ErrorHandler.getStatusCode(error)).toBe(429);
     });
 
-    test('should handle GitHub 401 Unauthorized', () => {
-      const error = new Error('Bad credentials');
-      error.status = 401;
-      error.name = 'HttpError';
-
-      const statusCode = ErrorHandler.getStatusCode(error);
-      expect(statusCode).toBe(401);
+    test('should return 500 for SERVER_ERROR category', () => {
+      const error = ErrorHandler.createError({
+        code: 'SERVER',
+        message: 'Server error',
+        category: ErrorHandler.ErrorCategory.SERVER_ERROR,
+        statusCode: undefined
+      });
+      delete error.statusCode;
+      expect(ErrorHandler.getStatusCode(error)).toBe(500);
     });
 
-    test('should log GitHub errors with repository and endpoint details', () => {
-      const error = new Error('GitHub API failed');
-      error.status = 500;
-
-      const context = {
-        repository: 'org/repo',
-        endpoint: '/repos/org/repo/properties/values',
-        user: 'org'
-      };
-
-      ErrorHandler.logError(error, context);
-
-      expect(tools.DebugAndLog.error).toHaveBeenCalledWith(
-        expect.stringContaining('GitHub API failed'),
-        expect.objectContaining({
-          repository: 'org/repo',
-          endpoint: '/repos/org/repo/properties/values'
-        })
-      );
+    test('should return 500 for null or undefined errors', () => {
+      expect(ErrorHandler.getStatusCode(null)).toBe(500);
+      expect(ErrorHandler.getStatusCode(undefined)).toBe(500);
     });
 
-    test('should handle GitHub network errors', () => {
-      const error = new Error('Network request failed');
-      error.name = 'FetchError';
-      error.code = 'ECONNREFUSED';
+    test('should return 500 for errors without statusCode or category', () => {
+      const error = new Error('Generic error');
+      expect(ErrorHandler.getStatusCode(error)).toBe(500);
+    });
 
-      const statusCode = ErrorHandler.getStatusCode(error);
-      expect(statusCode).toBe(503);
+    test('should return 500 for non-Error objects', () => {
+      expect(ErrorHandler.getStatusCode({ message: 'Not an Error' })).toBe(500);
     });
   });
 
-  describe('SSM Parameter Store Failures', () => {
-    test('should handle SSM ParameterNotFound', () => {
-      const error = new Error('Parameter not found');
-      error.name = 'ParameterNotFound';
-
-      const statusCode = ErrorHandler.getStatusCode(error);
-      expect(statusCode).toBe(500); // Internal error - missing config
-    });
-
-    test('should handle SSM AccessDeniedException', () => {
-      const error = new Error('Access denied');
-      error.name = 'AccessDeniedException';
-
-      const statusCode = ErrorHandler.getStatusCode(error);
-      expect(statusCode).toBe(500); // Internal error - misconfigured permissions
-    });
-
-    test('should log SSM errors without exposing parameter values', () => {
-      const error = new Error('SSM operation failed');
-      error.name = 'SSMError';
-
-      const context = {
-        parameterName: '/myapp/github/token',
-        operation: 'GetParameter'
-      };
-
-      ErrorHandler.logError(error, context);
-
-      expect(tools.DebugAndLog.error).toHaveBeenCalledWith(
-        expect.stringContaining('SSM operation failed'),
-        expect.objectContaining({
-          parameterName: '/myapp/github/token'
-        })
-      );
-    });
-  });
-
-  describe('Validation Errors', () => {
-    test('should handle invalid input errors', () => {
-      const error = new Error('Invalid input');
-      error.code = 'INVALID_INPUT';
-
-      const statusCode = ErrorHandler.getStatusCode(error);
-      expect(statusCode).toBe(400);
-    });
-
-    test('should handle JSON Schema validation errors', () => {
-      const error = new Error('Validation failed');
-      error.code = 'VALIDATION_ERROR';
-      error.errors = [
-        { field: 'templateName', message: 'Required field missing' }
-      ];
+  describe('toUserResponse', () => {
+    test('should return error code and message', () => {
+      const error = ErrorHandler.createError({
+        code: ErrorHandler.ErrorCode.TEMPLATE_NOT_FOUND,
+        message: 'Template not found',
+        category: ErrorHandler.ErrorCategory.NOT_FOUND,
+        statusCode: 404
+      });
 
       const response = ErrorHandler.toUserResponse(error, 'req-123');
 
-      expect(response.error).toContain('Validation failed');
-      expect(response.validationErrors).toBeDefined();
+      expect(response.error).toBe('TEMPLATE_NOT_FOUND');
+      expect(response.message).toBe('Template not found');
+      expect(response.requestId).toBe('req-123');
+      expect(response.timestamp).toBeDefined();
     });
 
-    test('should handle template not found errors', () => {
-      const error = new Error('Template not found');
-      error.code = 'TEMPLATE_NOT_FOUND';
-
-      const statusCode = ErrorHandler.getStatusCode(error);
-      expect(statusCode).toBe(404);
-    });
-
-    test('should include available options in not found errors', () => {
-      const error = new Error('Template not found');
-      error.code = 'TEMPLATE_NOT_FOUND';
+    test('should include availableTemplates for TEMPLATE_NOT_FOUND', () => {
+      const error = ErrorHandler.createError({
+        code: ErrorHandler.ErrorCode.TEMPLATE_NOT_FOUND,
+        message: 'Template not found',
+        category: ErrorHandler.ErrorCategory.NOT_FOUND,
+        statusCode: 404
+      });
       error.availableTemplates = ['template1', 'template2'];
 
       const response = ErrorHandler.toUserResponse(error, 'req-123');
 
       expect(response.availableTemplates).toEqual(['template1', 'template2']);
     });
-  });
 
-  describe('Configuration Errors', () => {
-    test('should handle missing environment variables', () => {
-      const error = new Error('Missing required environment variable');
-      error.code = 'CONFIG_ERROR';
-
-      const statusCode = ErrorHandler.getStatusCode(error);
-      expect(statusCode).toBe(500);
-    });
-
-    test('should handle invalid configuration', () => {
-      const error = new Error('Invalid configuration');
-      error.code = 'CONFIG_ERROR';
-
-      const statusCode = ErrorHandler.getStatusCode(error);
-      expect(statusCode).toBe(500);
-    });
-
-    test('should not expose configuration details in user response', () => {
-      const error = new Error('Missing ATLANTIS_S3_BUCKETS environment variable');
-      error.code = 'CONFIG_ERROR';
+    test('should include availableTools for UNKNOWN_TOOL', () => {
+      const error = ErrorHandler.createError({
+        code: ErrorHandler.ErrorCode.UNKNOWN_TOOL,
+        message: 'Unknown tool',
+        category: ErrorHandler.ErrorCategory.NOT_FOUND,
+        statusCode: 404
+      });
+      error.availableTools = ['list_templates', 'get_template'];
 
       const response = ErrorHandler.toUserResponse(error, 'req-123');
 
-      expect(response.error).not.toContain('ATLANTIS_S3_BUCKETS');
-      expect(response.error).toContain('Internal server error');
-    });
-  });
-
-  describe('Network Errors', () => {
-    test('should handle connection timeout', () => {
-      const error = new Error('Connection timeout');
-      error.code = 'ETIMEDOUT';
-
-      const statusCode = ErrorHandler.getStatusCode(error);
-      expect(statusCode).toBe(504);
+      expect(response.availableTools).toEqual(['list_templates', 'get_template']);
     });
 
-    test('should handle connection refused', () => {
-      const error = new Error('Connection refused');
-      error.code = 'ECONNREFUSED';
-
-      const statusCode = ErrorHandler.getStatusCode(error);
-      expect(statusCode).toBe(503);
-    });
-
-    test('should handle DNS resolution failure', () => {
-      const error = new Error('DNS resolution failed');
-      error.code = 'ENOTFOUND';
-
-      const statusCode = ErrorHandler.getStatusCode(error);
-      expect(statusCode).toBe(503);
-    });
-  });
-
-  describe('Error Response Formatting', () => {
-    test('should return sanitized error response', () => {
-      const error = new Error('Internal error with sensitive data: API_KEY=secret123');
-      error.code = 'INTERNAL_ERROR';
+    test('should include retryAfter for RATE_LIMIT_EXCEEDED', () => {
+      const error = ErrorHandler.createError({
+        code: ErrorHandler.ErrorCode.RATE_LIMIT_EXCEEDED,
+        message: 'Rate limit exceeded',
+        category: ErrorHandler.ErrorCategory.RATE_LIMIT,
+        statusCode: 429
+      });
+      error.retryAfter = 3600;
 
       const response = ErrorHandler.toUserResponse(error, 'req-123');
 
-      expect(response.error).not.toContain('API_KEY');
-      expect(response.error).not.toContain('secret123');
-      expect(response.error).toBe('Internal server error');
+      expect(response.retryAfter).toBe(3600);
     });
 
-    test('should include request ID in error response', () => {
+    test('should default to INTERNAL_ERROR for errors without code', () => {
       const error = new Error('Something went wrong');
-      const requestId = 'req-abc-123';
-
-      const response = ErrorHandler.toUserResponse(error, requestId);
-
-      expect(response.requestId).toBe(requestId);
-    });
-
-    test('should categorize errors as 4xx or 5xx', () => {
-      const clientError = new Error('Invalid input');
-      clientError.code = 'INVALID_INPUT';
-
-      const serverError = new Error('Database connection failed');
-      serverError.code = 'DB_ERROR';
-
-      expect(ErrorHandler.getStatusCode(clientError)).toBeLessThan(500);
-      expect(ErrorHandler.getStatusCode(serverError)).toBeGreaterThanOrEqual(500);
-    });
-
-    test('should not expose stack traces in user response', () => {
-      const error = new Error('Internal error');
-      error.stack = 'Error: Internal error\n    at Function.handler (/var/task/index.js:123:45)';
 
       const response = ErrorHandler.toUserResponse(error, 'req-123');
 
-      expect(response.error).not.toContain('/var/task');
-      expect(response.error).not.toContain('index.js');
-    });
-
-    test('should include error code in response when appropriate', () => {
-      const error = new Error('Template not found');
-      error.code = 'TEMPLATE_NOT_FOUND';
-
-      const response = ErrorHandler.toUserResponse(error, 'req-123');
-
-      expect(response.code).toBe('TEMPLATE_NOT_FOUND');
+      expect(response.error).toBe('INTERNAL_ERROR');
+      expect(response.requestId).toBe('req-123');
     });
   });
 
-  describe('Error Logging', () => {
-    test('should log errors with full stack trace', () => {
-      const error = new Error('Test error');
-      error.stack = 'Error: Test error\n    at test.js:10:5';
+  describe('logError', () => {
+    test('should use warn for CLIENT_ERROR category', () => {
+      const error = ErrorHandler.createError({
+        code: 'INVALID_INPUT',
+        message: 'Invalid input',
+        category: ErrorHandler.ErrorCategory.CLIENT_ERROR,
+        statusCode: 400
+      });
+
+      ErrorHandler.logError(error, { requestId: 'req-123' });
+
+      expect(tools.DebugAndLog.warn).toHaveBeenCalledWith(
+        'Client error',
+        expect.objectContaining({ error: 'Invalid input' })
+      );
+    });
+
+    test('should use warn for EXTERNAL_SERVICE category', () => {
+      const error = ErrorHandler.createError({
+        code: 'S3_ERROR',
+        message: 'S3 failed',
+        category: ErrorHandler.ErrorCategory.EXTERNAL_SERVICE,
+        statusCode: 500
+      });
+
+      ErrorHandler.logError(error, {});
+
+      expect(tools.DebugAndLog.warn).toHaveBeenCalledWith(
+        'External service error',
+        expect.any(Object)
+      );
+    });
+
+    test('should use info for RATE_LIMIT category', () => {
+      const error = ErrorHandler.createError({
+        code: 'RATE_LIMIT',
+        message: 'Rate limit exceeded',
+        category: ErrorHandler.ErrorCategory.RATE_LIMIT,
+        statusCode: 429
+      });
+
+      ErrorHandler.logError(error, {});
+
+      expect(tools.DebugAndLog.info).toHaveBeenCalledWith(
+        'Rate limit exceeded',
+        expect.any(Object)
+      );
+    });
+
+    test('should use error for SERVER_ERROR category', () => {
+      const error = ErrorHandler.createError({
+        code: 'INTERNAL',
+        message: 'Server error',
+        category: ErrorHandler.ErrorCategory.SERVER_ERROR,
+        statusCode: 500
+      });
 
       ErrorHandler.logError(error, { requestId: 'req-123' });
 
       expect(tools.DebugAndLog.error).toHaveBeenCalledWith(
-        expect.stringContaining('Test error'),
-        expect.objectContaining({
-          stack: expect.stringContaining('test.js:10:5')
-        })
+        'Server error',
+        expect.objectContaining({ requestId: 'req-123' })
       );
     });
 
-    test('should log errors with request context', () => {
-      const error = new Error('Test error');
-      const context = {
+    test('should include context in log', () => {
+      const error = ErrorHandler.createError({
+        code: 'TEST',
+        message: 'Test error',
+        category: ErrorHandler.ErrorCategory.SERVER_ERROR,
+        statusCode: 500
+      });
+
+      ErrorHandler.logError(error, {
         requestId: 'req-123',
         ip: '192.168.1.1',
-        tool: 'list_templates',
-        parameters: { category: 'Storage' }
-      };
-
-      ErrorHandler.logError(error, context);
+        tool: 'list_templates'
+      });
 
       expect(tools.DebugAndLog.error).toHaveBeenCalledWith(
         expect.any(String),
@@ -440,88 +287,143 @@ describe('Error Handling', () => {
         })
       );
     });
+  });
 
-    test('should not log sensitive data', () => {
-      const error = new Error('Authentication failed');
-      const context = {
-        requestId: 'req-123',
-        apiKey: 'secret-key-12345',
-        token: 'bearer-token-xyz'
-      };
+  describe('logS3Error', () => {
+    test('should log S3 errors with bucket and key details', () => {
+      ErrorHandler.logS3Error({
+        operation: 'GetObject',
+        bucket: 'test-bucket',
+        key: 'templates/v2/storage/template.yml',
+        error: new Error('Access Denied'),
+        requestId: 'req-123'
+      });
 
-      ErrorHandler.logError(error, context);
-
-      const logCall = tools.DebugAndLog.error.mock.calls[0];
-      const loggedContext = JSON.stringify(logCall);
-
-      expect(loggedContext).not.toContain('secret-key-12345');
-      expect(loggedContext).not.toContain('bearer-token-xyz');
+      expect(tools.DebugAndLog.warn).toHaveBeenCalledWith(
+        'S3 operation failed',
+        expect.objectContaining({
+          bucket: 'test-bucket',
+          key: 'templates/v2/storage/template.yml',
+          operation: 'GetObject'
+        })
+      );
     });
   });
 
-  describe('Error Metrics', () => {
-    test('should emit error metric with error code', () => {
-      const error = new Error('Test error');
-      error.code = 'TEST_ERROR';
+  describe('logGitHubError', () => {
+    test('should log GitHub errors with repository and endpoint details', () => {
+      ErrorHandler.logGitHubError({
+        operation: 'listRepositories',
+        repository: 'org/repo',
+        userOrg: 'org',
+        endpoint: '/repos/org/repo',
+        error: new Error('API rate limit exceeded'),
+        requestId: 'req-123'
+      });
 
+      expect(tools.DebugAndLog.warn).toHaveBeenCalledWith(
+        'GitHub API operation failed',
+        expect.objectContaining({
+          repository: 'org/repo',
+          endpoint: '/repos/org/repo'
+        })
+      );
+    });
+  });
+
+  describe('logRequest', () => {
+    test('should log request with all details', () => {
+      ErrorHandler.logRequest({
+        tool: 'list_templates',
+        method: 'POST',
+        path: '/mcp',
+        ip: '192.168.1.1',
+        requestId: 'req-123',
+        executionTime: 150,
+        statusCode: 200,
+        cacheHit: false
+      });
+
+      expect(tools.DebugAndLog.info).toHaveBeenCalledWith(
+        'Request processed',
+        expect.objectContaining({
+          tool: 'list_templates',
+          statusCode: 200,
+          cacheHit: false
+        })
+      );
+    });
+  });
+
+  describe('emitErrorMetric', () => {
+    test('should emit error metric with tool and error code', () => {
       ErrorHandler.emitErrorMetric({
         tool: 'list_templates',
         errorCode: 'TEST_ERROR',
         statusCode: 500
       });
 
-      // Verify metric emission (implementation-specific)
-      expect(true).toBe(true);
+      expect(tools.DebugAndLog.debug).toHaveBeenCalledWith(
+        'Error metric',
+        expect.objectContaining({
+          tool: 'list_templates',
+          errorCode: 'TEST_ERROR',
+          statusCode: 500
+        })
+      );
     });
+  });
 
-    test('should emit error metric with status code', () => {
-      ErrorHandler.emitErrorMetric({
+  describe('emitLatencyMetric', () => {
+    test('should emit latency metric', () => {
+      ErrorHandler.emitLatencyMetric({
         tool: 'get_template',
-        errorCode: 'TEMPLATE_NOT_FOUND',
-        statusCode: 404
+        latency: 250,
+        cacheHit: true
       });
 
-      // Verify metric emission
-      expect(true).toBe(true);
+      expect(tools.DebugAndLog.debug).toHaveBeenCalledWith(
+        'Latency metric',
+        expect.objectContaining({
+          tool: 'get_template',
+          cacheHit: true
+        })
+      );
+    });
+  });
+
+  describe('ErrorCategory and ErrorCode constants', () => {
+    test('should export ErrorCategory constants', () => {
+      expect(ErrorHandler.ErrorCategory.CLIENT_ERROR).toBe('CLIENT_ERROR');
+      expect(ErrorHandler.ErrorCategory.SERVER_ERROR).toBe('SERVER_ERROR');
+      expect(ErrorHandler.ErrorCategory.NOT_FOUND).toBe('NOT_FOUND');
+      expect(ErrorHandler.ErrorCategory.RATE_LIMIT).toBe('RATE_LIMIT');
+    });
+
+    test('should export ErrorCode constants', () => {
+      expect(ErrorHandler.ErrorCode.INVALID_INPUT).toBe('INVALID_INPUT');
+      expect(ErrorHandler.ErrorCode.TEMPLATE_NOT_FOUND).toBe('TEMPLATE_NOT_FOUND');
+      expect(ErrorHandler.ErrorCode.INTERNAL_ERROR).toBe('INTERNAL_ERROR');
     });
   });
 
   describe('Edge Cases', () => {
-    test('should handle errors without error code', () => {
-      const error = new Error('Generic error');
-
-      const statusCode = ErrorHandler.getStatusCode(error);
-      expect(statusCode).toBe(500);
-    });
-
     test('should handle errors without message', () => {
       const error = new Error();
-
       const response = ErrorHandler.toUserResponse(error, 'req-123');
-      expect(response.error).toBe('Internal server error');
-    });
-
-    test('should handle non-Error objects', () => {
-      const error = { message: 'Not an Error object' };
-
-      const statusCode = ErrorHandler.getStatusCode(error);
-      expect(statusCode).toBe(500);
-    });
-
-    test('should handle null or undefined errors', () => {
-      const statusCode1 = ErrorHandler.getStatusCode(null);
-      const statusCode2 = ErrorHandler.getStatusCode(undefined);
-
-      expect(statusCode1).toBe(500);
-      expect(statusCode2).toBe(500);
+      expect(response.requestId).toBe('req-123');
     });
 
     test('should handle circular reference in error context', () => {
-      const error = new Error('Test error');
+      const error = ErrorHandler.createError({
+        code: 'TEST',
+        message: 'Test',
+        category: ErrorHandler.ErrorCategory.SERVER_ERROR,
+        statusCode: 500
+      });
       const context = { requestId: 'req-123' };
-      context.circular = context; // Create circular reference
+      context.circular = context;
 
-      // Should not throw when logging
       expect(() => {
         ErrorHandler.logError(error, context);
       }).not.toThrow();

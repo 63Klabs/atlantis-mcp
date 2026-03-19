@@ -17,17 +17,21 @@ describe('Multiple GitHub User/Org Handling', () => {
     jest.clearAllMocks();
     jest.resetModules();
 
-    jest.mock('../../../lambda/read/config', () => ({
-      settings: jest.fn()
+    jest.mock('../../../config', () => ({
+      Config: {
+        settings: jest.fn()
+      }
     }));
 
-    GitHubAPI = require('../../../lambda/read/models/github-api');
-    Config = require('../../../lambda/read/config');
+    GitHubAPI = require('../../../models/github-api');
+    const { Config: ConfigModule } = require('../../../config');
+    Config = ConfigModule;
 
     Config.settings.mockReturnValue({
       github: {
         users: ['org1', 'org2', 'org3']
-      }
+      },
+      githubToken: 'mock-github-token'
     });
   });
 
@@ -61,7 +65,7 @@ describe('Multiple GitHub User/Org Handling', () => {
     const result = await GitHubAPI.listRepositories(connection, {});
 
     expect(result.repositories).toHaveLength(2);
-    expect(result.repositories.map(r => r.full_name)).toEqual(['org1/repo1', 'org2/repo2']);
+    expect(result.repositories.map(r => r.fullName)).toEqual(['org1/repo1', 'org2/repo2']);
   });
 
   test('should maintain org priority order', async () => {
@@ -95,7 +99,7 @@ describe('Multiple GitHub User/Org Handling', () => {
 
     // Should only return from org1 (higher priority)
     expect(result.repositories).toHaveLength(1);
-    expect(result.repositories[0].full_name).toBe('org1/shared-repo');
+    expect(result.repositories[0].fullName).toBe('org1/shared-repo');
   });
 
   test('should filter to specific orgs when ghusers parameter provided', async () => {
@@ -120,7 +124,7 @@ describe('Multiple GitHub User/Org Handling', () => {
     const result = await GitHubAPI.listRepositories(connection, {});
 
     expect(result.repositories).toHaveLength(1);
-    expect(result.repositories[0].full_name).toBe('org1/repo1');
+    expect(result.repositories[0].fullName).toBe('org1/repo1');
   });
 
   test('should include org name in repository metadata', async () => {
@@ -144,7 +148,7 @@ describe('Multiple GitHub User/Org Handling', () => {
 
     const result = await GitHubAPI.listRepositories(connection, {});
 
-    expect(result.repositories[0]).toHaveProperty('owner');
-    expect(result.repositories[0].owner.login).toBe('org1');
+    expect(result.repositories[0]).toHaveProperty('userOrg');
+    expect(result.repositories[0].userOrg).toBe('org1');
   });
 });

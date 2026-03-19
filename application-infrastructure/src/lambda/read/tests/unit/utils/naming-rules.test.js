@@ -10,7 +10,7 @@ const {
   validateNaming,
   detectResourceType,
   AWS_NAMING_RULES
-} = require('../../../lambda/read/utils/naming-rules');
+} = require('../../../utils/naming-rules');
 
 describe('Naming Rules Utility', () => {
   describe('AWS_NAMING_RULES', () => {

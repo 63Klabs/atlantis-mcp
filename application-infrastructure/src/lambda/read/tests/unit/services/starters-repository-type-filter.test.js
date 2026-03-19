@@ -21,6 +21,10 @@ jest.mock('@63klabs/cache-data', () => ({
       info: jest.fn(),
       warn: jest.fn(),
       error: jest.fn()
+    },
+    ApiRequest: {
+      success: jest.fn(({ body }) => ({ getBody: (parse) => parse ? body : JSON.stringify(body), statusCode: 200 })),
+      error: jest.fn(({ body, statusCode }) => ({ getBody: (parse) => parse ? body : JSON.stringify(body), statusCode: statusCode || 500 }))
     }
   }
 }));
@@ -98,8 +102,7 @@ describe('Starters Service - Repository Type Filtering', () => {
 
     // Mock CacheableDataAccess to call fetch function
     CacheableDataAccess.getData.mockImplementation(async (cacheProfile, fetchFunction, conn) => {
-      const result = await fetchFunction(conn, {});
-      return { body: result };
+      return await fetchFunction(conn, {});
     });
 
     // Call list
@@ -146,8 +149,7 @@ describe('Starters Service - Repository Type Filtering', () => {
 
     // Mock CacheableDataAccess to call fetch function
     CacheableDataAccess.getData.mockImplementation(async (cacheProfile, fetchFunction, conn) => {
-      const result = await fetchFunction(conn, {});
-      return { body: result };
+      return await fetchFunction(conn, {});
     });
 
     // Call list
@@ -177,8 +179,7 @@ describe('Starters Service - Repository Type Filtering', () => {
 
     // Mock CacheableDataAccess to call fetch function
     CacheableDataAccess.getData.mockImplementation(async (cacheProfile, fetchFunction, conn) => {
-      const result = await fetchFunction(conn, {});
-      return { body: result };
+      return await fetchFunction(conn, {});
     });
 
     // Call list
@@ -205,8 +206,7 @@ describe('Starters Service - Repository Type Filtering', () => {
 
     // Mock CacheableDataAccess to call fetch function
     CacheableDataAccess.getData.mockImplementation(async (cacheProfile, fetchFunction, conn) => {
-      const result = await fetchFunction(conn, {});
-      return { body: result };
+      return await fetchFunction(conn, {});
     });
 
     // Call list
@@ -255,8 +255,7 @@ describe('Starters Service - Repository Type Filtering', () => {
 
     // Mock CacheableDataAccess to call fetch function
     CacheableDataAccess.getData.mockImplementation(async (cacheProfile, fetchFunction, conn) => {
-      const result = await fetchFunction(conn, {});
-      return { body: result };
+      return await fetchFunction(conn, {});
     });
 
     // Call list
@@ -297,8 +296,7 @@ describe('Starters Service - Repository Type Filtering', () => {
     let capturedConnection;
     CacheableDataAccess.getData.mockImplementation(async (cacheProfile, fetchFunction, conn) => {
       capturedConnection = conn;
-      const result = await fetchFunction(conn, {});
-      return { body: result };
+      return await fetchFunction(conn, {});
     });
 
     // Call list

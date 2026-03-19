@@ -8,7 +8,7 @@
  * validate against acceptable thresholds.
  */
 
-const { handler } = require('../../lambda/read/index');
+const { handler } = require('../../index');
 
 // Performance thresholds (in milliseconds)
 const THRESHOLDS = {

@@ -55,7 +55,7 @@ describe('Starters Controller', () => {
     test('should list starters successfully with valid input', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             ghusers: ['63klabs', 'myorg']
           }
@@ -91,7 +91,7 @@ describe('Starters Controller', () => {
       const result = await StartersController.list(props);
 
       // Assert
-      expect(SchemaValidator.validate).toHaveBeenCalledWith('list_starters', props.body.input);
+      expect(SchemaValidator.validate).toHaveBeenCalledWith('list_starters', props.bodyParameters.input);
       expect(Services.Starters.list).toHaveBeenCalledWith({
         ghusers: ['63klabs', 'myorg']
       });
@@ -101,7 +101,7 @@ describe('Starters Controller', () => {
 
     test('should handle empty input', async () => {
       // Arrange
-      const props = { body: { input: {} } };
+      const props = { bodyParameters: { input: {} } };
       SchemaValidator.validate.mockReturnValue({ valid: true });
       Services.Starters.list.mockResolvedValue({ starters: [] });
 
@@ -132,7 +132,7 @@ describe('Starters Controller', () => {
     test('should return error for invalid input', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             ghusers: 'not-an-array' // Should be array
           }
@@ -164,7 +164,7 @@ describe('Starters Controller', () => {
 
     test('should handle service errors', async () => {
       // Arrange
-      const props = { body: { input: {} } };
+      const props = { bodyParameters: { input: {} } };
       SchemaValidator.validate.mockReturnValue({ valid: true });
 
       const serviceError = new Error('GitHub API connection failed');
@@ -188,7 +188,7 @@ describe('Starters Controller', () => {
 
     test('should handle partial data with errors', async () => {
       // Arrange
-      const props = { body: { input: { ghusers: ['63klabs', 'failedorg'] } } };
+      const props = { bodyParameters: { input: { ghusers: ['63klabs', 'failedorg'] } } };
       SchemaValidator.validate.mockReturnValue({ valid: true });
 
       Services.Starters.list.mockResolvedValue({
@@ -216,7 +216,7 @@ describe('Starters Controller', () => {
 
     test('should log request and response details', async () => {
       // Arrange
-      const props = { body: { input: { ghusers: ['63klabs'] } } };
+      const props = { bodyParameters: { input: { ghusers: ['63klabs'] } } };
       SchemaValidator.validate.mockReturnValue({ valid: true });
       Services.Starters.list.mockResolvedValue({
         starters: [{ name: 'starter1' }],
@@ -242,7 +242,7 @@ describe('Starters Controller', () => {
     test('should get starter successfully with valid input', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             starterName: 'atlantis-starter-02',
             ghusers: ['63klabs']
@@ -275,7 +275,7 @@ describe('Starters Controller', () => {
       const result = await StartersController.get(props);
 
       // Assert
-      expect(SchemaValidator.validate).toHaveBeenCalledWith('get_starter_info', props.body.input);
+      expect(SchemaValidator.validate).toHaveBeenCalledWith('get_starter_info', props.bodyParameters.input);
       expect(Services.Starters.get).toHaveBeenCalledWith({
         starterName: 'atlantis-starter-02',
         ghusers: ['63klabs']
@@ -287,7 +287,7 @@ describe('Starters Controller', () => {
     test('should return error for invalid input', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             // Missing required starterName
             ghusers: ['63klabs']
@@ -318,7 +318,7 @@ describe('Starters Controller', () => {
     test('should handle STARTER_NOT_FOUND error with available starters', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             starterName: 'non-existent-starter',
             ghusers: ['63klabs']
@@ -353,7 +353,7 @@ describe('Starters Controller', () => {
     test('should handle STARTER_NOT_FOUND error without available starters', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             starterName: 'non-existent-starter',
             ghusers: ['63klabs']
@@ -384,7 +384,7 @@ describe('Starters Controller', () => {
     test('should handle generic service errors', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             starterName: 'atlantis-starter-02',
             ghusers: ['63klabs']
@@ -416,7 +416,7 @@ describe('Starters Controller', () => {
     test('should handle missing ghusers parameter', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             starterName: 'atlantis-starter-02'
             // ghusers is optional
@@ -440,7 +440,7 @@ describe('Starters Controller', () => {
     test('should log request and response details', async () => {
       // Arrange
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             starterName: 'atlantis-starter-02',
             ghusers: ['63klabs']

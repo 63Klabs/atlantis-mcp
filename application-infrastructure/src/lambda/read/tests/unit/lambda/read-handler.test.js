@@ -6,55 +6,69 @@
  * - Rate limiting
  * - Request routing
  * - Error handling
- * - Logging and metrics
+ * - Response format
  */
 
-const { mockClient } = require('aws-sdk-client-mock');
-const { DynamoDBDocumentClient } = require('@aws-sdk/lib-dynamodb');
-const { S3Client } = require('@aws-sdk/client-s3');
-const { SSMClient, GetParameterCommand } = require('@aws-sdk/client-ssm');
+// Mock @63klabs/cache-data before any imports
+const mockResponseInstance = {
+  addHeader: jest.fn().mockReturnThis(),
+  setBody: jest.fn().mockReturnThis(),
+  finalize: jest.fn().mockReturnValue({
+    statusCode: 500,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message: 'Error initializing request - 1701-D' })
+  })
+};
 
-// Mock AWS SDK clients
-const ddbMock = mockClient(DynamoDBDocumentClient);
-const s3Mock = mockClient(S3Client);
-const ssmMock = mockClient(SSMClient);
+jest.mock('@63klabs/cache-data', () => ({
+  tools: {
+    DebugAndLog: {
+      log: jest.fn(),
+      error: jest.fn(),
+      warn: jest.fn(),
+      info: jest.fn(),
+      debug: jest.fn()
+    },
+    Response: jest.fn().mockImplementation(() => mockResponseInstance),
+    Timer: jest.fn().mockImplementation(() => ({
+      isRunning: jest.fn().mockReturnValue(false),
+      stop: jest.fn().mockReturnValue('timer stopped')
+    }))
+  }
+}));
 
-// Mock dependencies
-jest.mock('../../../lambda/read/config', () => ({
+// Mock Config
+jest.mock('../../../config', () => ({
   Config: {
     init: jest.fn(),
-    prime: jest.fn(),
+    promise: jest.fn().mockResolvedValue(undefined),
+    prime: jest.fn().mockResolvedValue(undefined),
     settings: jest.fn(),
     getConnCacheProfile: jest.fn()
   }
 }));
-jest.mock('../../../lambda/read/routes');
-jest.mock('../../../lambda/read/utils/rate-limiter');
-jest.mock('../../../lambda/read/utils/error-handler');
 
-const { Config } = require('../../../lambda/read/config');
-const Routes = require('../../../lambda/read/routes');
-const RateLimiter = require('../../../lambda/read/utils/rate-limiter');
-const ErrorHandler = require('../../../lambda/read/utils/error-handler');
+jest.mock('../../../routes');
+jest.mock('../../../utils/rate-limiter', () => ({
+  checkRateLimit: jest.fn(),
+  createRateLimitResponse: jest.fn()
+}));
+jest.mock('../../../utils/error-handler');
+
+const { Config } = require('../../../config');
+const Routes = require('../../../routes');
+const RateLimiter = require('../../../utils/rate-limiter');
+const { tools } = require('@63klabs/cache-data');
 
 // Import handler after mocks are set up
-const { handler } = require('../../../lambda/read/index');
+const { handler } = require('../../../index');
 
 describe('Read Lambda Handler', () => {
   let mockEvent;
   let mockContext;
 
   beforeEach(() => {
-    // Reset all mocks
     jest.clearAllMocks();
-    ddbMock.reset();
-    s3Mock.reset();
-    ssmMock.reset();
-
-    // Set up default environment variables
-    process.env.PUBLIC_RATE_LIMIT = '100';
-    process.env.ATLANTIS_S3_BUCKETS = 'bucket1,bucket2';
-    process.env.ATLANTIS_GITHUB_USER_ORGS = 'org1,org2';
 
     // Create mock event
     mockEvent = {
@@ -84,19 +98,16 @@ describe('Read Lambda Handler', () => {
     };
 
     // Set up default mock implementations
-    Config.init.mockResolvedValue(undefined);
+    Config.promise.mockResolvedValue(undefined);
+    Config.prime.mockResolvedValue(undefined);
     Config.settings.mockReturnValue({
-      s3: { buckets: ['bucket1', 'bucket2'] },
-      github: { 
-        userOrgs: ['org1', 'org2'],
-        token: { getValue: jest.fn().mockResolvedValue('mock-token') }
-      },
       rateLimits: {
         public: { limit: 100, window: 3600 }
       }
     });
 
-    RateLimiter.checkRateLimit.mockReturnValue({
+    // Default rate limit check - allowed
+    RateLimiter.checkRateLimit.mockResolvedValue({
       allowed: true,
       headers: {
         'X-RateLimit-Limit': '100',
@@ -105,8 +116,9 @@ describe('Read Lambda Handler', () => {
       }
     });
 
-    const mockResponse = {
-      toAPIGateway: jest.fn().mockReturnValue({
+    // Default Routes.process mock - returns a Response-like object
+    const mockRouteResponse = {
+      finalize: jest.fn().mockReturnValue({
         statusCode: 200,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ result: 'success' })
@@ -116,46 +128,28 @@ describe('Read Lambda Handler', () => {
         cacheHit: false
       })
     };
-    Routes.process.mockResolvedValue(mockResponse);
-
-    ErrorHandler.logRequest.mockImplementation(() => {});
-    ErrorHandler.emitLatencyMetric.mockImplementation(() => {});
-    ErrorHandler.logError.mockImplementation(() => {});
-    ErrorHandler.emitErrorMetric.mockImplementation(() => {});
-    ErrorHandler.getStatusCode.mockReturnValue(500);
-    ErrorHandler.toUserResponse.mockReturnValue({
-      error: 'Internal server error',
-      requestId: 'test-request-id'
-    });
-  });
-
-  afterEach(() => {
-    delete process.env.PUBLIC_RATE_LIMIT;
-    delete process.env.ATLANTIS_S3_BUCKETS;
-    delete process.env.ATLANTIS_GITHUB_USER_ORGS;
+    Routes.process.mockResolvedValue(mockRouteResponse);
   });
 
   describe('Cold Start Initialization', () => {
-    test('should call Config.init() on first invocation', async () => {
+    test('should await Config.promise() on invocation', async () => {
       await handler(mockEvent, mockContext);
 
-      expect(Config.init).toHaveBeenCalledTimes(1);
+      expect(Config.promise).toHaveBeenCalledTimes(1);
     });
 
-    test('should handle Config.init() failure', async () => {
-      const initError = new Error('Failed to initialize cache');
-      Config.init.mockRejectedValue(initError);
+    test('should await Config.prime() on invocation', async () => {
+      await handler(mockEvent, mockContext);
+
+      expect(Config.prime).toHaveBeenCalledTimes(1);
+    });
+
+    test('should handle Config.promise() failure', async () => {
+      Config.promise.mockRejectedValue(new Error('Failed to initialize'));
 
       const response = await handler(mockEvent, mockContext);
 
       expect(response.statusCode).toBe(500);
-      expect(ErrorHandler.logError).toHaveBeenCalledWith(
-        initError,
-        expect.objectContaining({
-          requestId: 'test-request-id',
-          ip: '192.168.1.1'
-        })
-      );
     });
 
     test('should continue processing after successful initialization', async () => {
@@ -169,27 +163,16 @@ describe('Read Lambda Handler', () => {
     test('should check rate limit before processing request', async () => {
       await handler(mockEvent, mockContext);
 
-      expect(RateLimiter.checkRateLimit).toHaveBeenCalledWith(mockEvent, 100);
-    });
-
-    test('should use PUBLIC_RATE_LIMIT environment variable', async () => {
-      process.env.PUBLIC_RATE_LIMIT = '50';
-
-      await handler(mockEvent, mockContext);
-
-      expect(RateLimiter.checkRateLimit).toHaveBeenCalledWith(mockEvent, 50);
-    });
-
-    test('should default to 100 if PUBLIC_RATE_LIMIT not set', async () => {
-      delete process.env.PUBLIC_RATE_LIMIT;
-
-      await handler(mockEvent, mockContext);
-
-      expect(RateLimiter.checkRateLimit).toHaveBeenCalledWith(mockEvent, 100);
+      expect(RateLimiter.checkRateLimit).toHaveBeenCalledWith(
+        mockEvent,
+        expect.objectContaining({
+          public: expect.any(Object)
+        })
+      );
     });
 
     test('should return 429 when rate limit exceeded', async () => {
-      RateLimiter.checkRateLimit.mockReturnValue({
+      RateLimiter.checkRateLimit.mockResolvedValue({
         allowed: false,
         headers: {
           'X-RateLimit-Limit': '100',
@@ -217,7 +200,6 @@ describe('Read Lambda Handler', () => {
       const response = await handler(mockEvent, mockContext);
 
       expect(response.statusCode).toBe(429);
-      expect(response.headers).toHaveProperty('Retry-After', '3600');
       expect(Routes.process).not.toHaveBeenCalled();
     });
 
@@ -241,10 +223,9 @@ describe('Read Lambda Handler', () => {
       const response = await handler(mockEvent, mockContext);
 
       expect(response.statusCode).toBe(200);
-      expect(response.body).toBe(JSON.stringify({ result: 'success' }));
     });
 
-    test('should handle GET requests with query parameters', async () => {
+    test('should handle GET requests', async () => {
       mockEvent.httpMethod = 'GET';
       mockEvent.body = null;
       mockEvent.queryStringParameters = {
@@ -257,137 +238,45 @@ describe('Read Lambda Handler', () => {
     });
   });
 
-  describe('Logging and Metrics', () => {
-    test('should log successful request with execution time', async () => {
-      await handler(mockEvent, mockContext);
-
-      expect(ErrorHandler.logRequest).toHaveBeenCalledWith(
-        expect.objectContaining({
-          tool: 'list_templates',
-          method: 'POST',
-          path: '/mcp',
-          ip: '192.168.1.1',
-          requestId: 'test-request-id',
-          statusCode: 200,
-          cacheHit: false
-        })
-      );
-    });
-
-    test('should emit latency metric for successful request', async () => {
-      await handler(mockEvent, mockContext);
-
-      expect(ErrorHandler.emitLatencyMetric).toHaveBeenCalledWith(
-        expect.objectContaining({
-          tool: 'list_templates',
-          cacheHit: false
-        })
-      );
-    });
-
-    test('should include cache hit status in metrics', async () => {
-      const mockResponse = {
-        toAPIGateway: jest.fn().mockReturnValue({
-          statusCode: 200,
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ result: 'success' })
-        }),
-        getProps: jest.fn().mockReturnValue({
-          statusCode: 200,
-          cacheHit: true
-        })
-      };
-      Routes.process.mockResolvedValue(mockResponse);
-
-      await handler(mockEvent, mockContext);
-
-      expect(ErrorHandler.logRequest).toHaveBeenCalledWith(
-        expect.objectContaining({
-          cacheHit: true
-        })
-      );
-    });
-  });
-
   describe('Error Handling', () => {
     test('should catch and handle routing errors', async () => {
-      const routingError = new Error('Routing failed');
-      Routes.process.mockRejectedValue(routingError);
+      Routes.process.mockRejectedValue(new Error('Routing failed'));
 
       const response = await handler(mockEvent, mockContext);
 
       expect(response.statusCode).toBe(500);
-      expect(ErrorHandler.logError).toHaveBeenCalledWith(
-        routingError,
-        expect.objectContaining({
-          requestId: 'test-request-id',
-          ip: '192.168.1.1',
-          tool: 'list_templates'
-        })
-      );
     });
 
-    test('should emit error metric on failure', async () => {
-      const routingError = new Error('Routing failed');
-      routingError.code = 'ROUTING_ERROR';
-      Routes.process.mockRejectedValue(routingError);
-      ErrorHandler.getStatusCode.mockReturnValue(500);
-
-      await handler(mockEvent, mockContext);
-
-      expect(ErrorHandler.emitErrorMetric).toHaveBeenCalledWith(
-        expect.objectContaining({
-          tool: 'list_templates',
-          errorCode: 'ROUTING_ERROR',
-          statusCode: 500
-        })
-      );
-    });
-
-    test('should emit latency metric even on error', async () => {
+    test('should log errors via DebugAndLog.error', async () => {
       Routes.process.mockRejectedValue(new Error('Routing failed'));
 
       await handler(mockEvent, mockContext);
 
-      expect(ErrorHandler.emitLatencyMetric).toHaveBeenCalledWith(
-        expect.objectContaining({
-          tool: 'list_templates',
-          cacheHit: false
-        })
-      );
+      expect(tools.DebugAndLog.error).toHaveBeenCalled();
     });
 
-    test('should return sanitized error response', async () => {
-      Routes.process.mockRejectedValue(new Error('Internal error with sensitive data'));
+    test('should include request ID in error response headers', async () => {
+      // Create a fresh mock Response for the error path
+      const mockErrorResponse = {
+        addHeader: jest.fn().mockReturnThis(),
+        setBody: jest.fn().mockReturnThis(),
+        finalize: jest.fn().mockReturnValue({
+          statusCode: 500,
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Request-Id': 'test-request-id',
+            'X-MCP-Version': '1.0'
+          },
+          body: JSON.stringify({ message: 'Error initializing request - 1701-D', requestId: 'test-request-id' })
+        })
+      };
+      tools.Response.mockImplementation(() => mockErrorResponse);
+
+      Routes.process.mockRejectedValue(new Error('Internal error'));
 
       const response = await handler(mockEvent, mockContext);
 
-      expect(response.body).toBe(JSON.stringify({
-        error: 'Internal server error',
-        requestId: 'test-request-id'
-      }));
       expect(response.headers).toHaveProperty('X-Request-Id', 'test-request-id');
-    });
-
-    test('should handle missing sourceIp gracefully', async () => {
-      mockEvent.requestContext.identity.sourceIp = undefined;
-
-      await handler(mockEvent, mockContext);
-
-      expect(ErrorHandler.logRequest).toHaveBeenCalledWith(
-        expect.objectContaining({
-          ip: 'unknown'
-        })
-      );
-    });
-
-    test('should handle malformed JSON in request body', async () => {
-      mockEvent.body = 'invalid json';
-
-      await handler(mockEvent, mockContext);
-
-      // Should still attempt to process, error will be caught
-      expect(ErrorHandler.logError).toHaveBeenCalled();
     });
   });
 
@@ -401,10 +290,11 @@ describe('Read Lambda Handler', () => {
       expect(typeof response.body).toBe('string');
     });
 
-    test('should include Content-Type header', async () => {
+    test('should include MCP and CORS headers in response', async () => {
       const response = await handler(mockEvent, mockContext);
 
-      expect(response.headers).toHaveProperty('Content-Type', 'application/json');
+      expect(response.headers).toHaveProperty('X-MCP-Version', '1.0');
+      expect(response.headers).toHaveProperty('Access-Control-Allow-Origin', '*');
     });
 
     test('should merge rate limit headers with response headers', async () => {

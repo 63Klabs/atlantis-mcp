@@ -18,6 +18,10 @@ jest.mock('@63klabs/cache-data', () => ({
       info: jest.fn(),
       warn: jest.fn(),
       error: jest.fn()
+    },
+    ApiRequest: {
+      success: jest.fn(({ body }) => ({ getBody: (parse) => parse ? body : JSON.stringify(body), statusCode: 200 })),
+      error: jest.fn(({ body, statusCode }) => ({ getBody: (parse) => parse ? body : JSON.stringify(body), statusCode: statusCode || 500 }))
     }
   }
 }));
@@ -118,8 +122,7 @@ describe('Starters Service - Cache-Data Integration Detection', () => {
 
     // Mock CacheableDataAccess.getData to call fetch function
     CacheableDataAccess.getData.mockImplementation(async (cacheProfile, fetchFunction, conn, opts) => {
-      const result = await fetchFunction(conn, opts);
-      return { body: result };
+      return await fetchFunction(conn, opts);
     });
 
     // Call the service
@@ -174,8 +177,7 @@ describe('Starters Service - Cache-Data Integration Detection', () => {
     });
 
     CacheableDataAccess.getData.mockImplementation(async (cacheProfile, fetchFunction, conn, opts) => {
-      const result = await fetchFunction(conn, opts);
-      return { body: result };
+      return await fetchFunction(conn, opts);
     });
 
     const result = await Starters.list({});
@@ -221,8 +223,7 @@ describe('Starters Service - Cache-Data Integration Detection', () => {
     });
 
     CacheableDataAccess.getData.mockImplementation(async (cacheProfile, fetchFunction, conn, opts) => {
-      const result = await fetchFunction(conn, opts);
-      return { body: result };
+      return await fetchFunction(conn, opts);
     });
 
     const result = await Starters.list({});
@@ -275,8 +276,7 @@ describe('Starters Service - Cache-Data Integration Detection', () => {
     });
 
     CacheableDataAccess.getData.mockImplementation(async (cacheProfile, fetchFunction, conn, opts) => {
-      const result = await fetchFunction(conn, opts);
-      return { body: result };
+      return await fetchFunction(conn, opts);
     });
 
     const result = await Starters.list({});

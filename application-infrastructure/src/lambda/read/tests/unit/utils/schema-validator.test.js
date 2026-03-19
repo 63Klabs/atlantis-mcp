@@ -8,7 +8,7 @@ const {
   validate,
   getSchema,
   getToolNames
-} = require('../../../lambda/read/utils/schema-validator');
+} = require('../../../utils/schema-validator');
 
 describe('JSON Schema Validator', () => {
   describe('getToolNames()', () => {
@@ -92,7 +92,7 @@ describe('JSON Schema Validator', () => {
 
   describe('validate() - list_templates', () => {
     test('should accept valid input with category', () => {
-      const result = validate('list_templates', { category: 'Storage' });
+      const result = validate('list_templates', { category: 'storage' });
 
       expect(result.valid).toBe(true);
       expect(result.errors).toEqual([]);
@@ -160,7 +160,7 @@ describe('JSON Schema Validator', () => {
     test('should accept optional category field', () => {
       const result = validate('get_template', {
         templateName: 'template.yml',
-        category: 'Storage'
+        category: 'storage'
       });
 
       expect(result.valid).toBe(true);
@@ -351,7 +351,7 @@ describe('JSON Schema Validator', () => {
       const result = validate('check_template_updates', {
         templateName: 'template.yml',
         currentVersion: 'v1.0.0',
-        category: 'Storage'
+        category: 'storage'
       });
 
       expect(result.valid).toBe(true);
@@ -440,7 +440,7 @@ describe('JSON Schema Validator', () => {
 
   describe('Enum Validation', () => {
     test('should validate enum values for category', () => {
-      const validCategories = ['Storage', 'Network', 'Pipeline', 'Service Role', 'Modules'];
+      const validCategories = ['storage', 'network', 'pipeline', 'service-role', 'modules'];
 
       validCategories.forEach(category => {
         const result = validate('list_templates', { category });

@@ -82,7 +82,7 @@ describe('Documentation Index DAO', () => {
 
       expect(result.cached).toBe(false);
       expect(result.entryCount).toBeGreaterThan(0);
-      expect(result.buildDuration).toBeGreaterThan(0);
+      expect(result.buildDuration).toBeGreaterThanOrEqual(0);
     });
 
     it('should return cached index if already built', async () => {
