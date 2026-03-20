@@ -387,8 +387,8 @@ async function checkRateLimit(event, limits) {
 
   // Extract client identifier
   const rawId = isPublic
-    ? (event.requestContext?.identity?.sourceIp ||
-       event.headers?.['X-Forwarded-For']?.split(',')[0]?.trim() ||
+    ? (event.headers?.['X-Forwarded-For']?.split(',')[0]?.trim() ||
+       event.requestContext?.identity?.sourceIp ||
        'unknown')
     : 'auth-user'; // TODO: extract userId for authenticated tiers
 
