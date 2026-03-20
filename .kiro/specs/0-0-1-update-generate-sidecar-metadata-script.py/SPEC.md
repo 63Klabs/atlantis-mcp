@@ -21,13 +21,13 @@ Another Example with multiple Lambdas and a Static Site:
 |---|---|---|---|
 | **Languages** | Python, Shell | Node.js, Python, JavaScript |
 | **Frameworks** | Atlantis | Atlantis, @63klabs/cache-data, Jest, React.js, Hypothosis |
-| **Features** | CDK | SQS, Step Function, Static Site, Multiple Lambdas |
+| **Features** | CDK | SQS, Step Function, Static Site Generation, Multiple Lambdas |
 
 | | Build/Deploy | Application Stack |
 |---|---|---|---|
 | **Languages** | Python, Shell | Node.js, Python, JavaScript |
 | **Frameworks** | Atlantis | Atlantis, @63klabs/cache-data, Jest |
-| **Features** | - | S3, DynamoDB, Cognito |
+| **Features** | CodeBuild, GitHub Actions | S3, DynamoDB, Cognito |
 
 Also, all Atlantis starter applications follow the basic structure:
 
@@ -50,11 +50,17 @@ Let's update the output JSON to incorporate the build-deploy, application-stack,
   "languages": {"buildDeploy": [], "applicationStack": [], "postDeploy": []},
   "frameworks": {"buildDeploy": [], "applicationStack": [], "postDeploy": []},
   "topics": [],
-  "features": {"buildDeploy": ["GitHubActions"], "applicationStack": [], "postDeploy": []},
+  "features": {"buildDeploy": [], "applicationStack": [], "postDeploy": []},
 }
 ```
 
+The version information should come from the GitHub repository's Releases (lastest release). Use the full version tag followed by the date of release in YYYY-MM-DD format. For example `vX.X.X (YYYY-MM-DD)`
+
 Also, let's update the output json so all properties are in camelCase with no underscores. 
+
+- `deployment_platform` -> `deploymentPlatform`
+- `repository_type` -> `repositoryType`
+- `last_updated` -> `lastUpdated`
 
 Be sure to update both the generate-sidecar-metadata.py script and any starter tool that may rely on the properties.
 

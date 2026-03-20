@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+
+# 63Klabs, chadkluck
+# 2026-03-20
+
 """Generate Sidecar Metadata for Atlantis App Starters.
 
 This script generates sidecar metadata JSON files for app starter repositories.
@@ -20,6 +24,7 @@ Example:
 """
 
 import argparse
+import glob
 import json
 import os
 import re
@@ -30,51 +35,119 @@ from typing import Dict, List, Optional
 
 
 def extract_from_package_json(repo_path: Path) -> Dict:
-    """Extract metadata from package.json (Node.js projects).
+    """Extract metadata from package.json files at multiple paths.
 
-    Reads package.json to extract name, description, version, author, license,
-    dependencies, and devDependencies. Also detects if @63klabs/cache-data is
-    present in dependencies.
+    Scans for package.json at the repository root, at
+    ``application-infrastructure/src/``, and at
+    ``application-infrastructure/src/*/*/`` (up to 3 levels deep from
+    ``src/``). Metadata fields (name, description, version, author,
+    license) are taken from the first (root) package.json found.
+    Dependencies and devDependencies are merged from all discovered
+    files, deduplicated. A warning is logged and the file is skipped
+    on parse error.
 
     Args:
         repo_path (Path): Path to the repository root directory.
 
     Returns:
-        dict: Extracted metadata including name, description, version, author,
-            license, languages, dependencies, devDependencies, and hasCacheData.
-            Returns empty dict if package.json does not exist or cannot be parsed.
+        dict: Extracted metadata including name, description, version,
+            author, license, languages, dependencies, devDependencies,
+            and hasCacheData. Returns empty dict if no package.json
+            files are found.
 
     Example:
         >>> metadata = extract_from_package_json(Path('./my-project'))
-        >>> print(metadata.get('languages'))
-        ['Node.js']
+        >>> print(metadata.get('dependencies'))
+        ['express', '@63klabs/cache-data']
     """
-    package_json_path = repo_path / "package.json"
+    # >! Build list of candidate paths in priority order
+    candidate_paths: List[Path] = []
 
-    if not package_json_path.exists():
+    # 1. Repository root
+    root_pkg = repo_path / "package.json"
+    if root_pkg.exists():
+        candidate_paths.append(root_pkg)
+
+    # 2. application-infrastructure/src/
+    src_pkg = repo_path / "application-infrastructure" / "src" / "package.json"
+    if src_pkg.exists():
+        candidate_paths.append(src_pkg)
+
+    # 3. application-infrastructure/src/*/*/package.json (up to 3 levels)
+    glob_pattern = str(
+        repo_path / "application-infrastructure" / "src" / "*" / "*" / "package.json"
+    )
+    for match in sorted(glob.glob(glob_pattern)):
+        match_path = Path(match)
+        if match_path not in candidate_paths:
+            candidate_paths.append(match_path)
+
+    if not candidate_paths:
         return {}
 
-    try:
-        with open(package_json_path, 'r') as f:
-            package_data = json.load(f)
+    # Collect metadata from root package.json and merge deps from all
+    name = ''
+    description = ''
+    version = ''
+    author = ''
+    license_val = ''
+    all_deps: List[str] = []
+    all_dev_deps: List[str] = []
+    has_cache_data = False
+    root_metadata_set = False
+
+    for pkg_path in candidate_paths:
+        try:
+            with open(pkg_path, 'r') as f:
+                package_data = json.load(f)
+        except Exception as e:
+            print(f"Warning: Could not parse {pkg_path}: {e}")
+            continue
+
+        # Use root-level metadata from the first successfully parsed file
+        if not root_metadata_set:
+            name = package_data.get('name', '')
+            description = package_data.get('description', '')
+            version = package_data.get('version', '')
+            author = package_data.get('author', '')
+            license_val = package_data.get('license', '')
+            root_metadata_set = True
 
         deps = package_data.get('dependencies', {})
         dev_deps = package_data.get('devDependencies', {})
 
-        return {
-            'name': package_data.get('name', ''),
-            'description': package_data.get('description', ''),
-            'version': package_data.get('version', ''),
-            'author': package_data.get('author', ''),
-            'license': package_data.get('license', ''),
-            'languages': ['Node.js'],
-            'dependencies': list(deps.keys()),
-            'devDependencies': list(dev_deps.keys()),
-            'hasCacheData': '@63klabs/cache-data' in deps,
-        }
-    except Exception as e:
-        print(f"Warning: Could not parse package.json: {e}")
-        return {}
+        all_deps.extend(deps.keys())
+        all_dev_deps.extend(dev_deps.keys())
+
+        if '@63klabs/cache-data' in deps:
+            has_cache_data = True
+
+    # Deduplicate while preserving order
+    seen_deps: set = set()
+    unique_deps: List[str] = []
+    for dep in all_deps:
+        if dep not in seen_deps:
+            seen_deps.add(dep)
+            unique_deps.append(dep)
+
+    seen_dev_deps: set = set()
+    unique_dev_deps: List[str] = []
+    for dep in all_dev_deps:
+        if dep not in seen_dev_deps:
+            seen_dev_deps.add(dep)
+            unique_dev_deps.append(dep)
+
+    return {
+        'name': name,
+        'description': description,
+        'version': version,
+        'author': author,
+        'license': license_val,
+        'languages': ['Node.js'],
+        'dependencies': unique_deps,
+        'devDependencies': unique_dev_deps,
+        'hasCacheData': has_cache_data,
+    }
 
 
 def extract_from_requirements_txt(repo_path: Path) -> Dict:
@@ -155,6 +228,213 @@ def extract_from_readme(repo_path: Path) -> Dict:
                 print(f"Warning: Could not parse README: {e}")
 
     return {}
+
+
+def parse_readme_table(repo_path: Path) -> Dict:
+    """Parse the first markdown table in README.md into categorized structures.
+
+    Reads the README.md file, locates the first markdown table, identifies
+    columns (Build/Deploy, Application Stack, optional Post-Deploy), and
+    extracts rows (Languages, Frameworks, Features) using case-insensitive
+    bold matching (e.g. ``**Languages**``). Comma-separated cell values are
+    split and trimmed. A cell containing only ``-`` is treated as empty.
+
+    Args:
+        repo_path (Path): Path to the repository root directory.
+
+    Returns:
+        dict: Dictionary with the following structure::
+
+            {
+                'languages': {'buildDeploy': [], 'applicationStack': [], 'postDeploy': []},
+                'frameworks': {'buildDeploy': [], 'applicationStack': [], 'postDeploy': []},
+                'features': {'buildDeploy': [], 'applicationStack': [], 'postDeploy': []},
+                'hasTable': bool,
+                'hasFeaturesRow': bool,
+            }
+
+        Returns empty categorized structures with ``hasTable`` and
+        ``hasFeaturesRow`` set to ``False`` if no table is found.
+
+    Example:
+        >>> result = parse_readme_table(Path('./my-project'))
+        >>> print(result['languages']['applicationStack'])
+        ['Node.js']
+    """
+    empty_category: Dict = {
+        'buildDeploy': [],
+        'applicationStack': [],
+        'postDeploy': [],
+    }
+    default_result: Dict = {
+        'languages': dict(empty_category),
+        'frameworks': dict(empty_category),
+        'features': dict(empty_category),
+        'hasTable': False,
+        'hasFeaturesRow': False,
+    }
+
+    readme_paths = [
+        repo_path / "README.md",
+        repo_path / "readme.md",
+        repo_path / "README.MD",
+    ]
+
+    content: Optional[str] = None
+    for readme_path in readme_paths:
+        if readme_path.exists():
+            try:
+                with open(readme_path, 'r') as f:
+                    content = f.read()
+            except Exception as e:
+                print(f"Warning: Could not read README for table parsing: {e}")
+            break
+
+    if content is None:
+        return default_result
+
+    lines = content.split('\n')
+
+    # Find the first markdown table (a line starting with |)
+    table_lines: List[str] = []
+    in_table = False
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith('|'):
+            in_table = True
+            table_lines.append(stripped)
+        elif in_table:
+            # End of table block
+            break
+
+    if len(table_lines) < 3:
+        # Need at least header row, separator row, and one data row
+        return default_result
+
+    # Parse header row to identify column positions
+    header_row = table_lines[0]
+    header_cells = [cell.strip() for cell in header_row.split('|')]
+    # Remove empty strings from leading/trailing pipes
+    header_cells = [cell for cell in header_cells if cell or cell == '']
+    # Strip empty strings caused by leading/trailing pipes
+    if header_cells and header_cells[0] == '':
+        header_cells = header_cells[1:]
+    if header_cells and header_cells[-1] == '':
+        header_cells = header_cells[:-1]
+
+    # Map column names to indices (case-insensitive)
+    col_map: Dict[str, int] = {}
+    for idx, cell in enumerate(header_cells):
+        cell_lower = cell.strip().lower()
+        if 'build' in cell_lower and 'deploy' in cell_lower:
+            col_map['buildDeploy'] = idx
+        elif 'application' in cell_lower and 'stack' in cell_lower:
+            col_map['applicationStack'] = idx
+        elif 'post' in cell_lower and 'deploy' in cell_lower:
+            col_map['postDeploy'] = idx
+
+    if 'buildDeploy' not in col_map and 'applicationStack' not in col_map:
+        # No recognized columns found
+        return default_result
+
+    # Skip separator row (index 1), parse data rows (index 2+)
+    result: Dict = {
+        'languages': {'buildDeploy': [], 'applicationStack': [], 'postDeploy': []},
+        'frameworks': {'buildDeploy': [], 'applicationStack': [], 'postDeploy': []},
+        'features': {'buildDeploy': [], 'applicationStack': [], 'postDeploy': []},
+        'hasTable': True,
+        'hasFeaturesRow': False,
+    }
+
+    row_key_map = {
+        'languages': 'languages',
+        'frameworks': 'frameworks',
+        'features': 'features',
+    }
+
+    for table_line in table_lines[2:]:
+        cells = [cell.strip() for cell in table_line.split('|')]
+        # Remove empty strings from leading/trailing pipes
+        if cells and cells[0] == '':
+            cells = cells[1:]
+        if cells and cells[-1] == '':
+            cells = cells[:-1]
+
+        if not cells:
+            continue
+
+        # First column is the row label — strip bold markers and whitespace
+        label_raw = cells[0].strip()
+        # Remove bold markers: **text** or __text__
+        label_clean = re.sub(r'\*\*|__', '', label_raw).strip().lower()
+
+        # Determine which row key this matches
+        matched_key: Optional[str] = None
+        for key in row_key_map:
+            if key == label_clean:
+                matched_key = row_key_map[key]
+                break
+
+        if matched_key is None:
+            continue
+
+        if matched_key == 'features':
+            result['hasFeaturesRow'] = True
+
+        # Extract values for each recognized column
+        for col_name, col_idx in col_map.items():
+            if col_idx < len(cells):
+                cell_value = cells[col_idx].strip()
+                if cell_value == '-' or cell_value == '':
+                    result[matched_key][col_name] = []
+                else:
+                    values = [v.strip() for v in cell_value.split(',')]
+                    result[matched_key][col_name] = [v for v in values if v]
+
+    return result
+
+
+def extract_display_name(repo_path: Path) -> str:
+    """Extract the display name from the first H1 heading in README.md.
+
+    Reads the README.md file and finds the first line starting with a
+    single ``#`` (H1 heading). Returns the heading text with the ``# ``
+    prefix removed and whitespace trimmed.
+
+    Args:
+        repo_path (Path): Path to the repository root directory.
+
+    Returns:
+        str: The heading text stripped of the ``# `` prefix and trimmed.
+            Returns an empty string if no H1 heading is found or if
+            README.md does not exist.
+
+    Example:
+        >>> display_name = extract_display_name(Path('./my-project'))
+        >>> print(display_name)
+        'Basic API Gateway with Lambda Function Written in Node.js'
+    """
+    readme_paths = [
+        repo_path / "README.md",
+        repo_path / "readme.md",
+        repo_path / "README.MD",
+    ]
+
+    for readme_path in readme_paths:
+        if readme_path.exists():
+            try:
+                with open(readme_path, 'r') as f:
+                    for line in f:
+                        stripped = line.strip()
+                        # Match lines starting with exactly one # followed
+                        # by a space (H1 heading), but not ## or deeper.
+                        if stripped.startswith('# ') and not stripped.startswith('## '):
+                            return stripped[2:].strip()
+            except Exception as e:
+                print(f"Warning: Could not read README for display name: {e}")
+            break
+
+    return ''
 
 
 def parse_readme_sections(repo_path: Path) -> Dict:
@@ -364,6 +644,65 @@ def extract_prerequisites(repo_path: Path, languages: List[str]) -> List[str]:
     return prerequisites
 
 
+def fetch_github_release_version(
+    repo_full_name: str, github_token: Optional[str] = None
+) -> str:
+    """Fetch the latest release version from the GitHub Releases API.
+
+    Calls ``GET /repos/{owner}/{repo}/releases/latest`` and returns a
+    formatted version string combining the tag name and published date.
+    The ``requests`` library is imported lazily so the script can run
+    without it when only ``--repo-path`` is used.
+
+    Args:
+        repo_full_name (str): GitHub repository in ``owner/repo`` format.
+        github_token (str, optional): GitHub personal access token.
+
+    Returns:
+        str: Version string in the format ``"{tag_name} (YYYY-MM-DD)"``
+            e.g. ``"v1.2.3 (2024-06-15)"``. Returns empty string if no
+            releases exist (404) or on API error.
+
+    Example:
+        >>> version = fetch_github_release_version('63Klabs/my-starter')
+        >>> print(version)
+        'v1.2.3 (2024-06-15)'
+    """
+    try:
+        import requests  # noqa: F811
+    except ImportError:
+        print(
+            "Warning: requests library not installed. "
+            "Skipping GitHub release version fetch."
+        )
+        return ''
+
+    headers = {'Accept': 'application/vnd.github+json'}
+    if github_token:
+        headers['Authorization'] = f'token {github_token}'
+
+    try:
+        url = (
+            f'https://api.github.com/repos/{repo_full_name}/releases/latest'
+        )
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        release_data = response.json()
+
+        tag_name = release_data.get('tag_name', '')
+        published_at = release_data.get('published_at', '')
+
+        if tag_name and published_at:
+            # Extract YYYY-MM-DD from the ISO 8601 published_at field
+            published_date = published_at[:10]
+            return f'{tag_name} ({published_date})'
+
+        return ''
+    except Exception as e:
+        print(f"Warning: Could not fetch GitHub release version: {e}")
+        return ''
+
+
 def fetch_github_metadata(
     repo_full_name: str, github_token: Optional[str] = None
 ) -> Dict:
@@ -465,87 +804,178 @@ def generate_metadata(
     """Generate complete sidecar metadata matching the Atlantis sidecar format.
 
     Combines metadata from local repository analysis (package.json,
-    requirements.txt, README.md, file detection) and optional GitHub API
-    data into a single sidecar metadata dictionary.
+    requirements.txt, README.md, README table parsing, file detection)
+    and optional GitHub API data into a single sidecar metadata
+    dictionary. All output property names use camelCase. The
+    ``languages``, ``frameworks``, and ``features`` fields are
+    categorized structures with ``buildDeploy``, ``applicationStack``,
+    and ``postDeploy`` arrays. The ``topics`` field remains a flat
+    array.
 
     Args:
         repo_path (Path, optional): Path to local repository.
-        github_repo (str, optional): GitHub repository in ``owner/repo`` format.
+        github_repo (str, optional): GitHub repository in ``owner/repo``
+            format.
         github_token (str, optional): GitHub personal access token.
 
     Returns:
-        dict: Complete sidecar metadata dictionary with fields: name,
-            description, languages, frameworks, topics, features,
-            prerequisites, dependencies, devDependencies, hasCacheData,
-            deployment_platform, repository, author, license,
-            repository_type, version, and last_updated.
+        dict: Complete sidecar metadata dictionary with camelCase keys
+            including ``name``, ``displayName``, ``description``,
+            ``languages``, ``frameworks``, ``features`` (each as
+            categorized structures), ``topics``, ``prerequisites``,
+            ``dependencies``, ``devDependencies``, ``hasCacheData``,
+            ``deploymentPlatform``, ``repository``, ``author``,
+            ``license``, ``repositoryType``, ``version``, and
+            ``lastUpdated``.
 
     Example:
         >>> metadata = generate_metadata(repo_path=Path('./my-starter'))
-        >>> print(metadata['languages'])
+        >>> print(metadata['languages']['applicationStack'])
         ['Node.js']
     """
+    empty_category: Dict = {
+        'buildDeploy': [],
+        'applicationStack': [],
+        'postDeploy': [],
+    }
+
     metadata: Dict = {
         'name': '',
+        'displayName': '',
         'description': '',
-        'languages': [],
-        'frameworks': [],
+        'languages': dict(empty_category),
+        'frameworks': dict(empty_category),
+        'features': dict(empty_category),
         'topics': [],
-        'features': [],
         'prerequisites': [],
         'dependencies': [],
         'devDependencies': [],
         'hasCacheData': False,
-        'deployment_platform': 'atlantis',
+        'deploymentPlatform': 'atlantis',
         'repository': '',
         'author': '',
         'license': 'UNLICENSED',
-        'repository_type': 'app-starter',
-        'version': '1.0.0',
-        'last_updated': datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
+        'repositoryType': 'app-starter',
+        'version': '',
+        'lastUpdated': datetime.now(timezone.utc).isoformat().replace(
+            '+00:00', 'Z'
+        ),
     }
+
+    # Track package.json version for fallback
+    pkg_version = ''
 
     # Extract from local repository
     if repo_path:
-        # Try package.json first (Node.js)
+        # Extract displayName from README heading
+        metadata['displayName'] = extract_display_name(repo_path)
+
+        # Parse README table for categorized languages/frameworks/features
+        table_data = parse_readme_table(repo_path)
+
+        # Try package.json first (Node.js) — multi-path scanning
         package_metadata = extract_from_package_json(repo_path)
         if package_metadata:
-            metadata.update(package_metadata)
+            metadata['name'] = package_metadata.get('name', '')
+            metadata['description'] = package_metadata.get('description', '')
+            pkg_version = package_metadata.get('version', '')
+            metadata['author'] = package_metadata.get('author', '')
+            metadata['license'] = package_metadata.get('license', '') or 'UNLICENSED'
+            metadata['dependencies'] = package_metadata.get('dependencies', [])
+            metadata['devDependencies'] = package_metadata.get(
+                'devDependencies', []
+            )
+            metadata['hasCacheData'] = package_metadata.get(
+                'hasCacheData', False
+            )
 
         # Try requirements.txt (Python)
         requirements_metadata = extract_from_requirements_txt(repo_path)
         if requirements_metadata:
-            # Merge languages rather than overwrite
-            existing_langs = metadata.get('languages', [])
-            new_langs = requirements_metadata.pop('languages', [])
-            metadata.update(requirements_metadata)
-            metadata['languages'] = _deduplicate(existing_langs + new_langs)
-
-        # Extract description from README
-        readme_metadata = extract_from_readme(repo_path)
-        if readme_metadata and not metadata['description']:
-            metadata['description'] = readme_metadata.get('description', '')
-
-        # Detect frameworks
-        if metadata['languages']:
-            metadata['frameworks'] = detect_framework(
-                repo_path, metadata['languages']
+            # Merge dependencies
+            req_deps = requirements_metadata.get('dependencies', [])
+            metadata['dependencies'] = _deduplicate(
+                metadata['dependencies'] + req_deps
             )
 
-        # Detect features from files
-        file_features = detect_features(repo_path)
+        # Collect detected languages from package.json and requirements.txt
+        detected_languages: List[str] = []
+        if package_metadata:
+            detected_languages.extend(
+                package_metadata.get('languages', [])
+            )
+        if requirements_metadata:
+            detected_languages.extend(
+                requirements_metadata.get('languages', [])
+            )
+        detected_languages = _deduplicate(detected_languages)
 
-        # Parse README sections for features and prerequisites
+        # Languages: use table data if available, otherwise fallback
+        if table_data.get('hasTable'):
+            metadata['languages'] = {
+                'buildDeploy': table_data['languages']['buildDeploy'],
+                'applicationStack': table_data['languages']['applicationStack'],
+                'postDeploy': table_data['languages']['postDeploy'],
+            }
+        elif detected_languages:
+            metadata['languages'] = {
+                'buildDeploy': [],
+                'applicationStack': detected_languages,
+                'postDeploy': [],
+            }
+
+        # Frameworks: use table data if available, otherwise fallback
+        detected_frameworks = detect_framework(
+            repo_path, detected_languages
+        ) if detected_languages else []
+
+        if table_data.get('hasTable'):
+            metadata['frameworks'] = {
+                'buildDeploy': table_data['frameworks']['buildDeploy'],
+                'applicationStack': table_data['frameworks'][
+                    'applicationStack'
+                ],
+                'postDeploy': table_data['frameworks']['postDeploy'],
+            }
+        elif detected_frameworks:
+            metadata['frameworks'] = {
+                'buildDeploy': [],
+                'applicationStack': detected_frameworks,
+                'postDeploy': [],
+            }
+
+        # Features: use table if it has a Features row, otherwise fallback
+        if table_data.get('hasFeaturesRow'):
+            metadata['features'] = {
+                'buildDeploy': table_data['features']['buildDeploy'],
+                'applicationStack': table_data['features'][
+                    'applicationStack'
+                ],
+                'postDeploy': table_data['features']['postDeploy'],
+            }
+        else:
+            # Fallback: file detection heuristics into applicationStack
+            file_features = detect_features(repo_path)
+            metadata['features'] = {
+                'buildDeploy': [],
+                'applicationStack': file_features,
+                'postDeploy': [],
+            }
+
+        # Extract description from README if not already set
+        if not metadata['description']:
+            readme_metadata = extract_from_readme(repo_path)
+            if readme_metadata:
+                metadata['description'] = readme_metadata.get(
+                    'description', ''
+                )
+
+        # Parse README sections for prerequisites
         readme_sections = parse_readme_sections(repo_path)
-
-        # Merge and deduplicate features
-        metadata['features'] = _deduplicate(
-            file_features + readme_sections.get('features', [])
-        )
 
         # Extract prerequisites from project structure
         inferred_prereqs = extract_prerequisites(
-            repo_path, metadata['languages']
+            repo_path, detected_languages
         )
 
         # Merge and deduplicate prerequisites
@@ -564,12 +994,19 @@ def generate_metadata(
             if not metadata['name']:
                 metadata['name'] = github_metadata.get('name', '')
             if not metadata['description']:
-                metadata['description'] = github_metadata.get('description', '')
+                metadata['description'] = github_metadata.get(
+                    'description', ''
+                )
             if not metadata['author']:
                 metadata['author'] = github_metadata.get('author', '')
-            if not metadata['license'] or metadata['license'] == 'UNLICENSED':
-                metadata['license'] = github_metadata.get('license', 'UNLICENSED')
-            metadata['repository_type'] = github_metadata.get(
+            if (
+                not metadata['license']
+                or metadata['license'] == 'UNLICENSED'
+            ):
+                metadata['license'] = github_metadata.get(
+                    'license', 'UNLICENSED'
+                )
+            metadata['repositoryType'] = github_metadata.get(
                 'repository_type', 'app-starter'
             )
             # Merge topics from GitHub
@@ -578,9 +1015,50 @@ def generate_metadata(
                 metadata.get('topics', []) + github_topics
             )
             if github_metadata.get('last_updated'):
-                metadata['last_updated'] = github_metadata['last_updated']
+                metadata['lastUpdated'] = github_metadata['last_updated']
+
+        # Version: try GitHub Releases first, then package.json fallback
+        release_version = fetch_github_release_version(
+            github_repo, github_token
+        )
+        if release_version:
+            metadata['version'] = release_version
+        elif pkg_version:
+            metadata['version'] = pkg_version
+        # else version stays as empty string
+    else:
+        # No GitHub repo — use package.json version if available
+        if pkg_version:
+            metadata['version'] = pkg_version
 
     return metadata
+
+
+def _collect_categorized_values(categorized: Dict) -> List[str]:
+    """Collect all unique values from a categorized structure.
+
+    Iterates over the ``buildDeploy``, ``applicationStack``, and
+    ``postDeploy`` arrays and returns a deduplicated list of all values.
+
+    Args:
+        categorized (dict): A categorized structure with keys
+            ``buildDeploy``, ``applicationStack``, and ``postDeploy``.
+
+    Returns:
+        list: Deduplicated list of all values across categories.
+
+    Example:
+        >>> _collect_categorized_values({
+        ...     'buildDeploy': ['Python'],
+        ...     'applicationStack': ['Node.js'],
+        ...     'postDeploy': [],
+        ... })
+        ['Python', 'Node.js']
+    """
+    all_values: List[str] = []
+    for key in ('buildDeploy', 'applicationStack', 'postDeploy'):
+        all_values.extend(categorized.get(key, []))
+    return _deduplicate(all_values)
 
 
 def main():
@@ -664,12 +1142,20 @@ def main():
     print(f"Sidecar metadata written to: {output_path}")
     print("Metadata summary:")
     print(f"  Name: {metadata['name']}")
-    langs = ', '.join(metadata['languages']) if metadata['languages'] else 'None'
-    print(f"  Languages: {langs}")
-    fws = ', '.join(metadata['frameworks']) if metadata['frameworks'] else 'None'
-    print(f"  Frameworks: {fws}")
-    feats = ', '.join(metadata['features']) if metadata['features'] else 'None'
-    print(f"  Features: {feats}")
+    if metadata.get('displayName'):
+        print(f"  Display Name: {metadata['displayName']}")
+
+    langs = _collect_categorized_values(metadata.get('languages', {}))
+    print(f"  Languages: {', '.join(langs) if langs else 'None'}")
+
+    fws = _collect_categorized_values(metadata.get('frameworks', {}))
+    print(f"  Frameworks: {', '.join(fws) if fws else 'None'}")
+
+    feats = _collect_categorized_values(metadata.get('features', {}))
+    print(f"  Features: {', '.join(feats) if feats else 'None'}")
+
+    if metadata.get('version'):
+        print(f"  Version: {metadata['version']}")
 
 
 if __name__ == '__main__':

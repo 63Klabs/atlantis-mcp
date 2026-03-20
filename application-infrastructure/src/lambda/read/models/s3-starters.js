@@ -67,21 +67,55 @@ async function getIndexedNamespaces(bucketName) {
 }
 
 /**
- * Parse sidecar metadata JSON with backward compatibility for singular field names.
+ * Normalize a value into a categorized structure with `buildDeploy`,
+ * `applicationStack`, and `postDeploy` arrays.
  *
- * Reads plural array fields (`languages`, `frameworks`) with fallback to singular
- * string fields (`language`, `framework`) wrapped in an array for backward compatibility.
+ * If the value is already an object with the expected keys, each key is
+ * validated as an array. Otherwise the default empty structure is returned.
+ *
+ * @param {*} value - Value to normalize
+ * @returns {{buildDeploy: string[], applicationStack: string[], postDeploy: string[]}} Categorized structure
+ * @example
+ * normalizeCategorized({ buildDeploy: ['Python'], applicationStack: ['Node.js'], postDeploy: [] });
+ * // => { buildDeploy: ['Python'], applicationStack: ['Node.js'], postDeploy: [] }
+ *
+ * @example
+ * normalizeCategorized(undefined);
+ * // => { buildDeploy: [], applicationStack: [], postDeploy: [] }
+ */
+function normalizeCategorized(value) {
+  const defaultCat = { buildDeploy: [], applicationStack: [], postDeploy: [] };
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return {
+      buildDeploy: Array.isArray(value.buildDeploy) ? value.buildDeploy : [],
+      applicationStack: Array.isArray(value.applicationStack) ? value.applicationStack : [],
+      postDeploy: Array.isArray(value.postDeploy) ? value.postDeploy : [],
+    };
+  }
+  return defaultCat;
+}
+
+/**
+ * Parse sidecar metadata JSON into a normalized structure with categorized
+ * `languages`, `frameworks`, and `features` objects and camelCase property names.
+ *
+ * Accepts both snake_case and camelCase input property names for dual-name
+ * fields. When both variants are present, the camelCase variant takes priority.
  *
  * @param {string} metadataContent - JSON content from sidecar file
- * @returns {Object} Parsed metadata with languages, frameworks, topics, dependencies, devDependencies, hasCacheData, deployment_platform, repository, and other fields
+ * @returns {Object} Parsed metadata with categorized structures and camelCase keys
  * @example
- * const meta = parseSidecarMetadata('{"languages":["Node.js"],"frameworks":["Express"]}');
- * // meta.languages => ['Node.js'], meta.frameworks => ['Express']
+ * const meta = parseSidecarMetadata(JSON.stringify({
+ *   name: 'my-starter',
+ *   languages: { buildDeploy: ['Python'], applicationStack: ['Node.js'], postDeploy: [] },
+ *   deploymentPlatform: 'atlantis'
+ * }));
+ * // meta.languages => { buildDeploy: ['Python'], applicationStack: ['Node.js'], postDeploy: [] }
+ * // meta.deploymentPlatform => 'atlantis'
  *
  * @example
- * // Backward compatibility with singular fields
- * const meta = parseSidecarMetadata('{"language":"Python","framework":"Flask"}');
- * // meta.languages => ['Python'], meta.frameworks => ['Flask']
+ * const meta = parseSidecarMetadata(JSON.stringify({ deployment_platform: 'custom' }));
+ * // meta.deploymentPlatform => 'custom'
  */
 function parseSidecarMetadata(metadataContent) {
   try {
@@ -89,43 +123,45 @@ function parseSidecarMetadata(metadataContent) {
 
     return {
       name: metadata.name || '',
+      displayName: metadata.displayName || '',
       description: metadata.description || '',
-      languages: metadata.languages || (metadata.language ? [metadata.language] : []),
-      frameworks: metadata.frameworks || (metadata.framework ? [metadata.framework] : []),
+      languages: normalizeCategorized(metadata.languages),
+      frameworks: normalizeCategorized(metadata.frameworks),
+      features: normalizeCategorized(metadata.features),
       topics: metadata.topics || [],
       dependencies: metadata.dependencies || [],
       devDependencies: metadata.devDependencies || metadata.dev_dependencies || [],
-      hasCacheData: metadata.hasCacheData || metadata.has_cache_data || false,
-      deployment_platform: metadata.deployment_platform || 'atlantis',
-      features: metadata.features || [],
+      hasCacheData: metadata.hasCacheData ?? metadata.has_cache_data ?? false,
+      deploymentPlatform: metadata.deploymentPlatform || metadata.deployment_platform || 'atlantis',
       prerequisites: metadata.prerequisites || [],
       author: metadata.author || '',
-      license: metadata.license || 'UNLICENSED',
+      license: metadata.license || '',
       repository: metadata.repository || metadata.github_url || metadata.githubUrl || '',
-      repository_type: metadata.repository_type || metadata.repositoryType || 'app-starter',
+      repositoryType: metadata.repositoryType || metadata.repository_type || 'app-starter',
       version: metadata.version || '',
-      last_updated: metadata.last_updated || metadata.lastUpdated || ''
+      lastUpdated: metadata.lastUpdated || metadata.last_updated || ''
     };
   } catch (error) {
     DebugAndLog.error(`Failed to parse sidecar metadata: ${error.message}`);
     return {
       name: '',
+      displayName: '',
       description: '',
-      languages: [],
-      frameworks: [],
+      languages: { buildDeploy: [], applicationStack: [], postDeploy: [] },
+      frameworks: { buildDeploy: [], applicationStack: [], postDeploy: [] },
+      features: { buildDeploy: [], applicationStack: [], postDeploy: [] },
       topics: [],
       dependencies: [],
       devDependencies: [],
       hasCacheData: false,
-      deployment_platform: '',
-      features: [],
+      deploymentPlatform: 'atlantis',
       prerequisites: [],
       author: '',
       license: '',
       repository: '',
-      repository_type: 'app-starter',
+      repositoryType: 'app-starter',
       version: '',
-      last_updated: ''
+      lastUpdated: ''
     };
   }
 }
@@ -286,22 +322,23 @@ async function list(connection, options = {}) {
                 DebugAndLog.warn(`Starter ${appName} in ${bucket}/${namespace}: no sidecar metadata file found, using minimal metadata`);
                 allStarters.push({
                   name: appName,
+                  displayName: '',
                   description: '',
-                  languages: [],
-                  frameworks: [],
+                  languages: { buildDeploy: [], applicationStack: [], postDeploy: [] },
+                  frameworks: { buildDeploy: [], applicationStack: [], postDeploy: [] },
+                  features: { buildDeploy: [], applicationStack: [], postDeploy: [] },
                   topics: [],
                   dependencies: [],
                   devDependencies: [],
                   hasCacheData: false,
-                  deployment_platform: '',
-                  features: [],
+                  deploymentPlatform: '',
                   prerequisites: [],
                   author: '',
                   license: '',
                   repository: '',
-                  repository_type: 'app-starter',
+                  repositoryType: 'app-starter',
                   version: '',
-                  last_updated: '',
+                  lastUpdated: '',
                   hasSidecarMetadata: false,
                   namespace,
                   bucket,
@@ -429,22 +466,23 @@ async function get(connection, options = {}) {
               DebugAndLog.warn(`Starter ${starterName} in ${bucket}/${namespace}: no sidecar metadata file found, returning minimal metadata`);
               return {
                 name: starterName,
+                displayName: '',
                 description: '',
-                languages: [],
-                frameworks: [],
+                languages: { buildDeploy: [], applicationStack: [], postDeploy: [] },
+                frameworks: { buildDeploy: [], applicationStack: [], postDeploy: [] },
+                features: { buildDeploy: [], applicationStack: [], postDeploy: [] },
                 topics: [],
                 dependencies: [],
                 devDependencies: [],
                 hasCacheData: false,
-                deployment_platform: '',
-                features: [],
+                deploymentPlatform: '',
                 prerequisites: [],
                 author: '',
                 license: '',
                 repository: '',
-                repository_type: 'app-starter',
+                repositoryType: 'app-starter',
                 version: '',
-                last_updated: '',
+                lastUpdated: '',
                 hasSidecarMetadata: false,
                 namespace,
                 bucket,
@@ -480,6 +518,7 @@ module.exports = {
   get,
   // Export helper functions for testing
   parseSidecarMetadata,
+  normalizeCategorized,
   buildStarterZipKey,
   buildStarterMetadataKey,
   extractAppNameFromKey,

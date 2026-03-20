@@ -17,5 +17,4 @@
 - [ ] Update the domain in documentation mcp.atlantis.63klabs.net
 
 - [ ] Review openapi spec
-- [ ] Provide spec at /doc/spec
 - [ ] Review all documentation
