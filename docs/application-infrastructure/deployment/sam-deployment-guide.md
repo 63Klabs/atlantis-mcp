@@ -180,8 +180,8 @@ Expected response:
 ```json
 {
   "categories": [
-    {"name": "Storage", "description": "..."},
-    {"name": "Network", "description": "..."},
+    {"name": "storage", "description": "..."},
+    {"name": "network", "description": "..."},
     ...
   ]
 }

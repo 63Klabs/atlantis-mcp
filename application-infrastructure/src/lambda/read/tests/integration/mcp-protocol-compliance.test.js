@@ -278,7 +278,7 @@ describe.skip('MCP Protocol Compliance Tests', () => {
           body: JSON.stringify({
             tool: 'list_templates',
             input: {
-              category: 'Storage'
+              category: 'storage'
             }
           }),
           headers: {
@@ -300,7 +300,7 @@ describe.skip('MCP Protocol Compliance Tests', () => {
             tool: 'get_template',
             input: {
               templateName: 'template-storage-s3-artifacts',
-              category: 'Storage'
+              category: 'storage'
             }
           }),
           headers: {
@@ -324,7 +324,7 @@ describe.skip('MCP Protocol Compliance Tests', () => {
             tool: 'list_template_versions',
             input: {
               templateName: 'template-storage-s3-artifacts',
-              category: 'Storage'
+              category: 'storage'
             }
           }),
           headers: {
@@ -501,7 +501,7 @@ describe.skip('MCP Protocol Compliance Tests', () => {
           tool: 'get_template',
           input: {
             // Missing required templateName parameter
-            category: 'Storage'
+            category: 'storage'
           }
         }),
         headers: {
@@ -580,7 +580,7 @@ describe.skip('MCP Protocol Compliance Tests', () => {
           tool: 'get_template',
           input: {
             templateName: 'test',
-            category: 'Storage'
+            category: 'storage'
           }
         }),
         headers: {
@@ -633,7 +633,7 @@ describe.skip('MCP Protocol Compliance Tests', () => {
           tool: 'get_template',
           input: {
             // Missing required templateName
-            category: 'Storage'
+            category: 'storage'
           }
         }),
         headers: {
@@ -701,7 +701,7 @@ describe.skip('MCP Protocol Compliance Tests', () => {
         body: JSON.stringify({
           tool: 'list_templates',
           input: {
-            category: 'Storage',
+            category: 'storage',
             version: 'v1.0.0/2024-01-01',
             s3Buckets: ['bucket1', 'bucket2']
           }
@@ -724,7 +724,7 @@ describe.skip('MCP Protocol Compliance Tests', () => {
         body: JSON.stringify({
           tool: 'list_templates',
           input: {
-            category: 'Storage',
+            category: 'storage',
             unknownProperty: 'value' // Not in schema
           }
         }),
@@ -748,7 +748,7 @@ describe.skip('MCP Protocol Compliance Tests', () => {
           tool: 'get_template',
           input: {
             templateName: '', // Empty string
-            category: 'Storage'
+            category: 'storage'
           }
         }),
         headers: {

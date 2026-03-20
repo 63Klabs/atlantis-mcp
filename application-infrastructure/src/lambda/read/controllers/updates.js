@@ -37,7 +37,7 @@ const { tools: { DebugAndLog } } = require('@63klabs/cache-data');
  *     input: {
  *       templateName: 'template-storage-s3-artifacts',
  *       currentVersion: 'v1.3.4/2024-01-10',
- *       category: 'Storage'
+ *       category: 'storage'
  *     }
  *   }
  * });

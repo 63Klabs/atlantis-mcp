@@ -7,6 +7,9 @@
  * @module schema-validator
  */
 
+const settings = require('../config/settings');
+const TEMPLATE_CATEGORIES = settings.templates.categories;
+
 /**
  * JSON Schema definitions for all MCP tools
  */
@@ -20,7 +23,7 @@ const schemas = {
     properties: {
       category: {
         type: 'string',
-        enum: ['storage', 'network', 'pipeline', 'service-role', 'modules'],
+        enum: TEMPLATE_CATEGORIES.map(cat => cat.name),
         description: 'Filter templates by category'
       },
       version: {
@@ -66,7 +69,7 @@ const schemas = {
       },
       category: {
         type: 'string',
-        enum: ['storage', 'network', 'pipeline', 'service-role', 'modules'],
+        enum: TEMPLATE_CATEGORIES.map(cat => cat.name),
         description: 'Template category'
       },
       version: {
@@ -113,7 +116,7 @@ const schemas = {
       },
       category: {
         type: 'string',
-        enum: ['storage', 'network', 'pipeline', 'service-role', 'modules'],
+        enum: TEMPLATE_CATEGORIES.map(cat => cat.name),
         description: 'Template category'
       },
       s3Buckets: {
@@ -149,19 +152,22 @@ const schemas = {
 
   /**
    * Schema for list_starters tool input
-   * Lists all available starter code repositories
+   * Lists all available starter code repositories from configured S3 buckets
    */
   list_starters: {
     type: 'object',
     properties: {
-      ghusers: {
+      s3Buckets: {
         type: 'array',
-        items: {
-          type: 'string',
-          minLength: 1
-        },
+        items: { type: 'string', minLength: 3, maxLength: 63 },
         minItems: 1,
-        description: 'Filter to specific GitHub users/orgs from configured list'
+        description: 'Filter to specific S3 buckets from configured list'
+      },
+      namespace: {
+        type: 'string',
+        pattern: '^[a-z0-9][a-z0-9-]*$',
+        maxLength: 63,
+        description: 'Filter to a specific namespace (S3 root prefix)'
       }
     },
     additionalProperties: false
@@ -169,7 +175,7 @@ const schemas = {
 
   /**
    * Schema for get_starter_info tool input
-   * Retrieves detailed information about a specific starter
+   * Retrieves detailed information about a specific starter from configured S3 buckets
    */
   get_starter_info: {
     type: 'object',
@@ -179,14 +185,17 @@ const schemas = {
         minLength: 1,
         description: 'Name of the starter repository'
       },
-      ghusers: {
+      s3Buckets: {
         type: 'array',
-        items: {
-          type: 'string',
-          minLength: 1
-        },
+        items: { type: 'string', minLength: 3, maxLength: 63 },
         minItems: 1,
-        description: 'Filter to specific GitHub users/orgs from configured list'
+        description: 'Filter to specific S3 buckets from configured list'
+      },
+      namespace: {
+        type: 'string',
+        pattern: '^[a-z0-9][a-z0-9-]*$',
+        maxLength: 63,
+        description: 'Filter to a specific namespace (S3 root prefix)'
       }
     },
     required: ['starterName'],
@@ -265,7 +274,7 @@ const schemas = {
       },
       category: {
         type: 'string',
-        enum: ['storage', 'network', 'pipeline', 'service-role', 'modules'],
+        enum: TEMPLATE_CATEGORIES.map(cat => cat.name),
         description: 'Template category'
       },
       s3Buckets: {
@@ -307,7 +316,7 @@ const schemas = {
  * @returns {{valid: boolean, errors: Array<string>}} Validation result
  *
  * @example
- * const result = validate('list_templates', { category: 'Storage' });
+ * const result = validate('list_templates', { category: 'storage' });
  * if (!result.valid) {
  *   console.error('Validation errors:', result.errors);
  * }

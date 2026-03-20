@@ -191,26 +191,41 @@ describe('JSON Schema Validator', () => {
       expect(result.valid).toBe(true);
     });
 
-    test('should accept valid ghusers array', () => {
+    test('should accept valid s3Buckets array', () => {
       const result = validate('list_starters', {
-        ghusers: ['63klabs', 'myorg']
+        s3Buckets: ['63klabs', 'mybucket']
       });
 
       expect(result.valid).toBe(true);
     });
 
-    test('should reject empty ghusers array', () => {
-      const result = validate('list_starters', { ghusers: [] });
+    test('should accept valid namespace', () => {
+      const result = validate('list_starters', {
+        namespace: '63klabs'
+      });
+
+      expect(result.valid).toBe(true);
+    });
+
+    test('should reject empty s3Buckets array', () => {
+      const result = validate('list_starters', { s3Buckets: [] });
 
       expect(result.valid).toBe(false);
       expect(result.errors.some(e => e.includes('at least 1 items'))).toBe(true);
     });
 
-    test('should reject ghusers with empty strings', () => {
-      const result = validate('list_starters', { ghusers: [''] });
+    test('should reject s3Buckets with short bucket names', () => {
+      const result = validate('list_starters', { s3Buckets: ['ab'] });
 
       expect(result.valid).toBe(false);
-      expect(result.errors.some(e => e.includes('at least 1 characters'))).toBe(true);
+      expect(result.errors.some(e => e.includes('at least 3 characters'))).toBe(true);
+    });
+
+    test('should reject ghusers as unknown property', () => {
+      const result = validate('list_starters', { ghusers: ['63klabs'] });
+
+      expect(result.valid).toBe(false);
+      expect(result.errors.some(e => e.includes('Unknown property'))).toBe(true);
     });
   });
 
@@ -230,13 +245,32 @@ describe('JSON Schema Validator', () => {
       expect(result.errors).toContain('Missing required property: starterName');
     });
 
-    test('should accept optional ghusers field', () => {
+    test('should accept optional s3Buckets field', () => {
+      const result = validate('get_starter_info', {
+        starterName: 'starter',
+        s3Buckets: ['63klabs']
+      });
+
+      expect(result.valid).toBe(true);
+    });
+
+    test('should accept optional namespace field', () => {
+      const result = validate('get_starter_info', {
+        starterName: 'starter',
+        namespace: '63klabs'
+      });
+
+      expect(result.valid).toBe(true);
+    });
+
+    test('should reject ghusers as unknown property', () => {
       const result = validate('get_starter_info', {
         starterName: 'starter',
         ghusers: ['63klabs']
       });
 
-      expect(result.valid).toBe(true);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some(e => e.includes('Unknown property'))).toBe(true);
     });
   });
 
@@ -379,7 +413,7 @@ describe('JSON Schema Validator', () => {
 
     test('should validate array item types', () => {
       const result = validate('list_starters', {
-        ghusers: [123, 456]
+        s3Buckets: [123, 456]
       });
 
       expect(result.valid).toBe(false);
@@ -459,7 +493,7 @@ describe('JSON Schema Validator', () => {
   describe('Additional Properties Validation', () => {
     test('should reject additional properties when not allowed', () => {
       const result = validate('list_templates', {
-        category: 'Storage',
+        category: 'storage',
         unknownField: 'value'
       });
 

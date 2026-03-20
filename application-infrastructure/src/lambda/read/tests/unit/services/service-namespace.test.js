@@ -118,13 +118,13 @@ describe('Service Layer Namespace Handling', () => {
     });
 
     it('should produce different conn.parameters with different namespaces', async () => {
-      await Templates.list({ category: 'Storage', namespace: 'acme' });
+      await Templates.list({ category: 'storage', namespace: 'acme' });
       const params1 = { ...CacheableDataAccess.getData.mock.calls[0][2].parameters };
 
       jest.clearAllMocks();
       setupMocks();
 
-      await Templates.list({ category: 'Storage', namespace: 'turbo-kiln' });
+      await Templates.list({ category: 'storage', namespace: 'turbo-kiln' });
       const params2 = { ...CacheableDataAccess.getData.mock.calls[0][2].parameters };
 
       expect(params1.namespace).toBe('acme');
@@ -133,13 +133,13 @@ describe('Service Layer Namespace Handling', () => {
     });
 
     it('should produce different conn.parameters with namespace vs without', async () => {
-      await Templates.list({ category: 'Storage', namespace: 'acme' });
+      await Templates.list({ category: 'storage', namespace: 'acme' });
       const params1 = { ...CacheableDataAccess.getData.mock.calls[0][2].parameters };
 
       jest.clearAllMocks();
       setupMocks();
 
-      await Templates.list({ category: 'Storage' });
+      await Templates.list({ category: 'storage' });
       const params2 = { ...CacheableDataAccess.getData.mock.calls[0][2].parameters };
 
       expect(params1.namespace).toBe('acme');
@@ -150,27 +150,27 @@ describe('Service Layer Namespace Handling', () => {
 
   describe('get()', () => {
     it('should include namespace in conn.parameters when provided', async () => {
-      await Templates.get({ category: 'Storage', templateName: 'tpl', namespace: 'atlantis' });
+      await Templates.get({ category: 'storage', templateName: 'tpl', namespace: 'atlantis' });
 
       const conn = CacheableDataAccess.getData.mock.calls[0][2];
       expect(conn.parameters.namespace).toBe('atlantis');
     });
 
     it('should set namespace to undefined in conn.parameters when omitted', async () => {
-      await Templates.get({ category: 'Storage', templateName: 'tpl' });
+      await Templates.get({ category: 'storage', templateName: 'tpl' });
 
       const conn = CacheableDataAccess.getData.mock.calls[0][2];
       expect(conn.parameters.namespace).toBeUndefined();
     });
 
     it('should produce different conn.parameters with different namespaces', async () => {
-      await Templates.get({ category: 'Storage', templateName: 'tpl', namespace: 'acme' });
+      await Templates.get({ category: 'storage', templateName: 'tpl', namespace: 'acme' });
       const params1 = { ...CacheableDataAccess.getData.mock.calls[0][2].parameters };
 
       jest.clearAllMocks();
       setupMocks();
 
-      await Templates.get({ category: 'Storage', templateName: 'tpl', namespace: 'x1' });
+      await Templates.get({ category: 'storage', templateName: 'tpl', namespace: 'x1' });
       const params2 = { ...CacheableDataAccess.getData.mock.calls[0][2].parameters };
 
       expect(JSON.stringify(params1)).not.toBe(JSON.stringify(params2));
@@ -179,27 +179,27 @@ describe('Service Layer Namespace Handling', () => {
 
   describe('listVersions()', () => {
     it('should include namespace in conn.parameters when provided', async () => {
-      await Templates.listVersions({ category: 'Storage', templateName: 'tpl', namespace: 'turbo-kiln' });
+      await Templates.listVersions({ category: 'storage', templateName: 'tpl', namespace: 'turbo-kiln' });
 
       const conn = CacheableDataAccess.getData.mock.calls[0][2];
       expect(conn.parameters.namespace).toBe('turbo-kiln');
     });
 
     it('should set namespace to undefined in conn.parameters when omitted', async () => {
-      await Templates.listVersions({ category: 'Storage', templateName: 'tpl' });
+      await Templates.listVersions({ category: 'storage', templateName: 'tpl' });
 
       const conn = CacheableDataAccess.getData.mock.calls[0][2];
       expect(conn.parameters.namespace).toBeUndefined();
     });
 
     it('should produce different conn.parameters with different namespaces', async () => {
-      await Templates.listVersions({ category: 'Storage', templateName: 'tpl', namespace: 'acme' });
+      await Templates.listVersions({ category: 'storage', templateName: 'tpl', namespace: 'acme' });
       const params1 = { ...CacheableDataAccess.getData.mock.calls[0][2].parameters };
 
       jest.clearAllMocks();
       setupMocks();
 
-      await Templates.listVersions({ category: 'Storage', templateName: 'tpl' });
+      await Templates.listVersions({ category: 'storage', templateName: 'tpl' });
       const params2 = { ...CacheableDataAccess.getData.mock.calls[0][2].parameters };
 
       expect(JSON.stringify(params1)).not.toBe(JSON.stringify(params2));
@@ -209,7 +209,7 @@ describe('Service Layer Namespace Handling', () => {
   describe('checkUpdates()', () => {
     it('should pass namespace through to inner get() call', async () => {
       await Templates.checkUpdates({
-        templates: [{ category: 'Storage', templateName: 'tpl', currentVersion: 'v1.0.0' }],
+        templates: [{ category: 'storage', templateName: 'tpl', currentVersion: 'v1.0.0' }],
         namespace: 'acme'
       });
 
@@ -221,7 +221,7 @@ describe('Service Layer Namespace Handling', () => {
 
     it('should pass undefined namespace when omitted', async () => {
       await Templates.checkUpdates({
-        templates: [{ category: 'Storage', templateName: 'tpl', currentVersion: 'v1.0.0' }]
+        templates: [{ category: 'storage', templateName: 'tpl', currentVersion: 'v1.0.0' }]
       });
 
       expect(CacheableDataAccess.getData).toHaveBeenCalled();
@@ -231,7 +231,7 @@ describe('Service Layer Namespace Handling', () => {
 
     it('should produce different cache keys with different namespaces', async () => {
       await Templates.checkUpdates({
-        templates: [{ category: 'Storage', templateName: 'tpl', currentVersion: 'v1.0.0' }],
+        templates: [{ category: 'storage', templateName: 'tpl', currentVersion: 'v1.0.0' }],
         namespace: 'acme'
       });
       const params1 = { ...CacheableDataAccess.getData.mock.calls[0][2].parameters };
@@ -240,7 +240,7 @@ describe('Service Layer Namespace Handling', () => {
       setupMocks();
 
       await Templates.checkUpdates({
-        templates: [{ category: 'Storage', templateName: 'tpl', currentVersion: 'v1.0.0' }],
+        templates: [{ category: 'storage', templateName: 'tpl', currentVersion: 'v1.0.0' }],
         namespace: 'turbo-kiln'
       });
       const params2 = { ...CacheableDataAccess.getData.mock.calls[0][2].parameters };

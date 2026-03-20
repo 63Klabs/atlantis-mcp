@@ -67,10 +67,21 @@ async function getIndexedNamespaces(bucketName) {
 }
 
 /**
- * Parse sidecar metadata JSON
+ * Parse sidecar metadata JSON with backward compatibility for singular field names.
+ *
+ * Reads plural array fields (`languages`, `frameworks`) with fallback to singular
+ * string fields (`language`, `framework`) wrapped in an array for backward compatibility.
  *
  * @param {string} metadataContent - JSON content from sidecar file
- * @returns {Object} Parsed metadata with name, description, language, framework, features, prerequisites, author, license
+ * @returns {Object} Parsed metadata with languages, frameworks, topics, dependencies, devDependencies, hasCacheData, deployment_platform, repository, and other fields
+ * @example
+ * const meta = parseSidecarMetadata('{"languages":["Node.js"],"frameworks":["Express"]}');
+ * // meta.languages => ['Node.js'], meta.frameworks => ['Express']
+ *
+ * @example
+ * // Backward compatibility with singular fields
+ * const meta = parseSidecarMetadata('{"language":"Python","framework":"Flask"}');
+ * // meta.languages => ['Python'], meta.frameworks => ['Flask']
  */
 function parseSidecarMetadata(metadataContent) {
   try {
@@ -79,33 +90,42 @@ function parseSidecarMetadata(metadataContent) {
     return {
       name: metadata.name || '',
       description: metadata.description || '',
-      language: metadata.language || '',
-      framework: metadata.framework || '',
+      languages: metadata.languages || (metadata.language ? [metadata.language] : []),
+      frameworks: metadata.frameworks || (metadata.framework ? [metadata.framework] : []),
+      topics: metadata.topics || [],
+      dependencies: metadata.dependencies || [],
+      devDependencies: metadata.devDependencies || metadata.dev_dependencies || [],
+      hasCacheData: metadata.hasCacheData || metadata.has_cache_data || false,
+      deployment_platform: metadata.deployment_platform || 'atlantis',
       features: metadata.features || [],
       prerequisites: metadata.prerequisites || [],
       author: metadata.author || '',
-      license: metadata.license || '',
-      githubUrl: metadata.githubUrl || metadata.github_url || '',
-      repositoryType: metadata.repositoryType || metadata.repository_type || 'app-starter',
-      // Additional fields that might be in sidecar
+      license: metadata.license || 'UNLICENSED',
+      repository: metadata.repository || metadata.github_url || metadata.githubUrl || '',
+      repository_type: metadata.repository_type || metadata.repositoryType || 'app-starter',
       version: metadata.version || '',
-      lastUpdated: metadata.lastUpdated || metadata.last_updated || '',
-      cacheDataIntegration: metadata.cacheDataIntegration || metadata.cache_data_integration || false,
-      cloudFrontIntegration: metadata.cloudFrontIntegration || metadata.cloudfront_integration || false
+      last_updated: metadata.last_updated || metadata.lastUpdated || ''
     };
   } catch (error) {
     DebugAndLog.error(`Failed to parse sidecar metadata: ${error.message}`);
     return {
       name: '',
       description: '',
-      language: '',
-      framework: '',
+      languages: [],
+      frameworks: [],
+      topics: [],
+      dependencies: [],
+      devDependencies: [],
+      hasCacheData: false,
+      deployment_platform: '',
       features: [],
       prerequisites: [],
       author: '',
       license: '',
-      githubUrl: '',
-      repositoryType: 'app-starter'
+      repository: '',
+      repository_type: 'app-starter',
+      version: '',
+      last_updated: ''
     };
   }
 }
@@ -252,6 +272,7 @@ async function list(connection, options = {}) {
               allStarters.push({
                 ...metadata,
                 name: appName, // Use ZIP file name as authoritative
+                hasSidecarMetadata: true,
                 namespace,
                 bucket,
                 s3ZipPath: `s3://${bucket}/${zipFile.Key}`,
@@ -261,8 +282,33 @@ async function list(connection, options = {}) {
               });
             } catch (error) {
               if (error.name === 'NoSuchKey') {
-                // >! Skip starters without sidecar metadata and log warning
-                DebugAndLog.warn(`Skipping starter ${appName} in ${bucket}/${namespace}: no sidecar metadata file found`);
+                // >! Include starters without sidecar metadata with minimal metadata
+                DebugAndLog.warn(`Starter ${appName} in ${bucket}/${namespace}: no sidecar metadata file found, using minimal metadata`);
+                allStarters.push({
+                  name: appName,
+                  description: '',
+                  languages: [],
+                  frameworks: [],
+                  topics: [],
+                  dependencies: [],
+                  devDependencies: [],
+                  hasCacheData: false,
+                  deployment_platform: '',
+                  features: [],
+                  prerequisites: [],
+                  author: '',
+                  license: '',
+                  repository: '',
+                  repository_type: 'app-starter',
+                  version: '',
+                  last_updated: '',
+                  hasSidecarMetadata: false,
+                  namespace,
+                  bucket,
+                  s3ZipPath: `s3://${bucket}/${zipFile.Key}`,
+                  zipSize: zipFile.Size,
+                  lastModified: zipFile.LastModified
+                });
               } else {
                 DebugAndLog.warn(`Failed to read sidecar metadata for ${appName} in ${bucket}/${namespace}: ${error.message}`);
               }
@@ -369,6 +415,7 @@ async function get(connection, options = {}) {
             return {
               ...metadata,
               name: starterName, // Use ZIP file name as authoritative
+              hasSidecarMetadata: true,
               namespace,
               bucket,
               s3ZipPath: `s3://${bucket}/${zipKey}`,
@@ -378,9 +425,33 @@ async function get(connection, options = {}) {
             };
           } catch (error) {
             if (error.name === 'NoSuchKey') {
-              // >! Skip starters without sidecar metadata and log warning
-              DebugAndLog.warn(`Skipping starter ${starterName} in ${bucket}/${namespace}: no sidecar metadata file found`);
-              continue; // Try next namespace/bucket
+              // >! Return minimal metadata for starters without sidecar JSON
+              DebugAndLog.warn(`Starter ${starterName} in ${bucket}/${namespace}: no sidecar metadata file found, returning minimal metadata`);
+              return {
+                name: starterName,
+                description: '',
+                languages: [],
+                frameworks: [],
+                topics: [],
+                dependencies: [],
+                devDependencies: [],
+                hasCacheData: false,
+                deployment_platform: '',
+                features: [],
+                prerequisites: [],
+                author: '',
+                license: '',
+                repository: '',
+                repository_type: 'app-starter',
+                version: '',
+                last_updated: '',
+                hasSidecarMetadata: false,
+                namespace,
+                bucket,
+                s3ZipPath: `s3://${bucket}/${zipKey}`,
+                zipSize: zipResponse.ContentLength,
+                lastModified: zipResponse.LastModified
+              };
             }
             throw error;
           }

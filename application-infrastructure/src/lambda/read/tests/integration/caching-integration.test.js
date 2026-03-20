@@ -66,7 +66,7 @@ describe.skip('Caching Integration Tests', () => {
       const connection = {
         host: ['test-bucket-1'],
         path: 'templates/v2',
-        parameters: { category: 'Storage' }
+        parameters: { category: 'storage' }
       };
 
       const cacheProfile = {
@@ -114,7 +114,7 @@ describe.skip('Caching Integration Tests', () => {
       const connection = {
         host: ['test-bucket-1'],
         path: 'templates/v2',
-        parameters: { category: 'Storage' }
+        parameters: { category: 'storage' }
       };
 
       const cacheProfile = {
@@ -151,8 +151,8 @@ describe.skip('Caching Integration Tests', () => {
     it('should fetch data and cache it when cache miss occurs', async () => {
       const fetchedData = {
         templates: [
-          { name: 'template-1', category: 'Storage' },
-          { name: 'template-2', category: 'Network' }
+          { name: 'template-1', category: 'storage' },
+          { name: 'template-2', category: 'network' }
         ]
       };
 
@@ -169,7 +169,7 @@ describe.skip('Caching Integration Tests', () => {
       const connection = {
         host: ['test-bucket-1'],
         path: 'templates/v2',
-        parameters: { category: 'Storage' }
+        parameters: { category: 'storage' }
       };
 
       const cacheProfile = {
@@ -357,7 +357,7 @@ describe.skip('Caching Integration Tests', () => {
       const connection1 = {
         host: ['bucket-1'],
         path: 'templates/v2',
-        parameters: { category: 'Storage' }
+        parameters: { category: 'storage' }
       };
 
       await CacheableDataAccess.getData(
@@ -375,7 +375,7 @@ describe.skip('Caching Integration Tests', () => {
       const connection2 = {
         host: ['bucket-1'],
         path: 'templates/v2',
-        parameters: { category: 'Network' }
+        parameters: { category: 'network' }
       };
 
       await CacheableDataAccess.getData(
@@ -412,7 +412,7 @@ describe.skip('Caching Integration Tests', () => {
       const connection = {
         host: ['bucket-1'],
         path: 'templates/v2',
-        parameters: { category: 'Storage', version: 'v1.0.0' }
+        parameters: { category: 'storage', version: 'v1.0.0' }
       };
 
       // First request

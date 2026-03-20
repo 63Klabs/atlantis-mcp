@@ -27,7 +27,7 @@ const { tools: { DebugAndLog } } = require('@63klabs/cache-data');
  *
  * @example
  * const response = await Templates.list({
- *   body: { input: { category: 'Storage' } }
+ *   body: { input: { category: 'storage' } }
  * });
  */
 async function list(props) {
@@ -101,7 +101,7 @@ async function list(props) {
  *   body: {
  *     input: {
  *       templateName: 'template-storage-s3-artifacts',
- *       category: 'Storage'
+ *       category: 'storage'
  *     }
  *   }
  * });
@@ -194,7 +194,7 @@ async function get(props) {
  *   body: {
  *     input: {
  *       templateName: 'template-storage-s3-artifacts',
- *       category: 'Storage'
+ *       category: 'storage'
  *     }
  *   }
  * });

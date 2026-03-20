@@ -166,7 +166,7 @@ describe('Feature: allow-get-on-tools-that-list — GET method handling', () => 
    * GET request to list_templates with query string parameters should
    * map them into bodyParameters.input for the controller.
    */
-  test('GET request to list_templates?category=Storage passes category to controller', async () => {
+  test('GET request to list_templates?category=storage passes category to controller', async () => {
     ClientRequest.mockImplementation(() => ({
       isValid: jest.fn().mockReturnValue(true),
       getProps: jest.fn().mockReturnValue({
@@ -175,17 +175,17 @@ describe('Feature: allow-get-on-tools-that-list — GET method handling', () => 
         bodyParameters: {},
         pathParameters: { tool: 'list_templates' },
         pathArray: ['', 'list_templates'],
-        queryStringParameters: { category: 'Storage' },
+        queryStringParameters: { category: 'storage' },
         body: {}
       })
     }));
 
-    const mockEvent = { httpMethod: 'GET', path: '/mcp/list_templates', queryStringParameters: { category: 'Storage' } };
+    const mockEvent = { httpMethod: 'GET', path: '/mcp/list_templates', queryStringParameters: { category: 'storage' } };
     await Routes.process(mockEvent, mockContext);
 
     expect(TemplatesController.list).toHaveBeenCalled();
     const calledProps = TemplatesController.list.mock.calls[0][0];
-    expect(calledProps.bodyParameters.input).toEqual({ category: 'Storage' });
+    expect(calledProps.bodyParameters.input).toEqual({ category: 'storage' });
   });
 
   /**
@@ -309,7 +309,7 @@ describe('Feature: allow-get-on-tools-that-list — GET method handling', () => 
       getProps: jest.fn().mockReturnValue({
         method: 'POST',
         path: '/mcp',
-        bodyParameters: { tool: 'get_template', input: { templateName: 'test', category: 'Storage' } },
+        bodyParameters: { tool: 'get_template', input: { templateName: 'test', category: 'storage' } },
         pathParameters: {},
         pathArray: ['', 'get_template'],
         queryStringParameters: null,
@@ -317,7 +317,7 @@ describe('Feature: allow-get-on-tools-that-list — GET method handling', () => 
       })
     }));
 
-    const mockEvent = { body: JSON.stringify({ tool: 'get_template', input: { templateName: 'test', category: 'Storage' } }) };
+    const mockEvent = { body: JSON.stringify({ tool: 'get_template', input: { templateName: 'test', category: 'storage' } }) };
     await Routes.process(mockEvent, mockContext);
 
     expect(TemplatesController.get).toHaveBeenCalled();

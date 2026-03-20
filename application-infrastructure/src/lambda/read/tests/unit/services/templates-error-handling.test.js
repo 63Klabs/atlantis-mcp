@@ -73,8 +73,8 @@ describe('Templates Service - Error Handling', () => {
       },
       templates: {
         categories: [
-          { name: 'Storage', description: 'Storage templates' },
-          { name: 'Pipeline', description: 'Pipeline templates' }
+          { name: 'storage', description: 'Storage templates' },
+          { name: 'pipeline', description: 'Pipeline templates' }
         ]
       }
     });
@@ -109,21 +109,21 @@ describe('Templates Service - Error Handling', () => {
       // Attempt to get non-existent template
       await expect(
         Templates.get({
-          category: 'Storage',
+          category: 'storage',
           templateName: 'template-storage-nonexistent'
         })
-      ).rejects.toThrow(/Template not found: Storage\/template-storage-nonexistent/);
+      ).rejects.toThrow(/Template not found: storage\/template-storage-nonexistent/);
 
       // Verify error details
       try {
         await Templates.get({
-          category: 'Storage',
+          category: 'storage',
           templateName: 'template-storage-nonexistent'
         });
         fail('Should have thrown an error');
       } catch (error) {
         expect(error.code).toBe('TEMPLATE_NOT_FOUND');
-        expect(error.message).toContain('Available templates in category \'Storage\'');
+        expect(error.message).toContain('Available templates in category \'storage\'');
         expect(error.message).toContain('template-storage-s3-artifacts');
         expect(error.message).toContain('template-storage-s3-oac-for-cloudfront');
         expect(error.message).toContain('template-storage-dynamodb-table');
@@ -145,13 +145,13 @@ describe('Templates Service - Error Handling', () => {
 
       try {
         await Templates.get({
-          category: 'Storage',
+          category: 'storage',
           templateName: 'template-storage-s3-artifacts',
           version: 'v1.3.5/2024-01-15'
         });
         fail('Should have thrown an error');
       } catch (error) {
-        expect(error.message).toContain('Storage/template-storage-s3-artifacts:v1.3.5/2024-01-15');
+        expect(error.message).toContain('storage/template-storage-s3-artifacts:v1.3.5/2024-01-15');
         expect(error.code).toBe('TEMPLATE_NOT_FOUND');
       }
     });
@@ -166,13 +166,13 @@ describe('Templates Service - Error Handling', () => {
 
       try {
         await Templates.get({
-          category: 'Storage',
+          category: 'storage',
           templateName: 'template-storage-s3-artifacts',
           versionId: 'abc123def456'
         });
         fail('Should have thrown an error');
       } catch (error) {
-        expect(error.message).toContain('Storage/template-storage-s3-artifacts?versionId=abc123def456');
+        expect(error.message).toContain('storage/template-storage-s3-artifacts?versionId=abc123def456');
         expect(error.code).toBe('TEMPLATE_NOT_FOUND');
       }
     });
@@ -183,13 +183,13 @@ describe('Templates Service - Error Handling', () => {
 
       try {
         await Templates.get({
-          category: 'Storage',
+          category: 'storage',
           templateName: 'template-storage-nonexistent'
         });
         fail('Should have thrown an error');
       } catch (error) {
         expect(error.code).toBe('TEMPLATE_NOT_FOUND');
-        expect(error.message).toContain('Template not found: Storage/template-storage-nonexistent');
+        expect(error.message).toContain('Template not found: storage/template-storage-nonexistent');
         expect(error.message).not.toContain('Available templates');
         expect(error.availableTemplates).toEqual([]);
 
@@ -206,7 +206,7 @@ describe('Templates Service - Error Handling', () => {
     it('should not throw error when template is found', async () => {
       const mockTemplate = {
         templateName: 'template-storage-s3-artifacts',
-        category: 'Storage',
+        category: 'storage',
         version: 'v1.3.5/2024-01-15',
         content: 'AWSTemplateFormatVersion: "2010-09-09"'
       };
@@ -214,7 +214,7 @@ describe('Templates Service - Error Handling', () => {
       Models.S3Templates.get.mockResolvedValue(mockTemplate);
 
       const result = await Templates.get({
-        category: 'Storage',
+        category: 'storage',
         templateName: 'template-storage-s3-artifacts'
       });
 

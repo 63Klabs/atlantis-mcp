@@ -230,7 +230,7 @@ Before completing a spec, verify the changelog entry:
 
 - [ ] Entry is under the "Unreleased" section
 - [ ] Entry is in the appropriate category
-- [ ] Template names include category prefix (e.g., "Pipeline:", "Storage:")
+- [ ] Template names include category prefix (e.g., "pipeline:", "storage:")
 - [ ] Template version numbers are included
 - [ ] Spec is referenced with link to `.kiro/specs/` directory
 - [ ] Issue numbers are referenced with GitHub links (if applicable)

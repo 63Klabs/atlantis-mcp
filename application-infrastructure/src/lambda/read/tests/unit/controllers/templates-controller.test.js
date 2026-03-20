@@ -61,7 +61,7 @@ describe('Templates Controller', () => {
       const props = {
         bodyParameters: {
           input: {
-            category: 'Storage',
+            category: 'storage',
             version: 'v1.3.5/2024-01-15'
           }
         }
@@ -71,8 +71,8 @@ describe('Templates Controller', () => {
 
       const mockTemplates = {
         templates: [
-          { name: 'template-storage-s3-artifacts', version: 'v1.3.5/2024-01-15', category: 'Storage' },
-          { name: 'template-storage-s3-oac-for-cloudfront', version: 'v1.2.3/2024-01-10', category: 'Storage' }
+          { name: 'template-storage-s3-artifacts', version: 'v1.3.5/2024-01-15', category: 'storage' },
+          { name: 'template-storage-s3-oac-for-cloudfront', version: 'v1.2.3/2024-01-10', category: 'storage' }
         ]
       };
 
@@ -84,7 +84,7 @@ describe('Templates Controller', () => {
       // Assert
       expect(SchemaValidator.validate).toHaveBeenCalledWith('list_templates', props.bodyParameters.input);
       expect(Services.Templates.list).toHaveBeenCalledWith({
-        category: 'Storage',
+        category: 'storage',
         version: 'v1.3.5/2024-01-15',
         versionId: undefined,
         s3Buckets: undefined,
@@ -190,7 +190,7 @@ describe('Templates Controller', () => {
       const props = {
         bodyParameters: {
           input: {
-            category: 'Storage',
+            category: 'storage',
             version: 'v1.3.5/2024-01-15',
             versionId: 'abc123',
             s3Buckets: ['bucket1', 'bucket2']
@@ -206,7 +206,7 @@ describe('Templates Controller', () => {
 
       // Assert
       expect(Services.Templates.list).toHaveBeenCalledWith({
-        category: 'Storage',
+        category: 'storage',
         version: 'v1.3.5/2024-01-15',
         versionId: 'abc123',
         s3Buckets: ['bucket1', 'bucket2'],
@@ -216,7 +216,7 @@ describe('Templates Controller', () => {
 
     test('should log request and response details', async () => {
       // Arrange
-      const props = { bodyParameters: { input: { category: 'Storage' } } };
+      const props = { bodyParameters: { input: { category: 'storage' } } };
       SchemaValidator.validate.mockReturnValue({ valid: true });
       Services.Templates.list.mockResolvedValue({
         templates: [{ name: 'template1' }],
@@ -229,7 +229,7 @@ describe('Templates Controller', () => {
       // Assert
       expect(tools.DebugAndLog.info).toHaveBeenCalledWith(
         'list_templates request',
-        expect.objectContaining({ category: 'Storage' })
+        expect.objectContaining({ category: 'storage' })
       );
       expect(tools.DebugAndLog.info).toHaveBeenCalledWith(
         'list_templates response',
@@ -245,7 +245,7 @@ describe('Templates Controller', () => {
         bodyParameters: {
           input: {
             templateName: 'template-storage-s3-artifacts',
-            category: 'Storage'
+            category: 'storage'
           }
         }
       };
@@ -256,7 +256,7 @@ describe('Templates Controller', () => {
         name: 'template-storage-s3-artifacts',
         version: 'v1.3.5/2024-01-15',
         versionId: 'abc123',
-        category: 'Storage',
+        category: 'storage',
         namespace: 'atlantis',
         bucket: 'test-bucket',
         content: '# CloudFormation template...'
@@ -271,7 +271,7 @@ describe('Templates Controller', () => {
       expect(SchemaValidator.validate).toHaveBeenCalledWith('get_template', props.bodyParameters.input);
       expect(Services.Templates.get).toHaveBeenCalledWith({
         templateName: 'template-storage-s3-artifacts',
-        category: 'Storage',
+        category: 'storage',
         version: undefined,
         versionId: undefined,
         s3Buckets: undefined,
@@ -287,7 +287,7 @@ describe('Templates Controller', () => {
         bodyParameters: {
           input: {
             // Missing required templateName
-            category: 'Storage'
+            category: 'storage'
           }
         }
       };
@@ -318,7 +318,7 @@ describe('Templates Controller', () => {
         bodyParameters: {
           input: {
             templateName: 'non-existent-template',
-            category: 'Storage'
+            category: 'storage'
           }
         }
       };
@@ -353,7 +353,7 @@ describe('Templates Controller', () => {
         bodyParameters: {
           input: {
             templateName: 'non-existent-template',
-            category: 'Storage'
+            category: 'storage'
           }
         }
       };
@@ -384,7 +384,7 @@ describe('Templates Controller', () => {
         bodyParameters: {
           input: {
             templateName: 'template-storage-s3-artifacts',
-            category: 'Storage'
+            category: 'storage'
           }
         }
       };
@@ -416,7 +416,7 @@ describe('Templates Controller', () => {
         bodyParameters: {
           input: {
             templateName: 'template-storage-s3-artifacts',
-            category: 'Storage',
+            category: 'storage',
             version: 'v1.3.5/2024-01-15',
             versionId: 'abc123'
           }
@@ -432,7 +432,7 @@ describe('Templates Controller', () => {
       // Assert
       expect(Services.Templates.get).toHaveBeenCalledWith({
         templateName: 'template-storage-s3-artifacts',
-        category: 'Storage',
+        category: 'storage',
         version: 'v1.3.5/2024-01-15',
         versionId: 'abc123',
         s3Buckets: undefined,
@@ -448,7 +448,7 @@ describe('Templates Controller', () => {
         bodyParameters: {
           input: {
             templateName: 'template-storage-s3-artifacts',
-            category: 'Storage'
+            category: 'storage'
           }
         }
       };
@@ -457,7 +457,7 @@ describe('Templates Controller', () => {
 
       const mockVersions = {
         templateName: 'template-storage-s3-artifacts',
-        category: 'Storage',
+        category: 'storage',
         versions: [
           { version: 'v1.3.5/2024-01-15', versionId: 'abc123', lastModified: '2024-01-15T10:00:00Z' },
           { version: 'v1.3.4/2024-01-10', versionId: 'def456', lastModified: '2024-01-10T10:00:00Z' }
@@ -473,7 +473,7 @@ describe('Templates Controller', () => {
       expect(SchemaValidator.validate).toHaveBeenCalledWith('list_template_versions', props.bodyParameters.input);
       expect(Services.Templates.listVersions).toHaveBeenCalledWith({
         templateName: 'template-storage-s3-artifacts',
-        category: 'Storage',
+        category: 'storage',
         s3Buckets: undefined,
         namespace: undefined
       });
@@ -487,7 +487,7 @@ describe('Templates Controller', () => {
         bodyParameters: {
           input: {
             // Missing required templateName
-            category: 'Storage'
+            category: 'storage'
           }
         }
       };
@@ -517,7 +517,7 @@ describe('Templates Controller', () => {
         bodyParameters: {
           input: {
             templateName: 'template-storage-s3-artifacts',
-            category: 'Storage'
+            category: 'storage'
           }
         }
       };
@@ -548,7 +548,7 @@ describe('Templates Controller', () => {
         bodyParameters: {
           input: {
             templateName: 'template-storage-s3-artifacts',
-            category: 'Storage',
+            category: 'storage',
             s3Buckets: ['bucket1', 'bucket2']
           }
         }
@@ -563,7 +563,7 @@ describe('Templates Controller', () => {
       // Assert
       expect(Services.Templates.listVersions).toHaveBeenCalledWith({
         templateName: 'template-storage-s3-artifacts',
-        category: 'Storage',
+        category: 'storage',
         s3Buckets: ['bucket1', 'bucket2'],
         namespace: undefined
       });
@@ -578,9 +578,9 @@ describe('Templates Controller', () => {
       SchemaValidator.validate.mockReturnValue({ valid: true });
 
       const mockCategories = [
-        { name: 'Storage', description: 'S3 and storage templates', count: 5 },
-        { name: 'Network', description: 'CloudFront and Route53 templates', count: 3 },
-        { name: 'Pipeline', description: 'CodePipeline templates', count: 2 }
+        { name: 'storage', description: 'S3 and storage templates', count: 5 },
+        { name: 'network', description: 'CloudFront and Route53 templates', count: 3 },
+        { name: 'pipeline', description: 'CodePipeline templates', count: 2 }
       ];
 
       Services.Templates.listCategories.mockResolvedValue(mockCategories);
@@ -671,8 +671,8 @@ describe('Templates Controller', () => {
 
       SchemaValidator.validate.mockReturnValue({ valid: true });
       Services.Templates.listCategories.mockResolvedValue([
-        { name: 'Storage' },
-        { name: 'Network' }
+        { name: 'storage' },
+        { name: 'network' }
       ]);
 
       // Act

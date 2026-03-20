@@ -156,7 +156,7 @@ curl -X POST "$API_ENDPOINT/list_categories" \
 # Test list_templates
 curl -X POST "$API_ENDPOINT/list_templates" \
   -H "Content-Type: application/json" \
-  -d '{"category": "Storage"}'
+  -d '{"category": "storage"}'
 
 # Test validate_naming
 curl -X POST "$API_ENDPOINT/validate_naming" \
@@ -331,10 +331,10 @@ echo "Testing list_categories..."
 curl -X POST "$API_ENDPOINT/list_categories" -H "Content-Type: application/json" -d '{}'
 
 echo "Testing list_templates..."
-curl -X POST "$API_ENDPOINT/list_templates" -H "Content-Type: application/json" -d '{"category": "Storage"}'
+curl -X POST "$API_ENDPOINT/list_templates" -H "Content-Type: application/json" -d '{"category": "storage"}'
 
 echo "Testing get_template..."
-curl -X POST "$API_ENDPOINT/get_template" -H "Content-Type: application/json" -d '{"templateName": "template-storage-s3-artifacts.yml", "category": "Storage"}'
+curl -X POST "$API_ENDPOINT/get_template" -H "Content-Type: application/json" -d '{"templateName": "template-storage-s3-artifacts.yml", "category": "storage"}'
 
 echo "Testing list_starters..."
 curl -X POST "$API_ENDPOINT/list_starters" -H "Content-Type: application/json" -d '{}'

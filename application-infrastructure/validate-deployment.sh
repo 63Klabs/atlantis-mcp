@@ -104,7 +104,7 @@ fi
 log_info "Testing list_templates..."
 RESPONSE=$(curl -s -X POST "${API_ENDPOINT}/list_templates" \
     -H "Content-Type: application/json" \
-    -d '{"category": "Storage"}')
+    -d '{"category": "storage"}')
 
 if echo "$RESPONSE" | jq -e '.templates' &>/dev/null; then
     TEMPLATE_COUNT=$(echo "$RESPONSE" | jq '.templates | length')
@@ -117,7 +117,7 @@ fi
 log_info "Testing get_template..."
 RESPONSE=$(curl -s -X POST "${API_ENDPOINT}/get_template" \
     -H "Content-Type: application/json" \
-    -d '{"templateName": "template-storage-s3-artifacts.yml", "category": "Storage"}')
+    -d '{"templateName": "template-storage-s3-artifacts.yml", "category": "storage"}')
 
 if echo "$RESPONSE" | jq -e '.template' &>/dev/null; then
     log_success "get_template works"
@@ -129,7 +129,7 @@ fi
 log_info "Testing list_template_versions..."
 RESPONSE=$(curl -s -X POST "${API_ENDPOINT}/list_template_versions" \
     -H "Content-Type: application/json" \
-    -d '{"templateName": "template-storage-s3-artifacts.yml", "category": "Storage"}')
+    -d '{"templateName": "template-storage-s3-artifacts.yml", "category": "storage"}')
 
 if echo "$RESPONSE" | jq -e '.versions' &>/dev/null; then
     VERSION_COUNT=$(echo "$RESPONSE" | jq '.versions | length')
@@ -192,7 +192,7 @@ fi
 log_info "Testing check_template_updates..."
 RESPONSE=$(curl -s -X POST "${API_ENDPOINT}/check_template_updates" \
     -H "Content-Type: application/json" \
-    -d '{"templateName": "template-storage-s3-artifacts.yml", "category": "Storage", "currentVersion": "v1.0.0"}')
+    -d '{"templateName": "template-storage-s3-artifacts.yml", "category": "storage", "currentVersion": "v1.0.0"}')
 
 if echo "$RESPONSE" | jq -e '.updates' &>/dev/null; then
     log_success "check_template_updates works"

@@ -25,7 +25,7 @@ const { tools: { DebugAndLog } } = require('@63klabs/cache-data');
  *
  * @example
  * const response = await Starters.list({
- *   body: { input: { ghusers: ['63klabs'] } }
+ *   body: { input: { s3Buckets: ['63klabs'], namespace: '63klabs' } }
  * });
  */
 async function list(props) {
@@ -45,16 +45,18 @@ async function list(props) {
       }, 'list_starters');
     }
 
-    // >! Extract parameters (ghusers)
-    const { ghusers } = input;
+    // >! Extract parameters (s3Buckets, namespace)
+    const { s3Buckets, namespace } = input;
 
     DebugAndLog.info('list_starters request', {
-      ghusersCount: ghusers ? ghusers.length : 0
+      namespace,
+      s3BucketsCount: s3Buckets ? s3Buckets.length : 0
     });
 
     // >! Call Services.Starters.list()
     const result = await Services.Starters.list({
-      ghusers
+      s3Buckets,
+      namespace
     });
 
     DebugAndLog.info('list_starters response', {
@@ -91,7 +93,8 @@ async function list(props) {
  *   body: {
  *     input: {
  *       starterName: 'atlantis-starter-02',
- *       ghusers: ['63klabs']
+ *       s3Buckets: ['63klabs'],
+ *       namespace: '63klabs'
  *     }
  *   }
  * });
@@ -113,18 +116,20 @@ async function get(props) {
       }, 'get_starter_info');
     }
 
-    // >! Extract parameters (starterName, ghusers)
-    const { starterName, ghusers } = input;
+    // >! Extract parameters (starterName, s3Buckets, namespace)
+    const { starterName, s3Buckets, namespace } = input;
 
     DebugAndLog.info('get_starter_info request', {
       starterName,
-      ghusersCount: ghusers ? ghusers.length : 0
+      namespace,
+      s3BucketsCount: s3Buckets ? s3Buckets.length : 0
     });
 
     // >! Call Services.Starters.get()
     const starter = await Services.Starters.get({
       starterName,
-      ghusers
+      s3Buckets,
+      namespace
     });
 
     DebugAndLog.info('get_starter_info response', {

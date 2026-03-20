@@ -39,7 +39,7 @@ The server exposes the following tools through the MCP protocol:
 | `list_templates` | List all available CloudFormation templates |
 | `get_template` | Get specific template with full content and metadata |
 | `list_template_versions` | List all versions of a specific template |
-| `list_categories` | List template categories (Storage, Network, Pipeline, etc.) |
+| `list_categories` | List template categories (storage, network, pipeline, etc.) |
 | `list_starters` | List available application starter code repositories |
 | `get_starter_info` | Get detailed information about a specific starter |
 | `search_documentation` | Search documentation, tutorials, and code patterns |

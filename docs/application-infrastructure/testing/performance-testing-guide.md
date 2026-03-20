@@ -383,7 +383,7 @@ scenarios:
           json:
             tool: "list_templates"
             input:
-              category: "Storage"
+              category: "storage"
 EOF
 
 # Run load test

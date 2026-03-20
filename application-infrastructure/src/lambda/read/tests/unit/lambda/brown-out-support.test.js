@@ -275,7 +275,7 @@ describe('Brown-Out Support', () => {
       });
 
       const TemplatesService = require('../../../services/templates');
-      const result = await TemplatesService.list({ category: 'Storage' });
+      const result = await TemplatesService.list({ category: 'storage' });
 
       expect(result.partialData).toBe(true);
       expect(result.errors).toHaveLength(1);
@@ -312,7 +312,7 @@ describe('Brown-Out Support', () => {
     test('should include partial data warning in MCP response', () => {
       const partialResult = {
         templates: [
-          { name: 'template1', category: 'Storage' }
+          { name: 'template1', category: 'storage' }
         ],
         errors: [
           { source: 'bucket-2', sourceType: 's3', error: 'Access Denied', timestamp: '2024-01-15T10:00:00Z' }
@@ -339,8 +339,8 @@ describe('Brown-Out Support', () => {
     test('should not include warnings when all sources succeed', () => {
       const completeResult = {
         templates: [
-          { name: 'template1', category: 'Storage' },
-          { name: 'template2', category: 'Pipeline' }
+          { name: 'template1', category: 'storage' },
+          { name: 'template2', category: 'pipeline' }
         ],
         partialData: false
       };

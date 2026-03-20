@@ -95,7 +95,7 @@ describe('Controller Error Handling', () => {
         body: {
           input: {
             templateName: 'non-existent',
-            category: 'Storage'
+            category: 'storage'
           }
         }
       };
@@ -123,7 +123,7 @@ describe('Controller Error Handling', () => {
         body: {
           input: {
             templateName: 'template-storage-s3-artifacts',
-            category: 'Storage'
+            category: 'storage'
           }
         }
       };
@@ -157,9 +157,9 @@ describe('Controller Error Handling', () => {
   });
 
   describe('Starters Controller Error Handling', () => {
-    test('list() should handle GitHub API errors', async () => {
+    test('list() should handle S3 connection errors', async () => {
       const props = { body: { input: {} } };
-      const error = new Error('GitHub API rate limit exceeded');
+      const error = new Error('S3 connection timeout');
       error.status = 403;
       Services.Starters.list.mockRejectedValue(error);
 
@@ -170,7 +170,7 @@ describe('Controller Error Handling', () => {
         'INTERNAL_ERROR',
         expect.objectContaining({
           message: 'Failed to list starters',
-          error: 'GitHub API rate limit exceeded'
+          error: 'S3 connection timeout'
         }),
         'list_starters'
       );
@@ -182,7 +182,7 @@ describe('Controller Error Handling', () => {
         body: {
           input: {
             starterName: 'non-existent-starter',
-            ghusers: ['63klabs']
+            s3Buckets: ['63klabs']
           }
         }
       };
@@ -210,7 +210,7 @@ describe('Controller Error Handling', () => {
         body: {
           input: {
             starterName: 'atlantis-starter-02',
-            ghusers: ['63klabs']
+            s3Buckets: ['63klabs']
           }
         }
       };
@@ -367,7 +367,7 @@ describe('Controller Error Handling', () => {
           input: {
             templateName: 'template-storage-s3-artifacts',
             currentVersion: 'v1.3.4/2024-01-10',
-            category: 'Storage'
+            category: 'storage'
           }
         }
       };
@@ -398,7 +398,7 @@ describe('Controller Error Handling', () => {
           input: {
             templateName: 'template-storage-s3-artifacts',
             currentVersion: 'v1.3.4/2024-01-10',
-            category: 'Storage'
+            category: 'storage'
           }
         }
       };
@@ -426,7 +426,7 @@ describe('Controller Error Handling', () => {
           input: {
             templateName: 'template-storage-s3-artifacts',
             currentVersion: 'invalid-version',
-            category: 'Storage'
+            category: 'storage'
           }
         }
       };

@@ -44,7 +44,7 @@ Add HTTP GET method support to MCP tool endpoints that have no required paramete
   - [x] 3.3 Write unit tests for GET method handling
     - Create `tests/unit/lambda/get-method-support.test.js`
     - Test GET request to `list_tools` returns 200
-    - Test GET request to `list_templates?category=Storage` passes `category` to controller
+    - Test GET request to `list_templates?category=storage` passes `category` to controller
     - Test GET request to `get_template` returns 405 with descriptive error
     - Test GET request to `search_documentation` returns 405
     - Test GET request to unknown tool returns 404 (not 405)

@@ -217,7 +217,7 @@ describe.skip('Performance Validation', () => {
         body: JSON.stringify({
           tool: 'list_templates',
           input: {
-            category: 'Storage'
+            category: 'storage'
           }
         }),
         requestContext: {
@@ -241,7 +241,7 @@ describe.skip('Performance Validation', () => {
                 templates: [
                   {
                     name: 'test-template',
-                    category: 'Storage',
+                    category: 'storage',
                     version: 'v1.0.0'
                   }
                 ]
@@ -270,7 +270,7 @@ describe.skip('Performance Validation', () => {
         body: JSON.stringify({
           tool: 'list_templates',
           input: {
-            category: 'Storage'
+            category: 'storage'
           }
         }),
         requestContext: {
@@ -283,7 +283,7 @@ describe.skip('Performance Validation', () => {
       mockS3Client.send.mockResolvedValue({
         Contents: [
           {
-            Key: 'atlantis/templates/v2/Storage/test-template.yml',
+            Key: 'atlantis/templates/v2/storage/test-template.yml',
             LastModified: new Date(),
             Size: 1024
           }
@@ -324,7 +324,7 @@ describe.skip('Performance Validation', () => {
         body: JSON.stringify({
           tool: 'list_templates',
           input: {
-            category: 'Storage'
+            category: 'storage'
           }
         }),
         requestContext: {
@@ -344,7 +344,7 @@ describe.skip('Performance Validation', () => {
       mockS3Client.send.mockResolvedValue({
         Contents: [
           {
-            Key: 'atlantis/templates/v2/Storage/test-template.yml',
+            Key: 'atlantis/templates/v2/storage/test-template.yml',
             LastModified: new Date(),
             Size: 1024
           }
@@ -368,7 +368,7 @@ describe.skip('Performance Validation', () => {
         body: JSON.stringify({
           tool: 'list_templates',
           input: {
-            category: 'Storage'
+            category: 'storage'
           }
         }),
         requestContext: {

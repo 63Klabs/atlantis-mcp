@@ -215,7 +215,7 @@ Note the typo: "pipline" vs "pipeline"
    category: "Pipelines"
    
    # Correct
-   category: "Pipeline"
+   category: "pipeline"
    ```
 
 **Solutions:**
@@ -624,7 +624,7 @@ curl -X POST https://mcp.atlantis.63klabs.com/v1/tools/list_categories \
 # Test with parameters
 curl -X POST https://mcp.atlantis.63klabs.com/v1/tools/list_templates \
   -H "Content-Type: application/json" \
-  -d '{"category": "Pipeline"}'
+  -d '{"category": "pipeline"}'
 ```
 
 ### Check Rate Limit Status

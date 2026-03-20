@@ -206,12 +206,12 @@ describe('Feature: allow-get-on-tools-that-list — GET/POST response parity', (
         bodyParameters: {},
         pathParameters: { tool: 'list_templates' },
         pathArray: ['', 'list_templates'],
-        queryStringParameters: { category: 'Storage' },
+        queryStringParameters: { category: 'storage' },
         body: {}
       })
     }));
 
-    const getEvent = { httpMethod: 'GET', path: '/mcp/list_templates', queryStringParameters: { category: 'Storage' } };
+    const getEvent = { httpMethod: 'GET', path: '/mcp/list_templates', queryStringParameters: { category: 'storage' } };
     await Routes.process(getEvent, mockContext);
 
     expect(TemplatesController.list).toHaveBeenCalledTimes(1);
@@ -227,7 +227,7 @@ describe('Feature: allow-get-on-tools-that-list — GET/POST response parity', (
       getProps: jest.fn().mockReturnValue({
         method: 'POST',
         path: '/mcp',
-        bodyParameters: { tool: 'list_templates', input: { category: 'Storage' } },
+        bodyParameters: { tool: 'list_templates', input: { category: 'storage' } },
         pathParameters: {},
         pathArray: ['', 'list_templates'],
         queryStringParameters: null,
@@ -235,7 +235,7 @@ describe('Feature: allow-get-on-tools-that-list — GET/POST response parity', (
       })
     }));
 
-    const postEvent = { body: JSON.stringify({ tool: 'list_templates', input: { category: 'Storage' } }) };
+    const postEvent = { body: JSON.stringify({ tool: 'list_templates', input: { category: 'storage' } }) };
     await Routes.process(postEvent, mockContext);
 
     expect(TemplatesController.list).toHaveBeenCalledTimes(1);

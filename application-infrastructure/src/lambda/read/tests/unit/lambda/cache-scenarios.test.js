@@ -92,7 +92,7 @@ describe('Cache Scenarios', () => {
       },
       templates: {
         categories: [
-          { name: 'Storage', description: 'Storage templates' }
+          { name: 'storage', description: 'Storage templates' }
         ]
       }
     });
@@ -119,7 +119,7 @@ describe('Cache Scenarios', () => {
         mockCacheResponse(cachedData, { fromCache: true, cacheSource: 'dynamodb' })
       );
 
-      const result = await TemplatesService.list({ category: 'Storage' });
+      const result = await TemplatesService.list({ category: 'storage' });
 
       expect(result).toEqual(cachedData);
       expect(cache.CacheableDataAccess.getData).toHaveBeenCalledTimes(1);
@@ -248,13 +248,13 @@ describe('Cache Scenarios', () => {
       );
 
       await TemplatesService.list({
-        category: 'Storage',
+        category: 'storage',
         version: 'v1.0.0'
       });
 
       const call = cache.CacheableDataAccess.getData.mock.calls[0];
       expect(call[2].parameters).toMatchObject({
-        category: 'Storage',
+        category: 'storage',
         version: 'v1.0.0'
       });
     });
@@ -275,8 +275,8 @@ describe('Cache Scenarios', () => {
           cacheProfile: { hostId: 's3-templates', pathId: 'templates-list', profile: 'templates-list', overrideOriginHeaderExpiration: true, defaultExpirationInSeconds: 3600, expirationIsOnInterval: false, headersToRetain: '', encrypt: false }
         });
 
-      await TemplatesService.list({ category: 'Storage' });
-      await TemplatesService.list({ category: 'Network' });
+      await TemplatesService.list({ category: 'storage' });
+      await TemplatesService.list({ category: 'network' });
 
       expect(cache.CacheableDataAccess.getData).toHaveBeenCalledTimes(2);
 
@@ -284,8 +284,8 @@ describe('Cache Scenarios', () => {
       const call2 = cache.CacheableDataAccess.getData.mock.calls[1];
 
       // getData(cacheProfile, fetchFunction, conn, options) - conn is arg[2]
-      expect(call1[2].parameters.category).toBe('Storage');
-      expect(call2[2].parameters.category).toBe('Network');
+      expect(call1[2].parameters.category).toBe('storage');
+      expect(call2[2].parameters.category).toBe('network');
     });
 
     test('should include namespace in cache key', async () => {
@@ -359,7 +359,7 @@ describe('Cache Scenarios', () => {
       );
 
       await TemplatesService.list({});
-      await TemplatesService.get({ templateName: 'test', category: 'Storage' });
+      await TemplatesService.get({ templateName: 'test', category: 'storage' });
 
       const listCall = cache.CacheableDataAccess.getData.mock.calls[0];
       const getCall = cache.CacheableDataAccess.getData.mock.calls[1];

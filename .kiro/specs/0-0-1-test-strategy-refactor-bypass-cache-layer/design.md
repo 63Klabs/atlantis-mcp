@@ -240,14 +240,14 @@ describe('Templates Service', () => {
       });
       
       // Act
-      const result = await Templates.list({ category: 'Storage' });
+      const result = await Templates.list({ category: 'storage' });
       
       // Assert
       expect(Models.S3Templates.list).toHaveBeenCalledWith(
         expect.objectContaining({
           host: ['bucket1', 'bucket2'],
           parameters: expect.objectContaining({
-            category: 'Storage'
+            category: 'storage'
           })
         }),
         {}
@@ -329,7 +329,7 @@ describe('Templates Controller', () => {
       const props = {
         body: {
           input: {
-            category: 'Storage'
+            category: 'storage'
           }
         }
       };
@@ -345,7 +345,7 @@ describe('Templates Controller', () => {
       // Assert
       expect(SchemaValidator.validate).toHaveBeenCalledWith('list_templates', props.body.input);
       expect(Services.Templates.list).toHaveBeenCalledWith({
-        category: 'Storage',
+        category: 'storage',
         version: undefined,
         versionId: undefined,
         s3Buckets: undefined
@@ -441,7 +441,7 @@ describe('S3 Templates DAO', () => {
       }).resolves({
         Contents: [
           {
-            Key: 'atlantis/templates/v2/Storage/template-s3.yml',
+            Key: 'atlantis/templates/v2/storage/template-s3.yml',
             LastModified: new Date('2024-01-01'),
             Size: 1024
           }
@@ -460,7 +460,7 @@ describe('S3 Templates DAO', () => {
       // Assert
       expect(result.templates).toHaveLength(1);
       expect(result.templates[0].name).toBe('template-s3');
-      expect(result.templates[0].category).toBe('Storage');
+      expect(result.templates[0].category).toBe('storage');
     });
   });
 });
@@ -588,14 +588,14 @@ describe('Read Lambda Handler', () => {
   templates: [
     {
       name: 'template-storage-s3-artifacts',
-      category: 'Storage',
+      category: 'storage',
       namespace: 'atlantis',
       bucket: 'test-bucket',
       version: 'v1.3.5/2024-01-15',
       versionId: 'abc123',
       lastModified: '2024-01-15T10:00:00Z',
       size: 2048,
-      s3Path: 'atlantis/templates/v2/Storage/template-storage-s3-artifacts.yml'
+      s3Path: 'atlantis/templates/v2/storage/template-storage-s3-artifacts.yml'
     }
   ],
   errors: [],
@@ -607,14 +607,14 @@ describe('Read Lambda Handler', () => {
 ```javascript
 {
   name: 'template-storage-s3-artifacts',
-  category: 'Storage',
+  category: 'storage',
   namespace: 'atlantis',
   bucket: 'test-bucket',
   version: 'v1.3.5/2024-01-15',
   versionId: 'abc123',
   lastModified: '2024-01-15T10:00:00Z',
   size: 2048,
-  s3Path: 'atlantis/templates/v2/Storage/template-storage-s3-artifacts.yml',
+  s3Path: 'atlantis/templates/v2/storage/template-storage-s3-artifacts.yml',
   content: 'AWSTemplateFormatVersion: "2010-09-09"...',
   description: 'S3 bucket for build artifacts',
   parameters: {
@@ -672,11 +672,11 @@ describe('Read Lambda Handler', () => {
 #### DocIndex.get() Response
 ```javascript
 {
-  documentPath: 'docs/templates/v2/Storage/template-storage-s3-artifacts-README.md',
+  documentPath: 'docs/templates/v2/storage/template-storage-s3-artifacts-README.md',
   content: '# Template Documentation...',
   metadata: {
     title: 'S3 Artifacts Template',
-    category: 'Storage',
+    category: 'storage',
     version: 'v1.3.5/2024-01-15'
   }
 }
@@ -691,7 +691,7 @@ describe('Read Lambda Handler', () => {
     host: ['bucket1', 'bucket2'],  // Can be string or array
     path: '/templates/v2',
     parameters: {
-      category: 'Storage',
+      category: 'storage',
       version: 'v1.3.5/2024-01-15'
     }
   },
@@ -722,9 +722,9 @@ describe('Read Lambda Handler', () => {
   },
   templates: {
     categories: [
-      { name: 'Storage', description: 'Storage templates' },
-      { name: 'Network', description: 'Network templates' },
-      { name: 'Pipeline', description: 'Pipeline templates' }
+      { name: 'storage', description: 'Storage templates' },
+      { name: 'network', description: 'Network templates' },
+      { name: 'pipeline', description: 'Pipeline templates' }
     ]
   },
   rateLimits: {
@@ -1187,20 +1187,20 @@ describe('Templates Service', () => {
     // Simple mock - just return data
     Models.S3Templates.list.mockResolvedValue({
       templates: [
-        { name: 'template1', category: 'Storage' }
+        { name: 'template1', category: 'storage' }
       ],
       errors: [],
       partialData: false
     });
     
-    const result = await Templates.list({ category: 'Storage' });
+    const result = await Templates.list({ category: 'storage' });
     
     // Verify DAO was called correctly
     expect(Models.S3Templates.list).toHaveBeenCalledWith(
       expect.objectContaining({
         host: ['bucket1'],
         parameters: expect.objectContaining({
-          category: 'Storage'
+          category: 'storage'
         })
       }),
       {}
@@ -1281,7 +1281,7 @@ describe('Templates Controller', () => {
     const props = {
       body: {
         input: {
-          category: 'Storage'
+          category: 'storage'
         }
       }
     };
@@ -1295,7 +1295,7 @@ describe('Templates Controller', () => {
     
     expect(SchemaValidator.validate).toHaveBeenCalledWith('list_templates', props.body.input);
     expect(Services.Templates.list).toHaveBeenCalledWith({
-      category: 'Storage',
+      category: 'storage',
       version: undefined,
       versionId: undefined,
       s3Buckets: undefined
@@ -1351,7 +1351,7 @@ describe('S3 Templates DAO', () => {
     }).resolves({
       Contents: [
         {
-          Key: 'atlantis/templates/v2/Storage/template-s3.yml',
+          Key: 'atlantis/templates/v2/storage/template-s3.yml',
           LastModified: new Date('2024-01-01'),
           Size: 1024
         }

@@ -58,7 +58,7 @@ describe('Updates Controller', () => {
           input: {
             templateName: 'template-storage-s3-artifacts',
             currentVersion: 'v1.3.4/2024-01-10',
-            category: 'Storage'
+            category: 'storage'
           }
         }
       };
@@ -68,7 +68,7 @@ describe('Updates Controller', () => {
       const mockUpdateResult = [
         {
           templateName: 'template-storage-s3-artifacts',
-          category: 'Storage',
+          category: 'storage',
           currentVersion: 'v1.3.4/2024-01-10',
           latestVersion: 'v1.3.5/2024-01-15',
           updateAvailable: true,
@@ -91,7 +91,7 @@ describe('Updates Controller', () => {
       expect(SchemaValidator.validate).toHaveBeenCalledWith('check_template_updates', props.bodyParameters.input);
       expect(Services.Templates.checkUpdates).toHaveBeenCalledWith({
         templates: [{
-          category: 'Storage',
+          category: 'storage',
           templateName: 'template-storage-s3-artifacts',
           currentVersion: 'v1.3.4/2024-01-10'
         }],
@@ -100,7 +100,7 @@ describe('Updates Controller', () => {
       });
       expect(MCPProtocol.successResponse).toHaveBeenCalledWith('check_template_updates', {
         templateName: 'template-storage-s3-artifacts',
-        category: 'Storage',
+        category: 'storage',
         currentVersion: 'v1.3.4/2024-01-10',
         latestVersion: 'v1.3.5/2024-01-15',
         updateAvailable: true,
@@ -122,7 +122,7 @@ describe('Updates Controller', () => {
           input: {
             templateName: 'template-storage-s3-artifacts',
             currentVersion: 'v1.3.5/2024-01-15',
-            category: 'Storage'
+            category: 'storage'
           }
         }
       };
@@ -132,7 +132,7 @@ describe('Updates Controller', () => {
       const mockUpdateResult = [
         {
           templateName: 'template-storage-s3-artifacts',
-          category: 'Storage',
+          category: 'storage',
           currentVersion: 'v1.3.5/2024-01-15',
           latestVersion: 'v1.3.5/2024-01-15',
           updateAvailable: false,
@@ -164,7 +164,7 @@ describe('Updates Controller', () => {
           input: {
             templateName: 'template-pipeline',
             currentVersion: 'v2.0.18/2024-01-01',
-            category: 'Pipeline'
+            category: 'pipeline'
           }
         }
       };
@@ -174,7 +174,7 @@ describe('Updates Controller', () => {
       const mockUpdateResult = [
         {
           templateName: 'template-pipeline',
-          category: 'Pipeline',
+          category: 'pipeline',
           currentVersion: 'v2.0.18/2024-01-01',
           latestVersion: 'v3.0.0/2024-01-20',
           updateAvailable: true,
@@ -246,7 +246,7 @@ describe('Updates Controller', () => {
           input: {
             templateName: 'template-storage-s3-artifacts',
             currentVersion: 'v1.3.4/2024-01-10',
-            category: 'Storage',
+            category: 'storage',
             s3Buckets: ['bucket1', 'bucket2']
           }
         }
@@ -267,7 +267,7 @@ describe('Updates Controller', () => {
       // Assert
       expect(Services.Templates.checkUpdates).toHaveBeenCalledWith({
         templates: [{
-          category: 'Storage',
+          category: 'storage',
           templateName: 'template-storage-s3-artifacts',
           currentVersion: 'v1.3.4/2024-01-10'
         }],
@@ -299,7 +299,7 @@ describe('Updates Controller', () => {
         bodyParameters: {
           input: {
             // Missing required templateName and currentVersion
-            category: 'Storage'
+            category: 'storage'
           }
         }
       };
@@ -338,7 +338,7 @@ describe('Updates Controller', () => {
           input: {
             templateName: 'template-storage-s3-artifacts',
             currentVersion: 'v1.3.4/2024-01-10',
-            category: 'Storage'
+            category: 'storage'
           }
         }
       };
@@ -378,7 +378,7 @@ describe('Updates Controller', () => {
           input: {
             templateName: 'template-storage-s3-artifacts',
             currentVersion: 'v1.3.4/2024-01-10',
-            category: 'Storage'
+            category: 'storage'
           }
         }
       };
@@ -411,7 +411,7 @@ describe('Updates Controller', () => {
           input: {
             templateName: 'template-storage-s3-artifacts',
             currentVersion: 'v1.3.4/2024-01-10',
-            category: 'Storage',
+            category: 'storage',
             s3Buckets: ['bucket1']
           }
         }
@@ -438,7 +438,7 @@ describe('Updates Controller', () => {
         expect.objectContaining({
           templateName: 'template-storage-s3-artifacts',
           currentVersion: 'v1.3.4/2024-01-10',
-          category: 'Storage',
+          category: 'storage',
           s3BucketsCount: 1
         })
       );
@@ -461,7 +461,7 @@ describe('Updates Controller', () => {
           input: {
             templateName: 'template-storage-s3-artifacts',
             currentVersion: 'invalid-version',
-            category: 'Storage'
+            category: 'storage'
           }
         }
       };

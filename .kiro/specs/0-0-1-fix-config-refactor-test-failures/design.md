@@ -237,7 +237,7 @@ describe('Service Name Tests', () => {
       },
       templates: {
         categories: [
-          { name: 'Storage', description: 'Storage templates' }
+          { name: 'storage', description: 'Storage templates' }
         ]
       }
     });
@@ -310,7 +310,7 @@ describe('Controller Name Tests', () => {
     Config.settings.mockReturnValue({
       templates: {
         categories: [
-          { name: 'Storage', description: 'Storage templates' }
+          { name: 'storage', description: 'Storage templates' }
         ]
       }
     });
@@ -326,7 +326,7 @@ describe('Controller Name Tests', () => {
 
       // Execute test
       const result = await Controllers.Templates.get({
-        params: { category: 'Storage', templateName: 'test-template' }
+        params: { category: 'storage', templateName: 'test-template' }
       });
 
       // Assertions
@@ -422,8 +422,8 @@ Config.settings.mockReturnValue({
   },
   templates: {
     categories: [
-      { name: 'Storage', description: 'Storage templates' },
-      { name: 'Pipeline', description: 'Pipeline templates' }
+      { name: 'storage', description: 'Storage templates' },
+      { name: 'pipeline', description: 'Pipeline templates' }
     ]
   },
   starters: {

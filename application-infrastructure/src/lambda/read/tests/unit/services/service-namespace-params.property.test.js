@@ -151,7 +151,7 @@ describe('Feature: add-namespace-filter-to-list-templates, Property 4: Service i
         async (namespace) => {
           clearMockCalls();
 
-          await Templates.get({ category: 'Storage', templateName: 'tpl', namespace });
+          await Templates.get({ category: 'storage', templateName: 'tpl', namespace });
 
           expect(CacheableDataAccess.getData).toHaveBeenCalledTimes(1);
           const conn = CacheableDataAccess.getData.mock.calls[0][2];
@@ -169,7 +169,7 @@ describe('Feature: add-namespace-filter-to-list-templates, Property 4: Service i
         async (namespace) => {
           clearMockCalls();
 
-          await Templates.listVersions({ category: 'Storage', templateName: 'tpl', namespace });
+          await Templates.listVersions({ category: 'storage', templateName: 'tpl', namespace });
 
           expect(CacheableDataAccess.getData).toHaveBeenCalledTimes(1);
           const conn = CacheableDataAccess.getData.mock.calls[0][2];
@@ -188,7 +188,7 @@ describe('Feature: add-namespace-filter-to-list-templates, Property 4: Service i
           clearMockCalls();
 
           await Templates.checkUpdates({
-            templates: [{ category: 'Storage', templateName: 'tpl', currentVersion: 'v1.0.0' }],
+            templates: [{ category: 'storage', templateName: 'tpl', currentVersion: 'v1.0.0' }],
             namespace
           });
 
@@ -231,11 +231,11 @@ describe('Feature: add-namespace-filter-to-list-templates, Property 5: Different
         distinctNamespacePairArb,
         async ([ns1, ns2]) => {
           clearMockCalls();
-          await Templates.list({ category: 'Storage', namespace: ns1 });
+          await Templates.list({ category: 'storage', namespace: ns1 });
           const params1 = { ...CacheableDataAccess.getData.mock.calls[0][2].parameters };
 
           clearMockCalls();
-          await Templates.list({ category: 'Storage', namespace: ns2 });
+          await Templates.list({ category: 'storage', namespace: ns2 });
           const params2 = { ...CacheableDataAccess.getData.mock.calls[0][2].parameters };
 
           expect(JSON.stringify(params1)).not.toBe(JSON.stringify(params2));
@@ -251,11 +251,11 @@ describe('Feature: add-namespace-filter-to-list-templates, Property 5: Different
         distinctNamespacePairArb,
         async ([ns1, ns2]) => {
           clearMockCalls();
-          await Templates.get({ category: 'Storage', templateName: 'tpl', namespace: ns1 });
+          await Templates.get({ category: 'storage', templateName: 'tpl', namespace: ns1 });
           const params1 = { ...CacheableDataAccess.getData.mock.calls[0][2].parameters };
 
           clearMockCalls();
-          await Templates.get({ category: 'Storage', templateName: 'tpl', namespace: ns2 });
+          await Templates.get({ category: 'storage', templateName: 'tpl', namespace: ns2 });
           const params2 = { ...CacheableDataAccess.getData.mock.calls[0][2].parameters };
 
           expect(JSON.stringify(params1)).not.toBe(JSON.stringify(params2));
@@ -271,11 +271,11 @@ describe('Feature: add-namespace-filter-to-list-templates, Property 5: Different
         distinctNamespacePairArb,
         async ([ns1, ns2]) => {
           clearMockCalls();
-          await Templates.listVersions({ category: 'Storage', templateName: 'tpl', namespace: ns1 });
+          await Templates.listVersions({ category: 'storage', templateName: 'tpl', namespace: ns1 });
           const params1 = { ...CacheableDataAccess.getData.mock.calls[0][2].parameters };
 
           clearMockCalls();
-          await Templates.listVersions({ category: 'Storage', templateName: 'tpl', namespace: ns2 });
+          await Templates.listVersions({ category: 'storage', templateName: 'tpl', namespace: ns2 });
           const params2 = { ...CacheableDataAccess.getData.mock.calls[0][2].parameters };
 
           expect(JSON.stringify(params1)).not.toBe(JSON.stringify(params2));

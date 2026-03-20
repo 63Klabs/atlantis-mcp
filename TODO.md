@@ -3,11 +3,12 @@
 - [x] Request Rate Limiting
 - [x] Add namespace filter to templates
 - [x] Add tools endpoint which lists available tools
-- [-] Allow GET on list tools
+- [x] Allow GET on list tools
 
-- [ ] List starters
-- [ ] Starter info
+- [-] List starters
+- [-] Starter info
 - [ ] Update validate naming
+- [ ] If no template returned, error occurs because it can't read name
 - [ ] Why are there 2 package.json files in src tree
 
 - [ ] Allow template current version to be long version S3

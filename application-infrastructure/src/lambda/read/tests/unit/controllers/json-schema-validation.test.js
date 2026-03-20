@@ -123,7 +123,7 @@ describe('JSON Schema Validation Across Controllers', () => {
       const props = {
         body: {
           input: {
-            category: 'Storage'
+            category: 'storage'
             // Missing required templateName
           }
         }
@@ -143,7 +143,7 @@ describe('JSON Schema Validation Across Controllers', () => {
       const props = {
         body: {
           input: {
-            category: 'Storage'
+            category: 'storage'
             // Missing required templateName
           }
         }
@@ -180,18 +180,18 @@ describe('JSON Schema Validation Across Controllers', () => {
   });
 
   describe('Starters Controller Schema Validation', () => {
-    test('list_starters: should reject invalid ghusers type', async () => {
+    test('list_starters: should reject invalid s3Buckets type', async () => {
       const props = {
         body: {
           input: {
-            ghusers: 'not-an-array' // Should be array
+            s3Buckets: 'not-an-array' // Should be array
           }
         }
       };
 
       SchemaValidator.validate.mockReturnValue({
         valid: false,
-        errors: [{ field: 'ghusers', message: 'Must be an array' }]
+        errors: [{ field: 's3Buckets', message: 'Must be an array' }]
       });
 
       const result = await StartersController.list(props);
@@ -199,18 +199,18 @@ describe('JSON Schema Validation Across Controllers', () => {
       expect(result.success).toBe(false);
     });
 
-    test('list_starters: should reject empty array for ghusers', async () => {
+    test('list_starters: should reject empty array for s3Buckets', async () => {
       const props = {
         body: {
           input: {
-            ghusers: [] // Should have at least one element
+            s3Buckets: [] // Should have at least one element
           }
         }
       };
 
       SchemaValidator.validate.mockReturnValue({
         valid: false,
-        errors: [{ field: 'ghusers', message: 'Array must not be empty' }]
+        errors: [{ field: 's3Buckets', message: 'Array must not be empty' }]
       });
 
       const result = await StartersController.list(props);
@@ -222,7 +222,7 @@ describe('JSON Schema Validation Across Controllers', () => {
       const props = {
         body: {
           input: {
-            ghusers: ['63klabs']
+            s3Buckets: ['63klabs']
             // Missing required starterName
           }
         }

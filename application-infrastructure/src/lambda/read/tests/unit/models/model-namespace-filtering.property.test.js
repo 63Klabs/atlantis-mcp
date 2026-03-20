@@ -131,7 +131,7 @@ describe('Feature: add-namespace-filter-to-list-templates, Property 6: Model ski
           const connection = {
             host: 'test-bucket',
             path: 'templates/v2',
-            parameters: { category: 'Storage', templateName: 'tpl', namespace }
+            parameters: { category: 'storage', templateName: 'tpl', namespace }
           };
 
           await S3Templates.get(connection, {});
@@ -163,7 +163,7 @@ describe('Feature: add-namespace-filter-to-list-templates, Property 6: Model ski
     const connection = {
       host: 'test-bucket',
       path: 'templates/v2',
-      parameters: { category: 'Storage', templateName: 'tpl' }
+      parameters: { category: 'storage', templateName: 'tpl' }
     };
 
     await S3Templates.get(connection, {});
@@ -185,7 +185,7 @@ describe('Feature: add-namespace-filter-to-list-templates, Property 6: Model ski
           const connection = {
             host: 'test-bucket',
             path: 'templates/v2',
-            parameters: { category: 'Storage', templateName: 'tpl', namespace }
+            parameters: { category: 'storage', templateName: 'tpl', namespace }
           };
 
           await S3Templates.listVersions(connection, {});
@@ -217,7 +217,7 @@ describe('Feature: add-namespace-filter-to-list-templates, Property 6: Model ski
     const connection = {
       host: 'test-bucket',
       path: 'templates/v2',
-      parameters: { category: 'Storage', templateName: 'tpl' }
+      parameters: { category: 'storage', templateName: 'tpl' }
     };
 
     await S3Templates.listVersions(connection, {});
@@ -281,7 +281,7 @@ describe('Feature: add-namespace-filter-to-list-templates, Property 7: Non-exist
           const connection = {
             host: 'test-bucket',
             path: 'templates/v2',
-            parameters: { category: 'Storage', templateName: 'tpl', namespace }
+            parameters: { category: 'storage', templateName: 'tpl', namespace }
           };
 
           const result = await S3Templates.get(connection, {});
@@ -306,7 +306,7 @@ describe('Feature: add-namespace-filter-to-list-templates, Property 7: Non-exist
           const connection = {
             host: 'test-bucket',
             path: 'templates/v2',
-            parameters: { category: 'Storage', templateName: 'tpl', namespace }
+            parameters: { category: 'storage', templateName: 'tpl', namespace }
           };
 
           const result = await S3Templates.listVersions(connection, {});

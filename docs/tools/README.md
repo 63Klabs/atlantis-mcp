@@ -24,7 +24,7 @@ List all available CloudFormation templates from configured S3 buckets.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `category` | string | No | Filter by template category (Storage, Network, Pipeline, Service Role, Modules) |
+| `category` | string | No | Filter by template category (storage, network, pipeline, service-role, modules) |
 | `version` | string | No | Filter by human-readable version (e.g., "v2.0.18") |
 | `versionId` | string | No | Filter by S3 version ID |
 | `s3Buckets` | array[string] | No | Filter to specific S3 buckets from configured list |
@@ -38,7 +38,7 @@ Returns an array of template metadata objects:
   "templates": [
     {
       "name": "template-pipeline.yml",
-      "category": "Pipeline",
+      "category": "pipeline",
       "version": "v2.0.18",
       "versionId": "abc123xyz",
       "description": "CodePipeline template for CI/CD",
@@ -104,7 +104,7 @@ Returns complete template details:
 ```json
 {
   "name": "template-pipeline.yml",
-  "category": "Pipeline",
+  "category": "pipeline",
   "version": "v2.0.18",
   "versionId": "abc123xyz",
   "content": "AWSTemplateFormatVersion: '2010-09-09'...",
@@ -178,7 +178,7 @@ Returns version history:
 ```json
 {
   "templateName": "template-pipeline.yml",
-  "category": "Pipeline",
+  "category": "pipeline",
   "versions": [
     {
       "version": "v2.0.18",
@@ -229,27 +229,27 @@ Returns category information:
 {
   "categories": [
     {
-      "name": "Storage",
+      "name": "storage",
       "description": "S3 buckets, DynamoDB tables, and storage resources",
       "templateCount": 12
     },
     {
-      "name": "Network",
+      "name": "network",
       "description": "CloudFront, Route53, and networking resources",
       "templateCount": 8
     },
     {
-      "name": "Pipeline",
+      "name": "pipeline",
       "description": "CodePipeline and CI/CD templates",
       "templateCount": 6
     },
     {
-      "name": "Service Role",
+      "name": "service-role",
       "description": "IAM roles and policies",
       "templateCount": 10
     },
     {
-      "name": "Modules",
+      "name": "modules",
       "description": "Reusable CloudFormation modules",
       "templateCount": 15
     }

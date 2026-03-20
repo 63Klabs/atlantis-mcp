@@ -59,9 +59,9 @@ Namespaces are root-level directories in S3 buckets that organize templates and 
 s3://acme-atlantis-templates-us-east-1/
 ├── atlantis/
 │   ├── templates/v2/
-│   │   ├── Storage/
-│   │   ├── Network/
-│   │   └── Pipeline/
+│   │   ├── storage/
+│   │   ├── network/
+│   │   └── pipeline/
 │   └── app-starters/v2/
 │       ├── atlantis-starter-01.zip
 │       └── atlantis-starter-01.json

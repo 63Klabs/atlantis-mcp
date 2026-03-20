@@ -75,7 +75,7 @@ Outputs:
       host: ['test-bucket'],
       path: 'templates/v2',
       parameters: {
-        category: 'Storage',
+        category: 'storage',
         templateName: 'test-template',
         version: 'v1.0.0/2024-01-15',
         versionId: 'version-id-999'
@@ -134,7 +134,7 @@ Outputs:
     expect(result.version).toBe('v1.0.0/2024-01-15');
     expect(result.versionId).toBe('version-id-123');
     expect(result.name).toBe('test-template');
-    expect(result.category).toBe('Storage');
+    expect(result.category).toBe('storage');
   });
 
   it('should return template when versionId matches (both version and versionId provided)', async () => {
@@ -142,7 +142,7 @@ Outputs:
       host: ['test-bucket'],
       path: 'templates/v2',
       parameters: {
-        category: 'Storage',
+        category: 'storage',
         templateName: 'test-template',
         version: 'v1.0.0/2024-01-15',
         versionId: 'version-id-456'
@@ -192,7 +192,7 @@ Outputs:
       host: ['test-bucket'],
       path: 'templates/v2',
       parameters: {
-        category: 'Storage',
+        category: 'storage',
         templateName: 'test-template',
         version: 'v1.0.0/2024-01-15',
         versionId: 'version-id-999'
@@ -238,7 +238,7 @@ Outputs:
       host: ['test-bucket'],
       path: 'templates/v2',
       parameters: {
-        category: 'Storage',
+        category: 'storage',
         templateName: 'test-template',
         version: 'v1.0.0/2024-01-15'
       }
@@ -268,7 +268,7 @@ Outputs:
       host: ['test-bucket'],
       path: 'templates/v2',
       parameters: {
-        category: 'Storage',
+        category: 'storage',
         templateName: 'test-template',
         versionId: 'version-id-456'
       }

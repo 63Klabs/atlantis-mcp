@@ -108,8 +108,8 @@ const settings = {
           properties: {
             category: {
               type: 'string',
-              description: 'Filter by template category (Storage, Network, Pipeline, Service Role, Modules)',
-              enum: ['Storage', 'Network', 'Pipeline', 'Service Role', 'Modules']
+              description: 'Filter by template category (storage, network, pipeline, service-role, modules)',
+              enum: TEMPLATE_CATEGORIES.map(cat => cat.name)
             },
             version: {
               type: 'string',
@@ -140,7 +140,7 @@ const settings = {
             category: {
               type: 'string',
               description: 'Template category',
-              enum: ['Storage', 'Network', 'Pipeline', 'Service Role', 'Modules']
+              enum: TEMPLATE_CATEGORIES.map(cat => cat.name)
             },
             version: {
               type: 'string',
@@ -172,7 +172,7 @@ const settings = {
             category: {
               type: 'string',
               description: 'Template category',
-              enum: ['Storage', 'Network', 'Pipeline', 'Service Role', 'Modules']
+              enum: TEMPLATE_CATEGORIES.map(cat => cat.name)
             },
             s3Buckets: {
               type: 'array',
@@ -193,21 +193,25 @@ const settings = {
       },
       {
         name: 'list_starters',
-        description: 'List all available starter code repositories. Returns starter metadata including name, description, language, framework, features, and GitHub URL.',
+        description: 'List all available starter code repositories from configured S3 buckets. Returns starter metadata including name, description, languages, frameworks, features, and S3 location.',
         inputSchema: {
           type: 'object',
           properties: {
-            ghusers: {
+            s3Buckets: {
               type: 'array',
               items: { type: 'string' },
-              description: 'Filter to specific GitHub users/orgs from configured list'
+              description: 'Filter to specific S3 buckets from configured list'
+            },
+            namespace: {
+              type: 'string',
+              description: 'Filter to a specific namespace (S3 root prefix)'
             }
           }
         }
       },
       {
         name: 'get_starter_info',
-        description: 'Retrieve detailed information about a specific starter code repository. Returns comprehensive metadata, example code snippets, and setup instructions.',
+        description: 'Retrieve detailed information about a specific starter code repository. Returns comprehensive metadata including languages, frameworks, features, prerequisites, and S3 location.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -215,10 +219,14 @@ const settings = {
               type: 'string',
               description: 'Name of the starter repository'
             },
-            ghusers: {
+            s3Buckets: {
               type: 'array',
               items: { type: 'string' },
-              description: 'Filter to specific GitHub users/orgs from configured list'
+              description: 'Filter to specific S3 buckets from configured list'
+            },
+            namespace: {
+              type: 'string',
+              description: 'Filter to a specific namespace (S3 root prefix)'
             }
           },
           required: ['starterName']
@@ -280,7 +288,7 @@ const settings = {
             category: {
               type: 'string',
               description: 'Template category',
-              enum: ['Storage', 'Network', 'Pipeline', 'Service Role', 'Modules']
+              enum: TEMPLATE_CATEGORIES.map(cat => cat.name)
             },
             currentVersion: {
               type: 'string',
@@ -373,7 +381,7 @@ const settings = {
      * Parsed from ATLANTIS_GITHUB_USER_ORGS environment variable
      * @type {Array<string>}
      */
-    userOrgs: parseCommaSeparated('ATLANTIS_GITHUB_USER_ORGS', []),
+    userOrgs: parseCommaSeparated('ATLANTIS_GITHUB_USER_ORGS', ["63klabs"]),
 
     /**
      * GitHub custom property name for repository type

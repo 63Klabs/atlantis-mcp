@@ -62,12 +62,12 @@ describe('S3 Templates DAO', () => {
       mockS3Send.mockResolvedValueOnce({
         Contents: [
           {
-            Key: 'atlantis/templates/v2/Storage/template-s3.yml',
+            Key: 'atlantis/templates/v2/storage/template-s3.yml',
             LastModified: new Date('2024-01-01'),
             Size: 1024
           },
           {
-            Key: 'atlantis/templates/v2/Network/template-vpc.yml',
+            Key: 'atlantis/templates/v2/network/template-vpc.yml',
             LastModified: new Date('2024-01-02'),
             Size: 2048
           }
@@ -84,9 +84,9 @@ describe('S3 Templates DAO', () => {
 
       expect(result.templates).toHaveLength(2);
       expect(result.templates[0].name).toBe('template-s3');
-      expect(result.templates[0].category).toBe('Storage');
+      expect(result.templates[0].category).toBe('storage');
       expect(result.templates[1].name).toBe('template-vpc');
-      expect(result.templates[1].category).toBe('Network');
+      expect(result.templates[1].category).toBe('network');
       expect(result.partialData).toBe(false);
       
       // Verify AWS SDK client was called correctly
@@ -103,7 +103,7 @@ describe('S3 Templates DAO', () => {
       mockS3Send.mockResolvedValueOnce({
         Contents: [
           {
-            Key: 'atlantis/templates/v2/Storage/template-s3.yml',
+            Key: 'atlantis/templates/v2/storage/template-s3.yml',
             LastModified: new Date('2024-01-01'),
             Size: 1024
           }
@@ -119,12 +119,12 @@ describe('S3 Templates DAO', () => {
       mockS3Send.mockResolvedValueOnce({
         Contents: [
           {
-            Key: 'atlantis/templates/v2/Storage/template-s3.yml',
+            Key: 'atlantis/templates/v2/storage/template-s3.yml',
             LastModified: new Date('2024-01-02'),
             Size: 2048
           },
           {
-            Key: 'atlantis/templates/v2/Network/template-vpc.yml',
+            Key: 'atlantis/templates/v2/network/template-vpc.yml',
             LastModified: new Date('2024-01-03'),
             Size: 3072
           }
@@ -154,12 +154,12 @@ describe('S3 Templates DAO', () => {
       mockS3Send.mockResolvedValueOnce({
         Contents: [
           {
-            Key: 'atlantis/templates/v2/Storage/template-s3.yml',
+            Key: 'atlantis/templates/v2/storage/template-s3.yml',
             LastModified: new Date(),
             Size: 1024
           },
           {
-            Key: 'atlantis/templates/v2/Network/template-vpc.yml',
+            Key: 'atlantis/templates/v2/network/template-vpc.yml',
             LastModified: new Date(),
             Size: 2048
           }
@@ -169,13 +169,13 @@ describe('S3 Templates DAO', () => {
       const connection = {
         host: 'test-bucket',
         path: 'templates/v2',
-        parameters: { category: 'Storage' }
+        parameters: { category: 'storage' }
       };
 
       const result = await S3Templates.list(connection, {});
 
       expect(result.templates).toHaveLength(1);
-      expect(result.templates[0].category).toBe('Storage');
+      expect(result.templates[0].category).toBe('storage');
     });
 
     it('should support brown-out when bucket fails', async () => {
@@ -192,7 +192,7 @@ describe('S3 Templates DAO', () => {
       mockS3Send.mockResolvedValueOnce({
         Contents: [
           {
-            Key: 'atlantis/templates/v2/Storage/template-s3.yml',
+            Key: 'atlantis/templates/v2/storage/template-s3.yml',
             LastModified: new Date(),
             Size: 1024
           }
@@ -221,12 +221,12 @@ describe('S3 Templates DAO', () => {
       mockS3Send.mockResolvedValueOnce({
         Contents: [
           {
-            Key: 'atlantis/templates/v2/Storage/template-s3.yml',
+            Key: 'atlantis/templates/v2/storage/template-s3.yml',
             LastModified: new Date(),
             Size: 1024
           },
           {
-            Key: 'atlantis/templates/v2/Network/template-vpc.yaml',
+            Key: 'atlantis/templates/v2/network/template-vpc.yaml',
             LastModified: new Date(),
             Size: 2048
           }
@@ -277,7 +277,7 @@ Outputs:
         host: 'test-bucket',
         path: 'templates/v2',
         parameters: {
-          category: 'Storage',
+          category: 'storage',
           templateName: 'template-s3'
         }
       };
@@ -286,7 +286,7 @@ Outputs:
 
       expect(result).not.toBeNull();
       expect(result.name).toBe('template-s3');
-      expect(result.category).toBe('Storage');
+      expect(result.category).toBe('storage');
       expect(result.version).toBe('v1.0.0/2024-01-01');
       expect(result.versionId).toBe('v123');
       expect(result.content).toBe(templateContent);
@@ -305,7 +305,7 @@ Outputs:
         host: 'test-bucket',
         path: 'templates/v2',
         parameters: {
-          category: 'Storage',
+          category: 'storage',
           templateName: 'nonexistent'
         }
       };
@@ -328,7 +328,7 @@ Outputs:
         host: 'test-bucket',
         path: 'templates/v2',
         parameters: {
-          category: 'Storage',
+          category: 'storage',
           templateName: 'nonexistent'
         }
       };
@@ -445,10 +445,10 @@ Description: Test template
   describe('11.5.7 - deduplicateTemplates()', () => {
     it('should deduplicate templates by category and name', () => {
       const templates = [
-        { category: 'Storage', name: 'template-s3', bucket: 'bucket1' },
-        { category: 'Storage', name: 'template-s3', bucket: 'bucket2' },
-        { category: 'Network', name: 'template-vpc', bucket: 'bucket1' },
-        { category: 'Network', name: 'template-vpc', bucket: 'bucket2' }
+        { category: 'storage', name: 'template-s3', bucket: 'bucket1' },
+        { category: 'storage', name: 'template-s3', bucket: 'bucket2' },
+        { category: 'network', name: 'template-vpc', bucket: 'bucket1' },
+        { category: 'network', name: 'template-vpc', bucket: 'bucket2' }
       ];
 
       const result = S3Templates.deduplicateTemplates(templates);
@@ -474,14 +474,14 @@ AWSTemplateFormatVersion: '2010-09-09'
     });
 
     it('buildTemplateKey should construct correct S3 key', () => {
-      const result = S3Templates.buildTemplateKey('atlantis', 'templates/v2', 'Storage', 'template-s3', '.yml');
-      expect(result).toBe('atlantis/templates/v2/Storage/template-s3.yml');
+      const result = S3Templates.buildTemplateKey('atlantis', 'templates/v2', 'storage', 'template-s3', '.yml');
+      expect(result).toBe('atlantis/templates/v2/storage/template-s3.yml');
     });
 
     it('filterByCategory should filter correctly', () => {
-      expect(S3Templates.filterByCategory({ category: 'Storage' }, 'Storage')).toBe(true);
-      expect(S3Templates.filterByCategory({ category: 'Storage' }, 'Network')).toBe(false);
-      expect(S3Templates.filterByCategory({ category: 'Storage' }, null)).toBe(true);
+      expect(S3Templates.filterByCategory({ category: 'storage' }, 'storage')).toBe(true);
+      expect(S3Templates.filterByCategory({ category: 'storage' }, 'network')).toBe(false);
+      expect(S3Templates.filterByCategory({ category: 'storage' }, null)).toBe(true);
     });
 
     it('filterByVersion should filter correctly', () => {

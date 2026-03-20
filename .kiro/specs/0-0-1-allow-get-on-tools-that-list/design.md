@@ -42,8 +42,8 @@ sequenceDiagram
     participant Settings as config/settings.js
     participant Controller
 
-    Client->>APIGateway: GET /mcp/list_templates?category=Storage
-    APIGateway->>Lambda: event (method=GET, pathParameters.tool=list_templates, queryStringParameters.category=Storage)
+    Client->>APIGateway: GET /mcp/list_templates?category=storage
+    APIGateway->>Lambda: event (method=GET, pathParameters.tool=list_templates, queryStringParameters.category=storage)
     Lambda->>Router: Routes.process(event, context)
     Router->>Router: Extract tool from pathParameters
     Router->>Settings: getGetEligibleTools()
@@ -196,7 +196,7 @@ Example for `/mcp/list_templates`:
         required: false
         schema:
           type: string
-          enum: ['storage', 'network', 'pipeline', 'service-role', 'modules']
+          enum: TEMPLATE_CATEGORIES.map(cat => cat.name)
         description: "Filter by template category"
       - name: version
         in: query
@@ -265,7 +265,7 @@ For GET requests, query string parameters are mapped directly:
 
 | GET Request | Equivalent POST Body |
 |-------------|---------------------|
-| `GET /mcp/list_templates?category=Storage` | `POST /mcp/list_templates` with `{ "input": { "category": "Storage" } }` |
+| `GET /mcp/list_templates?category=storage` | `POST /mcp/list_templates` with `{ "input": { "category": "storage" } }` |
 | `GET /mcp/list_starters?ghusers=63Klabs` | `POST /mcp/list_starters` with `{ "input": { "ghusers": "63Klabs" } }` |
 | `GET /mcp/list_tools` | `POST /mcp/list_tools` with `{ "input": {} }` |
 | `GET /mcp/list_categories` | `POST /mcp/list_categories` with `{ "input": {} }` |
@@ -376,7 +376,7 @@ Unit tests cover specific examples, edge cases, and error conditions:
 
 2. **Router — GET method handling** (`tests/unit/lambda/get-method-support.test.js`):
    - GET request to `list_tools` returns 200 with tool list
-   - GET request to `list_templates?category=Storage` passes `category` to controller
+   - GET request to `list_templates?category=storage` passes `category` to controller
    - GET request to `get_template` returns 405 with descriptive error
    - GET request to `search_documentation` returns 405
    - GET request to unknown tool returns 404 (not 405)

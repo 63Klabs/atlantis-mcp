@@ -57,7 +57,8 @@ describe('Starters Controller', () => {
       const props = {
         bodyParameters: {
           input: {
-            ghusers: ['63klabs', 'myorg']
+            s3Buckets: ['63klabs'],
+            namespace: '63klabs'
           }
         }
       };
@@ -69,18 +70,16 @@ describe('Starters Controller', () => {
           {
             name: 'atlantis-starter-02',
             description: 'Serverless application starter',
-            language: 'Node.js',
-            framework: 'Express',
-            hasCacheData: true,
-            hasCloudFront: false
+            languages: ['Node.js'],
+            frameworks: ['Express'],
+            hasCacheData: true
           },
           {
             name: 'python-lambda-starter',
             description: 'Python Lambda starter',
-            language: 'Python',
-            framework: 'Flask',
-            hasCacheData: false,
-            hasCloudFront: false
+            languages: ['Python'],
+            frameworks: ['Flask'],
+            hasCacheData: false
           }
         ]
       };
@@ -93,7 +92,8 @@ describe('Starters Controller', () => {
       // Assert
       expect(SchemaValidator.validate).toHaveBeenCalledWith('list_starters', props.bodyParameters.input);
       expect(Services.Starters.list).toHaveBeenCalledWith({
-        ghusers: ['63klabs', 'myorg']
+        s3Buckets: ['63klabs'],
+        namespace: '63klabs'
       });
       expect(MCPProtocol.successResponse).toHaveBeenCalledWith('list_starters', mockStarters);
       expect(result.success).toBe(true);
@@ -110,7 +110,8 @@ describe('Starters Controller', () => {
 
       // Assert
       expect(Services.Starters.list).toHaveBeenCalledWith({
-        ghusers: undefined
+        s3Buckets: undefined,
+        namespace: undefined
       });
       expect(result.success).toBe(true);
     });
@@ -134,14 +135,14 @@ describe('Starters Controller', () => {
       const props = {
         bodyParameters: {
           input: {
-            ghusers: 'not-an-array' // Should be array
+            s3Buckets: 'not-an-array' // Should be array
           }
         }
       };
 
       SchemaValidator.validate.mockReturnValue({
         valid: false,
-        errors: [{ field: 'ghusers', message: 'Must be an array' }]
+        errors: [{ field: 's3Buckets', message: 'Must be an array' }]
       });
 
       // Act
@@ -153,7 +154,7 @@ describe('Starters Controller', () => {
         expect.objectContaining({
           message: 'Input validation failed',
           errors: expect.arrayContaining([
-            expect.objectContaining({ field: 'ghusers' })
+            expect.objectContaining({ field: 's3Buckets' })
           ])
         }),
         'list_starters'
@@ -167,7 +168,7 @@ describe('Starters Controller', () => {
       const props = { bodyParameters: { input: {} } };
       SchemaValidator.validate.mockReturnValue({ valid: true });
 
-      const serviceError = new Error('GitHub API connection failed');
+      const serviceError = new Error('S3 connection failed');
       Services.Starters.list.mockRejectedValue(serviceError);
 
       // Act
@@ -178,7 +179,7 @@ describe('Starters Controller', () => {
         'INTERNAL_ERROR',
         expect.objectContaining({
           message: 'Failed to list starters',
-          error: 'GitHub API connection failed'
+          error: 'S3 connection failed'
         }),
         'list_starters'
       );
@@ -188,14 +189,14 @@ describe('Starters Controller', () => {
 
     test('should handle partial data with errors', async () => {
       // Arrange
-      const props = { bodyParameters: { input: { ghusers: ['63klabs', 'failedorg'] } } };
+      const props = { bodyParameters: { input: { s3Buckets: ['63klabs'] } } };
       SchemaValidator.validate.mockReturnValue({ valid: true });
 
       Services.Starters.list.mockResolvedValue({
         starters: [{ name: 'starter1' }],
         partialData: true,
         errors: [
-          { source: 'failedorg', error: 'Organization not found' }
+          { source: '63klabs', error: 'Access denied to namespace' }
         ]
       });
 
@@ -216,7 +217,7 @@ describe('Starters Controller', () => {
 
     test('should log request and response details', async () => {
       // Arrange
-      const props = { bodyParameters: { input: { ghusers: ['63klabs'] } } };
+      const props = { bodyParameters: { input: { s3Buckets: ['63klabs'], namespace: '63klabs' } } };
       SchemaValidator.validate.mockReturnValue({ valid: true });
       Services.Starters.list.mockResolvedValue({
         starters: [{ name: 'starter1' }],
@@ -229,7 +230,7 @@ describe('Starters Controller', () => {
       // Assert
       expect(tools.DebugAndLog.info).toHaveBeenCalledWith(
         'list_starters request',
-        expect.objectContaining({ ghusersCount: 1 })
+        expect.objectContaining({ namespace: '63klabs', s3BucketsCount: 1 })
       );
       expect(tools.DebugAndLog.info).toHaveBeenCalledWith(
         'list_starters response',
@@ -245,7 +246,8 @@ describe('Starters Controller', () => {
         bodyParameters: {
           input: {
             starterName: 'atlantis-starter-02',
-            ghusers: ['63klabs']
+            s3Buckets: ['63klabs'],
+            namespace: '63klabs'
           }
         }
       };
@@ -255,8 +257,8 @@ describe('Starters Controller', () => {
       const mockStarter = {
         name: 'atlantis-starter-02',
         description: 'Serverless application starter with cache-data integration',
-        language: 'Node.js',
-        framework: 'Express',
+        languages: ['Node.js'],
+        frameworks: ['Express'],
         features: ['Lambda', 'API Gateway', 'DynamoDB', 'S3'],
         prerequisites: ['Node.js 20+', 'AWS CLI'],
         author: '63Klabs',
@@ -264,9 +266,7 @@ describe('Starters Controller', () => {
         hasS3Package: true,
         hasSidecarMetadata: true,
         source: 's3',
-        githubUrl: 'https://github.com/63klabs/atlantis-starter-02',
-        hasCacheData: true,
-        hasCloudFront: false
+        hasCacheData: true
       };
 
       Services.Starters.get.mockResolvedValue(mockStarter);
@@ -278,7 +278,8 @@ describe('Starters Controller', () => {
       expect(SchemaValidator.validate).toHaveBeenCalledWith('get_starter_info', props.bodyParameters.input);
       expect(Services.Starters.get).toHaveBeenCalledWith({
         starterName: 'atlantis-starter-02',
-        ghusers: ['63klabs']
+        s3Buckets: ['63klabs'],
+        namespace: '63klabs'
       });
       expect(MCPProtocol.successResponse).toHaveBeenCalledWith('get_starter_info', mockStarter);
       expect(result.success).toBe(true);
@@ -290,7 +291,7 @@ describe('Starters Controller', () => {
         bodyParameters: {
           input: {
             // Missing required starterName
-            ghusers: ['63klabs']
+            s3Buckets: ['63klabs']
           }
         }
       };
@@ -321,7 +322,7 @@ describe('Starters Controller', () => {
         bodyParameters: {
           input: {
             starterName: 'non-existent-starter',
-            ghusers: ['63klabs']
+            s3Buckets: ['63klabs']
           }
         }
       };
@@ -356,7 +357,7 @@ describe('Starters Controller', () => {
         bodyParameters: {
           input: {
             starterName: 'non-existent-starter',
-            ghusers: ['63klabs']
+            s3Buckets: ['63klabs']
           }
         }
       };
@@ -387,7 +388,7 @@ describe('Starters Controller', () => {
         bodyParameters: {
           input: {
             starterName: 'atlantis-starter-02',
-            ghusers: ['63klabs']
+            s3Buckets: ['63klabs']
           }
         }
       };
@@ -413,13 +414,13 @@ describe('Starters Controller', () => {
       expect(result.success).toBe(false);
     });
 
-    test('should handle missing ghusers parameter', async () => {
+    test('should handle missing s3Buckets parameter', async () => {
       // Arrange
       const props = {
         bodyParameters: {
           input: {
             starterName: 'atlantis-starter-02'
-            // ghusers is optional
+            // s3Buckets is optional
           }
         }
       };
@@ -433,7 +434,8 @@ describe('Starters Controller', () => {
       // Assert
       expect(Services.Starters.get).toHaveBeenCalledWith({
         starterName: 'atlantis-starter-02',
-        ghusers: undefined
+        s3Buckets: undefined,
+        namespace: undefined
       });
     });
 
@@ -443,7 +445,8 @@ describe('Starters Controller', () => {
         bodyParameters: {
           input: {
             starterName: 'atlantis-starter-02',
-            ghusers: ['63klabs']
+            s3Buckets: ['63klabs'],
+            namespace: '63klabs'
           }
         }
       };
@@ -464,7 +467,8 @@ describe('Starters Controller', () => {
         'get_starter_info request',
         expect.objectContaining({
           starterName: 'atlantis-starter-02',
-          ghusersCount: 1
+          namespace: '63klabs',
+          s3BucketsCount: 1
         })
       );
       expect(tools.DebugAndLog.info).toHaveBeenCalledWith(

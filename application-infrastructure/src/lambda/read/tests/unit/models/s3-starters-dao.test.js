@@ -68,15 +68,15 @@ describe('S3 App Starters DAO', () => {
       const metadata1 = JSON.stringify({
         name: 'node-express-api',
         description: 'Node.js Express API starter',
-        language: 'Node.js',
-        framework: 'Express',
+        languages: ['Node.js'],
+        frameworks: ['Express'],
         features: ['REST API', 'Authentication'],
         prerequisites: ['Node.js 20+'],
         author: '63Klabs',
         license: 'MIT',
-        githubUrl: 'https://github.com/63klabs/node-express-api',
-        cacheDataIntegration: true,
-        cloudFrontIntegration: false
+        repository: 'https://github.com/63klabs/node-express-api',
+        hasCacheData: true,
+        deployment_platform: 'atlantis'
       });
 
       mockS3Send.mockResolvedValueOnce({
@@ -89,13 +89,13 @@ describe('S3 App Starters DAO', () => {
       const metadata2 = JSON.stringify({
         name: 'python-flask-api',
         description: 'Python Flask API starter',
-        language: 'Python',
-        framework: 'Flask',
+        languages: ['Python'],
+        frameworks: ['Flask'],
         features: ['REST API'],
         prerequisites: ['Python 3.11+'],
         author: '63Klabs',
         license: 'MIT',
-        githubUrl: 'https://github.com/63klabs/python-flask-api'
+        repository: 'https://github.com/63klabs/python-flask-api'
       });
 
       mockS3Send.mockResolvedValueOnce({
@@ -114,14 +114,16 @@ describe('S3 App Starters DAO', () => {
 
       expect(result.starters).toHaveLength(2);
       expect(result.starters[0].name).toBe('node-express-api');
-      expect(result.starters[0].language).toBe('Node.js');
-      expect(result.starters[0].cacheDataIntegration).toBe(true);
+      expect(result.starters[0].languages).toEqual(['Node.js']);
+      expect(result.starters[0].frameworks).toEqual(['Express']);
+      expect(result.starters[0].hasSidecarMetadata).toBe(true);
       expect(result.starters[1].name).toBe('python-flask-api');
-      expect(result.starters[1].language).toBe('Python');
+      expect(result.starters[1].languages).toEqual(['Python']);
+      expect(result.starters[1].frameworks).toEqual(['Flask']);
       expect(result.partialData).toBe(false);
     });
 
-    it('should skip starters without sidecar metadata', async () => {
+    it('should include starters without sidecar metadata with minimal metadata', async () => {
       mockS3Send.mockResolvedValueOnce({
         CommonPrefixes: [{ Prefix: 'atlantis/' }]
       });
@@ -147,7 +149,11 @@ describe('S3 App Starters DAO', () => {
 
       const result = await S3Starters.list(connection, {});
 
-      expect(result.starters).toHaveLength(0);
+      expect(result.starters).toHaveLength(1);
+      expect(result.starters[0].name).toBe('node-express-api');
+      expect(result.starters[0].hasSidecarMetadata).toBe(false);
+      expect(result.starters[0].languages).toEqual([]);
+      expect(result.starters[0].frameworks).toEqual([]);
       expect(result.partialData).toBe(false);
     });
 
@@ -171,7 +177,7 @@ describe('S3 App Starters DAO', () => {
       const metadata = JSON.stringify({
         name: 'node-express-api',
         description: 'Node.js Express API starter',
-        language: 'Node.js'
+        languages: ['Node.js']
       });
 
       // Mock sidecar metadata for bucket1
@@ -237,16 +243,16 @@ describe('S3 App Starters DAO', () => {
         ]
       });
 
-      const metadata = JSON.stringify({
+      const brownOutMetadata = JSON.stringify({
         name: 'node-express-api',
         description: 'Node.js Express API starter',
-        language: 'Node.js'
+        languages: ['Node.js']
       });
 
       // Mock sidecar metadata for bucket2
       mockS3Send.mockResolvedValueOnce({
         Body: {
-          transformToString: async () => metadata
+          transformToString: async () => brownOutMetadata
         }
       });
 
@@ -282,14 +288,14 @@ describe('S3 App Starters DAO', () => {
       const metadata = JSON.stringify({
         name: 'node-express-api',
         description: 'Node.js Express API starter',
-        language: 'Node.js',
-        framework: 'Express',
+        languages: ['Node.js'],
+        frameworks: ['Express'],
         features: ['REST API', 'Authentication'],
         prerequisites: ['Node.js 20+'],
         author: '63Klabs',
         license: 'MIT',
-        githubUrl: 'https://github.com/63klabs/node-express-api',
-        cacheDataIntegration: true
+        repository: 'https://github.com/63klabs/node-express-api',
+        hasCacheData: true
       });
 
       mockS3Send.mockResolvedValueOnce({
@@ -310,9 +316,10 @@ describe('S3 App Starters DAO', () => {
 
       expect(result).not.toBeNull();
       expect(result.name).toBe('node-express-api');
-      expect(result.language).toBe('Node.js');
-      expect(result.framework).toBe('Express');
-      expect(result.cacheDataIntegration).toBe(true);
+      expect(result.languages).toEqual(['Node.js']);
+      expect(result.frameworks).toEqual(['Express']);
+      expect(result.hasCacheData).toBe(true);
+      expect(result.hasSidecarMetadata).toBe(true);
       expect(result.zipSize).toBe(1024000);
     });
 
@@ -336,7 +343,7 @@ describe('S3 App Starters DAO', () => {
       expect(result).toBeNull();
     });
 
-    it('should skip starter without sidecar metadata', async () => {
+    it('should return minimal metadata for starter without sidecar JSON', async () => {
       mockS3Send.mockResolvedValueOnce({
         CommonPrefixes: [{ Prefix: 'atlantis/' }]
       });
@@ -360,7 +367,11 @@ describe('S3 App Starters DAO', () => {
 
       const result = await S3Starters.get(connection, {});
 
-      expect(result).toBeNull();
+      expect(result).not.toBeNull();
+      expect(result.name).toBe('node-express-api');
+      expect(result.hasSidecarMetadata).toBe(false);
+      expect(result.languages).toEqual([]);
+      expect(result.frameworks).toEqual([]);
     });
 
     it('should return null if starterName not provided', async () => {
@@ -377,28 +388,49 @@ describe('S3 App Starters DAO', () => {
   });
 
   describe('Helper Functions', () => {
-    it('parseSidecarMetadata should parse valid JSON', () => {
+    it('parseSidecarMetadata should parse valid JSON with plural fields', () => {
       const metadata = JSON.stringify({
         name: 'test-starter',
         description: 'Test description',
-        language: 'Node.js',
-        framework: 'Express',
+        languages: ['Node.js', 'TypeScript'],
+        frameworks: ['Express'],
+        topics: ['serverless', 'aws'],
+        dependencies: ['express'],
+        devDependencies: ['jest'],
+        hasCacheData: true,
+        deployment_platform: 'atlantis',
         features: ['Feature 1', 'Feature 2'],
         prerequisites: ['Node.js 20+'],
         author: 'Test Author',
         license: 'MIT',
-        githubUrl: 'https://github.com/test/repo',
-        cache_data_integration: true,
-        cloudfront_integration: false
+        repository: 'https://github.com/test/repo'
       });
 
       const result = S3Starters.parseSidecarMetadata(metadata);
 
       expect(result.name).toBe('test-starter');
-      expect(result.language).toBe('Node.js');
+      expect(result.languages).toEqual(['Node.js', 'TypeScript']);
+      expect(result.frameworks).toEqual(['Express']);
+      expect(result.topics).toEqual(['serverless', 'aws']);
+      expect(result.devDependencies).toEqual(['jest']);
+      expect(result.hasCacheData).toBe(true);
+      expect(result.deployment_platform).toBe('atlantis');
+      expect(result.repository).toBe('https://github.com/test/repo');
       expect(result.features).toHaveLength(2);
-      expect(result.cacheDataIntegration).toBe(true);
-      expect(result.cloudFrontIntegration).toBe(false);
+    });
+
+    it('parseSidecarMetadata should fall back to singular language/framework fields', () => {
+      const metadata = JSON.stringify({
+        name: 'test-starter',
+        description: 'Test description',
+        language: 'Python',
+        framework: 'Flask'
+      });
+
+      const result = S3Starters.parseSidecarMetadata(metadata);
+
+      expect(result.languages).toEqual(['Python']);
+      expect(result.frameworks).toEqual(['Flask']);
     });
 
     it('parseSidecarMetadata should handle invalid JSON', () => {
@@ -406,7 +438,27 @@ describe('S3 App Starters DAO', () => {
 
       expect(result.name).toBe('');
       expect(result.description).toBe('');
+      expect(result.languages).toEqual([]);
+      expect(result.frameworks).toEqual([]);
       expect(result.features).toEqual([]);
+    });
+
+    it('parseSidecarMetadata should default missing fields', () => {
+      const metadata = JSON.stringify({
+        name: 'minimal-starter'
+      });
+
+      const result = S3Starters.parseSidecarMetadata(metadata);
+
+      expect(result.name).toBe('minimal-starter');
+      expect(result.languages).toEqual([]);
+      expect(result.frameworks).toEqual([]);
+      expect(result.topics).toEqual([]);
+      expect(result.devDependencies).toEqual([]);
+      expect(result.hasCacheData).toBe(false);
+      expect(result.deployment_platform).toBe('atlantis');
+      expect(result.repository).toBe('');
+      expect(result.repository_type).toBe('app-starter');
     });
 
     it('buildStarterZipKey should construct correct key', () => {

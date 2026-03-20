@@ -80,7 +80,7 @@ This document outlines the implementation tasks for Phase 1 of the Atlantis MCP 
   - [x] 2.1.12 Set settings.ttl.categoryList from environment (default 1800s)
   - [x] 2.1.13 Set settings.ttl.documentationIndex from environment (default 3600s)
   - [x] 2.1.14 Organize settings into logical sections (s3, github, cache, logging, naming)
-  - [x] 2.1.15 Define Template_Category values (Storage, Network, Pipeline, Service Role, Modules)
+  - [x] 2.1.15 Define Template_Category values (storage, network, pipeline, service-role, modules)
   - [x] 2.1.16 Export settings object
 
 - [-] 2.2 Implement connections.js (src/lambda/read/config/connections.js)

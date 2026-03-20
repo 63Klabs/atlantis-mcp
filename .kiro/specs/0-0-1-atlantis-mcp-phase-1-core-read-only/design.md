@@ -1082,7 +1082,7 @@ module.exports = { successResponse, errorResponse };
   name: string,              // Template name (e.g., "template-storage-s3-artifacts")
   version: string,           // Human-readable version (e.g., "v2.0.5/2026-01-07")
   versionId: string,         // S3 Object Version ID
-  category: string,          // Category: Storage, Network, Pipeline, Service Role, Modules
+  category: string,          // Category: storage, network, pipeline, service-role, modules
   namespace: string,         // Namespace (e.g., "atlantis", "finance", "devops")
   bucket: string,            // S3 bucket name
   description: string,       // Template description
@@ -1239,7 +1239,7 @@ module.exports = { successResponse, errorResponse };
 
 ```javascript
 {
-  name: string,             // Category name: Storage, Network, Pipeline, Service Role, Modules
+  name: string,             // Category name: storage, network, pipeline, service-role, modules
   description: string,      // Category description
   templateCount: number,    // Number of templates in this category
   examples: Array<string>   // Example template names
@@ -1453,7 +1453,7 @@ module.exports = connections;
 - Include GitHub org array in cache key (order matters for priority)
 - Include namespace in cache key for S3 resources
 - Include version/versionId in cache key for specific versions
-- Example: `s3-templates/list/Storage/atlantis/latest`
+- Example: `s3-templates/list/storage/atlantis/latest`
 - Example: `github/metadata/63klabs/atlantis-starter-02`
 
 **Cache Invalidation**:
@@ -1474,11 +1474,11 @@ const settings = {
   
   // Template categories (extensible)
   templateCategories: [
-    { name: 'Storage', description: 'S3, DynamoDB, and data storage templates' },
-    { name: 'Network', description: 'CloudFront, Route53, and networking templates' },
-    { name: 'Pipeline', description: 'CodePipeline, CodeBuild CI/CD templates' },
-    { name: 'Service Role', description: 'IAM roles and policies templates' },
-    { name: 'Modules', description: 'Reusable CloudFormation definitions' }
+    { name: 'storage', description: 'S3, DynamoDB, and data storage templates' },
+    { name: 'network', description: 'CloudFront, Route53, and networking templates' },
+    { name: 'pipeline', description: 'CodePipeline, CodeBuild CI/CD templates' },
+    { name: 'service-role', description: 'IAM roles and policies templates' },
+    { name: 'modules', description: 'Reusable CloudFormation definitions' }
   ],
   
   // Repository types from GitHub custom properties
@@ -1650,7 +1650,7 @@ Each MCP tool is defined with JSON Schema for inputs and outputs:
 ```javascript
 {
   name: "list_templates",
-  description: "List all available CloudFormation templates from the Atlantis platform. Filter by category (Storage, Network, Pipeline, Service Role) or version (latest, specific version, all versions).",
+  description: "List all available CloudFormation templates from the Atlantis platform. Filter by category (storage, network, pipeline, service-role) or version (latest, specific version, all versions).",
   inputSchema: {
     type: "object",
     properties: {
@@ -1671,11 +1671,11 @@ Each MCP tool is defined with JSON Schema for inputs and outputs:
   },
   examples: [
     {
-      input: { category: "Storage" },
+      input: { category: "storage" },
       description: "List all storage templates"
     },
     {
-      input: { category: "Pipeline", version: "latest" },
+      input: { category: "pipeline", version: "latest" },
       description: "List latest pipeline templates"
     }
   ]
@@ -1945,7 +1945,7 @@ const schemas = {
     properties: {
       category: {
         type: 'string',
-        enum: ['Storage', 'Network', 'Pipeline', 'Service Role']
+        enum: ['storage', 'network', 'pipeline', 'service-role', 'modules']
       },
       version: { type: 'string' }
     },
@@ -2064,7 +2064,7 @@ All MCP tools are accessed through a single endpoint with tool routing:
 {
   "tool": "list_templates",
   "input": {
-    "category": "Storage"
+    "category": "storage"
   }
 }
 ```
@@ -2089,7 +2089,7 @@ All MCP tools are accessed through a single endpoint with tool routing:
     "code": "INVALID_INPUT",
     "message": "Validation failed",
     "details": {
-      "errors": ["/category must be one of: Storage, Network, Pipeline, Service Role"]
+      "errors": ["/category must be one of: storage, network, pipeline, service-role"]
     }
   },
   "metadata": {
@@ -2226,16 +2226,16 @@ sequenceDiagram
     participant DAO
     participant S3
 
-    Client->>APIGW: POST /mcp/tools<br/>{tool: "list_templates", input: {category: "Storage"}}
+    Client->>APIGW: POST /mcp/tools<br/>{tool: "list_templates", input: {category: "storage"}}
     APIGW->>APIGW: Check Usage Plan<br/>Rate Limit
     APIGW->>Lambda: Invoke
     Lambda->>Lambda: Await Config.init()
     Lambda->>Controller: Templates.list(props)
     Controller->>Controller: Validate Input<br/>JSON Schema
-    Controller->>Service: Templates.list({category: "Storage"})
+    Controller->>Service: Templates.list({category: "storage"})
     Service->>Service: Check Cache<br/>(In-Memory)
     alt Cache Miss
-        Service->>DAO: S3Templates.list({category: "Storage"})
+        Service->>DAO: S3Templates.list({category: "storage"})
         DAO->>S3: ListObjectsV2<br/>Prefix: templates/
         S3-->>DAO: Objects List
         DAO->>DAO: Parse Metadata<br/>Filter by Category
@@ -2381,7 +2381,7 @@ All errors follow consistent structure:
   tool: "list_templates",
   event: "request_received",
   data: {
-    category: "Storage",
+    category: "storage",
     ipAddress: "203.0.113.1",
     userAgent: "Claude/1.0"
   },
@@ -2903,15 +2903,15 @@ describe('Templates Controller', () => {
     it('should return templates for valid category', async () => {
       // Arrange
       const mockTemplates = [
-        { name: 'template-storage-s3', category: 'Storage', version: '1.0.0' },
-        { name: 'template-storage-dynamodb', category: 'Storage', version: '1.0.0' }
+        { name: 'template-storage-s3', category: 'storage', version: '1.0.0' },
+        { name: 'template-storage-dynamodb', category: 'storage', version: '1.0.0' }
       ];
       ServicesTemplates.list = jest.fn().mockResolvedValue(mockTemplates);
       
       const props = {
         body: {
           tool: 'list_templates',
-          input: { category: 'Storage' }
+          input: { category: 'storage' }
         }
       };
       
@@ -2921,7 +2921,7 @@ describe('Templates Controller', () => {
       // Assert
       expect(result.tool).toBe('list_templates');
       expect(result.data).toEqual(mockTemplates);
-      expect(ServicesTemplates.list).toHaveBeenCalledWith({ category: 'Storage', version: undefined });
+      expect(ServicesTemplates.list).toHaveBeenCalledWith({ category: 'storage', version: undefined });
     });
 
     it('should return error for invalid category', async () => {

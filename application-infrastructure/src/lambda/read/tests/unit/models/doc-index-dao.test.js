@@ -136,11 +136,11 @@ describe('Documentation Index DAO', () => {
         templates: [
           {
             name: 'template-s3',
-            category: 'Storage',
+            category: 'storage',
             namespace: 'atlantis',
             bucket: 'test-bucket',
-            key: 'atlantis/templates/v2/Storage/template-s3.yml',
-            s3Path: 's3://test-bucket/atlantis/templates/v2/Storage/template-s3.yml'
+            key: 'atlantis/templates/v2/storage/template-s3.yml',
+            s3Path: 's3://test-bucket/atlantis/templates/v2/storage/template-s3.yml'
           }
         ],
         errors: []
@@ -148,10 +148,10 @@ describe('Documentation Index DAO', () => {
 
       S3Templates.get.mockResolvedValue({
         name: 'template-s3',
-        category: 'Storage',
+        category: 'storage',
         namespace: 'atlantis',
         bucket: 'test-bucket',
-        s3Path: 's3://test-bucket/atlantis/templates/v2/Storage/template-s3.yml',
+        s3Path: 's3://test-bucket/atlantis/templates/v2/storage/template-s3.yml',
         content: `AWSTemplateFormatVersion: '2010-09-09'
 Description: S3 bucket template
 Parameters:

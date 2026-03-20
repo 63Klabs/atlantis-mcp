@@ -289,7 +289,7 @@ gh api orgs/acme-org/repos --paginate | \
 
 **Characteristics:**
 - Contains `.yml` or `.yaml` CloudFormation templates
-- Organized by category (Storage, Network, Pipeline, etc.)
+- Organized by category (storage, network, pipeline, etc.)
 - Versioned templates
 - May include template documentation
 

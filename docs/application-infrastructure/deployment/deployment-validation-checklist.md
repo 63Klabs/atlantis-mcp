@@ -101,7 +101,7 @@ Expected: JSON response with `categories` array
 ```bash
 curl -X POST "${API_ENDPOINT}/list_templates" \
   -H "Content-Type: application/json" \
-  -d '{"category": "Storage"}'
+  -d '{"category": "storage"}'
 ```
 
 Expected: JSON response with `templates` array
@@ -110,7 +110,7 @@ Expected: JSON response with `templates` array
 ```bash
 curl -X POST "${API_ENDPOINT}/get_template" \
   -H "Content-Type: application/json" \
-  -d '{"templateName": "template-storage-s3-artifacts.yml", "category": "Storage"}'
+  -d '{"templateName": "template-storage-s3-artifacts.yml", "category": "storage"}'
 ```
 
 Expected: JSON response with `template` object
@@ -119,7 +119,7 @@ Expected: JSON response with `template` object
 ```bash
 curl -X POST "${API_ENDPOINT}/list_template_versions" \
   -H "Content-Type: application/json" \
-  -d '{"templateName": "template-storage-s3-artifacts.yml", "category": "Storage"}'
+  -d '{"templateName": "template-storage-s3-artifacts.yml", "category": "storage"}'
 ```
 
 Expected: JSON response with `versions` array
@@ -164,7 +164,7 @@ Expected: JSON response with `valid` boolean
 ```bash
 curl -X POST "${API_ENDPOINT}/check_template_updates" \
   -H "Content-Type: application/json" \
-  -d '{"templateName": "template-storage-s3-artifacts.yml", "category": "Storage", "currentVersion": "v1.0.0"}'
+  -d '{"templateName": "template-storage-s3-artifacts.yml", "category": "storage", "currentVersion": "v1.0.0"}'
 ```
 
 Expected: JSON response with `updates` object

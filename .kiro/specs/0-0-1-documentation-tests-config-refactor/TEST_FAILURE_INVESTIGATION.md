@@ -298,7 +298,7 @@ describe('Controller Name Tests', () => {
 
     Config.settings.mockReturnValue({
       templates: {
-        categories: [{ name: 'Storage' }]
+        categories: [{ name: 'storage' }]
       }
     });
   });

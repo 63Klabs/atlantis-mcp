@@ -4,7 +4,7 @@
 
 ### Q1: Should GET requests on parameterized endpoints (like `list_templates` with optional `category` filter) pass parameters via query string?
 
-`list_templates` and `list_starters` have optional filter parameters (`category`, `version`, `s3Buckets`, `ghusers`). When accessed via GET, should those filters be supported via query string parameters (e.g., `GET /mcp/list_templates?category=Storage`), or should GET only return the unfiltered result?
+`list_templates` and `list_starters` have optional filter parameters (`category`, `version`, `s3Buckets`, `ghusers`). When accessed via GET, should those filters be supported via query string parameters (e.g., `GET /mcp/list_templates?category=storage`), or should GET only return the unfiltered result?
 
 **Recommendation:** Support query string parameters on GET for optional filters. This follows REST conventions and makes the API more useful for browser/curl testing. The router already extracts `queryStringParameters` from the event.
 

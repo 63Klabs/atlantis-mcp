@@ -51,7 +51,7 @@ describe('Model Layer Namespace Filtering', () => {
       mockS3Send.mockResolvedValueOnce({
         Contents: [
           {
-            Key: 'acme/templates/v2/Storage/template-s3.yml',
+            Key: 'acme/templates/v2/storage/template-s3.yml',
             LastModified: new Date('2024-01-01'),
             Size: 1024
           }
@@ -88,7 +88,7 @@ describe('Model Layer Namespace Filtering', () => {
       mockS3Send.mockResolvedValueOnce({
         Contents: [
           {
-            Key: 'atlantis/templates/v2/Storage/template-s3.yml',
+            Key: 'atlantis/templates/v2/storage/template-s3.yml',
             LastModified: new Date('2024-01-01'),
             Size: 1024
           }
@@ -98,7 +98,7 @@ describe('Model Layer Namespace Filtering', () => {
       mockS3Send.mockResolvedValueOnce({
         Contents: [
           {
-            Key: 'acme/templates/v2/Network/template-vpc.yml',
+            Key: 'acme/templates/v2/network/template-vpc.yml',
             LastModified: new Date('2024-01-02'),
             Size: 2048
           }
@@ -124,7 +124,7 @@ describe('Model Layer Namespace Filtering', () => {
       mockS3Send.mockResolvedValueOnce({
         Contents: [
           {
-            Key: 'turbo-kiln/templates/v2/Storage/template-s3.yml',
+            Key: 'turbo-kiln/templates/v2/storage/template-s3.yml',
             LastModified: new Date('2024-01-01'),
             Size: 1024
           }
@@ -175,7 +175,7 @@ describe('Model Layer Namespace Filtering', () => {
       const connection = {
         host: 'test-bucket',
         path: 'templates/v2',
-        parameters: { category: 'Storage', templateName: 'tpl', namespace: 'acme' }
+        parameters: { category: 'storage', templateName: 'tpl', namespace: 'acme' }
       };
 
       await S3Templates.get(connection, {});
@@ -204,7 +204,7 @@ describe('Model Layer Namespace Filtering', () => {
       const connection = {
         host: 'test-bucket',
         path: 'templates/v2',
-        parameters: { category: 'Storage', templateName: 'tpl' }
+        parameters: { category: 'storage', templateName: 'tpl' }
       };
 
       await S3Templates.get(connection, {});
@@ -219,7 +219,7 @@ describe('Model Layer Namespace Filtering', () => {
       const connection = {
         host: 'test-bucket',
         path: 'templates/v2',
-        parameters: { category: 'Storage', templateName: 'tpl', namespace: 'nonexistent' }
+        parameters: { category: 'storage', templateName: 'tpl', namespace: 'nonexistent' }
       };
 
       const result = await S3Templates.get(connection, {});
@@ -243,7 +243,7 @@ describe('Model Layer Namespace Filtering', () => {
       const connection = {
         host: 'test-bucket',
         path: 'templates/v2',
-        parameters: { category: 'Storage', templateName: 'tpl', namespace: 'acme' }
+        parameters: { category: 'storage', templateName: 'tpl', namespace: 'acme' }
       };
 
       await S3Templates.listVersions(connection, {});
@@ -270,7 +270,7 @@ describe('Model Layer Namespace Filtering', () => {
       const connection = {
         host: 'test-bucket',
         path: 'templates/v2',
-        parameters: { category: 'Storage', templateName: 'tpl' }
+        parameters: { category: 'storage', templateName: 'tpl' }
       };
 
       await S3Templates.listVersions(connection, {});
@@ -285,14 +285,14 @@ describe('Model Layer Namespace Filtering', () => {
       const connection = {
         host: 'test-bucket',
         path: 'templates/v2',
-        parameters: { category: 'Storage', templateName: 'tpl', namespace: 'nonexistent' }
+        parameters: { category: 'storage', templateName: 'tpl', namespace: 'nonexistent' }
       };
 
       const result = await S3Templates.listVersions(connection, {});
 
       expect(result.versions).toEqual([]);
       expect(result.templateName).toBe('tpl');
-      expect(result.category).toBe('Storage');
+      expect(result.category).toBe('storage');
     });
   });
 });

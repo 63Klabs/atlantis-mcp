@@ -113,7 +113,7 @@ function formatListTemplates(data, metadata) {
         'Use list_template_versions to see version history',
         'Filter by category to narrow results'
       ],
-      example: 'get_template with templateName="template-storage-s3-artifacts" and category="Storage"'
+      example: 'get_template with templateName="template-storage-s3-artifacts" and category="storage"'
     },
     metadata: {
       ...metadata,
@@ -225,11 +225,11 @@ function formatListCategories(data, metadata) {
       filtering: 'Use category parameter in list_templates to filter results',
       required: 'Category is required when using get_template',
       examples: [
-        'Storage: S3 buckets, DynamoDB tables',
-        'Network: CloudFront, Route53, API Gateway',
-        'Pipeline: CodePipeline, CodeBuild',
-        'Service Role: IAM roles and policies',
-        'Modules: Reusable CloudFormation definitions'
+        'storage: S3 buckets, DynamoDB tables',
+        'network: CloudFront, Route53, API Gateway',
+        'pipeline: CodePipeline, CodeBuild',
+        'service-role: IAM roles and policies',
+        'modules: Reusable CloudFormation definitions'
       ]
     },
     metadata: metadata

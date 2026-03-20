@@ -12,7 +12,7 @@ The MCP server follows Atlantis deployment patterns, using the atlantis-starter-
 
 - **MCP_Server**: The Model Context Protocol server that exposes Atlantis platform capabilities to AI assistants and development tools
 - **Atlantis_Platform**: The collection of CloudFormation templates, SAM configuration scripts, starter code repositories, and documentation maintained by 63Klabs
-- **Template_Library**: The CloudFormation template repository stored in S3 with versioned templates for Storage, Network, Pipeline, Service Role, and Modules stacks
+- **Template_Library**: The CloudFormation template repository stored in S3 with versioned templates for storage, network, pipeline, service-role, and Modules stacks
 - **SAM_Config_Repo**: The repository containing Python scripts (config.py, deploy.py, create_repo.py, etc.) for infrastructure management
 - **Starter_Code**: Pre-configured repository templates that provide serverless application scaffolding with CI/CD integration
 - **Cache_Data_Package**: The @63klabs/cache-data npm package providing caching, routing, and AWS SDK integration for Lambda functions
@@ -27,7 +27,7 @@ The MCP server follows Atlantis deployment patterns, using the atlantis-starter-
 - **MCP_Tool**: An MCP protocol operation exposed to AI assistants (e.g., list_templates, validate_naming)
 - **TTL**: Time-to-live for cached data, configurable per resource type
 - **Namespace**: A root-level directory in S3 buckets organizing templates and starters (e.g., atlantis/, finance/, devops/)
-- **Template_Category**: Classification of templates (Storage, Network, Pipeline, Service Role, Modules)
+- **Template_Category**: Classification of templates (storage, network, pipeline, service-role, modules)
 - **Repository_Type**: GitHub custom property or CodeCommit tag identifying repository purpose (documentation, app-starter, templates, management, package, mcp)
 - **Human_Readable_Version**: Template version in format vX.X.X/YYYY-MM-DD appearing in template comments
 - **S3_VersionId**: S3 bucket versioning identifier for tracking template history
@@ -205,7 +205,7 @@ The MCP server follows Atlantis deployment patterns, using the atlantis-starter-
 
 #### Acceptance Criteria
 
-1. THE MCP_Server SHALL support Template_Category values: Storage, Network, Pipeline, Service Role, Modules
+1. THE MCP_Server SHALL support Template_Category values: storage, network, pipeline, service-role, modules
 2. THE Modules category SHALL contain reusable CloudFormation definitions (S3 buckets, CodeBuild projects, etc.)
 3. THE MCP_Server SHALL provide a list_categories tool that returns all available Template_Category values
 4. THE list_categories tool SHALL return category names and descriptions
@@ -282,7 +282,7 @@ The MCP server follows Atlantis deployment patterns, using the atlantis-starter-
 
 1. THE MCP_Server SHALL provide a list_templates tool that returns all available CloudFormation templates from configured S3 buckets
 2. THE list_templates tool SHALL return Template_Metadata including name, Human_Readable_Version, S3_VersionId, category, description, Namespace, bucket name, and S3 path
-3. THE list_templates tool SHALL support filtering by Template_Category (Storage, Network, Pipeline, Service Role, Modules)
+3. THE list_templates tool SHALL support filtering by Template_Category (storage, network, pipeline, service-role, modules)
 4. THE list_templates tool SHALL support filtering by version (latest, specific version, all versions)
 5. THE list_templates tool SHALL support filtering by s3Buckets (specific buckets from configured list)
 6. THE MCP_Server SHALL provide a get_template tool that retrieves a specific template with full metadata

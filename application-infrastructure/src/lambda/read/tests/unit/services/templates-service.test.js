@@ -119,9 +119,9 @@ describe('Templates Service', () => {
       },
       templates: {
         categories: [
-          { name: 'Storage', description: 'Storage templates' },
-          { name: 'Network', description: 'Network templates' },
-          { name: 'Pipeline', description: 'Pipeline templates' }
+          { name: 'storage', description: 'Storage templates' },
+          { name: 'network', description: 'Network templates' },
+          { name: 'pipeline', description: 'Pipeline templates' }
         ]
       }
     });
@@ -173,8 +173,8 @@ describe('Templates Service', () => {
       });
 
       const mockTemplates = [
-        { templateName: 'template1', category: 'Storage' },
-        { templateName: 'template2', category: 'Network' }
+        { templateName: 'template1', category: 'storage' },
+        { templateName: 'template2', category: 'network' }
       ];
 
       // Set up specific mock (use mockResolvedValue for persistent mock)
@@ -213,17 +213,17 @@ describe('Templates Service', () => {
       Config.getConnCacheProfile.mockReturnValue(mockConnCache);
 
       Models.S3Templates.list.mockResolvedValue({
-        templates: [{ templateName: 'template1', category: 'Storage' }],
+        templates: [{ templateName: 'template1', category: 'storage' }],
         errors: undefined,
         partialData: false
       });
 
       // Act
-      await Templates.list({ category: 'Storage' });
+      await Templates.list({ category: 'storage' });
 
       // Assert
       expect(mockConnCache.conn.parameters).toEqual({
-        category: 'Storage',
+        category: 'storage',
         version: undefined,
         versionId: undefined
       });
@@ -346,7 +346,7 @@ describe('Templates Service', () => {
 
       const mockTemplate = {
         templateName: 'template1',
-        category: 'Storage',
+        category: 'storage',
         version: 'v1.3.5/2024-01-15',
         content: 'template content'
       };
@@ -356,7 +356,7 @@ describe('Templates Service', () => {
 
       // Act
       const result = await Templates.get({
-        category: 'Storage',
+        category: 'storage',
         templateName: 'template1'
       });
 
@@ -364,7 +364,7 @@ describe('Templates Service', () => {
       expect(Config.getConnCacheProfile).toHaveBeenCalledWith('s3-templates', 'template-detail');
       expect(Models.S3Templates.get).toHaveBeenCalled();
       expect(result).toEqual(mockTemplate);
-      expect(mockConnCache.cacheProfile.pathId).toBe('detail:Storage/template1');
+      expect(mockConnCache.cacheProfile.pathId).toBe('detail:storage/template1');
     });
 
     it('should require category and templateName', async () => {
@@ -372,7 +372,7 @@ describe('Templates Service', () => {
       await expect(Templates.get({}))
         .rejects.toThrow('category and templateName are required');
 
-      await expect(Templates.get({ category: 'Storage' }))
+      await expect(Templates.get({ category: 'storage' }))
         .rejects.toThrow('category and templateName are required');
 
       await expect(Templates.get({ templateName: 'template1' }))
@@ -392,14 +392,14 @@ describe('Templates Service', () => {
 
       // Act
       await Templates.get({
-        category: 'Storage',
+        category: 'storage',
         templateName: 'template1',
         version: 'v1.3.5/2024-01-15'
       });
 
       // Assert
       expect(mockConnCache.conn.parameters).toEqual({
-        category: 'Storage',
+        category: 'storage',
         templateName: 'template1',
         version: 'v1.3.5/2024-01-15',
         versionId: undefined
@@ -420,14 +420,14 @@ describe('Templates Service', () => {
 
       // Act
       await Templates.get({
-        category: 'Storage',
+        category: 'storage',
         templateName: 'template1',
         versionId: 'abc123'
       });
 
       // Assert
       expect(mockConnCache.conn.parameters).toEqual({
-        category: 'Storage',
+        category: 'storage',
         templateName: 'template1',
         version: undefined,
         versionId: 'abc123'
@@ -447,7 +447,7 @@ describe('Templates Service', () => {
 
       // Act
       await Templates.get({
-        category: 'Storage',
+        category: 'storage',
         templateName: 'template1',
         s3Buckets: ['bucket1']
       });
@@ -467,7 +467,7 @@ describe('Templates Service', () => {
 
       const mockVersions = {
         templateName: 'template1',
-        category: 'Storage',
+        category: 'storage',
         versions: [
           { version: 'v1.3.5/2024-01-15', versionId: 'abc123' },
           { version: 'v1.3.4/2024-01-10', versionId: 'def456' }
@@ -479,7 +479,7 @@ describe('Templates Service', () => {
 
       // Act
       const result = await Templates.listVersions({
-        category: 'Storage',
+        category: 'storage',
         templateName: 'template1'
       });
 
@@ -507,7 +507,7 @@ describe('Templates Service', () => {
 
       // Act
       await Templates.listVersions({
-        category: 'Storage',
+        category: 'storage',
         templateName: 'template1',
         s3Buckets: ['bucket1', 'bucket2']
       });
@@ -549,17 +549,17 @@ describe('Templates Service', () => {
       // Assert
       expect(result).toHaveLength(3);
       expect(result[0]).toEqual({
-        name: 'Storage',
+        name: 'storage',
         description: 'Storage templates',
         templateCount: 2
       });
       expect(result[1]).toEqual({
-        name: 'Network',
+        name: 'network',
         description: 'Network templates',
         templateCount: 1
       });
       expect(result[2]).toEqual({
-        name: 'Pipeline',
+        name: 'pipeline',
         description: 'Pipeline templates',
         templateCount: 3
       });
@@ -606,7 +606,7 @@ describe('Templates Service', () => {
       // Set up specific mock (use mockResolvedValue for persistent mock)
       Models.S3Templates.get.mockResolvedValue({
         templateName: 'template1',
-        category: 'Storage',
+        category: 'storage',
         version: 'v1.3.5/2024-01-15',
         description: 'Updated template',
         s3Path: 's3://bucket/template1.yml',
@@ -618,7 +618,7 @@ describe('Templates Service', () => {
       const result = await Templates.checkUpdates({
         templates: [
           {
-            category: 'Storage',
+            category: 'storage',
             templateName: 'template1',
             currentVersion: 'v1.3.4/2024-01-10'
           }
@@ -628,7 +628,7 @@ describe('Templates Service', () => {
       // Assert
       expect(result).toHaveLength(1);
       expect(result[0]).toMatchObject({
-        category: 'Storage',
+        category: 'storage',
         templateName: 'template1',
         currentVersion: 'v1.3.4/2024-01-10',
         latestVersion: 'v1.3.5/2024-01-15',
@@ -648,7 +648,7 @@ describe('Templates Service', () => {
       // Set up specific mock (use mockResolvedValue for persistent mock)
       Models.S3Templates.get.mockResolvedValue({
         templateName: 'template1',
-        category: 'Storage',
+        category: 'storage',
         version: 'v2.0.0/2024-01-15',
         description: 'Major update',
         s3Path: 's3://bucket/template1.yml',
@@ -660,7 +660,7 @@ describe('Templates Service', () => {
       const result = await Templates.checkUpdates({
         templates: [
           {
-            category: 'Storage',
+            category: 'storage',
             templateName: 'template1',
             currentVersion: 'v1.3.5/2024-01-10'
           }
@@ -682,7 +682,7 @@ describe('Templates Service', () => {
       // Set up specific mock (use mockResolvedValue for persistent mock)
       Models.S3Templates.get.mockResolvedValue({
         templateName: 'template1',
-        category: 'Storage',
+        category: 'storage',
         version: 'v1.3.5/2024-01-15',
         description: 'Current version',
         s3Path: 's3://bucket/template1.yml',
@@ -694,7 +694,7 @@ describe('Templates Service', () => {
       const result = await Templates.checkUpdates({
         templates: [
           {
-            category: 'Storage',
+            category: 'storage',
             templateName: 'template1',
             currentVersion: 'v1.3.5/2024-01-15'
           }
@@ -730,12 +730,12 @@ describe('Templates Service', () => {
       const result = await Templates.checkUpdates({
         templates: [
           {
-            category: 'Storage',
+            category: 'storage',
             templateName: 'template1',
             currentVersion: 'v1.3.4/2024-01-10'
           },
           {
-            category: 'Pipeline',
+            category: 'pipeline',
             templateName: 'template2',
             currentVersion: 'v1.5.0/2024-01-15'
           }
@@ -771,7 +771,7 @@ describe('Templates Service', () => {
       const result = await Templates.checkUpdates({
         templates: [
           {
-            category: 'Storage',
+            category: 'storage',
             templateName: 'nonexistent',
             currentVersion: 'v1.0.0/2024-01-01'
           }
@@ -789,7 +789,7 @@ describe('Templates Service', () => {
       const result = await Templates.checkUpdates({
         templates: [
           {
-            category: 'Storage',
+            category: 'storage',
             // Missing templateName and currentVersion
           }
         ]

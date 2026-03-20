@@ -34,7 +34,7 @@ const Models = require('../models');
  *
  * @example
  * // List templates by category
- * const result = await Templates.list({ category: 'Storage' });
+ * const result = await Templates.list({ category: 'storage' });
  *
  * @example
  * // List templates from specific buckets
@@ -130,14 +130,14 @@ async function list(options = {}) {
  * @example
  * // Get latest version of template
  * const template = await Templates.get({
- *   category: 'Storage',
+ *   category: 'storage',
  *   templateName: 'template-storage-s3-artifacts'
  * });
  *
  * @example
  * // Get specific version by Human_Readable_Version
  * const template = await Templates.get({
- *   category: 'Storage',
+ *   category: 'storage',
  *   templateName: 'template-storage-s3-artifacts',
  *   version: 'v1.3.5/2024-01-15'
  * });
@@ -145,7 +145,7 @@ async function list(options = {}) {
  * @example
  * // Get specific version by S3_VersionId
  * const template = await Templates.get({
- *   category: 'Storage',
+ *   category: 'storage',
  *   templateName: 'template-storage-s3-artifacts',
  *   versionId: 'abc123def456'
  * });
@@ -254,7 +254,7 @@ async function get(options = {}) {
  *
  * @example
  * const versions = await Templates.listVersions({
- *   category: 'Storage',
+ *   category: 'storage',
  *   templateName: 'template-storage-s3-artifacts'
  * });
  * // Returns: { templateName, category, namespace, bucket, versions: [...] }
@@ -325,8 +325,8 @@ async function listVersions(options = {}) {
  * @example
  * const categories = await Templates.listCategories();
  * // Returns: [
- * //   { name: 'Storage', description: '...', templateCount: 5 },
- * //   { name: 'Network', description: '...', templateCount: 3 },
+ * //   { name: 'storage', description: '...', templateCount: 5 },
+ * //   { name: 'network', description: '...', templateCount: 3 },
  * //   ...
  * // ]
  */
@@ -380,13 +380,13 @@ async function listCategories() {
  * @example
  * const updates = await Templates.checkUpdates({
  *   templates: [
- *     { category: 'Storage', templateName: 'template-storage-s3-artifacts', currentVersion: 'v1.3.4/2024-01-10' },
- *     { category: 'Pipeline', templateName: 'template-pipeline', currentVersion: 'v2.0.18/2024-01-05' }
+ *     { category: 'storage', templateName: 'template-storage-s3-artifacts', currentVersion: 'v1.3.4/2024-01-10' },
+ *     { category: 'pipeline', templateName: 'template-pipeline', currentVersion: 'v2.0.18/2024-01-05' }
  *   ]
  * });
  * // Returns: [
  * //   {
- * //     category: 'Storage',
+ * //     category: 'storage',
  * //     templateName: 'template-storage-s3-artifacts',
  * //     currentVersion: 'v1.3.4/2024-01-10',
  * //     latestVersion: 'v1.3.5/2024-01-15',
