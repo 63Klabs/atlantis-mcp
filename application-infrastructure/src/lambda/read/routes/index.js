@@ -195,7 +195,7 @@ const process = async (event, context) => {
           code: ErrorHandler.ErrorCode.UNKNOWN_TOOL,
           message: `Unknown tool: ${tool}`,
           category: ErrorHandler.ErrorCategory.NOT_FOUND,
-          statusCode: 404,
+          statusCode: 400, // 404 would be intercepted by CloudFront
           requestId: context.requestId,
           details: {
             tool,
@@ -205,7 +205,7 @@ const process = async (event, context) => {
         error.availableTools = error.details.availableTools;
         ErrorHandler.logError(error, { tool, requestId: context.requestId });
         return RESP.reset({
-          statusCode: 404,
+          statusCode: 400, // 404 would be intercepted by CloudFront
           body: ErrorHandler.toUserResponse(error, context.requestId)
         });
     }
