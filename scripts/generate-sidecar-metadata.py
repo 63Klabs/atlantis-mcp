@@ -24,7 +24,7 @@ import json
 import os
 import re
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -423,7 +423,7 @@ def fetch_github_metadata(
             'name': repo_data.get('name', ''),
             'description': repo_data.get('description', ''),
             'author': repo_data.get('owner', {}).get('login', ''),
-            'license': repo_data.get('license', {}).get('spdx_id', 'UNLICENSED'),
+            'license': (repo_data.get('license') or {}).get('spdx_id', 'UNLICENSED'),
             'repository_type': repository_type,
             'topics': repo_data.get('topics', []),
             'github_url': repo_data.get('html_url', ''),
@@ -502,7 +502,7 @@ def generate_metadata(
         'license': 'UNLICENSED',
         'repository_type': 'app-starter',
         'version': '1.0.0',
-        'last_updated': datetime.utcnow().isoformat() + 'Z',
+        'last_updated': datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
     }
 
     # Extract from local repository

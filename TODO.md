@@ -5,8 +5,8 @@
 - [x] Add tools endpoint which lists available tools
 - [x] Allow GET on list tools
 
-- [-] List starters
-- [-] Starter info
+- [x] List starters
+- [x] Starter info
 - [ ] Update validate naming
 - [ ] If no template returned, error occurs because it can't read name
 - [ ] Why are there 2 package.json files in src tree
