@@ -56,8 +56,10 @@ info:
   version: 1.0.0
   description: MCP Server for Atlantis Templates and Scripts Platform
 servers:
-  - url: https://mcp.atlantis.63klabs.com/v1
+  - url: https://mcp.atlantis.63klabs.net/mcp/v1
     description: Production Atlantis MCP Server
+  - url: https://{api-gateway-url}/{api_base}/mcp/v1
+    description: Self-hosted Atlantis MCP Server
 
 paths:
   /tools/list_templates:
@@ -155,6 +157,8 @@ paths:
 ```
 
 **Note:** Add all 9 MCP tools following the same pattern. See [MCP Tools Reference](../tools/README.md) for complete specifications.
+
+> **Note**: The `/mcp/v1` endpoint uses JSON-RPC 2.0 protocol. Clients send requests like `{"jsonrpc": "2.0", "method": "tools/call", "params": {"name": "list_templates"}, "id": 1}`. Per-tool endpoints still work for backward compatibility, but the unified `/mcp/v1` endpoint is recommended.
 
 ### 4. Configure Authentication
 

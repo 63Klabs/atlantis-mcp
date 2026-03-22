@@ -16,6 +16,86 @@ const settings = require('../config/settings');
  */
 const MCP_VERSION = '1.0';
 
+// --- JSON-RPC 2.0 Constants and Formatters ---
+
+/**
+ * Standard JSON-RPC 2.0 error codes
+ * @constant {Object}
+ */
+const JSON_RPC_ERRORS = {
+  PARSE_ERROR: -32700,
+  INVALID_REQUEST: -32600,
+  METHOD_NOT_FOUND: -32601,
+  INVALID_PARAMS: -32602,
+  INTERNAL_ERROR: -32603
+};
+
+/**
+ * Create a JSON-RPC 2.0 success response
+ *
+ * @param {string|number|null} id - Request id (null if missing or invalid type)
+ * @param {*} result - Response result payload
+ * @returns {Object} JSON-RPC 2.0 success response
+ */
+function jsonRpcSuccess(id, result) {
+  return {
+    jsonrpc: '2.0',
+    id: id,
+    result: result
+  };
+}
+
+/**
+ * Create a JSON-RPC 2.0 error response
+ *
+ * @param {string|number|null} id - Request id (null if missing or invalid type)
+ * @param {number} code - Integer error code
+ * @param {string} message - Short error description
+ * @param {*} [data] - Optional additional error data
+ * @returns {Object} JSON-RPC 2.0 error response
+ */
+function jsonRpcError(id, code, message, data) {
+  const error = { code, message };
+  if (data !== undefined) {
+    error.data = data;
+  }
+  return {
+    jsonrpc: '2.0',
+    id: id,
+    error: error
+  };
+}
+
+/**
+ * Create a JSON-RPC 2.0 initialize response with server info and capabilities
+ *
+ * @param {string|number|null} id - Request id
+ * @returns {Object} JSON-RPC 2.0 response with serverInfo, capabilities, protocolVersion
+ */
+function initializeResponse(id) {
+  return jsonRpcSuccess(id, {
+    protocolVersion: '2024-11-05',
+    capabilities: {
+      tools: { listChanged: false }
+    },
+    serverInfo: {
+      name: 'atlantis-mcp-server',
+      version: '0.0.1'
+    }
+  });
+}
+
+/**
+ * Create a JSON-RPC 2.0 tools/list response
+ *
+ * @param {string|number|null} id - Request id
+ * @param {Array<Object>} tools - Array of tool definitions
+ * @returns {Object} JSON-RPC 2.0 response with tools array in result
+ */
+function toolsListResponse(id, tools) {
+  return jsonRpcSuccess(id, { tools: tools });
+}
+
 /**
  * MCP Protocol Capabilities
  * @constant {Object}
@@ -183,8 +263,15 @@ module.exports = {
   MCP_VERSION,
   MCP_CAPABILITIES,
   MCP_TOOLS,
+  JSON_RPC_ERRORS,
 
-  // Response functions
+  // JSON-RPC 2.0 response formatters
+  jsonRpcSuccess,
+  jsonRpcError,
+  initializeResponse,
+  toolsListResponse,
+
+  // Legacy response functions (backward compatibility)
   successResponse,
   errorResponse,
 

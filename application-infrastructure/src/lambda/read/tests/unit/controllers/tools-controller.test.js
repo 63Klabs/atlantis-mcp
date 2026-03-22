@@ -227,7 +227,7 @@ describe('Router 404 Handler - Tool Names from Centralized List', () => {
     // Verify createError was called with UNKNOWN_TOOL
     expect(lastCreateErrorOpts).not.toBeNull();
     expect(lastCreateErrorOpts.code).toBe('UNKNOWN_TOOL');
-    expect(lastCreateErrorOpts.statusCode).toBe(404);
+    expect(lastCreateErrorOpts.statusCode).toBe(400);
 
     // The core assertion: availableTools in details must match the centralized list
     const actualToolNames = lastCreateErrorOpts.details.availableTools;

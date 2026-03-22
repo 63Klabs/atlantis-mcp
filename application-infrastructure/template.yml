@@ -650,6 +650,18 @@ Resources:
           MCP_DYNAMODB_SESSIONS_TABLE: !Ref DynamoDbSessions
 
       Events:
+        McpV1Post:
+          Type: Api
+          Properties:
+            Path: /mcp/v1
+            Method: post
+            RestApiId: !Ref WebApi
+        McpV1Get:
+          Type: Api
+          Properties:
+            Path: /mcp/v1
+            Method: get
+            RestApiId: !Ref WebApi
         UseTool:
           Type: Api
           Properties:

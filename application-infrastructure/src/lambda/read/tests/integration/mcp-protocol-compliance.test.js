@@ -10,6 +10,7 @@
 jest.mock('../../config', () => ({
   Config: {
     init: jest.fn().mockResolvedValue(undefined),
+    promise: jest.fn().mockResolvedValue(undefined),
     prime: jest.fn().mockResolvedValue(undefined),
     settings: jest.fn().mockReturnValue({
       s3: { buckets: ['test-bucket'] },
@@ -40,6 +41,32 @@ jest.mock('../../utils/rate-limiter', () => ({
     }
   }),
   createRateLimitResponse: jest.fn()
+}));
+
+// Mock controllers to avoid real AWS service calls during integration tests
+jest.mock('../../controllers', () => ({
+  Templates: {
+    list: jest.fn().mockResolvedValue({ success: true, data: [{ name: 'template-1' }] }),
+    get: jest.fn().mockResolvedValue({ success: true, data: { name: 'template-1' } }),
+    listVersions: jest.fn().mockResolvedValue({ success: true, data: ['v1.0.0'] }),
+    listCategories: jest.fn().mockResolvedValue({ success: true, data: { categories: ['storage', 'compute'] } })
+  },
+  Starters: {
+    list: jest.fn().mockResolvedValue({ success: true, data: [{ name: 'starter-1' }] }),
+    get: jest.fn().mockResolvedValue({ success: true, data: { name: 'starter-1' } })
+  },
+  Documentation: {
+    search: jest.fn().mockResolvedValue({ success: true, data: [{ title: 'Doc 1' }] })
+  },
+  Validation: {
+    validate: jest.fn().mockResolvedValue({ success: true, data: { valid: true } })
+  },
+  Updates: {
+    check: jest.fn().mockResolvedValue({ success: true, data: { hasUpdate: false } })
+  },
+  Tools: {
+    list: jest.fn().mockResolvedValue({ success: true, data: [] })
+  }
 }));
 
 const { handler } = require('../../index');
@@ -482,7 +509,7 @@ describe.skip('MCP Protocol Compliance Tests', () => {
 
       const response = await handler(event, {});
 
-      expect(response.statusCode).toBe(404);
+      expect(response.statusCode).toBe(400);
       const body = JSON.parse(response.body);
 
       // Verify MCP error structure
@@ -822,6 +849,212 @@ describe.skip('MCP Protocol Compliance Tests', () => {
       expect(response.headers['Access-Control-Allow-Origin']).toBeDefined();
       expect(response.headers['Access-Control-Allow-Methods']).toBeDefined();
       expect(response.headers['Access-Control-Allow-Headers']).toBeDefined();
+    });
+  });
+});
+
+
+/**
+ * JSON-RPC 2.0 MCP Protocol Compliance Tests
+ *
+ * Tests that the /mcp/v1 endpoint correctly handles JSON-RPC 2.0 requests
+ * including initialize, tools/list, tools/call, and error handling.
+ *
+ * Validates: Requirements 9.1, 9.2, 9.3
+ */
+
+/**
+ * Create an API Gateway event for JSON-RPC 2.0 requests to /mcp/v1.
+ *
+ * @param {Object|string} body - Request body (object will be JSON-stringified)
+ * @returns {Object} Mock API Gateway event
+ */
+function createJsonRpcEvent(body) {
+  return {
+    httpMethod: 'POST',
+    path: '/mcp/v1',
+    body: typeof body === 'string' ? body : JSON.stringify(body),
+    headers: { 'Content-Type': 'application/json' },
+    requestContext: { requestId: 'test-request-id' }
+  };
+}
+
+describe('JSON-RPC 2.0 MCP Protocol Compliance', () => {
+  const context = createMockContext();
+
+  describe('initialize method', () => {
+    it('should return serverInfo, capabilities, and protocolVersion', async () => {
+      const event = createJsonRpcEvent({
+        jsonrpc: '2.0',
+        method: 'initialize',
+        id: 1
+      });
+
+      const response = await handler(event, context);
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.jsonrpc).toBe('2.0');
+      expect(body.id).toBe(1);
+      expect(body.result).toBeDefined();
+      expect(body.result.serverInfo).toBeDefined();
+      expect(body.result.serverInfo.name).toBe('atlantis-mcp-server');
+      expect(body.result.capabilities).toBeDefined();
+      expect(body.result.protocolVersion).toBeDefined();
+    });
+  });
+
+  describe('tools/list method', () => {
+    it('should return tools array with name, description, and inputSchema', async () => {
+      const event = createJsonRpcEvent({
+        jsonrpc: '2.0',
+        method: 'tools/list',
+        id: 2
+      });
+
+      const response = await handler(event, context);
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.jsonrpc).toBe('2.0');
+      expect(body.id).toBe(2);
+      expect(body.result).toBeDefined();
+      expect(Array.isArray(body.result.tools)).toBe(true);
+      expect(body.result.tools.length).toBeGreaterThan(0);
+
+      for (const tool of body.result.tools) {
+        expect(tool).toHaveProperty('name');
+        expect(tool).toHaveProperty('description');
+        expect(tool).toHaveProperty('inputSchema');
+      }
+    });
+  });
+
+  describe('tools/call method', () => {
+    it('should dispatch to controller and return result', async () => {
+      const event = createJsonRpcEvent({
+        jsonrpc: '2.0',
+        method: 'tools/call',
+        params: { name: 'list_categories' },
+        id: 3
+      });
+
+      const response = await handler(event, context);
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.jsonrpc).toBe('2.0');
+      expect(body.id).toBe(3);
+      expect(body.result).toBeDefined();
+    });
+  });
+
+  describe('Error handling', () => {
+    it('should return -32700 Parse error for non-JSON body', async () => {
+      const event = createJsonRpcEvent('this is not json{{{');
+
+      const response = await handler(event, context);
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.jsonrpc).toBe('2.0');
+      expect(body.id).toBeNull();
+      expect(body.error).toBeDefined();
+      expect(body.error.code).toBe(-32700);
+    });
+
+    it('should return -32600 Invalid Request for missing jsonrpc field', async () => {
+      const event = createJsonRpcEvent({ method: 'initialize', id: 10 });
+
+      const response = await handler(event, context);
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.jsonrpc).toBe('2.0');
+      expect(body.error).toBeDefined();
+      expect(body.error.code).toBe(-32600);
+    });
+
+    it('should return -32601 Method not found for unknown method', async () => {
+      const event = createJsonRpcEvent({
+        jsonrpc: '2.0',
+        method: 'unknown/method',
+        id: 11
+      });
+
+      const response = await handler(event, context);
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.jsonrpc).toBe('2.0');
+      expect(body.id).toBe(11);
+      expect(body.error).toBeDefined();
+      expect(body.error.code).toBe(-32601);
+    });
+
+    it('should return -32602 Invalid params for tools/call with missing params.name', async () => {
+      const event = createJsonRpcEvent({
+        jsonrpc: '2.0',
+        method: 'tools/call',
+        params: { arguments: {} },
+        id: 12
+      });
+
+      const response = await handler(event, context);
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.jsonrpc).toBe('2.0');
+      expect(body.id).toBe(12);
+      expect(body.error).toBeDefined();
+      expect(body.error.code).toBe(-32602);
+    });
+  });
+
+  describe('Response structure', () => {
+    it('should include jsonrpc: "2.0" and matching id on success responses', async () => {
+      const event = createJsonRpcEvent({
+        jsonrpc: '2.0',
+        method: 'initialize',
+        id: 'match-me'
+      });
+
+      const response = await handler(event, context);
+      const body = JSON.parse(response.body);
+
+      expect(body.jsonrpc).toBe('2.0');
+      expect(body.id).toBe('match-me');
+      expect(body.result).toBeDefined();
+      expect(body.error).toBeUndefined();
+    });
+
+    it('should include jsonrpc: "2.0" and matching id on error responses', async () => {
+      const event = createJsonRpcEvent({
+        jsonrpc: '2.0',
+        method: 'nonexistent',
+        id: 'err-id'
+      });
+
+      const response = await handler(event, context);
+      const body = JSON.parse(response.body);
+
+      expect(body.jsonrpc).toBe('2.0');
+      expect(body.id).toBe('err-id');
+      expect(body.error).toBeDefined();
+      expect(body.result).toBeUndefined();
+    });
+
+    it('should return Content-Type application/json on all responses', async () => {
+      const event = createJsonRpcEvent({
+        jsonrpc: '2.0',
+        method: 'initialize',
+        id: 'ct-1'
+      });
+
+      const response = await handler(event, context);
+
+      expect(response.headers).toBeDefined();
+      expect(response.headers['Content-Type']).toBe('application/json');
     });
   });
 });

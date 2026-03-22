@@ -7,7 +7,7 @@
  * - GET to GET-eligible tools returns 200
  * - GET query string parameters are mapped to controller input
  * - GET to non-GET-eligible tools returns 405
- * - GET to unknown tools returns 404 (not 405)
+ * - GET to unknown tools returns 400 (not 405) — 400 avoids CloudFront 404 interception
  * - POST continues to work for all tools after GET support
  *
  * Validates: Requirements 4.1, 4.2, 4.3, 4.4, 7.2, 7.3, 7.4, 7.5
@@ -246,10 +246,11 @@ describe('Feature: allow-get-on-tools-that-list — GET method handling', () => 
   /**
    * **Validates: Requirements 4.3**
    *
-   * GET request to an unknown tool should return 404 (not 405).
+   * GET request to an unknown tool should return 400 (not 405).
    * Unknown tools fall through to the switch default regardless of method.
+   * 400 is used instead of 404 because CloudFront intercepts 404s.
    */
-  test('GET request to unknown tool returns 404 (not 405)', async () => {
+  test('GET request to unknown tool returns 400 (not 405)', async () => {
     ClientRequest.mockImplementation(() => ({
       isValid: jest.fn().mockReturnValue(true),
       getProps: jest.fn().mockReturnValue({
@@ -268,8 +269,8 @@ describe('Feature: allow-get-on-tools-that-list — GET method handling', () => 
 
     expect(lastCreateErrorOpts).not.toBeNull();
     expect(lastCreateErrorOpts.code).toBe('UNKNOWN_TOOL');
-    expect(lastCreateErrorOpts.statusCode).toBe(404);
-    expect(mockResponseInstance.statusCode).toBe(404);
+    expect(lastCreateErrorOpts.statusCode).toBe(400);
+    expect(mockResponseInstance.statusCode).toBe(400);
   });
 
   /**

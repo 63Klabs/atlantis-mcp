@@ -280,7 +280,7 @@ describe.skip('Rate Limiting Integration Tests', () => {
       const context = createMockContext();
       const response = await handler(event, context);
 
-      expect(response.statusCode).toBe(404);
+      expect(response.statusCode).toBe(400);
       expect(response.headers).toHaveProperty('X-RateLimit-Limit');
       expect(response.headers).toHaveProperty('X-RateLimit-Remaining');
       expect(response.headers).toHaveProperty('X-RateLimit-Reset');

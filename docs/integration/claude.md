@@ -37,7 +37,7 @@ Open the configuration file and add the Atlantis MCP Server:
 {
   "mcpServers": {
     "atlantis": {
-      "url": "https://mcp.atlantis.63klabs.com/v1",
+      "url": "https://mcp.atlantis.63klabs.net/mcp/v1",
       "apiKey": "",
       "description": "Atlantis Templates and Scripts Platform MCP Server"
     }
@@ -51,13 +51,15 @@ Open the configuration file and add the Atlantis MCP Server:
 {
   "mcpServers": {
     "atlantis": {
-      "url": "https://your-api-gateway-url.execute-api.us-east-1.amazonaws.com/prod",
+      "url": "https://{api-gateway-url}/{api_base}/mcp/v1",
       "apiKey": "",
       "description": "Self-hosted Atlantis MCP Server"
     }
   }
 }
 ```
+
+> **Note**: The `/mcp/v1` endpoint uses JSON-RPC 2.0 protocol. Per-tool endpoints (e.g., `/mcp/list_tools`) still work for backward compatibility, but the unified `/mcp/v1` endpoint is recommended.
 
 **Note:** Phase 1 does not require an API key (public read-only access). Leave the `apiKey` field empty.
 
@@ -169,7 +171,7 @@ If you experience timeout issues, increase the timeout:
 {
   "mcpServers": {
     "atlantis": {
-      "url": "https://mcp.atlantis.63klabs.com/v1",
+      "url": "https://mcp.atlantis.63klabs.net/mcp/v1",
       "apiKey": "",
       "timeout": 30000,
       "description": "Atlantis MCP Server with 30s timeout"
@@ -186,12 +188,12 @@ Configure multiple Atlantis MCP Server instances:
 {
   "mcpServers": {
     "atlantis-prod": {
-      "url": "https://mcp.atlantis.63klabs.com/v1",
+      "url": "https://mcp.atlantis.63klabs.net/mcp/v1",
       "apiKey": "",
       "description": "Production Atlantis MCP Server"
     },
     "atlantis-test": {
-      "url": "https://test-mcp.atlantis.63klabs.com/v1",
+      "url": "https://test-mcp.atlantis.63klabs.net/mcp/v1",
       "apiKey": "",
       "description": "Test Atlantis MCP Server"
     }
@@ -207,7 +209,7 @@ If you're behind a corporate proxy:
 {
   "mcpServers": {
     "atlantis": {
-      "url": "https://mcp.atlantis.63klabs.com/v1",
+      "url": "https://mcp.atlantis.63klabs.net/mcp/v1",
       "apiKey": "",
       "proxy": "http://proxy.company.com:8080",
       "description": "Atlantis MCP Server via proxy"

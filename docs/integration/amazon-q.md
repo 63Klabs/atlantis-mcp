@@ -28,9 +28,26 @@ Create or edit `.vscode/settings.json`:
 {
   "amazonQ.mcp.servers": {
     "atlantis": {
-      "url": "https://mcp.atlantis.63klabs.com/v1",
+      "url": "https://mcp.atlantis.63klabs.net/mcp/v1",
       "name": "Atlantis Platform",
       "description": "CloudFormation templates and documentation",
+      "enabled": true
+    }
+  }
+}
+```
+
+> **Note**: The `/mcp/v1` endpoint uses JSON-RPC 2.0 protocol. Per-tool endpoints (e.g., `/mcp/list_tools`) still work for backward compatibility, but the unified `/mcp/v1` endpoint is recommended.
+
+**For self-hosted instances**, replace the URL with your deployment:
+
+```json
+{
+  "amazonQ.mcp.servers": {
+    "atlantis": {
+      "url": "https://{api-gateway-url}/{api_base}/mcp/v1",
+      "name": "Atlantis Platform (Self-Hosted)",
+      "description": "Self-hosted Atlantis MCP Server",
       "enabled": true
     }
   }
@@ -70,7 +87,7 @@ Create or edit `.idea/amazonq.xml`:
       <entry key="atlantis">
         <value>
           <McpServer>
-            <option name="url" value="https://mcp.atlantis.63klabs.com/v1" />
+            <option name="url" value="https://mcp.atlantis.63klabs.net/mcp/v1" />
             <option name="name" value="Atlantis Platform" />
             <option name="enabled" value="true" />
           </McpServer>
@@ -152,7 +169,7 @@ Create `.amazonq/config.json` in your project:
 {
   "mcp": {
     "atlantis": {
-      "url": "https://mcp.atlantis.63klabs.com/v1",
+      "url": "https://mcp.atlantis.63klabs.net/mcp/v1",
       "autoSuggest": true,
       "context": {
         "prefix": "acme",

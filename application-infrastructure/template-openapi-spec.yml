@@ -16,6 +16,68 @@ info:
 
 paths:
 
+  /mcp/v1:
+    post:
+      summary: "MCP JSON-RPC 2.0 endpoint"
+      description: "JSON-RPC 2.0 endpoint for MCP protocol operations"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MCPRequest'
+      responses:
+        '200':
+          description: "Success response"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPResponse'
+        '400':
+          description: "Bad request - invalid JSON-RPC 2.0 message"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPError'
+        '500':
+          description: "Internal server error"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPError'
+      x-amazon-apigateway-integration:
+        httpMethod: post
+        type: aws_proxy
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ReadLambdaFunction.Arn}/invocations
+    get:
+      summary: "List available MCP tools"
+      description: "Returns available MCP tools list"
+      responses:
+        '200':
+          description: "Success response with tool list"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPResponse'
+        '400':
+          description: "Bad request"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPError'
+        '500':
+          description: "Internal server error"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPError'
+      x-amazon-apigateway-integration:
+        httpMethod: post
+        type: aws_proxy
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ReadLambdaFunction.Arn}/invocations
+
   /mcp/list_tools:
     post:
       summary: "List available tools"

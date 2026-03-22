@@ -28,7 +28,7 @@ Click "Edit in settings.json" and add:
 {
   "mcp.servers": {
     "atlantis": {
-      "url": "https://mcp.atlantis.63klabs.com/v1",
+      "url": "https://mcp.atlantis.63klabs.net/mcp/v1",
       "name": "Atlantis Platform",
       "description": "CloudFormation templates, starters, and documentation",
       "enabled": true
@@ -43,7 +43,7 @@ Click "Edit in settings.json" and add:
 {
   "mcp.servers": {
     "atlantis": {
-      "url": "https://your-api-gateway-url.execute-api.us-east-1.amazonaws.com/prod",
+      "url": "https://{api-gateway-url}/{api_base}/mcp/v1",
       "name": "Atlantis Platform (Self-Hosted)",
       "description": "Self-hosted Atlantis MCP Server",
       "enabled": true
@@ -51,6 +51,8 @@ Click "Edit in settings.json" and add:
   }
 }
 ```
+
+> **Note**: The `/mcp/v1` endpoint uses JSON-RPC 2.0 protocol. Per-tool endpoints (e.g., `/mcp/list_tools`) still work for backward compatibility, but the unified `/mcp/v1` endpoint is recommended.
 
 ### 4. Reload Cursor
 
@@ -163,7 +165,7 @@ Create `.cursor/settings.json` in your project:
 {
   "mcp.servers": {
     "atlantis": {
-      "url": "https://mcp.atlantis.63klabs.com/v1",
+      "url": "https://mcp.atlantis.63klabs.net/mcp/v1",
       "enabled": true,
       "autoSuggest": true
     }

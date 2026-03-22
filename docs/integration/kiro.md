@@ -23,13 +23,15 @@ Click "Add Server" and configure:
 
 **Server Name:** `atlantis`
 
-**Server URL:** `https://mcp.atlantis.63klabs.com/v1`
+**Server URL:** `https://mcp.atlantis.63klabs.net/mcp/v1`
 
 **Description:** `Atlantis Templates and Scripts Platform`
 
 **For self-hosted instances:**
 
-**Server URL:** `https://your-api-gateway-url.execute-api.us-east-1.amazonaws.com/prod`
+**Server URL:** `https://{api-gateway-url}/{api_base}/mcp/v1`
+
+> **Note**: The `/mcp/v1` endpoint uses JSON-RPC 2.0 protocol. Clients send requests like `{"jsonrpc": "2.0", "method": "tools/list", "id": 1}`. Per-tool endpoints (e.g., `/mcp/list_tools`) still work for backward compatibility, but the unified `/mcp/v1` endpoint is recommended.
 
 ### 3. Configure Server Settings
 
@@ -128,11 +130,7 @@ Edit `.kiro/settings/mcp.json` in your workspace:
 {
   "mcpServers": {
     "atlantis": {
-      "command": "node",
-      "args": ["mcp-client.js"],
-      "env": {
-        "MCP_SERVER_URL": "https://mcp.atlantis.63klabs.com/v1"
-      },
+      "url": "https://mcp.atlantis.63klabs.net/mcp/v1",
       "disabled": false,
       "autoApprove": [
         "list_templates",
@@ -143,6 +141,8 @@ Edit `.kiro/settings/mcp.json` in your workspace:
   }
 }
 ```
+
+> **Important**: Use the `url` key for Streamable HTTP transport. Do not use `command`/`args` — those are for local stdio-based MCP servers. Remote HTTP servers like Atlantis use the `url` key directly.
 
 ### Auto-Approve Tools
 
@@ -169,13 +169,21 @@ Create `.kiro/settings/mcp.json` in your project:
 {
   "mcpServers": {
     "atlantis": {
-      "command": "node",
-      "args": ["mcp-client.js"],
-      "env": {
-        "MCP_SERVER_URL": "https://mcp.atlantis.63klabs.com/v1",
-        "PROJECT_PREFIX": "acme",
-        "PROJECT_ID": "myapp"
-      }
+      "url": "https://mcp.atlantis.63klabs.net/mcp/v1",
+      "disabled": false
+    }
+  }
+}
+```
+
+**For self-hosted instances:**
+
+```json
+{
+  "mcpServers": {
+    "atlantis": {
+      "url": "https://{api-gateway-url}/{api_base}/mcp/v1",
+      "disabled": false
     }
   }
 }

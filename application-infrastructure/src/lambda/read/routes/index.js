@@ -5,6 +5,10 @@
  * controllers based on the MCP tool name. It creates ClientRequest objects from
  * API Gateway events and delegates to controllers for processing.
  *
+ * Requests to `/mcp/v1` are intercepted early and delegated to the JSON-RPC
+ * Router for MCP protocol–compliant handling. POST requests are dispatched via
+ * `JsonRpcRouter.handleJsonRpc`; GET requests return the tools/list response.
+ *
  * Supports both POST and GET methods. GET requests are only allowed for tools
  * whose inputSchema has no required parameters (GET-eligible tools). GET requests
  * to non-GET-eligible tools receive a 405 Method Not Allowed response. Query
@@ -32,6 +36,38 @@ const { tools: { ClientRequest, Response, DebugAndLog } } = require('@63klabs/ca
  * return response.toAPIGateway();
  */
 const process = async (event, context) => {
+
+  // --- /mcp/v1 JSON-RPC 2.0 endpoint detection ---
+  // Check the raw event path before ClientRequest processing so that
+  // JSON-RPC requests are handled by the dedicated router without
+  // going through legacy tool-name extraction.
+  const rawPath = event.path || event.requestContext?.resourcePath || '';
+  if (rawPath.endsWith('/mcp/v1')) {
+    const httpMethod = (event.httpMethod || '').toUpperCase();
+    // >! Lazy-load to avoid pulling in Controllers (and their service
+    // >! dependencies) at module-load time, which would break tests that
+    // >! mock @63klabs/cache-data without the `cache` export.
+    const JsonRpcRouter = require('../utils/json-rpc-router');
+    const MCPProtocol = require('../utils/mcp-protocol');
+
+    if (httpMethod === 'POST') {
+      // >! Delegate POST to JSON-RPC Router for full MCP protocol handling
+      DebugAndLog.info('Routing /mcp/v1 POST to JSON-RPC Router');
+      const jsonRpcResponse = await JsonRpcRouter.handleJsonRpc(event, context);
+      // Wrap raw API Gateway response so the Lambda handler can call .finalize()
+      return { finalize: () => jsonRpcResponse };
+    }
+
+    if (httpMethod === 'GET') {
+      // >! GET /mcp/v1 returns the tools/list response (200 OK with tool definitions)
+      DebugAndLog.info('Routing /mcp/v1 GET — returning tools/list');
+      const toolsListBody = MCPProtocol.toolsListResponse(null, MCPProtocol.MCP_TOOLS);
+      const getResponse = JsonRpcRouter.buildResponse(200, toolsListBody);
+      return { finalize: () => getResponse };
+    }
+  }
+
+  // --- Legacy per-tool routing (unchanged) ---
   const REQ = new ClientRequest(event, context);
   const RESP = new Response(REQ);
   const ErrorHandler = require('../utils/error-handler');

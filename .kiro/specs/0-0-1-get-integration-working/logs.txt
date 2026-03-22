@@ -1,0 +1,235 @@
+
+2026-03-22 12:56:03.991 [info] [aws-docs] Successfully connected and synced tools and resources for MCP server
+2026-03-22 12:56:04.434 [warning] [context7] Log from MCP Server: Context7 Documentation MCP Server v2.1.4 running on stdio
+
+2026-03-22 12:56:04.438 [info] [context7] Connected to server with transport type: Stdio
+2026-03-22 12:56:04.441 [info] [context7] Successfully connected and synced tools and resources for MCP server
+2026-03-22 12:56:04.456 [warning] [Powers Debug] No powers.mcpServers section found in user mcp.json
+2026-03-22 12:56:08.485 [warning] [Powers Debug] No powers.mcpServers section found in user mcp.json
+2026-03-22 12:56:08.571 [warning] [Powers Debug] No powers.mcpServers section found in user mcp.json
+2026-03-22 12:56:08.642 [warning] [Powers Debug] No powers.mcpServers section found in user mcp.json
+2026-03-22 12:56:08.846 [warning] [Powers Debug] No powers.mcpServers section found in user mcp.json
+2026-03-22 12:57:20.530 [warning] [Powers Debug] No powers.mcpServers section found in user mcp.json
+2026-03-22 12:57:20.545 [warning] [Powers Debug] No powers.mcpServers section found in user mcp.json
+2026-03-22 12:57:20.557 [warning] [Powers Debug] No powers.mcpServers section found in user mcp.json
+2026-03-22 12:57:20.762 [warning] [Powers Debug] No powers.mcpServers section found in user mcp.json
+2026-03-22 13:04:35.737 [warning] [atlantis] Enabled MCP Server atlantis must specify a command or URL, ignoring.
+2026-03-22 13:04:35.737 [error] Enabled MCP Server atlantis must specify a command or URL, ignoring.
+2026-03-22 13:04:35.738 [warning] [Powers Debug] No powers.mcpServers section found in user mcp.json
+2026-03-22 13:04:35.818 [warning] [atlantis] Enabled MCP Server atlantis must specify a command or URL, ignoring.
+2026-03-22 13:04:35.818 [error] Enabled MCP Server atlantis must specify a command or URL, ignoring.
+2026-03-22 13:04:35.818 [warning] [Powers Debug] No powers.mcpServers section found in user mcp.json
+2026-03-22 13:04:35.860 [warning] [atlantis] Enabled MCP Server atlantis must specify a command or URL, ignoring.
+2026-03-22 13:04:35.860 [error] Enabled MCP Server atlantis must specify a command or URL, ignoring.
+2026-03-22 13:04:35.860 [warning] [Powers Debug] No powers.mcpServers section found in user mcp.json
+2026-03-22 13:04:36.062 [warning] [atlantis] Enabled MCP Server atlantis must specify a command or URL, ignoring.
+2026-03-22 13:04:36.062 [error] Enabled MCP Server atlantis must specify a command or URL, ignoring.
+2026-03-22 13:04:36.062 [warning] [Powers Debug] No powers.mcpServers section found in user mcp.json
+2026-03-22 13:06:45.028 [warning] [Powers Debug] No powers.mcpServers section found in user mcp.json
+2026-03-22 13:06:45.028 [info] [atlantis] Adding new MCP server from updated configuration
+2026-03-22 13:06:45.028 [info] [atlantis] Registering MCP server and starting connection
+2026-03-22 13:06:45.064 [warning] [Powers Debug] No powers.mcpServers section found in user mcp.json
+2026-03-22 13:06:45.084 [warning] [Powers Debug] No powers.mcpServers section found in user mcp.json
+2026-03-22 13:06:45.288 [warning] [Powers Debug] No powers.mcpServers section found in user mcp.json
+2026-03-22 13:06:45.391 [info] [atlantis] MCP connection closed successfully
+2026-03-22 13:06:45.391 [error] [atlantis] Error connecting to MCP server: Streamable HTTP error: Unexpected content type: text/html
+2026-03-22 13:06:45.405 [warning] [Powers Debug] No powers.mcpServers section found in user mcp.json
+2026-03-22 13:07:50.981 [warning] [Powers Debug] No powers.mcpServers section found in user mcp.json
+2026-03-22 13:07:50.982 [info] [atlantis] Configuration changed for MCP server, reconnecting
+2026-03-22 13:07:50.982 [info] [atlantis] Registering MCP server and starting connection
+2026-03-22 13:07:51.033 [warning] [Powers Debug] No powers.mcpServers section found in user mcp.json
+2026-03-22 13:07:51.043 [warning] [Powers Debug] No powers.mcpServers section found in user mcp.json
+2026-03-22 13:07:51.247 [warning] [Powers Debug] No powers.mcpServers section found in user mcp.json
+2026-03-22 13:07:51.455 [info] [atlantis] MCP connection closed successfully
+2026-03-22 13:07:51.455 [error] [atlantis] Error connecting to MCP server: [
+  {
+    "code": "invalid_union",
+    "errors": [
+      [
+        {
+          "code": "invalid_value",
+          "values": [
+            "2.0"
+          ],
+          "path": [
+            "jsonrpc"
+          ],
+          "message": "Invalid input: expected \"2.0\""
+        },
+        {
+          "code": "invalid_union",
+          "errors": [
+            [
+              {
+                "expected": "string",
+                "code": "invalid_type",
+                "path": [],
+                "message": "Invalid input: expected string, received undefined"
+              }
+            ],
+            [
+              {
+                "expected": "number",
+                "code": "invalid_type",
+                "path": [],
+                "message": "Invalid input: expected number, received undefined"
+              }
+            ]
+          ],
+          "path": [
+            "id"
+          ],
+          "message": "Invalid input"
+        },
+        {
+          "expected": "string",
+          "code": "invalid_type",
+          "path": [
+            "method"
+          ],
+          "message": "Invalid input: expected string, received undefined"
+        },
+        {
+          "code": "unrecognized_keys",
+          "keys": [
+            "protocol",
+            "version",
+            "tool",
+            "success",
+            "data",
+            "timestamp"
+          ],
+          "path": [],
+          "message": "Unrecognized keys: \"protocol\", \"version\", \"tool\", \"success\", \"data\", \"timestamp\""
+        }
+      ],
+      [
+        {
+          "code": "invalid_value",
+          "values": [
+            "2.0"
+          ],
+          "path": [
+            "jsonrpc"
+          ],
+          "message": "Invalid input: expected \"2.0\""
+        },
+        {
+          "expected": "string",
+          "code": "invalid_type",
+          "path": [
+            "method"
+          ],
+          "message": "Invalid input: expected string, received undefined"
+        },
+        {
+          "code": "unrecognized_keys",
+          "keys": [
+            "protocol",
+            "version",
+            "tool",
+            "success",
+            "data",
+            "timestamp"
+          ],
+          "path": [],
+          "message": "Unrecognized keys: \"protocol\", \"version\", \"tool\", \"success\", \"data\", \"timestamp\""
+        }
+      ],
+      [
+        {
+          "code": "invalid_value",
+          "values": [
+            "2.0"
+          ],
+          "path": [
+            "jsonrpc"
+          ],
+          "message": "Invalid input: expected \"2.0\""
+        },
+        {
+          "code": "invalid_union",
+          "errors": [
+            [
+              {
+                "expected": "string",
+                "code": "invalid_type",
+                "path": [],
+                "message": "Invalid input: expected string, received undefined"
+              }
+            ],
+            [
+              {
+                "expected": "number",
+                "code": "invalid_type",
+                "path": [],
+                "message": "Invalid input: expected number, received undefined"
+              }
+            ]
+          ],
+          "path": [
+            "id"
+          ],
+          "message": "Invalid input"
+        },
+        {
+          "expected": "object",
+          "code": "invalid_type",
+          "path": [
+            "result"
+          ],
+          "message": "Invalid input: expected object, received undefined"
+        },
+        {
+          "code": "unrecognized_keys",
+          "keys": [
+            "protocol",
+            "version",
+            "tool",
+            "success",
+            "data",
+            "timestamp"
+          ],
+          "path": [],
+          "message": "Unrecognized keys: \"protocol\", \"version\", \"tool\", \"success\", \"data\", \"timestamp\""
+        }
+      ],
+      [
+        {
+          "code": "invalid_value",
+          "values": [
+            "2.0"
+          ],
+          "path": [
+            "jsonrpc"
+          ],
+          "message": "Invalid input: expected \"2.0\""
+        },
+        {
+          "expected": "object",
+          "code": "invalid_type",
+          "path": [
+            "error"
+          ],
+          "message": "Invalid input: expected object, received undefined"
+        },
+        {
+          "code": "unrecognized_keys",
+          "keys": [
+            "protocol",
+            "version",
+            "tool",
+            "success",
+            "data",
+            "timestamp"
+          ],
+          "path": [],
+          "message": "Unrecognized keys: \"protocol\", \"version\", \"tool\", \"success\", \"data\", \"timestamp\""
+        }
+      ]
+    ],
+    "path": [],
+    "message": "Invalid input"
+  }
+]
+2026-03-22 13:07:51.460 [warning] [Powers Debug] No powers.mcpServers section found in user mcp.json

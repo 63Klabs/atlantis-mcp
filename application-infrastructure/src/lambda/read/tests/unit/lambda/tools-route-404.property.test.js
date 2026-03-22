@@ -135,7 +135,7 @@ describe('Feature: add-tools-endpoint-which-lists-available-tools, Property 4: 4
           // Verify createError was called with the correct details
           expect(lastCreateErrorOpts).not.toBeNull();
           expect(lastCreateErrorOpts.code).toBe('UNKNOWN_TOOL');
-          expect(lastCreateErrorOpts.statusCode).toBe(404);
+          expect(lastCreateErrorOpts.statusCode).toBe(400);
 
           // The core property: availableTools in details must match the centralized list
           const actualToolNames = lastCreateErrorOpts.details.availableTools;
