@@ -3,9 +3,11 @@
  *
  * Provides business logic for AWS resource naming validation.
  * Validates resource names against Atlantis naming conventions:
- * - Application resources: <Prefix>-<ProjectId>-<StageId>-<ResourceName>
- * - S3 buckets: <orgPrefix>-<Prefix>-<ProjectId>-<StageId>-<Region>-<AccountId>
- * - S3 buckets (alt): <orgPrefix>-<Prefix>-<ProjectId>-<Region>
+ * - Application resources: <Prefix>-<ProjectId>-<StageId>-<ResourceSuffix>
+ * - Shared application resources: <Prefix>-<ProjectId>-<ResourceSuffix>
+ * - S3 buckets: <OrgPrefix>-<Prefix>-<ProjectId>-<StageId>-<Region>-<AccountId>
+ * - S3 buckets (shared): <OrgPrefix>-<Prefix>-<ProjectId>-<Region>-<AccountId>
+ * - S3 buckets (pattern3): <Prefix>-<ProjectId>-<StageId>-<ResourceSuffix>
  *
  * This service does NOT use caching as it performs pure validation logic
  * without external data access.
@@ -27,6 +29,8 @@ const { tools: { DebugAndLog, AWS } } = require('@63klabs/cache-data');
  * @param {Object} options - Validation options
  * @param {string} options.resourceName - Resource name to validate (required)
  * @param {string} [options.resourceType] - Resource type (s3, dynamodb, lambda, cloudformation, application) - auto-detected if not provided
+ * @param {boolean} [options.isShared=false] - When true, validates as a shared resource without a StageId component
+ * @param {boolean} [options.hasOrgPrefix] - When true, indicates the S3 bucket name includes an organization prefix for disambiguation
  * @param {boolean} [options.partial=false] - Allow partial name validation (e.g., just Prefix-ProjectId)
  * @returns {Promise<Object>} Validation result with errors, suggestions, and parsed components
  *
@@ -70,7 +74,7 @@ const { tools: { DebugAndLog, AWS } } = require('@63klabs/cache-data');
  * });
  */
 async function validateNaming(options = {}) {
-  const { resourceName, resourceType, partial = false } = options;
+  const { resourceName, resourceType, isShared = false, hasOrgPrefix, partial = false } = options;
 
   // Validate input
   if (!resourceName || typeof resourceName !== 'string') {
@@ -86,6 +90,8 @@ async function validateNaming(options = {}) {
   DebugAndLog.debug('Validating resource name', {
     resourceName,
     resourceType,
+    isShared,
+    hasOrgPrefix,
     partial
   });
 
@@ -114,7 +120,8 @@ async function validateNaming(options = {}) {
     prefix: settings.naming.parameters.prefix,
     projectId: settings.naming.parameters.projectId,
     stageId: settings.naming.parameters.stageId,
-    allowedStageIds: ['test', 'beta', 'stage', 'prod']
+    isShared,
+    hasOrgPrefix
   };
 
   // Add AWS region and account ID for S3 validation
@@ -127,7 +134,8 @@ async function validateNaming(options = {}) {
     prefix: config.prefix || '(not set)',
     projectId: config.projectId || '(not set)',
     stageId: config.stageId || '(not set)',
-    allowedStageIds: config.allowedStageIds
+    isShared: config.isShared,
+    hasOrgPrefix: config.hasOrgPrefix !== undefined ? config.hasOrgPrefix : '(auto)'
   });
 
   // Validate using naming rules utility

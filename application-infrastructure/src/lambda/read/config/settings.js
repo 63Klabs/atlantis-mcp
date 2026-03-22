@@ -258,7 +258,7 @@ const settings = {
       },
       {
         name: 'validate_naming',
-        description: 'Validate resource names against Atlantis naming conventions. Returns validation result with specific error messages and suggestions for invalid names.',
+        description: 'Validate resource names against Atlantis naming conventions. Supports shared resources (no StageId) via isShared and S3 OrgPrefix disambiguation via hasOrgPrefix. Returns validation result with specific error messages, suggestions, and parsed components.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -270,6 +270,14 @@ const settings = {
               type: 'string',
               description: 'Type of AWS resource',
               enum: ['application', 's3', 'dynamodb', 'lambda', 'cloudformation']
+            },
+            isShared: {
+              type: 'boolean',
+              description: 'When true, validates as a shared resource without a StageId component (e.g., Prefix-ProjectId-ResourceSuffix)'
+            },
+            hasOrgPrefix: {
+              type: 'boolean',
+              description: 'When true, indicates the S3 bucket name includes an organization prefix segment for disambiguation'
             }
           },
           required: ['resourceName']

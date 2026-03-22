@@ -3,12 +3,59 @@
  *
  * Validates AWS resource names against Atlantis naming conventions.
  *
- * Application Resource Pattern: <Prefix>-<ProjectId>-<StageId>-<ResourceName>
- * S3 Bucket Pattern 1: <orgPrefix>-<Prefix>-<ProjectId>-<StageId>-<Region>-<AccountId>
- * S3 Bucket Pattern 2: <orgPrefix>-<Prefix>-<ProjectId>-<Region>
+ * Application Resource Pattern: Prefix-ProjectId-StageId-ResourceSuffix
+ * Shared Application Pattern:   Prefix-ProjectId-ResourceSuffix (isShared=true)
+ * S3 Bucket Pattern 1: [OrgPrefix-]Prefix-ProjectId-StageId-Region-AccountId
+ * S3 Bucket Pattern 2: [OrgPrefix-]Prefix-ProjectId-Region-AccountId (shared)
+ * S3 Bucket Pattern 3: [OrgPrefix-]Prefix-ProjectId-StageId-ResourceSuffix (not preferred)
  *
  * @module naming-rules
  */
+
+/**
+ * Regex pattern for valid StageId values.
+ * StageId must start with t, b, s, or p followed by zero or more lowercase alphanumeric characters.
+ *
+ * @constant {RegExp}
+ */
+const STAGE_ID_PATTERN = /^[tbsp][a-z0-9]*$/;
+
+/**
+ * Check whether a StageId string is valid.
+ *
+ * @param {string} stageId - Stage identifier to validate
+ * @returns {boolean} True when the StageId matches the pattern
+ * @example
+ * isValidStageId('test');  // true
+ * isValidStageId('tjoe');  // true
+ * isValidStageId('xyz');   // false
+ */
+function isValidStageId(stageId) {
+  return STAGE_ID_PATTERN.test(stageId);
+}
+
+/**
+ * Check a ResourceSuffix for PascalCase conformance and return warning strings.
+ *
+ * Warnings are advisory only and do not cause validation failure.
+ *
+ * @param {string} resourceSuffix - The resource suffix to check
+ * @returns {string[]} Array of warning messages (empty when PascalCase is correct)
+ * @example
+ * checkPascalCase('GetPersonFunction'); // []
+ * checkPascalCase('getPersonFunction'); // ['ResourceSuffix \'getPersonFunction\' should start with an uppercase letter (PascalCase)']
+ * checkPascalCase('APIGateway');        // ['ResourceSuffix \'APIGateway\' contains consecutive uppercase letters...']
+ */
+function checkPascalCase(resourceSuffix) {
+  const warnings = [];
+  if (resourceSuffix && !/^[A-Z]/.test(resourceSuffix)) {
+    warnings.push(`ResourceSuffix '${resourceSuffix}' should start with an uppercase letter (PascalCase)`);
+  }
+  if (resourceSuffix && /[A-Z]{2,}/.test(resourceSuffix)) {
+    warnings.push(`ResourceSuffix '${resourceSuffix}' contains consecutive uppercase letters. Only the first letter of acronyms should be capitalized (e.g., 'Api' not 'API', 'Mcp' not 'MCP')`);
+  }
+  return warnings;
+}
 
 /**
  * AWS resource naming rules by service
@@ -42,8 +89,10 @@ const AWS_NAMING_RULES = {
 };
 
 /**
- * Validate application resource name
- * Pattern: <Prefix>-<ProjectId>-<StageId>-<ResourceName>
+ * Validate application resource name.
+ *
+ * Standard pattern: Prefix-ProjectId-StageId-ResourceSuffix
+ * Shared pattern:   Prefix-ProjectId-ResourceSuffix (when isShared=true)
  *
  * @param {string} name - Resource name to validate
  * @param {Object} options - Validation options
@@ -51,7 +100,7 @@ const AWS_NAMING_RULES = {
  * @param {string} [options.prefix] - Expected prefix value
  * @param {string} [options.projectId] - Expected project ID value
  * @param {string} [options.stageId] - Expected stage ID value
- * @param {Array<string>} [options.allowedStageIds] - Allowed stage ID values
+ * @param {boolean} [options.isShared=false] - If true, accept 3-component names without StageId
  * @param {boolean} [options.partial=false] - Allow partial name validation
  * @returns {{valid: boolean, errors: Array<string>, suggestions: Array<string>, components: Object}}
  */
@@ -61,7 +110,7 @@ function validateApplicationResource(name, options = {}) {
     prefix,
     projectId,
     stageId,
-    allowedStageIds = ['test', 'beta', 'stage', 'prod'],
+    isShared = false,
     partial = false
   } = options;
 
@@ -78,25 +127,32 @@ function validateApplicationResource(name, options = {}) {
   // Split name into components
   const parts = name.split('-');
 
+  const minParts = isShared ? 3 : 4;
+  const formatLabel = isShared
+    ? 'Prefix-ProjectId-ResourceSuffix'
+    : 'Prefix-ProjectId-StageId-ResourceSuffix';
+
   // Minimum parts required (unless partial)
-  if (!partial && parts.length < 4) {
-    errors.push('Application resource name must have at least 4 components: Prefix-ProjectId-StageId-ResourceName');
-    suggestions.push(`Expected format: ${prefix || 'prefix'}-${projectId || 'projectid'}-${stageId || 'stageid'}-ResourceName`);
+  if (!partial && parts.length < minParts) {
+    errors.push(`Application resource name must have at least ${minParts} components: ${formatLabel}`);
+    if (isShared) {
+      suggestions.push(`Expected format: ${prefix || 'prefix'}-${projectId || 'projectid'}-ResourceSuffix`);
+    } else {
+      suggestions.push(`Expected format: ${prefix || 'prefix'}-${projectId || 'projectid'}-${stageId || 'stageid'}-ResourceSuffix`);
+    }
     return { valid: false, errors, suggestions, components };
   }
 
-  // Extract components
-  if (parts.length >= 1) {
-    components.prefix = parts[0];
-  }
-  if (parts.length >= 2) {
-    components.projectId = parts[1];
-  }
-  if (parts.length >= 3) {
-    components.stageId = parts[2];
-  }
-  if (parts.length >= 4) {
-    components.resourceName = parts.slice(3).join('-');
+  // Extract components based on isShared
+  if (isShared) {
+    if (parts.length >= 1) components.prefix = parts[0];
+    if (parts.length >= 2) components.projectId = parts[1];
+    if (parts.length >= 3) components.resourceSuffix = parts.slice(2).join('-');
+  } else {
+    if (parts.length >= 1) components.prefix = parts[0];
+    if (parts.length >= 2) components.projectId = parts[1];
+    if (parts.length >= 3) components.stageId = parts[2];
+    if (parts.length >= 4) components.resourceSuffix = parts.slice(3).join('-');
   }
 
   // Validate Prefix
@@ -123,15 +179,11 @@ function validateApplicationResource(name, options = {}) {
     }
   }
 
-  // Validate StageId
-  if (components.stageId) {
-    if (!/^[a-z0-9]+$/i.test(components.stageId)) {
-      errors.push('StageId must contain only alphanumeric characters');
-      suggestions.push(`Use alphanumeric characters only for stage ID (e.g., ${components.stageId.replace(/[^a-z0-9]/gi, '')})`);
-    }
-    if (!allowedStageIds.includes(components.stageId.toLowerCase())) {
-      errors.push(`StageId '${components.stageId}' is not in allowed values: ${allowedStageIds.join(', ')}`);
-      suggestions.push(`Use one of: ${allowedStageIds.join(', ')}`);
+  // Validate StageId (only when not shared)
+  if (!isShared && components.stageId) {
+    if (!isValidStageId(components.stageId)) {
+      errors.push(`StageId '${components.stageId}' is invalid. Must start with t, b, s, or p followed by lowercase alphanumeric characters`);
+      suggestions.push('StageId must match pattern: starts with t, b, s, or p (e.g., test, tjoe, beta, prod)');
     }
     if (stageId && components.stageId !== stageId) {
       errors.push(`StageId '${components.stageId}' does not match expected value '${stageId}'`);
@@ -139,8 +191,12 @@ function validateApplicationResource(name, options = {}) {
     }
   }
 
-  // Validate ResourceName (if not partial)
-  if (!partial && components.resourceName) {
+  // Validate ResourceSuffix (if not partial)
+  if (!partial && components.resourceSuffix) {
+    // PascalCase warnings (advisory only)
+    const pascalWarnings = checkPascalCase(components.resourceSuffix);
+    suggestions.push(...pascalWarnings);
+
     const rules = AWS_NAMING_RULES[resourceType];
     if (rules) {
       // Check length
@@ -167,9 +223,9 @@ function validateApplicationResource(name, options = {}) {
         }
       }
     }
-  } else if (!partial && !components.resourceName) {
-    errors.push('ResourceName component is required');
-    suggestions.push('Add a resource name after StageId (e.g., MyFunction, MyTable)');
+  } else if (!partial && !components.resourceSuffix) {
+    errors.push('ResourceSuffix component is required');
+    suggestions.push('Add a resource suffix after ' + (isShared ? 'ProjectId' : 'StageId') + ' (e.g., MyFunction, MyTable)');
   }
 
   return {
@@ -181,18 +237,25 @@ function validateApplicationResource(name, options = {}) {
 }
 
 /**
- * Validate S3 bucket name
- * Pattern 1: <orgPrefix>-<Prefix>-<ProjectId>-<StageId>-<Region>-<AccountId>
- * Pattern 2: <orgPrefix>-<Prefix>-<ProjectId>-<Region>
+ * Validate S3 bucket name against Atlantis naming conventions.
+ *
+ * Pattern 1: [OrgPrefix-]Prefix-ProjectId-StageId-Region-AccountId
+ * Pattern 2: [OrgPrefix-]Prefix-ProjectId-Region-AccountId          (shared, no StageId)
+ * Pattern 3: [OrgPrefix-]Prefix-ProjectId-StageId-ResourceSuffix    (not preferred)
+ *
+ * Region detection uses a regex scan so that multi-hyphen regions like us-east-1
+ * are handled correctly instead of naive hyphen splitting.
  *
  * @param {string} name - S3 bucket name to validate
  * @param {Object} options - Validation options
  * @param {string} [options.orgPrefix] - Expected organization prefix
  * @param {string} [options.prefix] - Expected prefix value
  * @param {string} [options.projectId] - Expected project ID value
- * @param {string} [options.stageId] - Expected stage ID value (optional for high-level templates)
+ * @param {string} [options.stageId] - Expected stage ID value
  * @param {string} [options.region] - Expected AWS region
  * @param {string} [options.accountId] - Expected AWS account ID
+ * @param {boolean} [options.isShared=false] - If true, accept names without StageId
+ * @param {boolean} [options.hasOrgPrefix] - Disambiguate whether an OrgPrefix is present
  * @param {boolean} [options.partial=false] - Allow partial name validation
  * @returns {{valid: boolean, errors: Array<string>, suggestions: Array<string>, components: Object, pattern: string}}
  */
@@ -204,6 +267,8 @@ function validateS3Bucket(name, options = {}) {
     stageId,
     region,
     accountId,
+    isShared = false,
+    hasOrgPrefix,
     partial = false
   } = options;
 
@@ -252,34 +317,95 @@ function validateS3Bucket(name, options = {}) {
     errors.push('S3 bucket name cannot end with dot or hyphen');
   }
 
-  // Split name into components
-  const parts = name.split('-');
+  // --- Region-aware parsing ---
+  // Locate an AWS region pattern (e.g. us-east-1) within the bucket name.
+  const regionRegex = /([a-z]{2})-([a-z]+)-(\d+)/;
+  const regionMatch = name.match(regionRegex);
 
-  // Try to detect pattern
-  if (parts.length >= 6) {
-    // Pattern 1: <orgPrefix>-<Prefix>-<ProjectId>-<StageId>-<Region>-<AccountId>
-    detectedPattern = 'pattern1';
-    components.orgPrefix = parts[0];
-    components.prefix = parts[1];
-    components.projectId = parts[2];
-    components.stageId = parts[3];
-    components.region = parts[4];
-    components.accountId = parts[5];
-  } else if (parts.length >= 4) {
-    // Pattern 2: <orgPrefix>-<Prefix>-<ProjectId>-<Region>
-    detectedPattern = 'pattern2';
-    components.orgPrefix = parts[0];
-    components.prefix = parts[1];
-    components.projectId = parts[2];
-    components.region = parts[3];
-  } else if (!partial) {
-    errors.push('S3 bucket name does not match expected patterns');
-    suggestions.push('Pattern 1: <orgPrefix>-<Prefix>-<ProjectId>-<StageId>-<Region>-<AccountId>');
-    suggestions.push('Pattern 2: <orgPrefix>-<Prefix>-<ProjectId>-<Region>');
-    return { valid: false, errors, suggestions, components, pattern: null };
+  if (regionMatch) {
+    const regionStr = regionMatch[0]; // e.g. "us-east-1"
+    const regionStartIdx = regionMatch.index;
+
+    // Everything before the region (strip trailing hyphen)
+    const beforeRegion = name.substring(0, regionStartIdx > 0 ? regionStartIdx - 1 : 0);
+    const beforeSegments = beforeRegion ? beforeRegion.split('-') : [];
+
+    // Everything after the region
+    const afterRegion = name.substring(regionStartIdx + regionStr.length);
+    const afterParts = afterRegion.startsWith('-') ? afterRegion.substring(1) : afterRegion;
+    const detectedAccountId = afterParts || undefined;
+
+    components.region = regionStr;
+    if (detectedAccountId) {
+      components.accountId = detectedAccountId;
+    }
+
+    // Determine pattern based on segment count, isShared, and hasOrgPrefix
+    const segCount = beforeSegments.length;
+
+    if (segCount === 4) {
+      // OrgPrefix-Prefix-ProjectId-StageId  → pattern1 with OrgPrefix
+      detectedPattern = 'pattern1';
+      components.orgPrefix = beforeSegments[0];
+      components.prefix = beforeSegments[1];
+      components.projectId = beforeSegments[2];
+      components.stageId = beforeSegments[3];
+    } else if (segCount === 3) {
+      // Ambiguous: could be pattern1 without OrgPrefix OR pattern2 with OrgPrefix
+      if (hasOrgPrefix === true || (hasOrgPrefix === undefined && isShared)) {
+        // OrgPrefix-Prefix-ProjectId → pattern2 with OrgPrefix (shared)
+        detectedPattern = 'pattern2';
+        components.orgPrefix = beforeSegments[0];
+        components.prefix = beforeSegments[1];
+        components.projectId = beforeSegments[2];
+      } else {
+        // Prefix-ProjectId-StageId → pattern1 without OrgPrefix
+        detectedPattern = 'pattern1';
+        components.prefix = beforeSegments[0];
+        components.projectId = beforeSegments[1];
+        components.stageId = beforeSegments[2];
+      }
+    } else if (segCount === 2) {
+      // Prefix-ProjectId → pattern2 without OrgPrefix (shared)
+      detectedPattern = 'pattern2';
+      components.prefix = beforeSegments[0];
+      components.projectId = beforeSegments[1];
+    } else if (!partial) {
+      errors.push('S3 bucket name does not match expected patterns');
+      suggestions.push('Pattern 1: [OrgPrefix-]Prefix-ProjectId-StageId-Region-AccountId');
+      suggestions.push('Pattern 2: [OrgPrefix-]Prefix-ProjectId-Region-AccountId');
+    }
+  } else {
+    // No region found — try pattern3: [OrgPrefix-]Prefix-ProjectId-StageId-ResourceSuffix
+    const parts = name.split('-');
+
+    if (parts.length >= 4) {
+      detectedPattern = 'pattern3';
+
+      if (hasOrgPrefix === true && parts.length >= 5) {
+        components.orgPrefix = parts[0];
+        components.prefix = parts[1];
+        components.projectId = parts[2];
+        components.stageId = parts[3];
+        components.resourceSuffix = parts.slice(4).join('-');
+      } else {
+        components.prefix = parts[0];
+        components.projectId = parts[1];
+        components.stageId = parts[2];
+        components.resourceSuffix = parts.slice(3).join('-');
+      }
+
+      suggestions.push('Consider using the preferred S3 naming pattern with Region-AccountId suffix instead of ResourceSuffix');
+    } else if (!partial) {
+      errors.push('S3 bucket name does not match expected patterns');
+      suggestions.push('Pattern 1: [OrgPrefix-]Prefix-ProjectId-StageId-Region-AccountId');
+      suggestions.push('Pattern 2: [OrgPrefix-]Prefix-ProjectId-Region-AccountId');
+      suggestions.push('Pattern 3: [OrgPrefix-]Prefix-ProjectId-StageId-ResourceSuffix');
+      return { valid: false, errors, suggestions, components, pattern: null };
+    }
   }
 
-  // Validate components
+  // --- Component validation ---
   if (components.orgPrefix && orgPrefix && components.orgPrefix !== orgPrefix) {
     errors.push(`Organization prefix '${components.orgPrefix}' does not match expected value '${orgPrefix}'`);
     suggestions.push(`Use organization prefix: ${orgPrefix}`);
@@ -306,8 +432,9 @@ function validateS3Bucket(name, options = {}) {
   }
 
   if (components.stageId) {
-    if (!/^[a-z0-9]+$/.test(components.stageId)) {
-      errors.push('StageId must contain only lowercase alphanumeric characters');
+    if (!isValidStageId(components.stageId)) {
+      errors.push(`StageId '${components.stageId}' is invalid. Must start with t, b, s, or p followed by lowercase alphanumeric characters`);
+      suggestions.push('StageId must match pattern: starts with t, b, s, or p (e.g., test, tjoe, beta, prod)');
     }
     if (stageId && components.stageId !== stageId) {
       errors.push(`StageId '${components.stageId}' does not match expected value '${stageId}'`);
@@ -316,7 +443,6 @@ function validateS3Bucket(name, options = {}) {
   }
 
   if (components.region) {
-    // Validate AWS region format
     if (!/^[a-z]{2}-[a-z]+-\d+$/.test(components.region)) {
       errors.push(`Region '${components.region}' does not match AWS region format (e.g., us-east-1)`);
       suggestions.push('Use valid AWS region format (e.g., us-east-1, eu-west-1)');
@@ -328,7 +454,6 @@ function validateS3Bucket(name, options = {}) {
   }
 
   if (components.accountId) {
-    // Validate AWS account ID (12 digits)
     if (!/^\d{12}$/.test(components.accountId)) {
       errors.push(`Account ID '${components.accountId}' must be exactly 12 digits`);
       suggestions.push('Use 12-digit AWS account ID');
@@ -349,12 +474,15 @@ function validateS3Bucket(name, options = {}) {
 }
 
 /**
- * Validate resource name based on resource type
+ * Validate resource name based on resource type.
+ *
+ * Routes to the appropriate validator (S3 or application) and threads
+ * isShared and hasOrgPrefix through to the underlying functions.
  *
  * @param {string} name - Resource name to validate
  * @param {Object} options - Validation options
  * @param {string} options.resourceType - Resource type (s3, dynamodb, lambda, cloudformation, application)
- * @param {Object} [options.config] - Configuration values (prefix, projectId, stageId, etc.)
+ * @param {Object} [options.config] - Configuration values (prefix, projectId, stageId, isShared, hasOrgPrefix, etc.)
  * @param {boolean} [options.partial=false] - Allow partial name validation
  * @returns {{valid: boolean, errors: Array<string>, suggestions: Array<string>, components: Object, resourceType: string}}
  */
@@ -373,14 +501,20 @@ function validateNaming(name, options = {}) {
 
   const normalizedType = resourceType.toLowerCase();
 
-  // Route to appropriate validator
+  // Route to appropriate validator, threading isShared and hasOrgPrefix
   if (normalizedType === 's3') {
-    const result = validateS3Bucket(name, { ...config, partial });
+    const result = validateS3Bucket(name, {
+      ...config,
+      isShared: config.isShared,
+      hasOrgPrefix: config.hasOrgPrefix,
+      partial
+    });
     return { ...result, resourceType: 's3' };
   } else if (['dynamodb', 'lambda', 'cloudformation', 'application'].includes(normalizedType)) {
     const result = validateApplicationResource(name, {
       resourceType: normalizedType === 'application' ? 'lambda' : normalizedType,
       ...config,
+      isShared: config.isShared,
       partial
     });
     return { ...result, resourceType: normalizedType };
@@ -396,7 +530,11 @@ function validateNaming(name, options = {}) {
 }
 
 /**
- * Auto-detect resource type from name pattern
+ * Auto-detect resource type from name pattern.
+ *
+ * S3 detection: all-lowercase name containing an AWS region pattern.
+ * Application detection: 4+ hyphen-separated components where the third
+ * component matches the flexible StageId pattern (starts with t, b, s, or p).
  *
  * @param {string} name - Resource name
  * @returns {string|null} Detected resource type or null
@@ -406,21 +544,19 @@ function detectResourceType(name) {
     return null;
   }
 
-  // S3 buckets are lowercase with specific patterns
+  // S3 buckets are lowercase and contain a region pattern
   if (name === name.toLowerCase() && /^[a-z0-9][a-z0-9.-]*[a-z0-9]$/.test(name)) {
-    const parts = name.split('-');
-    // S3 buckets typically have more components and include region
-    if (parts.length >= 4 && parts.some(p => /^[a-z]{2}-[a-z]+-\d+$/.test(p))) {
+    // Check if the name contains an AWS region pattern anywhere
+    if (/([a-z]{2})-([a-z]+)-(\d+)/.test(name)) {
       return 's3';
     }
   }
 
-  // Application resources follow Prefix-ProjectId-StageId-ResourceName pattern
+  // Application resources follow Prefix-ProjectId-StageId-ResourceSuffix pattern
   const parts = name.split('-');
   if (parts.length >= 4) {
-    // Check if third component looks like a stage ID
     const potentialStageId = parts[2].toLowerCase();
-    if (['test', 'beta', 'stage', 'prod'].includes(potentialStageId)) {
+    if (isValidStageId(potentialStageId)) {
       return 'application';
     }
   }
@@ -433,5 +569,7 @@ module.exports = {
   validateS3Bucket,
   validateNaming,
   detectResourceType,
+  isValidStageId,
+  checkPascalCase,
   AWS_NAMING_RULES
 };

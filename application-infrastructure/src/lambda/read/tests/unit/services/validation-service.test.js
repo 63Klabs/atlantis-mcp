@@ -283,7 +283,8 @@ describe('Validation Service', () => {
             prefix: 'acme',
             projectId: 'myapp',
             stageId: 'prod',
-            allowedStageIds: ['test', 'beta', 'stage', 'prod']
+            isShared: false,
+            hasOrgPrefix: undefined
           }
         })
       );

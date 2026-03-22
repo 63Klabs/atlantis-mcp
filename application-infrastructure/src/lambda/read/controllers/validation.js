@@ -79,18 +79,22 @@ const validate = async (props) => {
   }
 
   // Extract parameters
-  const { resourceName, resourceType } = input;
+  const { resourceName, resourceType, isShared, hasOrgPrefix } = input;
 
   DebugAndLog.debug('Validation controller: Validating resource name', {
     resourceName,
-    resourceType: resourceType || 'auto-detect'
+    resourceType: resourceType || 'auto-detect',
+    isShared: isShared || false,
+    hasOrgPrefix: hasOrgPrefix !== undefined ? hasOrgPrefix : 'auto'
   });
 
   try {
     // Call validation service
     const result = await Services.Validation.validateNaming({
       resourceName,
-      resourceType
+      resourceType,
+      isShared,
+      hasOrgPrefix
     });
 
     DebugAndLog.info('Validation controller: Validation completed', {
