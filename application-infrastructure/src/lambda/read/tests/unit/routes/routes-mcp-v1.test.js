@@ -2,36 +2,13 @@
  * Unit Tests for /mcp/v1 Routing
  *
  * Tests the Routes.process() function in routes/index.js for correct
- * delegation of /mcp/v1 requests to the JSON-RPC Router, GET /mcp/v1
- * returning the tools list, backward compatibility of legacy per-tool
- * endpoints, and legacy request routing (no jsonrpc field).
- *
- * Validates: Requirements 3.2, 3.4, 8.1, 8.3
+ * delegation of POST /mcp/v1 requests to the JSON-RPC Router and
+ * rejection of all other paths/methods.
  */
 
 // --- Mock @63klabs/cache-data before any require ---
-const mockIsValid = jest.fn().mockReturnValue(true);
-const mockGetProps = jest.fn();
-const mockSetBody = jest.fn();
-const mockReset = jest.fn().mockImplementation((opts) => ({
-  statusCode: opts.statusCode,
-  body: opts.body,
-  finalize: () => ({ statusCode: opts.statusCode, body: JSON.stringify(opts.body) })
-}));
-
-const mockResponseInstance = {
-  setBody: mockSetBody,
-  reset: mockReset,
-  finalize: jest.fn().mockReturnValue({ statusCode: 200, body: '{}' })
-};
-
 jest.mock('@63klabs/cache-data', () => ({
   tools: {
-    ClientRequest: jest.fn().mockImplementation(() => ({
-      isValid: mockIsValid,
-      getProps: mockGetProps
-    })),
-    Response: jest.fn().mockImplementation(() => mockResponseInstance),
     DebugAndLog: {
       info: jest.fn(),
       warn: jest.fn(),
@@ -52,80 +29,22 @@ jest.mock('../../../utils/json-rpc-router', () => ({
 }));
 
 // --- Mock mcp-protocol ---
-const mockToolsListResponse = jest.fn();
-const MOCK_MCP_TOOLS = [
-  { name: 'list_templates', description: 'List templates', inputSchema: { type: 'object', properties: {} } },
-  { name: 'list_tools', description: 'List tools', inputSchema: { type: 'object', properties: {} } }
-];
+const mockJsonRpcError = jest.fn().mockReturnValue({ jsonrpc: '2.0', error: { code: -32601, message: 'Not found' }, id: null });
 
 jest.mock('../../../utils/mcp-protocol', () => ({
-  toolsListResponse: mockToolsListResponse,
-  MCP_TOOLS: MOCK_MCP_TOOLS
-}));
-
-// --- Mock error-handler ---
-jest.mock('../../../utils/error-handler', () => ({
-  createError: jest.fn().mockImplementation((opts) => {
-    const err = new Error(opts.message);
-    err.code = opts.code;
-    err.statusCode = opts.statusCode;
-    err.category = opts.category;
-    err.details = opts.details;
-    return err;
-  }),
-  logError: jest.fn(),
-  toUserResponse: jest.fn().mockReturnValue({ error: 'mocked error' }),
-  getStatusCode: jest.fn().mockReturnValue(500),
-  ErrorCode: {
-    INVALID_INPUT: 'INVALID_INPUT',
-    METHOD_NOT_ALLOWED: 'METHOD_NOT_ALLOWED',
-    UNKNOWN_TOOL: 'UNKNOWN_TOOL'
+  toolsListResponse: jest.fn(),
+  jsonRpcError: mockJsonRpcError,
+  JSON_RPC_ERRORS: {
+    PARSE_ERROR: -32700,
+    INVALID_REQUEST: -32600,
+    METHOD_NOT_FOUND: -32601,
+    INVALID_PARAMS: -32602,
+    INTERNAL_ERROR: -32603
   },
-  ErrorCategory: {
-    CLIENT_ERROR: 'CLIENT_ERROR',
-    NOT_FOUND: 'NOT_FOUND'
-  }
-}));
-
-// --- Mock controllers (used by legacy routing switch) ---
-jest.mock('../../../controllers/templates', () => ({
-  list: jest.fn().mockResolvedValue({ success: true, data: [] }),
-  get: jest.fn().mockResolvedValue({ success: true, data: {} }),
-  listVersions: jest.fn().mockResolvedValue({ success: true, data: [] }),
-  listCategories: jest.fn().mockResolvedValue({ success: true, data: [] })
-}));
-
-jest.mock('../../../controllers/starters', () => ({
-  list: jest.fn().mockResolvedValue({ success: true, data: [] }),
-  get: jest.fn().mockResolvedValue({ success: true, data: {} })
-}));
-
-jest.mock('../../../controllers/documentation', () => ({
-  search: jest.fn().mockResolvedValue({ success: true, data: [] })
-}));
-
-jest.mock('../../../controllers/validation', () => ({
-  validate: jest.fn().mockResolvedValue({ success: true, data: {} })
-}));
-
-jest.mock('../../../controllers/updates', () => ({
-  check: jest.fn().mockResolvedValue({ success: true, data: {} })
-}));
-
-jest.mock('../../../controllers/tools', () => ({
-  list: jest.fn().mockResolvedValue({ success: true, data: MOCK_MCP_TOOLS })
-}));
-
-// --- Mock config/settings (used by legacy GET-eligibility check) ---
-jest.mock('../../../config/settings', () => ({
-  tools: {
-    availableToolsList: [
-      { name: 'list_templates', inputSchema: { type: 'object', properties: {} } },
-      { name: 'list_tools', inputSchema: { type: 'object', properties: {} } },
-      { name: 'get_template', inputSchema: { type: 'object', properties: { name: {} }, required: ['name'] } }
-    ],
-    getGetEligibleTools: jest.fn().mockReturnValue(['list_templates', 'list_tools'])
-  }
+  MCP_TOOLS: [
+    { name: 'list_templates', description: 'List templates', inputSchema: { type: 'object', properties: {} } },
+    { name: 'list_tools', description: 'List tools', inputSchema: { type: 'object', properties: {} } }
+  ]
 }));
 
 // --- Require the module under test AFTER all mocks ---
@@ -140,7 +59,6 @@ describe('/mcp/v1 Routing', () => {
 
   // ---------------------------------------------------------------
   // POST /mcp/v1 → delegates to JSON-RPC Router
-  // Validates: Requirements 3.2
   // ---------------------------------------------------------------
   describe('POST /mcp/v1 delegates to JSON-RPC Router', () => {
     test('delegates POST to handleJsonRpc and wraps response with finalize', async () => {
@@ -182,71 +100,27 @@ describe('/mcp/v1 Routing', () => {
   });
 
   // ---------------------------------------------------------------
-  // GET /mcp/v1 → returns 200 with tool list
-  // Validates: Requirements 3.4
+  // Non-POST or non-/mcp/v1 requests return error
   // ---------------------------------------------------------------
-  describe('GET /mcp/v1 returns 200 with tool list', () => {
-    test('returns toolsListResponse wrapped in finalize', async () => {
-      const toolsBody = { jsonrpc: '2.0', id: null, result: { tools: MOCK_MCP_TOOLS } };
-      mockToolsListResponse.mockReturnValue(toolsBody);
+  describe('Rejects non-POST and non-/mcp/v1 requests', () => {
+    test('GET /mcp/v1 returns error response', async () => {
+      const errorResponse = { statusCode: 400, body: '{"error":"not found"}' };
+      mockBuildResponse.mockReturnValue(errorResponse);
 
-      const builtResponse = {
-        statusCode: 200,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(toolsBody)
-      };
-      mockBuildResponse.mockReturnValue(builtResponse);
-
-      const event = {
-        path: '/mcp/v1',
-        httpMethod: 'GET'
-      };
+      const event = { path: '/mcp/v1', httpMethod: 'GET' };
 
       const result = await Routes.process(event, mockContext);
 
-      expect(mockToolsListResponse).toHaveBeenCalledWith(null, MOCK_MCP_TOOLS);
-      expect(mockBuildResponse).toHaveBeenCalledWith(200, toolsBody);
-      expect(typeof result.finalize).toBe('function');
-      expect(result.finalize()).toEqual(builtResponse);
-    });
-  });
-
-  // ---------------------------------------------------------------
-  // Legacy per-tool endpoints still work (backward compatibility)
-  // Validates: Requirements 8.1, 8.3
-  // ---------------------------------------------------------------
-  describe('Legacy per-tool endpoints (backward compatibility)', () => {
-    test('POST to /mcp/list_tools routes through legacy switch, not JSON-RPC Router', async () => {
-      mockGetProps.mockReturnValue({
-        method: 'POST',
-        path: '/mcp/list_tools',
-        pathArray: ['mcp', 'list_tools'],
-        bodyParameters: { tool: 'list_tools' }
-      });
-
-      const event = {
-        path: '/mcp/list_tools',
-        httpMethod: 'POST',
-        body: JSON.stringify({ tool: 'list_tools' })
-      };
-
-      await Routes.process(event, mockContext);
-
-      // JSON-RPC Router should NOT have been called
       expect(mockHandleJsonRpc).not.toHaveBeenCalled();
-
-      // The legacy controller should have been called
-      const ToolsController = require('../../../controllers/tools');
-      expect(ToolsController.list).toHaveBeenCalled();
+      expect(mockJsonRpcError).toHaveBeenCalled();
+      expect(mockBuildResponse).toHaveBeenCalledWith(400, expect.anything());
+      expect(typeof result.finalize).toBe('function');
+      expect(result.finalize()).toEqual(errorResponse);
     });
 
-    test('POST to /mcp/list_templates routes to Templates controller', async () => {
-      mockGetProps.mockReturnValue({
-        method: 'POST',
-        path: '/mcp/list_templates',
-        pathArray: ['mcp', 'list_templates'],
-        bodyParameters: { tool: 'list_templates' }
-      });
+    test('POST /mcp/list_templates returns error (legacy path removed)', async () => {
+      const errorResponse = { statusCode: 400, body: '{"error":"not found"}' };
+      mockBuildResponse.mockReturnValue(errorResponse);
 
       const event = {
         path: '/mcp/list_templates',
@@ -254,75 +128,27 @@ describe('/mcp/v1 Routing', () => {
         body: JSON.stringify({ tool: 'list_templates' })
       };
 
-      await Routes.process(event, mockContext);
+      const result = await Routes.process(event, mockContext);
 
       expect(mockHandleJsonRpc).not.toHaveBeenCalled();
-
-      const TemplatesController = require('../../../controllers/templates');
-      expect(TemplatesController.list).toHaveBeenCalled();
-    });
-  });
-
-  // ---------------------------------------------------------------
-  // Legacy requests (no jsonrpc field) use legacy routing
-  // Validates: Requirements 8.1, 8.3
-  // ---------------------------------------------------------------
-  describe('Legacy requests without jsonrpc field use legacy routing', () => {
-    test('POST to non-/mcp/v1 path with legacy body uses legacy routing', async () => {
-      mockGetProps.mockReturnValue({
-        method: 'POST',
-        path: '/mcp/search_documentation',
-        pathArray: ['mcp', 'search_documentation'],
-        bodyParameters: {
-          tool: 'search_documentation',
-          input: { query: 'test' }
-        }
-      });
-
-      const event = {
-        path: '/mcp/search_documentation',
-        httpMethod: 'POST',
-        body: JSON.stringify({
-          tool: 'search_documentation',
-          input: { query: 'test' }
-        })
-      };
-
-      await Routes.process(event, mockContext);
-
-      // JSON-RPC Router should NOT be called for legacy endpoints
-      expect(mockHandleJsonRpc).not.toHaveBeenCalled();
-
-      const DocController = require('../../../controllers/documentation');
-      expect(DocController.search).toHaveBeenCalled();
+      expect(mockBuildResponse).toHaveBeenCalledWith(400, expect.anything());
+      expect(typeof result.finalize).toBe('function');
     });
 
-    test('legacy request body without jsonrpc field does not trigger JSON-RPC path', async () => {
-      mockGetProps.mockReturnValue({
-        method: 'POST',
-        path: '/mcp/validate_naming',
-        pathArray: ['mcp', 'validate_naming'],
-        bodyParameters: {
-          tool: 'validate_naming',
-          input: { name: 'my-stack' }
-        }
-      });
+    test('POST to unknown path returns error', async () => {
+      const errorResponse = { statusCode: 400, body: '{"error":"not found"}' };
+      mockBuildResponse.mockReturnValue(errorResponse);
 
       const event = {
-        path: '/mcp/validate_naming',
+        path: '/mcp/unknown_tool',
         httpMethod: 'POST',
-        body: JSON.stringify({
-          tool: 'validate_naming',
-          input: { name: 'my-stack' }
-        })
+        body: '{}'
       };
 
-      await Routes.process(event, mockContext);
+      const result = await Routes.process(event, mockContext);
 
       expect(mockHandleJsonRpc).not.toHaveBeenCalled();
-
-      const ValidationController = require('../../../controllers/validation');
-      expect(ValidationController.validate).toHaveBeenCalled();
+      expect(mockBuildResponse).toHaveBeenCalledWith(400, expect.anything());
     });
   });
 });

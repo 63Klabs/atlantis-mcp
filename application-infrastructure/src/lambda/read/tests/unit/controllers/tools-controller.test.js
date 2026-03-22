@@ -14,7 +14,7 @@
 // Set required env var before loading settings
 process.env.PARAM_STORE_PATH = '/test/';
 
-// Mock @63klabs/cache-data — includes ClientRequest and Response for router 404 test
+// Mock @63klabs/cache-data
 jest.mock('@63klabs/cache-data', () => ({
   tools: {
     DebugAndLog: {
@@ -26,37 +26,12 @@ jest.mock('@63klabs/cache-data', () => ({
     },
     CachedSsmParameter: jest.fn().mockImplementation(() => ({
       getValue: jest.fn().mockResolvedValue('mock-value')
-    })),
-    ClientRequest: jest.fn().mockImplementation(() => ({
-      isValid: jest.fn().mockReturnValue(true),
-      getProps: jest.fn().mockReturnValue({
-        method: 'POST',
-        path: '/mcp',
-        bodyParameters: { tool: 'nonexistent_tool_xyz' },
-        pathParameters: {},
-        pathArray: ['', 'nonexistent_tool_xyz'],
-        body: {}
-      })
-    })),
-    Response: jest.fn().mockImplementation(() => ({
-      addHeader: jest.fn().mockReturnThis(),
-      setBody: jest.fn().mockReturnThis(),
-      reset: jest.fn().mockImplementation(function (opts) {
-        this.statusCode = opts.statusCode;
-        this.body = opts.body;
-        return this;
-      }),
-      finalize: jest.fn()
     }))
   }
 }));
 
-// Track createError calls for router 404 test
-let lastCreateErrorOpts = null;
-
 jest.mock('../../../utils/error-handler', () => ({
   createError: jest.fn().mockImplementation((opts) => {
-    lastCreateErrorOpts = opts;
     const err = new Error(opts.message);
     err.code = opts.code;
     err.category = opts.category;
@@ -85,8 +60,7 @@ jest.mock('../../../utils/error-handler', () => ({
 const ToolsController = require('../../../controllers/tools');
 const SchemaValidator = require('../../../utils/schema-validator');
 const settings = require('../../../config/settings');
-const Routes = require('../../../routes');
-const { tools: { DebugAndLog, ClientRequest } } = require('@63klabs/cache-data');
+const { tools: { DebugAndLog } } = require('@63klabs/cache-data');
 
 describe('Tools Controller', () => {
   beforeEach(() => {
@@ -197,44 +171,3 @@ describe('Tools Controller', () => {
   });
 });
 
-describe('Router 404 Handler - Tool Names from Centralized List', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-    lastCreateErrorOpts = null;
-  });
-
-  test('should include tool names from centralized list in 404 response', async () => {
-    const expectedToolNames = settings.tools.availableToolsList.map(t => t.name);
-
-    // Configure ClientRequest mock to return an unknown tool
-    ClientRequest.mockImplementation(() => ({
-      isValid: jest.fn().mockReturnValue(true),
-      getProps: jest.fn().mockReturnValue({
-        method: 'POST',
-        path: '/mcp',
-        bodyParameters: { tool: 'nonexistent_tool_xyz' },
-        pathParameters: {},
-        pathArray: ['', 'nonexistent_tool_xyz'],
-        body: {}
-      })
-    }));
-
-    const mockEvent = { body: JSON.stringify({ tool: 'nonexistent_tool_xyz' }) };
-    const mockContext = { requestId: 'test-request-id' };
-
-    await Routes.process(mockEvent, mockContext);
-
-    // Verify createError was called with UNKNOWN_TOOL
-    expect(lastCreateErrorOpts).not.toBeNull();
-    expect(lastCreateErrorOpts.code).toBe('UNKNOWN_TOOL');
-    expect(lastCreateErrorOpts.statusCode).toBe(400);
-
-    // The core assertion: availableTools in details must match the centralized list
-    const actualToolNames = lastCreateErrorOpts.details.availableTools;
-    expect(actualToolNames).toEqual(expectedToolNames);
-    expect(actualToolNames.length).toBeGreaterThan(0);
-
-    // Verify list_tools is included
-    expect(actualToolNames).toContain('list_tools');
-  });
-});

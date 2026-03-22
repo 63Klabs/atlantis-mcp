@@ -211,7 +211,7 @@ exports.handler = async (event, context) => {
       ...rateLimitCheck.headers,
       'X-MCP-Version': '1.0',
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With'
     };
 
@@ -263,7 +263,7 @@ exports.handler = async (event, context) => {
     response.addHeader('X-Request-Id', requestId);
 		response.addHeader('X-MCP-Version', '1.0');
 		response.addHeader('Access-Control-Allow-Origin', '*');
-		response.addHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+		response.addHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
 		response.addHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
 		response.setBody({
 			message: 'Error initializing request - 1701-D', // 1701-D just so we know it is an app and not API Gateway error

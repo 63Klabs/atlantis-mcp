@@ -24,7 +24,7 @@ const STANDARD_HEADERS = {
   'Content-Type': 'application/json',
   'X-MCP-Version': '1.0',
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With'
 };
 

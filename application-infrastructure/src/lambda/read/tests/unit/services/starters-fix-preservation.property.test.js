@@ -105,23 +105,6 @@ describe('Preservation Property: Non-Starters Tool Behavior Unchanged', () => {
   });
 
   // -----------------------------------------------------------------------
-  // Test 2c: getGetEligibleTools includes list_starters
-  // **Validates: Requirements 3.7**
-  // -----------------------------------------------------------------------
-  test('2c: settings.tools.getGetEligibleTools() includes list_starters', () => {
-    const eligible = settings.tools.getGetEligibleTools();
-
-    // list_starters has no required params, so it is GET-eligible
-    expect(eligible).toContain('list_starters');
-    // list_templates also has no required params
-    expect(eligible).toContain('list_templates');
-    // list_tools has no required params
-    expect(eligible).toContain('list_tools');
-    // list_categories has no required params
-    expect(eligible).toContain('list_categories');
-  });
-
-  // -----------------------------------------------------------------------
   // Test 2d: search_documentation schema still has ghusers property
   // **Validates: Requirements 3.2, 3.3**
   // -----------------------------------------------------------------------

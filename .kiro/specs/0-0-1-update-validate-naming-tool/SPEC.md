@@ -6,7 +6,7 @@ All resource names must follow:
 Prefix-ProjectId-StageId-ResourceName
 ```
 
-Unless it is a shared resource deployed separately from an application stack:
+Unless it is a shared resource deployed separately from the application stack:
 
 ```
 Prefix-ProjectId-ResourceName
@@ -50,6 +50,12 @@ acme-schedules-test-ApiResponseCount
 acorp-acme-orders-test-123456789012-xy-east (s3 bucket with S3BucketNameOrgPrefix of acorp and stage id)
 acorp-acme-orders-123456789012-xy-east (s3 bucket with S3BucketNameOrgPrefix of acorp and no stage id)
 ```
+
+We need to update the naming validation tool to accept a resource type. For now, since only S3 has alternatives, if it is an S3 type then validate against the s3 rules.
+
+Also, if it is being deployed as a shared resource (not an application stack) then it does not require a stageId.
+
+While test, beta, stage, and prod are recommended stage ids, the stage id can actualy be t*, b*, s*, and p* where the first letter identifies the traditional stage id. This allows tjoe (for joe's test), tf187 (feature 187 test), etc.
 
 Review documentation and tests to determine if anything else needs to be updated.
 

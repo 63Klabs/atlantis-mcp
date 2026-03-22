@@ -1,269 +1,55 @@
 /**
  * Request routing for MCP server read-only operations
  *
- * This module handles routing of incoming API Gateway requests to the appropriate
- * controllers based on the MCP tool name. It creates ClientRequest objects from
- * API Gateway events and delegates to controllers for processing.
- *
- * Requests to `/mcp/v1` are intercepted early and delegated to the JSON-RPC
- * Router for MCP protocol–compliant handling. POST requests are dispatched via
- * `JsonRpcRouter.handleJsonRpc`; GET requests return the tools/list response.
- *
- * Supports both POST and GET methods. GET requests are only allowed for tools
- * whose inputSchema has no required parameters (GET-eligible tools). GET requests
- * to non-GET-eligible tools receive a 405 Method Not Allowed response. Query
- * string parameters on GET requests are mapped to the same structure controllers
- * expect from POST body parameters.
+ * This module handles routing of incoming API Gateway requests to the
+ * JSON-RPC 2.0 Router at the `/mcp/v1` endpoint. All MCP operations
+ * are dispatched via POST to `/mcp/v1` using the JSON-RPC 2.0 protocol.
  *
  * @module routes
  */
 
-const { tools: { ClientRequest, Response, DebugAndLog } } = require('@63klabs/cache-data');
+const { tools: { DebugAndLog } } = require('@63klabs/cache-data');
 
 /**
- * Process incoming request and route to appropriate controller.
+ * Process incoming request and route to JSON-RPC Router.
  *
- * For GET requests, verifies the tool is GET-eligible (no required parameters
- * in its inputSchema) before routing. Returns 405 Method Not Allowed for
- * known tools that require POST. Unknown tools fall through to the switch
- * default case for a 404 response regardless of method.
+ * Only POST requests to `/mcp/v1` are accepted. All other paths and
+ * methods receive an error response.
  *
  * @param {Object} event - API Gateway event
  * @param {Object} context - Lambda context
- * @returns {Promise<Response>} Response object
+ * @returns {Promise<Object>} Response object with finalize() method
  * @example
  * const response = await Routes.process(event, context);
- * return response.toAPIGateway();
+ * return response.finalize();
  */
 const process = async (event, context) => {
-
-  // --- /mcp/v1 JSON-RPC 2.0 endpoint detection ---
-  // Check the raw event path before ClientRequest processing so that
-  // JSON-RPC requests are handled by the dedicated router without
-  // going through legacy tool-name extraction.
   const rawPath = event.path || event.requestContext?.resourcePath || '';
-  if (rawPath.endsWith('/mcp/v1')) {
-    const httpMethod = (event.httpMethod || '').toUpperCase();
-    // >! Lazy-load to avoid pulling in Controllers (and their service
-    // >! dependencies) at module-load time, which would break tests that
-    // >! mock @63klabs/cache-data without the `cache` export.
-    const JsonRpcRouter = require('../utils/json-rpc-router');
-    const MCPProtocol = require('../utils/mcp-protocol');
+  const httpMethod = (event.httpMethod || '').toUpperCase();
 
-    if (httpMethod === 'POST') {
-      // >! Delegate POST to JSON-RPC Router for full MCP protocol handling
-      DebugAndLog.info('Routing /mcp/v1 POST to JSON-RPC Router');
-      const jsonRpcResponse = await JsonRpcRouter.handleJsonRpc(event, context);
-      // Wrap raw API Gateway response so the Lambda handler can call .finalize()
-      return { finalize: () => jsonRpcResponse };
-    }
+  // >! Lazy-load to avoid pulling in Controllers (and their service
+  // >! dependencies) at module-load time, which would break tests that
+  // >! mock @63klabs/cache-data without the `cache` export.
+  const JsonRpcRouter = require('../utils/json-rpc-router');
+  const MCPProtocol = require('../utils/mcp-protocol');
 
-    if (httpMethod === 'GET') {
-      // >! GET /mcp/v1 returns the tools/list response (200 OK with tool definitions)
-      DebugAndLog.info('Routing /mcp/v1 GET — returning tools/list');
-      const toolsListBody = MCPProtocol.toolsListResponse(null, MCPProtocol.MCP_TOOLS);
-      const getResponse = JsonRpcRouter.buildResponse(200, toolsListBody);
-      return { finalize: () => getResponse };
-    }
+  if (rawPath.endsWith('/mcp/v1') && httpMethod === 'POST') {
+    // >! Delegate POST to JSON-RPC Router for full MCP protocol handling
+    DebugAndLog.info('Routing /mcp/v1 POST to JSON-RPC Router');
+    const jsonRpcResponse = await JsonRpcRouter.handleJsonRpc(event, context);
+    return { finalize: () => jsonRpcResponse };
   }
 
-  // --- Legacy per-tool routing (unchanged) ---
-  const REQ = new ClientRequest(event, context);
-  const RESP = new Response(REQ);
-  const ErrorHandler = require('../utils/error-handler');
-
-  // Validate request
-  if (!REQ.isValid()) {
-    DebugAndLog.warn('Invalid request received', { event });
-    const error = ErrorHandler.createError({
-      code: ErrorHandler.ErrorCode.INVALID_INPUT,
-      message: 'Invalid request format',
-      category: ErrorHandler.ErrorCategory.CLIENT_ERROR,
-      statusCode: 400,
-      requestId: context.requestId
-    });
-    ErrorHandler.logError(error, { requestId: context.requestId });
-    return RESP.reset({ statusCode: 400, body: ErrorHandler.toUserResponse(error, context.requestId) });
-  }
-
-  const props = REQ.getProps();
-
-  // Check for unsupported HTTP methods
-  // MCP protocol typically uses POST, but we support GET for some operations
-  const supportedMethods = ['GET', 'POST'];
-  if (!supportedMethods.includes(props.method)) {
-    DebugAndLog.warn('Unsupported HTTP method', { method: props.method });
-    const error = ErrorHandler.createError({
-      code: ErrorHandler.ErrorCode.METHOD_NOT_ALLOWED,
-      message: `Method not allowed: ${props.method}`,
-      category: ErrorHandler.ErrorCategory.CLIENT_ERROR,
-      statusCode: 405,
-      requestId: context.requestId,
-      details: {
-        method: props.method,
-        allowedMethods: supportedMethods
-      }
-    });
-    ErrorHandler.logError(error, { tool, requestId: context.requestId });
-    return RESP.reset({
-      statusCode: 405,
-      body: ErrorHandler.toUserResponse(error, context.requestId)
-    });
-  }
-
-  // Extract MCP tool name from request body or path parameters
-  // MCP protocol typically sends tool name in request body
-  const tool = props.bodyParameters?.tool || props.pathParameters?.tool || props?.pathArray[1];
-
-  if (!tool) {
-    DebugAndLog.warn('No tool specified in request', { props });
-    const error = ErrorHandler.createError({
-      code: ErrorHandler.ErrorCode.INVALID_INPUT,
-      message: 'Missing tool parameter',
-      category: ErrorHandler.ErrorCategory.CLIENT_ERROR,
-      statusCode: 400,
-      requestId: context.requestId
-    });
-    ErrorHandler.logError(error, { requestId: context.requestId });
-    return RESP.reset({ statusCode: 400, body: ErrorHandler.toUserResponse(error, context.requestId) });
-  }
-
-  // >! Log routing decision
-  DebugAndLog.info('Routing request', {
-    tool,
-    method: props.method,
-    path: props.path,
-    requestId: context.requestId
-  });
-
-  // Check GET eligibility for GET requests to known tools
-  if (props.method === 'GET') {
-    const settings = require('../config/settings');
-    const allToolNames = settings.tools.availableToolsList.map(t => t.name);
-    const getEligibleTools = settings.tools.getGetEligibleTools();
-
-    // Only return 405 if the tool exists but isn't GET-eligible
-    // Unknown tools should fall through to the switch default for 404
-    if (allToolNames.includes(tool) && !getEligibleTools.includes(tool)) {
-      return RESP.reset({
-        statusCode: 405,
-        body: ErrorHandler.toUserResponse(
-          ErrorHandler.createError({
-            code: ErrorHandler.ErrorCode.METHOD_NOT_ALLOWED,
-            message: `Tool '${tool}' requires POST method. GET is only supported for: ${getEligibleTools.join(', ')}`,
-            category: ErrorHandler.ErrorCategory.CLIENT_ERROR,
-            statusCode: 405,
-            requestId: context.requestId,
-            details: { tool, method: 'GET', allowedMethods: ['POST'], getEligibleTools }
-          }),
-          context.requestId
-        )
-      });
-    }
-  }
-
-  // Map query string parameters to controller input for GET requests
-  if (props.method === 'GET' && props.queryStringParameters) {
-    props.bodyParameters = props.bodyParameters || {};
-    props.bodyParameters.input = { ...props.queryStringParameters };
-  }
-
-  try {
-    // Route to appropriate controller based on tool name
-    switch (tool) {
-      case 'list_templates':
-        // Import controller dynamically to avoid circular dependencies
-        const TemplatesController = require('../controllers/templates');
-        RESP.setBody(await TemplatesController.list(props));
-        break;
-
-      case 'get_template':
-        const TemplatesControllerGet = require('../controllers/templates');
-        RESP.setBody(await TemplatesControllerGet.get(props));
-        break;
-
-      case 'list_template_versions':
-        const TemplatesControllerVersions = require('../controllers/templates');
-        RESP.setBody(await TemplatesControllerVersions.listVersions(props));
-        break;
-
-      case 'list_categories':
-        const TemplatesControllerCategories = require('../controllers/templates');
-        RESP.setBody(await TemplatesControllerCategories.listCategories(props));
-        break;
-
-      case 'list_starters':
-        const StartersController = require('../controllers/starters');
-        RESP.setBody(await StartersController.list(props));
-        break;
-
-      case 'get_starter_info':
-        const StartersControllerGet = require('../controllers/starters');
-        RESP.setBody(await StartersControllerGet.get(props));
-        break;
-
-      case 'search_documentation':
-        const DocumentationController = require('../controllers/documentation');
-        RESP.setBody(await DocumentationController.search(props));
-        break;
-
-      case 'validate_naming':
-        const ValidationController = require('../controllers/validation');
-        RESP.setBody(await ValidationController.validate(props));
-        break;
-
-      case 'check_template_updates':
-        const UpdatesController = require('../controllers/updates');
-        RESP.setBody(await UpdatesController.check(props));
-        break;
-
-      case 'list_tools':
-        const ToolsController = require('../controllers/tools');
-        RESP.setBody(await ToolsController.list(props));
-        break;
-
-      default:
-        // >! Unknown tool - return 404
-        DebugAndLog.warn('Unknown tool requested', { tool });
-        const settings = require('../config/settings');
-        const availableTools = settings.tools.availableToolsList.map(t => t.name);
-        const error = ErrorHandler.createError({
-          code: ErrorHandler.ErrorCode.UNKNOWN_TOOL,
-          message: `Unknown tool: ${tool}`,
-          category: ErrorHandler.ErrorCategory.NOT_FOUND,
-          statusCode: 400, // 404 would be intercepted by CloudFront
-          requestId: context.requestId,
-          details: {
-            tool,
-            availableTools
-          }
-        });
-        error.availableTools = error.details.availableTools;
-        ErrorHandler.logError(error, { tool, requestId: context.requestId });
-        return RESP.reset({
-          statusCode: 400, // 404 would be intercepted by CloudFront
-          body: ErrorHandler.toUserResponse(error, context.requestId)
-        });
-    }
-
-    return RESP;
-
-  } catch (error) {
-    // >! Log error with full context
-    // >! Log all errors with stack traces and request context
-    ErrorHandler.logError(error, {
-      tool,
-      requestId: context.requestId,
-      parameters: props.body || props.queryStringParameters
-    });
-
-    // >! Return sanitized error to client
-    // >! Categorize errors as 4xx (client) or 5xx (server)
-    return RESP.reset({
-      statusCode: ErrorHandler.getStatusCode(error),
-      body: ErrorHandler.toUserResponse(error, context.requestId)
-    });
-  }
+  // >! Any other request returns a JSON-RPC error
+  DebugAndLog.warn('Invalid request path or method', { path: rawPath, method: httpMethod });
+  const errorBody = MCPProtocol.jsonRpcError(
+    null,
+    MCPProtocol.JSON_RPC_ERRORS.METHOD_NOT_FOUND,
+    'Not found',
+    { details: `Only POST /mcp/v1 is supported. Received ${httpMethod} ${rawPath}` }
+  );
+  const errorResponse = JsonRpcRouter.buildResponse(400, errorBody);
+  return { finalize: () => errorResponse };
 };
 
 module.exports = { process };
