@@ -131,22 +131,78 @@
 
     <P>Currently in BETA</P>
 
-    <p><a href="https://github.com/63klabs/atlantis">63Klabs Atlantis Templates
-        and Scripts Platform</a></p>
+    <p>The <a href="https://github.com/63klabs/atlantis">63Klabs Atlantis Templates
+        and Scripts Platform</a> provides <strong>Ready-to-Deploy-and-Run</strong> Infrastructure as Code scripts and templates to easily manage serverless using AWS native CloudFormation templates, SAM Configurations, AWS APIs, and security and monitoring best practices.</p>
 
-    <nav aria-label="Documentation sections">
-      <h2>Documentation</h2>
+    <p>Adding the Atlantis MCP server to your AI environment will accelerate your Atlantis experience.</p>
+
+    <nav aria-label="Get Started">
+      <h2>Get Started</h2>
+      <ul class="nav-list">
+        <li>
+          <a href="/docs/tools/integration/">
+            <div class="nav-link-title">Add and Configure</div>
+            <div class="nav-link-desc">Add the Atlantis MCP server to your AI environment</div>
+          </a>
+        </li>
+        <li>
+          <a href="/docs/use-cases">
+            <div class="nav-link-title">Example Use Cases</div>
+            <div class="nav-link-desc">Evaluate the ways the Atlantis MCP can assist during development</div>
+          </a>
+        </li>
+      </ul>
+    </nav>
+
+<div><pre>
+I need to start a new project that provides an api written in node using atlantis.
+
+Let me search for available Node.js API starters in Atlantis.
+list_starters Completed
+
+Let me find the available Node.js API starters in Atlantis.
+list_starters Completed
+
+There are two Node.js API starters available in Atlantis:
+
+1. 00-basic-apigw-lambda-nodejs — Basic API Gateway + Lambda (Node.js)
+
+   - Simple starter with API Gateway, Lambda, CloudWatch Logs & Alarms
+   - No external dependencies
+   - Good for a straightforward API
+
+2. 02-apigw-lambda-cache-data-nodejs — API Gateway + Lambda with cache-data (Node.js)
+
+   - More full-featured: includes X-Ray Tracing, Lambda Insights, CloudWatch Dashboard, OpenAPI Spec
+   - Uses @63klabs/cache-data for DynamoDB/S3/SSM caching
+   - Includes Jest testing setup
+   - Better for production-grade APIs with data layer needs
+
+Which one fits your use case? If you're just getting started or building something lightweight, the basic starter (#00) is the way to go. If you need data caching, observability, and a more complete setup, go with #02.
+
+Let me know which one you'd like and I'll pull the details and help you scaffold it.
+</pre></div>
+
+    <nav aria-label="Advanced Documentation">
+      <h2>Advanced Documentation</h2>
+      <p>For those who want to want to check under the hood</p>
       <ul class="nav-list">
         <li>
           <a href="/docs/api/">
             <div class="nav-link-title">API Reference</div>
-            <div class="nav-link-desc">OpenAPI specification and interactive API documentation</div>
+            <div class="nav-link-desc">OpenAPI specification</div>
           </a>
         </li>
         <li>
           <a href="/docs/tools/">
             <div class="nav-link-title">MCP Tools Reference</div>
             <div class="nav-link-desc">Reference for available MCP tools, parameters, and usage examples</div>
+          </a>
+        </li>
+        <li>
+          <a href="https://github.com/63klabs/atlantis-mcp">
+            <div class="nav-link-title">Atlantis MCP repository on GitHub</div>
+            <div class="nav-link-desc">See the code, deploy your own</div>
           </a>
         </li>
       </ul>
