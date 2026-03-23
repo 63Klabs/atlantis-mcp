@@ -25,6 +25,10 @@
       padding: 2rem 1.5rem;
     }
 
+    .container > p + p {
+      margin-top: 1rem;
+    }
+
     header {
       text-align: center;
       padding: 3rem 0 2rem;
@@ -103,6 +107,94 @@
       color: #8888a0;
     }
 
+    .notification-banner {
+      background: #fff3cd;
+      border: 1px solid #c29d0b;
+      border-radius: 8px;
+      padding: 0.75rem 1.25rem;
+      margin: 1rem 0;
+      color: #664d03;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .notification-banner::before {
+      content: "\26A0\FE0F";
+      font-size: 1.2rem;
+      flex-shrink: 0;
+    }
+
+    .notification-banner p {
+      margin: 0;
+    }
+
+    .ai-chat-example {
+      background: #1a1a1a;
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin: 2rem 0;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .ai-chat-prompt,
+    .ai-chat-response {
+      background: #2a2a2a;
+      color: #e0e0e0;
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+    }
+
+    .ai-chat-prompt {
+      margin-left: 3rem;
+    }
+
+    .ai-chat-response ol,
+    .ai-chat-response ul {
+      padding-left: 1.25rem;
+    }
+
+    .ai-chat-response p,
+    .ai-chat-response li {
+      margin-bottom: 0.5rem;
+    }
+
+    .ai-chat-action {
+      border: 1px solid #fff;
+      border-radius: 6px;
+      padding: 0.4rem 0.75rem;
+      margin: 0.75rem 0;
+      font-size: 0.85rem;
+      color: #e0e0e0;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .ai-chat-action::before {
+      content: "\1F6E0\FE0F";
+    }
+
+    .ai-chat-action-status {
+      color: #4ade80;
+    }
+
+    .ai-chat-action-status::after {
+      content: " \2714";
+    }
+
+    .ai-chat-example .ai-chat-prompt,
+    .ai-chat-response > * {
+      opacity: 0;
+      transition: opacity 0.4s ease;
+    }
+
+    .ai-chat-reveal {
+      opacity: 1 !important;
+    }
+
     @media (max-width: 480px) {
       .container {
         padding: 1.5rem 1rem;
@@ -129,10 +221,13 @@
       </p>
     </header>
 
-    <P>Currently in BETA</P>
+    <div class="notification-banner"><P>The Atlantis MCP Server is Currently in BETA, with a limit of 50 requests per IP per hour.</P></div>
 
     <p>The <a href="https://github.com/63klabs/atlantis">63Klabs Atlantis Templates
-        and Scripts Platform</a> provides <strong>Ready-to-Deploy-and-Run</strong> Infrastructure as Code scripts and templates to easily manage serverless using AWS native CloudFormation templates, SAM Configurations, AWS APIs, and security and monitoring best practices.</p>
+        and Scripts Platform</a> provides <strong>Ready-to-Deploy-and-Run</strong> Infrastructure 
+        as Code (IaC) and Continuous Integration/Continous Deployment/Delivery (CI/CD) pipelines 
+        to easily manage serverless using AWS native CloudFormation templates, SAM Configurations, 
+        AWS APIs, and security and monitoring best practices.</p>
 
     <p>Adding the Atlantis MCP server to your AI environment will accelerate your Atlantis experience.</p>
 
@@ -154,39 +249,46 @@
       </ul>
     </nav>
 
-<div><pre>
-I need to start a new project that provides an api written in node using atlantis.
-</pre>
-<pre>
-Let me search for available Node.js API starters in Atlantis.
-list_starters Completed
+    <div class="ai-chat-example">
+      <div class="ai-chat-prompt">
+        <p>I need to start a new project that provides an api written in node using Atlantis</p>
+      </div>
+      <div class="ai-chat-response">
+        <p>Let me search for available Node.js API starters in Atlantis.</p>
 
-Let me find the available Node.js API starters in Atlantis.
-list_starters Completed
+        <div class="ai-chat-action"><span>list_starters</span> <span class="ai-chat-action-status">Completed</span></div>
 
-There are two Node.js API starters available in Atlantis:
+        <p>Let me find the available Node.js API starters in Atlantis.</p>
 
-1. 00-basic-apigw-lambda-nodejs — Basic API Gateway + Lambda (Node.js)
+          <div class="ai-chat-action"><span>list_starters</span> <span class="ai-chat-action-status">Completed</span></div>  
 
-   - Simple starter with API Gateway, Lambda, CloudWatch Logs & Alarms
-   - No external dependencies
-   - Good for a straightforward API
+        <p>There are two Node.js API starters available in Atlantis:</p>
 
-2. 02-apigw-lambda-cache-data-nodejs — API Gateway + Lambda with cache-data (Node.js)
+        <ol>
+          <li>00-basic-apigw-lambda-nodejs — Basic API Gateway + Lambda (Node.js)
+            <ul>
+              <li>Simple starter with API Gateway, Lambda, CloudWatch Logs & Alarms</li>
+              <li>No external dependencies</li>
+              <li>Good for a straightforward API</li>
+            </ul>
+          </li>
+          <li>02-apigw-lambda-cache-data-nodejs — API Gateway + Lambda with cache-data (Node.js)
+            <ul>
+              <li>More full-featured: includes X-Ray Tracing, Lambda Insights, CloudWatch Dashboard, OpenAPI Spec</li>
+              <li>Uses @63klabs/cache-data for DynamoDB/S3/SSM caching</li>
+              <li>Includes Jest testing setup</li>
+              <li>Better for production-grade APIs with data layer needs</li>
+            </ul>
+          </li>
+        </ol>
 
-   - More full-featured: includes X-Ray Tracing, Lambda Insights, CloudWatch Dashboard, OpenAPI Spec
-   - Uses @63klabs/cache-data for DynamoDB/S3/SSM caching
-   - Includes Jest testing setup
-   - Better for production-grade APIs with data layer needs
-
-Which one fits your use case? If you're just getting started or building something lightweight, the basic starter (#00) is the way to go. If you need data caching, observability, and a more complete setup, go with #02.
-
-Let me know which one you'd like and I'll pull the details and help you scaffold it.
-</pre></div>
+        <p>Which one fits your use case? If you're just getting started or building something lightweight, the basic starter (#00) is the way to go. If you need data caching, observability, and a more complete setup, go with #02.</p>
+        <p>Let me know which one you'd like and I'll pull the details and help you scaffold it.</p>
+      </div>
+    </div>
 
     <nav aria-label="Advanced Documentation">
       <h2>Advanced Documentation</h2>
-      <p>For those who want to want to check under the hood</p>
       <ul class="nav-list">
         <li>
           <a href="/docs/api/">
@@ -210,8 +312,43 @@ Let me know which one you'd like and I'll pull the details and help you scaffold
     </nav>
 
     <footer>
-      <p>&copy; 2025 63Klabs. All rights reserved.</p>
+      <p>&copy; <span id="copyright-year"></span> 63Klabs. All rights reserved.</p>
     </footer>
   </div>
+<script>
+  document.getElementById('copyright-year').textContent = new Date().getFullYear();
+</script>
+<script>
+  (function() {
+    var items = [];
+    var prompt = document.querySelector('.ai-chat-prompt');
+    if (prompt) items.push(prompt);
+    var children = document.querySelector('.ai-chat-response').children;
+    for (var i = 0; i < children.length; i++) items.push(children[i]);
+
+    var current = 0;
+    var timer = null;
+
+    function revealNext() {
+      if (current >= items.length) return;
+      items[current].classList.add('ai-chat-reveal');
+      current++;
+      if (current < items.length) timer = setTimeout(revealNext, 2000);
+    }
+
+    var observer = new IntersectionObserver(function(entries) {
+      if (entries[0].isIntersecting) {
+        if (!timer && current < items.length) {
+          timer = setTimeout(revealNext, current === 0 ? 0 : 2000);
+        }
+      } else {
+        clearTimeout(timer);
+        timer = null;
+      }
+    }, { threshold: 0.1 });
+
+    observer.observe(document.querySelector('.ai-chat-example'));
+  })();
+</script>
 </body>
 </html>
