@@ -1,7 +1,5 @@
 # Amazon Q Developer Integration Guide
 
-> **Note**: Amazon Q Developer currently only supports stdio transport (not SSE/HTTP). The instructions below will remain in hopes it will someday be supported.
-
 This guide explains how to integrate the Atlantis MCP Server with Amazon Q Developer, enabling AI-assisted development with access to Atlantis templates and documentation.
 
 ## Prerequisites
