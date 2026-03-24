@@ -43,7 +43,7 @@ extract_title() {
 has_processed=false
 
 for dir in ${PUBLIC_DOC_DIRS}; do
-  source_dir="docs/${dir}"
+  source_dir="docs/end-user/${dir}"
 
   # Check if the source directory exists
   if [[ ! -d "${source_dir}" ]]; then

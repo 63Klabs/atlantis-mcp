@@ -1,55 +1,17 @@
-# Atlantis MCP Server Documentation
+# Documentation
 
-Welcome to the Atlantis MCP Server documentation. This documentation is organized into several categories to help you find what you need.
+Documentation should be written for AT LEAST 3 separate audiences:
 
-## Documentation Categories
+- **End-User/Consumer:** The individual, technical or non-technical who is consuming the content provided by the application or service. Such as an API, HTML pages, documents, reports, and downloadables. Typically retrieved from output from a script or accessed from the endpoint provided by the application or service.
+- **Developer/Maintainer:** The individual with engineering, development, and/or technical knowledge that adds features, fixes bugs, maintains packages, and monitors the application or service performance.
+- **Admin/Operations/Installer/Initial Config:** The individual with engineering, operations, and/or technical knowledge in charge of configuring and deploying the initial environment. They may also be in charge of supporting the application’s architecture and infrastructure as it interacts with other applications and services. They ensure the application is efficient, cost-optimized, and observable. They maintain the underlying platform if necessary (VPCs, OS, Firewalls).
 
-### Getting Started
+It should be noted that for each of these audiences, the individual may be HUMAN or AI.
 
-- [Main README](../README.md) - Project overview and quick start
-- [Deployment Guide](deployment/README.md) - How to deploy the MCP server
+- [Documentation for End-Users](./end-user/README.md)
+- [Documentation for Developers](./developer/README.md)
+- [Documentation for Admin and Operations](./admin-ops/README.md)
 
-### Integration Guides
+Supplemental:
 
-- [Integration Overview](integration/) - Connect the MCP server to AI assistants
-  - [Amazon Q](integration/amazon-q.md)
-  - [ChatGPT](integration/chatgpt.md)
-  - [Claude](integration/claude.md)
-  - [Cursor](integration/cursor.md)
-  - [Kiro](integration/kiro.md)
-
-### Use Cases
-
-- [Use Cases](use-cases/README.md) - Common use cases and examples
-
-### Application Infrastructure
-
-- [Application Infrastructure](application-infrastructure/README.md) - Lambda architecture and implementation details
-  - [Deployment](application-infrastructure/deployment/)
-  - [Monitoring](application-infrastructure/monitoring/)
-  - [Security](application-infrastructure/security/)
-  - [Testing](application-infrastructure/testing/)
-
-### Maintainer Documentation
-
-- [Maintainer Guide](maintainer/README.md) - For contributors and maintainers
-  - [Architecture](maintainer/architecture.md)
-  - [Brown-out Support](maintainer/brown-out-support.md)
-  - [Caching Strategy](maintainer/caching-strategy.md)
-  - [Lambda Structure](maintainer/lambda-structure.md)
-  - [Namespace Discovery](maintainer/namespace-discovery.md)
-  - [Template Versioning](maintainer/template-versioning.md)
-
-### Tools
-
-- [Tools Documentation](tools/README.md) - Available MCP tools and their usage
-
-### Troubleshooting
-
-- [Troubleshooting Guide](troubleshooting/README.md) - Common issues and solutions
-
-## Quick Links
-
-- [GitHub Repository](https://github.com/63klabs/atlantis-mcp)
-- [Report an Issue](https://github.com/63klabs/atlantis-mcp/issues)
-- [Contributing Guidelines](../CONTRIBUTING.md)
+- [Architecture Overview](../ARCHITECTURE.md)

@@ -48,32 +48,32 @@ The server exposes the following tools through the MCP protocol:
 
 ## Integration Guides
 
-- [Claude Desktop Integration](docs/integration/claude.md)
-- [ChatGPT Integration](docs/integration/chatgpt.md)
-- [Cursor IDE Integration](docs/integration/cursor.md)
-- [Kiro IDE Integration](docs/integration/kiro.md)
-- [Amazon Q Developer Integration](docs/integration/amazon-q.md)
+- [Claude Desktop Integration](docs/end-user/integration/claude.md)
+- [ChatGPT Integration](docs/docs/end-user/integration/chatgpt.md)
+- [Cursor IDE Integration](docs/docs/end-user/integration/cursor.md)
+- [Kiro IDE Integration](docs/docs/end-user/integration/kiro.md)
+- [Amazon Q Developer Integration](docs/docs/end-user/integration/amazon-q.md)
 
 ## Documentation
 
 ### For Users
-- [MCP Tools Reference](docs/tools/README.md) - Detailed documentation for each MCP tool
-- [Common Use Cases](docs/use-cases/README.md) - Patterns and examples
+- [MCP Tools Reference](docs/end-user/tools/README.md) - Detailed documentation for each MCP tool
+- [Common Use Cases](docs/end-user/use-cases/README.md) - Patterns and examples
 - [Troubleshooting Guide](docs/troubleshooting/README.md) - Common issues and solutions
 
 ### For Organizations
-- [Deployment Guide](docs/deployment/README.md) - How to deploy your own instance
-- [CloudFormation Parameters](docs/deployment/cloudformation-parameters.md) - Configuration reference
-- [GitHub Token Setup](docs/deployment/github-token-setup.md) - Configure GitHub integration
-- [GitHub Custom Properties](docs/deployment/github-custom-properties.md) - Repository filtering setup
-- [S3 Bucket Tagging](docs/deployment/s3-bucket-tagging.md) - Configure S3 buckets and tags
-- [Multiple S3 Buckets](docs/deployment/multiple-s3-buckets.md) - Multi-bucket configuration
-- [Multiple GitHub Orgs](docs/deployment/multiple-github-orgs.md) - Multi-org configuration
-- [Sidecar Metadata (CodeBuild)](docs/deployment/sidecar-metadata-codebuild.md) - Generate metadata in CodeBuild
-- [Sidecar Metadata (GitHub Actions)](docs/deployment/sidecar-metadata-github-actions.md) - Generate metadata in GitHub Actions
-- [Self-Hosting Guide](docs/deployment/self-hosting.md) - Deploy your own instance
+- [Deployment Guide](docs/admin-ops/deployment/README.md) - How to deploy your own instance
+- [CloudFormation Parameters](docs/admin-ops/deployment/cloudformation-parameters.md) - Configuration reference
+- [GitHub Token Setup](docs/admin-ops/deployment/github-token-setup.md) - Configure GitHub integration
+- [GitHub Custom Properties](docs/admin-ops/deployment/github-custom-properties.md) - Repository filtering setup
+- [S3 Bucket Tagging](docs/admin-ops/deployment/s3-bucket-tagging.md) - Configure S3 buckets and tags
+- [Multiple S3 Buckets](docs/admin-ops/deployment/multiple-s3-buckets.md) - Multi-bucket configuration
+- [Multiple GitHub Orgs](docs/admin-ops/deployment/multiple-github-orgs.md) - Multi-org configuration
+- [Sidecar Metadata (CodeBuild)](docs/admin-ops/deployment/sidecar-metadata-codebuild.md) - Generate metadata in CodeBuild
+- [Sidecar Metadata (GitHub Actions)](docs/admin-ops/deployment/sidecar-metadata-github-actions.md) - Generate metadata in GitHub Actions
+- [Self-Hosting Guide](docs/admin-ops/deployment/self-hosting.md) - Deploy your own instance
 
-### For Maintainers
+### For Developers
 - [Architecture Overview](docs/maintainer/architecture.md) - System design and components
 - [Lambda Structure](docs/maintainer/lambda-structure.md) - Function organization
 - [Caching Strategy](docs/maintainer/caching-strategy.md) - Multi-tier caching implementation
