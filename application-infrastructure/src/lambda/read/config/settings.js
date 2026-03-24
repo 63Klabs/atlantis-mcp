@@ -102,7 +102,7 @@ const settings = {
       },
       {
         name: 'list_templates',
-        description: 'List all available CloudFormation templates from configured S3 buckets. Returns template metadata including name, version, category, description, namespace, and S3 location.',
+        description: 'List all Pipeline, Storage, Network, and Service Role CloudFormation templates available for deployment via Atlantis scripts. Returns template metadata including name, version, category, description, namespace, and S3 location. While not directly used by application templates, they can provide useful patterns and standards for applying to application templates.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -193,7 +193,7 @@ const settings = {
       },
       {
         name: 'list_starters',
-        description: 'List all available starter code repositories from configured S3 buckets. Returns starter metadata including name, description, languages, frameworks, features, and S3 location.',
+        description: 'List all available application starter code repositories. Returns starter metadata including name, description, languages, frameworks, features, and S3 location. Starters can be used to initialize new project application repositories or reviewed for code patterns and stadards. They include a CloudFormation template and Build Spec to deploy the application and code for a Lambda function or other resources.',
         inputSchema: {
           type: 'object',
           properties: {
