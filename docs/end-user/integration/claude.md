@@ -77,14 +77,6 @@ Claude should respond with a list of templates from the MCP server.
 - [Common Use Cases](../use-cases/README.md) - Practical examples
 - [Troubleshooting Guide](../troubleshooting/README.md) - Common issues
 
-## Support
-
-If you encounter issues:
-
-1. Check the [Troubleshooting Guide](../troubleshooting/README.md)
-2. Review Desktop App logs
-3. Verify MCP server status
-
 ## Additional Resources
 
 - [Claude Desktop Documentation](https://claude.ai/docs)

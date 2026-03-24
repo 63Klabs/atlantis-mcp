@@ -78,28 +78,11 @@ Configure which tools run without confirmation:
 }
 ```
 
-## Keyboard Shortcuts
-
-| Action | Mac | Windows/Linux |
-|--------|-----|---------------|
-| Open Chat | `Cmd+L` | `Ctrl+L` |
-| Command Palette | `Cmd+Shift+P` | `Ctrl+Shift+P` |
-| MCP Servers | `Cmd+Shift+M` | `Ctrl+Shift+M` |
-| Settings | `Cmd+,` | `Ctrl+,` |
-
 ## Next Steps
 
 - [MCP Tools Reference](../tools/README.md)
 - [Common Use Cases](../use-cases/README.md)
 - [Troubleshooting Guide](../troubleshooting/README.md)
-
-## Support
-
-If you encounter issues:
-
-1. Check the [Troubleshooting Guide](../troubleshooting/README.md)
-2. Review Desktop App logs
-3. Verify MCP server status
 
 ## Additional Resources
 

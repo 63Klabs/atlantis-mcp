@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-This document provides detailed information about each MCP tool available in the Atlantis MCP Server Phase 1.
+This document provides detailed information about each MCP tool available through the Atlantis MCP Server.
 
 ## Table of Contents
 
@@ -28,32 +28,9 @@ List all available CloudFormation templates from configured S3 buckets.
 | `version` | string | No | Filter by human-readable version (e.g., "v2.0.18") |
 | `versionId` | string | No | Filter by S3 version ID |
 | `s3Buckets` | array[string] | No | Filter to specific S3 buckets from configured list |
+| `namespace` | string | No | Search specific namespaces only |
 
-### Output
-
-Returns an array of template metadata objects:
-
-```json
-{
-  "templates": [
-    {
-      "name": "template-pipeline.yml",
-      "category": "pipeline",
-      "version": "v2.0.18",
-      "versionId": "abc123xyz",
-      "description": "CodePipeline template for CI/CD",
-      "namespace": "atlantis",
-      "bucket": "my-templates-bucket",
-      "s3Path": "s3://my-templates-bucket/atlantis/templates/v2/pipeline/template-pipeline.yml",
-      "lastModified": "2025-01-15T10:30:00Z",
-      "parameters": ["Prefix", "ProjectId", "StageId"],
-      "outputs": ["PipelineArn", "ArtifactBucket"]
-    }
-  ],
-  "partialData": false,
-  "errors": []
-}
-```
+> **Note** `63klabs` is the only bucket, and `atlantis` is the only namespace available via the public Atlantis MCP server. If your organization hosts its own Atlantis MCP server there may be additional namespaces and S3 buckets available.
 
 ### Example Usage
 
@@ -75,9 +52,8 @@ Ask your AI: "Show me templates version v2.0.18"
 ### Use Cases
 
 - Discover available templates for your infrastructure needs
-- Browse templates by category
+- Browse templates by category (pipeline, storage, network, etc.)
 - Find specific template versions
-- Explore templates from multiple organizations
 
 ---
 
@@ -94,44 +70,11 @@ Retrieve a specific CloudFormation template with full content and metadata.
 | `version` | string | No | Human-readable version to retrieve |
 | `versionId` | string | No | S3 version ID to retrieve |
 | `s3Buckets` | array[string] | No | Search specific S3 buckets only |
+| `namespace` | string | No | Search specific namespaces only |
 
-**Note:** If both `version` and `versionId` are provided, they are treated as an OR condition (returns template matching either).
+> **Note:** If both `version` and `versionId` are provided, they are treated as an OR condition (returns template matching either).
 
-### Output
-
-Returns complete template details:
-
-```json
-{
-  "name": "template-pipeline.yml",
-  "category": "pipeline",
-  "version": "v2.0.18",
-  "versionId": "abc123xyz",
-  "content": "AWSTemplateFormatVersion: '2010-09-09'...",
-  "description": "CodePipeline template for CI/CD",
-  "namespace": "atlantis",
-  "bucket": "my-templates-bucket",
-  "s3Path": "s3://my-templates-bucket/atlantis/templates/v2/pipeline/template-pipeline.yml",
-  "lastModified": "2025-01-15T10:30:00Z",
-  "size": 15234,
-  "parameters": {
-    "Prefix": {
-      "Type": "String",
-      "Description": "Resource naming prefix"
-    },
-    "ProjectId": {
-      "Type": "String",
-      "Description": "Project identifier"
-    }
-  },
-  "outputs": {
-    "PipelineArn": {
-      "Description": "ARN of the CodePipeline",
-      "Value": "!GetAtt Pipeline.Arn"
-    }
-  }
-}
-```
+> **Note** `63klabs` is the only bucket, and `atlantis` is the only namespace available via the public Atlantis MCP server. If your organization hosts its own Atlantis MCP server there may be additional namespaces and S3 buckets available.
 
 ### Example Usage
 
@@ -170,33 +113,10 @@ List all versions of a specific CloudFormation template.
 | `templateName` | string | Yes | Name of the template |
 | `category` | string | Yes | Template category |
 | `s3Buckets` | array[string] | No | Search specific S3 buckets only |
+| `namespace` | string | No | Search specific namespaces only |
 
-### Output
+> **Note** `63klabs` is the only bucket, and `atlantis` is the only namespace available via the public Atlantis MCP server. If your organization hosts its own Atlantis MCP server there may be additional namespaces and S3 buckets available.
 
-Returns version history:
-
-```json
-{
-  "templateName": "template-pipeline.yml",
-  "category": "pipeline",
-  "versions": [
-    {
-      "version": "v2.0.18",
-      "versionId": "abc123xyz",
-      "lastModified": "2025-01-15T10:30:00Z",
-      "size": 15234,
-      "isLatest": true
-    },
-    {
-      "version": "v2.0.17",
-      "versionId": "def456uvw",
-      "lastModified": "2024-12-10T14:20:00Z",
-      "size": 14890,
-      "isLatest": false
-    }
-  ]
-}
-```
 
 ### Example Usage
 
@@ -221,42 +141,6 @@ List all available template categories.
 
 None.
 
-### Output
-
-Returns category information:
-
-```json
-{
-  "categories": [
-    {
-      "name": "storage",
-      "description": "S3 buckets, DynamoDB tables, and storage resources",
-      "templateCount": 12
-    },
-    {
-      "name": "network",
-      "description": "CloudFront, Route53, and networking resources",
-      "templateCount": 8
-    },
-    {
-      "name": "pipeline",
-      "description": "CodePipeline and CI/CD templates",
-      "templateCount": 6
-    },
-    {
-      "name": "service-role",
-      "description": "IAM roles and policies",
-      "templateCount": 10
-    },
-    {
-      "name": "modules",
-      "description": "Reusable CloudFormation modules",
-      "templateCount": 15
-    }
-  ]
-}
-```
-
 ### Example Usage
 
 ```
@@ -279,33 +163,10 @@ List all available application starter code repositories.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `ghusers` | array[string] | No | Filter to specific GitHub users/orgs from configured list |
+| `s3buckets` | array[string] | No | Filter to specific GitHub users/orgs from configured list |
+| `namespace` | string | No | Search specific namespaces only |
 
-### Output
-
-Returns starter metadata:
-
-```json
-{
-  "starters": [
-    {
-      "name": "atlantis-starter-02",
-      "description": "Node.js Lambda starter with cache-data integration",
-      "language": "Node.js",
-      "framework": "AWS Lambda",
-      "features": ["cache-data", "CloudFront", "DynamoDB", "S3"],
-      "prerequisites": ["Node.js 20.x", "AWS SAM CLI"],
-      "githubUrl": "https://github.com/63klabs/atlantis-starter-02",
-      "author": "63Klabs",
-      "license": "Proprietary",
-      "hasCacheData": true,
-      "hasCloudFront": true
-    }
-  ],
-  "partialData": false,
-  "errors": []
-}
-```
+> **Note** `63klabs` is the only bucket, and `atlantis` is the only namespace available via the public Atlantis MCP server. If your organization hosts its own Atlantis MCP server there may be additional namespaces and S3 buckets available.
 
 ### Example Usage
 
@@ -314,10 +175,11 @@ Returns starter metadata:
 Ask your AI: "Show me available application starters"
 ```
 
-**Filter by organization:**
+**Filter by bucket and namespace:**
 ```
-Ask your AI: "Show me starters from 63klabs"
+Ask your AI: "Show me starters from 63klabs atlantis"
 ```
+
 
 ### Use Cases
 
@@ -337,44 +199,10 @@ Get detailed information about a specific application starter.
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `starterName` | string | Yes | Name of the starter repository |
-| `ghusers` | array[string] | No | Search specific GitHub users/orgs only |
+| `s3buckets` | array[string] | No | Filter to specific GitHub users/orgs from configured list |
+| `namespace` | string | No | Search specific namespaces only |
 
-### Output
-
-Returns detailed starter information:
-
-```json
-{
-  "name": "atlantis-starter-02",
-  "description": "Node.js Lambda starter with cache-data integration",
-  "language": "Node.js",
-  "framework": "AWS Lambda",
-  "features": ["cache-data", "CloudFront", "DynamoDB", "S3"],
-  "prerequisites": ["Node.js 20.x", "AWS SAM CLI", "AWS Account"],
-  "githubUrl": "https://github.com/63klabs/atlantis-starter-02",
-  "author": "63Klabs",
-  "license": "Proprietary",
-  "hasCacheData": true,
-  "hasCloudFront": true,
-  "readme": "# Atlantis Starter 02\n\nThis starter provides...",
-  "latestRelease": {
-    "version": "v1.2.0",
-    "releaseDate": "2025-01-10",
-    "notes": "Added support for..."
-  },
-  "stats": {
-    "stars": 45,
-    "forks": 12,
-    "lastUpdated": "2025-01-15T10:30:00Z"
-  },
-  "examples": [
-    {
-      "title": "Basic Lambda Handler",
-      "code": "exports.handler = async (event) => { ... }"
-    }
-  ]
-}
-```
+> **Note** `63klabs` is the only bucket, and `atlantis` is the only namespace available via the public Atlantis MCP server. If your organization hosts its own Atlantis MCP server there may be additional namespaces and S3 buckets available.
 
 ### Example Usage
 
@@ -402,37 +230,6 @@ Search across Atlantis documentation, tutorials, and code patterns.
 | `query` | string | Yes | Search keywords |
 | `type` | string | No | Filter by type: "guide", "tutorial", "reference", "troubleshooting", "template pattern", "code example" |
 | `ghusers` | array[string] | No | Search specific GitHub users/orgs only |
-
-### Output
-
-Returns search results:
-
-```json
-{
-  "results": [
-    {
-      "title": "DynamoDB Caching with cache-data",
-      "excerpt": "Learn how to implement DynamoDB caching using the cache-data package...",
-      "type": "guide",
-      "filePath": "docs/features/dynamodb-caching.md",
-      "githubUrl": "https://github.com/63klabs/cache-data/blob/main/docs/features/dynamodb-caching.md",
-      "relevanceScore": 0.95
-    },
-    {
-      "title": "Cache Configuration Example",
-      "excerpt": "const cache = new Cache({ table: 'my-cache-table' });",
-      "type": "code example",
-      "filePath": "examples/cache-setup.js",
-      "githubUrl": "https://github.com/63klabs/cache-data/blob/main/examples/cache-setup.js",
-      "lineNumbers": "15-25",
-      "context": "// Initialize cache with DynamoDB\nconst cache = new Cache({\n  table: 'my-cache-table',\n  ttl: 3600\n});",
-      "relevanceScore": 0.88
-    }
-  ],
-  "suggestions": ["caching patterns", "DynamoDB setup", "cache-data examples"],
-  "totalResults": 2
-}
-```
 
 ### Example Usage
 
@@ -472,44 +269,6 @@ Validate resource names against Atlantis naming conventions.
 | `resourceName` | string | Yes | Name to validate |
 | `resourceType` | string | No | Type: "application", "s3", "dynamodb", "lambda", "cloudformation" |
 
-### Output
-
-Returns validation results:
-
-```json
-{
-  "valid": true,
-  "resourceName": "acme-person-api-test-GetPersonFunction",
-  "resourceType": "application",
-  "components": {
-    "prefix": "acme",
-    "projectId": "person-api",
-    "stageId": "test",
-    "resourceName": "GetPersonFunction"
-  },
-  "pattern": "Prefix-ProjectId-StageId-ResourceName",
-  "suggestions": []
-}
-```
-
-**Invalid name example:**
-
-```json
-{
-  "valid": false,
-  "resourceName": "my-invalid-name",
-  "resourceType": "application",
-  "errors": [
-    "Missing StageId component",
-    "ResourceName contains invalid characters"
-  ],
-  "suggestions": [
-    "Use format: Prefix-ProjectId-StageId-ResourceName",
-    "Example: acme-myapp-test-MyFunction"
-  ]
-}
-```
-
 ### Example Usage
 
 **Validate application resource:**
@@ -548,41 +307,9 @@ Check if CloudFormation templates have newer versions available.
 | `currentVersion` | string | Yes | Current version you're using |
 | `category` | string | No | Template category |
 | `s3Buckets` | array[string] | No | Search specific S3 buckets only |
+| `namespace` | string | No | Search specific namespaces only |
 
-### Output
-
-Returns update information:
-
-```json
-{
-  "templateName": "template-pipeline.yml",
-  "currentVersion": "v2.0.17",
-  "latestVersion": "v2.0.18",
-  "updateAvailable": true,
-  "releaseDate": "2025-01-15",
-  "changelog": "- Enhanced CodeBuild environment\n- Added post-deployment validation\n- Fixed timeout configuration",
-  "breakingChanges": false,
-  "migrationGuide": null,
-  "versionsBehind": 1
-}
-```
-
-**With breaking changes:**
-
-```json
-{
-  "templateName": "template-storage-s3-artifacts.yml",
-  "currentVersion": "v1.3.5",
-  "latestVersion": "v2.0.0",
-  "updateAvailable": true,
-  "releaseDate": "2025-01-20",
-  "changelog": "- Restructured bucket naming\n- Removed legacy encryption parameter\n- Added new lifecycle policies",
-  "breakingChanges": true,
-  "migrationGuide": "https://github.com/63klabs/atlantis-templates/docs/migration/v1-to-v2.md",
-  "deprecationDate": "2028-01-20",
-  "versionsBehind": 5
-}
-```
+> **Note** `63klabs` is the only bucket, and `atlantis` is the only namespace available via the public Atlantis MCP server. If your organization hosts its own Atlantis MCP server there may be additional namespaces and S3 buckets available.
 
 ### Example Usage
 
@@ -636,24 +363,10 @@ Common error codes:
 
 All tools are subject to rate limiting:
 
-- Default: 100 requests per hour per IP
+- Default: 50 requests per hour per IP
 - Rate limit headers included in all responses
 - HTTP 429 returned when exceeded
-
-See [Troubleshooting Guide](../troubleshooting/README.md) for handling rate limits.
-
----
-
-## Caching
-
-Results are cached for performance:
-
-- Template metadata: 1 hour
-- Starter metadata: 1 hour
-- Documentation index: 6 hours
-- Full template content: 24 hours
-
-Cached responses include cache metadata in headers.
+- Rate limit resets on the hour (midnight UTC if every 24 hours)
 
 ---
 

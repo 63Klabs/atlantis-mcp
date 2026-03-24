@@ -104,36 +104,11 @@ Create or edit `.idea/amazonq.xml`:
 
 Follow same steps as VS Code above.
 
-## Keyboard Shortcuts
-
-### VS Code
-
-| Action | Mac | Windows/Linux |
-|--------|-----|---------------|
-| Open Q Chat | `Cmd+I` | `Ctrl+I` |
-| Inline Suggest | `Option+\` | `Alt+\` |
-| Command Palette | `Cmd+Shift+P` | `Ctrl+Shift+P` |
-
-### JetBrains
-
-| Action | Mac | Windows/Linux |
-|--------|-----|---------------|
-| Open Q Chat | `Cmd+Shift+A` | `Ctrl+Shift+A` |
-| Quick Actions | `Option+Enter` | `Alt+Enter` |
-
 ## Next Steps
 
 - [MCP Tools Reference](../tools/README.md)
 - [Common Use Cases](../use-cases/README.md)
 - [Troubleshooting Guide](../troubleshooting/README.md)
-
-## Support
-
-If you encounter issues:
-
-1. Check the [Troubleshooting Guide](../troubleshooting/README.md)
-2. Review Desktop App logs
-3. Verify MCP server status
 
 ## Additional Resources
 

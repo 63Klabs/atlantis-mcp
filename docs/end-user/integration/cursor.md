@@ -66,55 +66,11 @@ Open Cursor AI chat and ask:
 @atlantis list available templates
 ```
 
-## Usage in Cursor
-
-### Using @ Mentions
-
-Reference the Atlantis MCP Server with `@atlantis`:
-
-```
-@atlantis show me storage templates
-```
-
-```
-@atlantis get template-pipeline.yml
-```
-
-```
-@atlantis validate this name: acme-myapp-test-MyFunction
-```
-
-### Inline Code Assistance
-
-While coding, Cursor can automatically suggest using Atlantis resources:
-
-```javascript
-// Type: "create a Lambda function following Atlantis conventions"
-// Cursor will suggest proper naming and structure
-```
-
-## Keyboard Shortcuts
-
-| Action | Mac | Windows/Linux |
-|--------|-----|---------------|
-| Open Chat | `Cmd+L` | `Ctrl+L` |
-| Focus Chat | `Cmd+Shift+L` | `Ctrl+Shift+L` |
-| New Chat | `Cmd+Shift+N` | `Ctrl+Shift+N` |
-| Settings | `Cmd+,` | `Ctrl+,` |
-
 ## Next Steps
 
 - [MCP Tools Reference](../tools/README.md)
 - [Common Use Cases](../use-cases/README.md)
 - [Troubleshooting Guide](../troubleshooting/README.md)
-
-## Support
-
-If you encounter issues:
-
-1. Check the [Troubleshooting Guide](../troubleshooting/README.md)
-2. Review Desktop App logs
-3. Verify MCP server status
 
 ## Additional Resources
 

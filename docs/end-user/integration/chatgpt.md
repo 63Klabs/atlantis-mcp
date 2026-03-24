@@ -94,14 +94,6 @@ Show me available CloudFormation templates
 - [Common Use Cases](../use-cases/README.md)
 - [Troubleshooting Guide](../troubleshooting/README.md)
 
-## Support
-
-If you encounter issues:
-
-1. Check the [Troubleshooting Guide](../troubleshooting/README.md)
-2. Review Desktop App logs
-3. Verify MCP server status
-
 ## Additional Resources
 
 - Documentation: [Full Docs](../README.md)
