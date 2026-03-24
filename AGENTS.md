@@ -269,6 +269,8 @@ It must:
 
 Documentation and Tests must be kept up to date.
 
+Do not over-document what should already be evident (through self-documentation) to admins, maintainers, and developers who can easily review code, comments, OpenAPI specs, templates, and external frameworks.
+
 At the end of a spec-driven workflow, or after major changes are complete, ensure the following are updated:
 
 * ARCHITECTURE.md
