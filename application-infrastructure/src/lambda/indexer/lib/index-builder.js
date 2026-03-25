@@ -1,6 +1,6 @@
 'use strict';
 
-const https = require('https');
+const http = require('http');
 const { hashContentPath } = require('./hasher');
 const { isIndexable } = require('./file-filter');
 const { extractArchive } = require('./archive-processor');
@@ -97,7 +97,7 @@ async function getGitHubToken(paramStorePath) {
 			}
 		};
 
-		const req = https.request(options, (res) => {
+		const req = http.request(options, (res) => {
 			const chunks = [];
 			res.on('data', (chunk) => chunks.push(chunk));
 			res.on('end', () => {
