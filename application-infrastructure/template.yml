@@ -313,7 +313,7 @@ Parameters:
   DocIndexScheduleForDEVTEST:
     Type: String
     Description: "Cron schedule for the Documentation Indexer in DEV/TEST environments (weekly by default)"
-    Default: "cron(0 6 * * ? *)" # "cron(0 8 ? * MON *)"
+    Default: "cron(0 8 ? * MON *)"
     ConstraintDescription: "A valid EventBridge cron expression"
 
   DocIndexScheduleForPROD:

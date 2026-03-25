@@ -95,8 +95,6 @@ const connections = [
       {
         profile: 'templates-list',
         overrideOriginHeaderExpiration: true,
-        // >! Production: 1 hour TTL for template lists (changes infrequently)
-        // >! Test: 5 minute TTL for rapid iteration during development
         defaultExpirationInSeconds: IS_PRODUCTION ? (60 * 60) : TTL_NON_PROD,
         expirationIsOnInterval: false,
         headersToRetain: '',
@@ -159,7 +157,7 @@ const connections = [
         overrideOriginHeaderExpiration: true,
         // >! Production: 1 hour TTL for starter lists (changes infrequently)
         // >! Test: 5 minute TTL for rapid iteration
-        defaultExpirationInSeconds: IS_PRODUCTION ? 3600 : TTL_NON_PROD,
+        defaultExpirationInSeconds: IS_PRODUCTION ? (24 * 60 * 60) : TTL_NON_PROD,
         expirationIsOnInterval: false,
         headersToRetain: '',
         hostId: 's3-app-starters',
@@ -172,7 +170,7 @@ const connections = [
         overrideOriginHeaderExpiration: true,
         // >! Production: 1 hour TTL for starter metadata (sidecar files)
         // >! Test: 5 minute TTL for rapid iteration
-        defaultExpirationInSeconds: IS_PRODUCTION ? 3600 : TTL_NON_PROD,
+        defaultExpirationInSeconds: IS_PRODUCTION ? (24 * 60 * 60) : TTL_NON_PROD,
         expirationIsOnInterval: false,
         headersToRetain: '',
         hostId: 's3-app-starters',
@@ -195,7 +193,7 @@ const connections = [
         // >! Production: 30 minute TTL for GitHub repository metadata
         // >! Test: 5 minute TTL for rapid iteration
         // >! Respects GitHub API rate limits by caching aggressively
-        defaultExpirationInSeconds: IS_PRODUCTION ? 1800 : TTL_NON_PROD,
+        defaultExpirationInSeconds: IS_PRODUCTION ? (24 * 60 * 60) : TTL_NON_PROD,
         expirationIsOnInterval: false,
         headersToRetain: '',
         hostId: 'github',
@@ -208,7 +206,7 @@ const connections = [
         overrideOriginHeaderExpiration: true,
         // >! Production: 1 hour TTL for GitHub custom properties (rarely change)
         // >! Test: 5 minute TTL for rapid iteration
-        defaultExpirationInSeconds: IS_PRODUCTION ? 3600 : TTL_NON_PROD,
+        defaultExpirationInSeconds: IS_PRODUCTION ? (24 * 60 * 60) : TTL_NON_PROD,
         expirationIsOnInterval: false,
         headersToRetain: '',
         hostId: 'github',
@@ -221,7 +219,7 @@ const connections = [
         overrideOriginHeaderExpiration: true,
         // >! Production: 1 hour TTL for README content
         // >! Test: 5 minute TTL for rapid iteration
-        defaultExpirationInSeconds: IS_PRODUCTION ? 3600 : TTL_NON_PROD,
+        defaultExpirationInSeconds: IS_PRODUCTION ? (24 * 60 * 60) : TTL_NON_PROD,
         expirationIsOnInterval: false,
         headersToRetain: '',
         hostId: 'github',
@@ -234,7 +232,7 @@ const connections = [
         overrideOriginHeaderExpiration: true,
         // >! Production: 30 minute TTL for release information
         // >! Test: 5 minute TTL for rapid iteration
-        defaultExpirationInSeconds: IS_PRODUCTION ? 1800 : TTL_NON_PROD,
+        defaultExpirationInSeconds: IS_PRODUCTION ? (24 * 60 * 60) : TTL_NON_PROD,
         expirationIsOnInterval: false,
         headersToRetain: '',
         hostId: 'github',
@@ -257,7 +255,7 @@ const connections = [
         // >! Production: 6 hour TTL for documentation index (large, daily updates)
         // >! Test: 5 minute TTL for rapid iteration
         // >! Refresh on interval to keep index current
-        defaultExpirationInSeconds: IS_PRODUCTION ? 21600 : TTL_NON_PROD,
+        defaultExpirationInSeconds: IS_PRODUCTION ? (24 * 60 * 60) : TTL_NON_PROD,
         expirationIsOnInterval: true, // Refresh on interval
         headersToRetain: '',
         hostId: 'docs',
@@ -271,7 +269,7 @@ const connections = [
         // >! Production: 6 hour TTL for indexed code patterns
         // >! Test: 5 minute TTL for rapid iteration
         // >! Downstream cache for processed template/starter code
-        defaultExpirationInSeconds: IS_PRODUCTION ? 21600 : TTL_NON_PROD,
+        defaultExpirationInSeconds: IS_PRODUCTION ? (24 * 60 * 60) : TTL_NON_PROD,
         expirationIsOnInterval: false,
         headersToRetain: '',
         hostId: 'docs',
@@ -284,7 +282,7 @@ const connections = [
         overrideOriginHeaderExpiration: true,
         // >! Production: 1 hour TTL for search results
         // >! Test: 5 minute TTL for rapid iteration
-        defaultExpirationInSeconds: IS_PRODUCTION ? 3600 : TTL_NON_PROD,
+        defaultExpirationInSeconds: IS_PRODUCTION ? (24 * 60 * 60) : TTL_NON_PROD,
         expirationIsOnInterval: false,
         headersToRetain: '',
         hostId: 'docs',

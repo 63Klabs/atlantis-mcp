@@ -86,7 +86,7 @@ async function search(options = {}) {
   }
 
   // >! Get connection and cache profile from config
-  const { conn, cacheProfile } = Config.getConnCacheProfile('doc-index', 'search');
+  const { conn, cacheProfile } = Config.getConnCacheProfile('documentation-index', 'doc-index');
 
   if (!conn || !cacheProfile) {
     throw new Error('Failed to get connection and cache profile for doc-index/search');
