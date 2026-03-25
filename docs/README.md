@@ -12,6 +12,10 @@ It should be noted that for each of these audiences, the individual may be HUMAN
 - [Documentation for Developers](./developer/README.md)
 - [Documentation for Admin and Operations](./admin-ops/README.md)
 
-Supplemental:
+Core Documents:
 
-- [Architecture Overview](../ARCHITECTURE.md)
+- [AGENTS document](../../AGENTS.md)
+- [ARCHITECTURE document](../../ARCHITECTURE.md)
+- [CHANGELOG document](../../CHANGELOG.md)
+- [SECURITY document](../../SECURITY.md)
+- [CONTRIBUTING](../../CONTRIBUTING.md)
