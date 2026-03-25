@@ -197,9 +197,6 @@ img {
 @media (max-width: 480px) {
   body {
     font-size: 0.95rem;
-  }
-
-  .container {
     padding: 1.5rem 1rem;
   }
 
