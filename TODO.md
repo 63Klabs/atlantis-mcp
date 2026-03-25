@@ -5,6 +5,7 @@
 - [ ] Allow template current version to be long version S3
 
 - [ ] Why are there 2 package.json files in src tree
+
 - [ ] Review openapi spec
 - [ ] Review all documentation
 - [ ] ARCHITECTURE.md
