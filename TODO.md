@@ -1,6 +1,7 @@
 # TODO
 
-- [ ] Documentation search
+- [-] Documentation search
+- [ ] Exclude .kiro and .* and tests from documentation search
 
 - [-] Update validate naming
 - [ ] If no template returned, error occurs because it can't read name
