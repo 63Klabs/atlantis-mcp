@@ -199,6 +199,14 @@ img {
     font-size: 0.95rem;
   }
 
+  .container {
+    padding: 1.5rem 1rem;
+  }
+
+  header {
+    padding: 2rem 0 1.5rem;
+  }
+  
   h1 { font-size: 1.4rem; }
   h2 { font-size: 1.2rem; }
 
