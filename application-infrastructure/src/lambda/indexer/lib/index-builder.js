@@ -84,6 +84,7 @@ function generateVersion() {
 async function getGitHubToken(paramStorePath) {
 	const paramName = `${paramStorePath}GitHubToken`;
 	const sessionToken = process.env.AWS_SESSION_TOKEN;
+	console.log(paramName);
 
 	return new Promise((resolve, reject) => {
 		const options = {
