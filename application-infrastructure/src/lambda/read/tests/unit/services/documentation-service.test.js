@@ -37,7 +37,7 @@ jest.mock('../../../config', () => ({
 
 jest.mock('../../../models', () => ({
   DocIndex: {
-    search: jest.fn()
+    queryIndex: jest.fn()
   }
 }));
 
@@ -75,7 +75,7 @@ describe('Documentation Service', () => {
     CacheableDataAccess.getData.mockClear();
     Config.settings.mockClear();
     Config.getConnCacheProfile.mockClear();
-    Models.DocIndex.search.mockClear();
+    Models.DocIndex.queryIndex.mockClear();
 
     // Default mock implementations
     Config.settings.mockReturnValue({
@@ -378,7 +378,7 @@ describe('Documentation Service', () => {
       expect(mockConnCache.conn.parameters.query).toBe('test query');
     });
 
-    it('should call DocIndex.search() in fetch function', async () => {
+    it('should call DocIndex.queryIndex() in fetch function', async () => {
       // Arrange
       const mockConnCache = createMockConnCacheProfile();
 
@@ -390,7 +390,7 @@ describe('Documentation Service', () => {
         suggestions: ['suggestion1']
       };
 
-      Models.DocIndex.search.mockResolvedValue(mockSearchResults);
+      Models.DocIndex.queryIndex.mockResolvedValue(mockSearchResults);
 
       CacheableDataAccess.getData.mockImplementation(async (profile, fetchFn) => {
         return await fetchFn(mockConnCache.conn, {});
@@ -400,7 +400,7 @@ describe('Documentation Service', () => {
       const result = await Documentation.search({ query: 'test' });
 
       // Assert
-      expect(Models.DocIndex.search).toHaveBeenCalledWith({
+      expect(Models.DocIndex.queryIndex).toHaveBeenCalledWith({
         query: 'test',
         type: undefined,
         subType: undefined,

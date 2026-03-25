@@ -117,6 +117,9 @@ class Config extends AppConfig {
 	 * - CacheableDataAccess: Pre-loads cache metadata and connection profiles
 	 * - CachedParameterSecrets: Pre-fetches SSM parameters and secrets
 	 * 
+	 * Note: Documentation index is now maintained by the Indexer Lambda and
+	 * stored in DynamoDB. The Read Lambda queries it on demand via DocIndex.queryIndex().
+	 * 
 	 * @async
 	 * @returns {Promise<Array>} Resolves when all priming operations complete
 	 * @example
@@ -139,54 +142,10 @@ class Config extends AppConfig {
 		// >! Priming needs to complete before moving on
 		const promise = await Promise.all(primeArray);
 
-		// >! Documentation index building is async and non-blocking
-		// >! Lambda can start processing requests while index builds in background
-		buildDocumentationIndexAsync();
-
 		return promise;
 	};
 };
 
-
-/**
- * Build documentation index asynchronously (non-blocking)
- *
- * This function starts the documentation index building process in the background.
- * It does not block Lambda initialization - the Lambda can start processing
- * requests while the index builds.
- *
- * The documentation index includes:
- * - Template repository documentation
- * - Cache-data package documentation
- * - App starter code patterns (on-demand)
- *
- * @private
- */
-function buildDocumentationIndexAsync() {
-  // >! Start async index building without blocking
-  // >! Use setImmediate to defer execution until after init() completes
-  setImmediate(async () => {
-    try {
-      DebugAndLog.info('Starting documentation index build (async)');
-
-      // TODO: Implement documentation index building in models/doc-index.js
-      // For now, just log that we would build the index
-      DebugAndLog.debug('Documentation index building deferred to models/doc-index.js implementation');
-
-      // When implemented, this will:
-      // 1. Index template repo documentation
-      // 2. Index cache-data package documentation
-      // 3. Index CloudFormation template patterns
-      // 4. Store indexed data in cache for fast search
-
-    } catch (error) {
-      // >! Non-fatal error - log warning but don't fail Lambda
-      DebugAndLog.warn('Documentation index build failed', {
-        error: error.message
-      });
-    }
-  });
-}
 
 module.exports = {
 	Config

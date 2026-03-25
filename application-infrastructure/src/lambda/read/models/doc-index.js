@@ -1,766 +1,326 @@
+'use strict';
+
 const { tools: { DebugAndLog } } = require('@63klabs/cache-data');
+const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
+const { DynamoDBDocumentClient, GetCommand, QueryCommand } = require('@aws-sdk/lib-dynamodb');
 const { Config } = require('../config');
-const GitHubAPI = require('./github-api');
-const S3Templates = require('./s3-templates');
 
 /**
  * Documentation Index DAO
  *
- * Builds and searches a comprehensive index of:
- * - Markdown documentation from GitHub repositories
- * - CloudFormation template sections and patterns
- * - Python and Node.js code from app starters
- * - cache-data package usage patterns
- * - README headings and top-of-file comments
+ * Queries the persistent DynamoDB-backed documentation index built by the
+ * Indexer Lambda. Replaces the previous in-memory index building approach.
  *
- * The index is built asynchronously at Lambda cold start for template repo
- * and cache-data package, with app starter indexing done on-demand.
+ * DynamoDB key patterns:
+ * - Version pointer: pk=`version:pointer`, sk=`active`
+ * - Main index: pk=`mainindex:{version}`, sk=`entries`
+ * - Content metadata: pk=`content:{hash}`, sk=`v:{version}:metadata`
+ * - Content body: pk=`content:{hash}`, sk=`v:{version}:content`
+ * - Search keywords: pk=`search:{keyword}`, sk=`v:{version}:{hash}`
  */
 
-// In-memory index storage (per Lambda instance)
-let documentationIndex = null;
-let indexBuildInProgress = false;
-let indexLastBuilt = null;
+/**
+ * Lazily initialized DynamoDB Document Client.
+ * @type {DynamoDBDocumentClient|null}
+ */
+let docClient = null;
 
 /**
- * Build searchable documentation index
+ * Get or create the DynamoDB Document Client singleton.
  *
- * @param {Object} options - Build options
- * @param {boolean} options.includeStarters - Whether to index app starters (default: false)
- * @param {boolean} options.force - Force rebuild even if index exists (default: false)
- * @returns {Promise<Object>} Index statistics
+ * @returns {DynamoDBDocumentClient}
  */
-const buildIndex = async (options = {}) => {
-  const { includeStarters = false, force = false } = options;
-
-  // Return existing index if available and not forcing rebuild
-  if (documentationIndex && !force && !indexBuildInProgress) {
-    return {
-      cached: true,
-      lastBuilt: indexLastBuilt,
-      entryCount: documentationIndex.entries.length
-    };
-  }
-
-  // Prevent concurrent builds
-  if (indexBuildInProgress) {
-    DebugAndLog.info('Documentation index build already in progress, waiting...');
-    // Wait for existing build to complete (max 30 seconds)
-    const startWait = Date.now();
-    while (indexBuildInProgress && (Date.now() - startWait) < 30000) {
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
-    return {
-      cached: true,
-      lastBuilt: indexLastBuilt,
-      entryCount: documentationIndex?.entries?.length || 0
-    };
-  }
-
-  indexBuildInProgress = true;
-
-  try {
-    DebugAndLog.info('Building documentation index...');
-    const startTime = Date.now();
-
-    const index = {
-      entries: [],
-      metadata: {
-        builtAt: new Date().toISOString(),
-        sources: []
-      }
-    };
-
-    // Index template repository documentation
-    await indexTemplateRepository(index);
-
-    // Index cache-data package documentation
-    await indexCacheDataPackage(index);
-
-    // Index CloudFormation templates
-    await indexCloudFormationTemplates(index);
-
-    // Index app starters (if requested)
-    if (includeStarters) {
-      await indexAppStarters(index);
-    }
-
-    documentationIndex = index;
-    indexLastBuilt = new Date().toISOString();
-
-    const duration = Date.now() - startTime;
-    DebugAndLog.info(`Documentation index built in ${duration}ms with ${index.entries.length} entries`);
-
-    return {
-      cached: false,
-      lastBuilt: indexLastBuilt,
-      entryCount: index.entries.length,
-      buildDuration: duration
-    };
-
-  } catch (error) {
-    DebugAndLog.error(`Failed to build documentation index: ${error.message}`, error.stack);
-    throw error;
-  } finally {
-    indexBuildInProgress = false;
-  }
-};
+function getDocClient() {
+	if (!docClient) {
+		const client = new DynamoDBClient({});
+		docClient = DynamoDBDocumentClient.from(client, {
+			marshallOptions: { removeUndefinedValues: true }
+		});
+	}
+	return docClient;
+}
 
 /**
- * Index markdown documentation from template repository
- */
-const indexTemplateRepository = async (index) => {
-  const settings = Config.settings();
-  const githubUsers = settings.githubUsers || settings.github?.userOrgs || [];
-
-  // Look for template repository in configured GitHub users/orgs
-  for (const userOrg of githubUsers) {
-    // Get repositories with atlantis_repository-type: templates
-    const connection = {
-      host: userOrg,
-      path: '/repos',
-      parameters: { repositoryType: 'templates' }
-    };
-
-    const repos = await GitHubAPI.listRepositories(connection, {});
-
-    // Handle case where repos might be undefined (e.g., API error)
-    if (!repos || !repos.repositories) {
-      continue;
-    }
-
-    for (const repo of repos.repositories) {
-      // Index markdown files from repository
-      await indexMarkdownFiles(index, repo, 'templates');
-    }
-
-    index.metadata.sources.push({
-      type: 'github',
-      userOrg,
-      repositoryType: 'templates',
-      indexed: true
-    });
-  }
-};
-
-/**
- * Index cache-data package documentation
- */
-const indexCacheDataPackage = async (index) => {
-  try {
-    const settings = Config.settings();
-    const githubUsers = settings.githubUsers || settings.github?.userOrgs || [];
-
-    // Look for cache-data package in configured GitHub users/orgs
-    for (const userOrg of githubUsers) {
-      try {
-        const connection = {
-          host: userOrg,
-          path: '/repos',
-          parameters: { repositoryType: 'package' }
-        };
-
-        const repos = await GitHubAPI.listRepositories(connection, {});
-
-        for (const repo of repos.repositories || []) {
-          if (repo.name && repo.name.includes('cache-data')) {
-            // Index markdown files and code examples
-            await indexMarkdownFiles(index, repo, 'package');
-            await indexCodeExamples(index, repo, 'package');
-          }
-        }
-
-        index.metadata.sources.push({
-          type: 'github',
-          userOrg,
-          repositoryType: 'package',
-          indexed: true
-        });
-
-      } catch (error) {
-        DebugAndLog.warn(`Failed to index cache-data package from ${userOrg}: ${error.message}`);
-        index.metadata.sources.push({
-          type: 'github',
-          userOrg,
-          repositoryType: 'package',
-          indexed: false,
-          error: error.message
-        });
-      }
-    }
-  } catch (error) {
-    DebugAndLog.warn(`Failed to index cache-data package: ${error.message}`);
-  }
-};
-
-/**
- * Index CloudFormation templates
- */
-const indexCloudFormationTemplates = async (index) => {
-  const settings = Config.settings();
-  const buckets = settings.atlantisS3Buckets || settings.s3?.buckets || [];
-
-  for (const bucket of buckets) {
-    const connection = {
-      host: bucket,
-      path: 'templates/v2',
-      parameters: {}
-    };
-
-    const result = await S3Templates.list(connection, {});
-    const templates = result.templates || [];
-
-    for (const template of templates) {
-      // Get full template content
-      const fullTemplate = await S3Templates.get({
-        host: bucket,
-        path: 'templates/v2',
-        parameters: {
-          category: template.category,
-          templateName: template.name
-        }
-      }, {});
-
-      if (fullTemplate) {
-        // Index template sections
-        await indexTemplateContent(index, fullTemplate, bucket);
-      }
-    }
-
-    index.metadata.sources.push({
-      type: 's3',
-      bucket,
-      resourceType: 'templates',
-      indexed: true
-    });
-  }
-};
-
-/**
- * Index app starters (on-demand)
- */
-const indexAppStarters = async (index) => {
-  try {
-    const settings = Config.settings();
-    const githubUsers = settings.githubUsers || settings.github?.userOrgs || [];
-
-    for (const userOrg of githubUsers) {
-      try {
-        const connection = {
-          host: userOrg,
-          path: '/repos',
-          parameters: { repositoryType: 'app-starter' }
-        };
-
-        const repos = await GitHubAPI.listRepositories(connection, {});
-
-        for (const repo of repos.repositories || []) {
-          // Index code examples from starters
-          await indexCodeExamples(index, repo, 'app-starter');
-          await indexMarkdownFiles(index, repo, 'app-starter');
-        }
-
-        index.metadata.sources.push({
-          type: 'github',
-          userOrg,
-          repositoryType: 'app-starter',
-          indexed: true
-        });
-
-      } catch (error) {
-        DebugAndLog.warn(`Failed to index app starters from ${userOrg}: ${error.message}`);
-        index.metadata.sources.push({
-          type: 'github',
-          userOrg,
-          repositoryType: 'app-starter',
-          indexed: false,
-          error: error.message
-        });
-      }
-    }
-  } catch (error) {
-    DebugAndLog.warn(`Failed to index app starters: ${error.message}`);
-  }
-};
-
-/**
- * Index markdown files from a GitHub repository
- */
-const indexMarkdownFiles = async (index, repo, repositoryType) => {
-  // Get README content
-  const readme = await GitHubAPI.getReadme({
-    host: repo.owner,
-    path: `/repos/${repo.owner}/${repo.name}`,
-    parameters: {}
-  }, {});
-
-  if (readme && readme.content) {
-    // Parse README headings and content
-    const headings = extractMarkdownHeadings(readme.content);
-
-    for (const heading of headings) {
-      index.entries.push({
-        title: heading.title,
-        excerpt: heading.excerpt,
-        content: heading.content,
-        filePath: 'README.md',
-        githubUrl: `https://github.com/${repo.owner}/${repo.name}#${heading.anchor}`,
-        type: 'documentation',
-        subType: determineDocumentationType(heading.title),
-        repository: repo.name,
-        repositoryType,
-        owner: repo.owner,
-        keywords: extractKeywords(heading.title + ' ' + heading.content),
-        metadata: {
-          level: heading.level,
-          lineNumber: heading.lineNumber
-        }
-      });
-    }
-  }
-
-  // TODO: Index other markdown files from docs/ directory
-  // This would require additional GitHub API calls to list directory contents
-};
-
-/**
- * Index code examples from repository
- */
-const indexCodeExamples = async (index, repo, repositoryType) => {
-  try {
-    // For cache-data package, index key functions and usage patterns
-    // For app starters, index Lambda handlers and key functions
-
-    // This is a simplified implementation
-    // Full implementation would use GitHub API to fetch file contents
-
-    const codePatterns = [
-      {
-        pattern: 'CacheableDataAccess.getData',
-        description: 'Pass-through caching pattern',
-        language: 'javascript'
-      },
-      {
-        pattern: 'Cache.init',
-        description: 'Cache initialization',
-        language: 'javascript'
-      },
-      {
-        pattern: 'Config.getConnCacheProfile',
-        description: 'Get connection and cache profile',
-        language: 'javascript'
-      }
-    ];
-
-    for (const pattern of codePatterns) {
-      index.entries.push({
-        title: pattern.description,
-        excerpt: `Code pattern: ${pattern.pattern}`,
-        content: pattern.pattern,
-        filePath: 'src/lib/',
-        githubUrl: `https://github.com/${repo.owner}/${repo.name}`,
-        type: 'code-example',
-        subType: 'function',
-        repository: repo.name,
-        repositoryType,
-        owner: repo.owner,
-        keywords: extractKeywords(pattern.pattern + ' ' + pattern.description),
-        codeExamples: [{
-          language: pattern.language,
-          code: pattern.pattern,
-          lineNumbers: '1-1'
-        }],
-        context: {
-          functionName: pattern.pattern
-        }
-      });
-    }
-
-  } catch (error) {
-    DebugAndLog.warn(`Failed to index code examples from ${repo.name}: ${error.message}`);
-  }
-};
-
-/**
- * Index CloudFormation template content
- */
-const indexTemplateContent = async (index, template, bucket) => {
-  const yaml = require('js-yaml');
-  
-  // Define custom types for CloudFormation intrinsic functions
-  const cfnTypes = [
-    new yaml.Type('!GetAtt', { kind: 'scalar', construct: data => ({ 'Fn::GetAtt': data }) }),
-    new yaml.Type('!GetAtt', { kind: 'sequence', construct: data => ({ 'Fn::GetAtt': data }) }),
-    new yaml.Type('!Ref', { kind: 'scalar', construct: data => ({ Ref: data }) }),
-    new yaml.Type('!Sub', { kind: 'scalar', construct: data => ({ 'Fn::Sub': data }) }),
-    new yaml.Type('!Sub', { kind: 'sequence', construct: data => ({ 'Fn::Sub': data }) }),
-    new yaml.Type('!Join', { kind: 'sequence', construct: data => ({ 'Fn::Join': data }) }),
-    new yaml.Type('!Select', { kind: 'sequence', construct: data => ({ 'Fn::Select': data }) }),
-    new yaml.Type('!Split', { kind: 'sequence', construct: data => ({ 'Fn::Split': data }) }),
-    new yaml.Type('!FindInMap', { kind: 'sequence', construct: data => ({ 'Fn::FindInMap': data }) }),
-    new yaml.Type('!GetAZs', { kind: 'scalar', construct: data => ({ 'Fn::GetAZs': data }) }),
-    new yaml.Type('!GetAZs', { kind: 'sequence', construct: data => ({ 'Fn::GetAZs': data }) }),
-    new yaml.Type('!ImportValue', { kind: 'scalar', construct: data => ({ 'Fn::ImportValue': data }) }),
-    new yaml.Type('!Base64', { kind: 'scalar', construct: data => ({ 'Fn::Base64': data }) }),
-    new yaml.Type('!Cidr', { kind: 'sequence', construct: data => ({ 'Fn::Cidr': data }) }),
-    new yaml.Type('!And', { kind: 'sequence', construct: data => ({ 'Fn::And': data }) }),
-    new yaml.Type('!Equals', { kind: 'sequence', construct: data => ({ 'Fn::Equals': data }) }),
-    new yaml.Type('!If', { kind: 'sequence', construct: data => ({ 'Fn::If': data }) }),
-    new yaml.Type('!Not', { kind: 'sequence', construct: data => ({ 'Fn::Not': data }) }),
-    new yaml.Type('!Or', { kind: 'sequence', construct: data => ({ 'Fn::Or': data }) }),
-    new yaml.Type('!Condition', { kind: 'scalar', construct: data => ({ Condition: data }) })
-  ];
-
-  // Create custom schema with CloudFormation types
-  const CFN_SCHEMA = new yaml.Schema({
-    include: [yaml.DEFAULT_SCHEMA],
-    explicit: cfnTypes
-  });
-
-  const parsed = yaml.load(template.content, { schema: CFN_SCHEMA });
-
-  // Index template sections
-  const sections = ['Metadata', 'Parameters', 'Mappings', 'Conditions', 'Resources', 'Outputs'];
-
-  for (const section of sections) {
-    if (parsed[section]) {
-      const sectionContent = JSON.stringify(parsed[section], null, 2);
-
-      index.entries.push({
-        title: `${template.name} - ${section}`,
-        excerpt: `CloudFormation ${section} section from ${template.name}`,
-        content: sectionContent,
-        filePath: template.s3Path,
-        githubUrl: null,
-        type: 'template-pattern',
-        subType: 'resource',
-        repository: null,
-        repositoryType: 'templates',
-        namespace: template.namespace,
-        bucket,
-        keywords: extractKeywords(`${section} ${template.category} ${template.name}`),
-        context: {
-          templateSection: section,
-          templateName: template.name,
-          category: template.category
-        }
-      });
-
-      // Index individual resources
-      if (section === 'Resources') {
-        for (const [resourceName, resourceDef] of Object.entries(parsed[section])) {
-          index.entries.push({
-            title: `${resourceName} (${resourceDef.Type})`,
-            excerpt: `CloudFormation resource: ${resourceDef.Type}`,
-            content: JSON.stringify(resourceDef, null, 2),
-            filePath: template.s3Path,
-            githubUrl: null,
-            type: 'template-pattern',
-            subType: 'resource',
-            repository: null,
-            repositoryType: 'templates',
-            namespace: template.namespace,
-            bucket,
-            keywords: extractKeywords(`${resourceName} ${resourceDef.Type} ${template.category}`),
-            context: {
-              templateSection: 'Resources',
-              resourceType: resourceDef.Type,
-              resourceName,
-              templateName: template.name,
-              category: template.category
-            }
-          });
-        }
-      }
-    }
-  }
-};
-
-/**
- * Search documentation index
+ * Override the DynamoDB Document Client (for testing).
  *
- * @param {Object} options - Search options
+ * @param {DynamoDBDocumentClient|null} client - Client instance or null to reset
+ */
+function setDocClient(client) {
+	docClient = client;
+}
+
+/**
+ * Common stop words filtered from search queries.
+ * @type {Set<string>}
+ */
+const STOP_WORDS = new Set([
+	'the', 'and', 'for', 'with', 'from', 'this', 'that',
+	'are', 'was', 'were', 'been', 'have', 'has', 'had'
+]);
+
+/**
+ * Read the active version from the DynamoDB version pointer.
+ *
+ * @param {string} tableName - DynamoDB table name
+ * @returns {Promise<string|null>} Active version identifier or null if none exists
+ * @example
+ * const version = await getActiveVersion('my-doc-index-table');
+ * // version = '20250715T060000' or null
+ */
+async function getActiveVersion(tableName) {
+	const client = getDocClient();
+
+	try {
+		const result = await client.send(new GetCommand({
+			TableName: tableName,
+			Key: { pk: 'version:pointer', sk: 'active' }
+		}));
+
+		if (result.Item && result.Item.version) {
+			return result.Item.version;
+		}
+
+		return null;
+	} catch (error) {
+		DebugAndLog.error(`Failed to read version pointer: ${error.message}`, error.stack);
+		return null;
+	}
+}
+
+/**
+ * Read the main index entries for a specific version.
+ *
+ * @param {string} tableName - DynamoDB table name
+ * @param {string} version - Index version identifier
+ * @returns {Promise<Array<Object>>} Array of index entries or empty array
+ * @example
+ * const entries = await getMainIndex('my-doc-index-table', '20250715T060000');
+ */
+async function getMainIndex(tableName, version) {
+	const client = getDocClient();
+
+	try {
+		const result = await client.send(new GetCommand({
+			TableName: tableName,
+			Key: { pk: `mainindex:${version}`, sk: 'entries' }
+		}));
+
+		if (result.Item && Array.isArray(result.Item.entries)) {
+			return result.Item.entries;
+		}
+
+		return [];
+	} catch (error) {
+		DebugAndLog.error(`Failed to read main index for version ${version}: ${error.message}`, error.stack);
+		return [];
+	}
+}
+
+/**
+ * Extract keywords from a query string.
+ *
+ * Lowercases, splits on whitespace, filters stop words and short tokens,
+ * and deduplicates.
+ *
+ * @param {string} query - Raw search query
+ * @returns {Array<string>} Deduplicated keyword array
+ */
+function extractQueryKeywords(query) {
+	if (!query || typeof query !== 'string') {
+		return [];
+	}
+
+	const words = query
+		.toLowerCase()
+		.replace(/[^a-z0-9\s-]/g, ' ')
+		.split(/\s+/)
+		.filter(w => w.length > 2 && !STOP_WORDS.has(w));
+
+	return [...new Set(words)];
+}
+
+/**
+ * Query the DynamoDB documentation index.
+ *
+ * Searches keyword entries, aggregates relevance scores per content hash,
+ * fetches content metadata for top results, and returns formatted results
+ * sorted by relevance descending.
+ *
+ * @param {Object} options - Query options
  * @param {string} options.query - Search query (keywords)
- * @param {string} options.type - Filter by type (documentation, template-pattern, code-example)
- * @param {string} options.subType - Filter by subType (guide, tutorial, reference, etc.)
- * @param {number} options.limit - Maximum results (default: 10)
+ * @param {string} [options.type] - Filter by type (documentation, template-pattern, code-example)
+ * @param {string} [options.subType] - Filter by subType
+ * @param {number} [options.limit=10] - Maximum results
  * @returns {Promise<Object>} Search results with relevance ranking
+ * @example
+ * const result = await queryIndex({
+ *   query: 'cache-data installation',
+ *   type: 'documentation',
+ *   limit: 5
+ * });
  */
-const search = async (options = {}) => {
-  const { query, type, subType, limit = 10 } = options;
+async function queryIndex(options = {}) {
+	const { query, type, subType, limit = 10 } = options;
+	const settings = Config.settings();
+	const tableName = settings.docIndexTable;
 
-  // Ensure index is built
-  if (!documentationIndex) {
-    await buildIndex({ includeStarters: false });
-  }
+	// >! Handle empty query
+	if (!query || query.trim() === '') {
+		return {
+			results: [],
+			totalResults: 0,
+			query: query || '',
+			suggestions: ['Please provide a search query']
+		};
+	}
 
-  if (!documentationIndex || !documentationIndex.entries) {
-    return {
-      results: [],
-      totalResults: 0,
-      query,
-      suggestions: ['Try building the documentation index first']
-    };
-  }
+	// >! Get active version
+	const version = await getActiveVersion(tableName);
 
-  // Handle empty query - return no results
-  if (!query || query.trim() === '') {
-    return {
-      results: [],
-      totalResults: 0,
-      query,
-      suggestions: ['Please provide a search query']
-    };
-  }
+	if (!version) {
+		return {
+			results: [],
+			totalResults: 0,
+			query,
+			suggestions: ['No active documentation index found. Please verify the indexer has run.']
+		};
+	}
 
-  // Normalize query
-  const queryKeywords = extractKeywords(query);
+	// >! Extract keywords from query
+	const keywords = extractQueryKeywords(query);
 
-  // If no valid keywords after extraction, return no results
-  if (queryKeywords.length === 0) {
-    return {
-      results: [],
-      totalResults: 0,
-      query,
-      suggestions: ['Try using more specific keywords']
-    };
-  }
+	if (keywords.length === 0) {
+		return {
+			results: [],
+			totalResults: 0,
+			query,
+			suggestions: ['Try using more specific keywords']
+		};
+	}
 
-  // Search and rank results
-  let results = documentationIndex.entries
-    .map(entry => ({
-      ...entry,
-      relevanceScore: calculateRelevance(entry, queryKeywords)
-    }))
-    .filter(entry => entry.relevanceScore > 0);
+	const client = getDocClient();
 
-  // Apply type filters
-  if (type) {
-    results = results.filter(entry => entry.type === type);
-  }
+	// >! For each keyword, query DynamoDB for search:{keyword} entries
+	const scoresByHash = {};
 
-  if (subType) {
-    results = results.filter(entry => entry.subType === subType);
-  }
+	for (const keyword of keywords) {
+		try {
+			const result = await client.send(new QueryCommand({
+				TableName: tableName,
+				KeyConditionExpression: 'pk = :pk AND begins_with(sk, :skPrefix)',
+				ExpressionAttributeValues: {
+					':pk': `search:${keyword}`,
+					':skPrefix': `v:${version}:`
+				}
+			}));
 
-  // Sort by relevance
-  results.sort((a, b) => b.relevanceScore - a.relevanceScore);
+			if (result.Items) {
+				for (const item of result.Items) {
+					const hash = item.hash;
+					if (!scoresByHash[hash]) {
+						scoresByHash[hash] = { hash, totalScore: 0, typeWeight: item.typeWeight || 1.0 };
+					}
+					scoresByHash[hash].totalScore += (item.relevanceScore || 0);
+				}
+			}
+		} catch (error) {
+			DebugAndLog.warn(`Failed to query keyword '${keyword}': ${error.message}`);
+		}
+	}
 
-  // Limit results
-  const totalResults = results.length;
-  results = results.slice(0, limit);
+	// >! Convert to array and sort by relevance descending
+	let ranked = Object.values(scoresByHash)
+		.sort((a, b) => b.totalScore - a.totalScore);
 
-  // Generate suggestions if no results
-  const suggestions = totalResults === 0 ? generateSuggestions(query, documentationIndex) : [];
+	// >! Fetch content metadata for top results (before type filtering, fetch enough)
+	const fetchLimit = Math.min(ranked.length, limit * 3);
+	const topHashes = ranked.slice(0, fetchLimit);
 
-  return {
-    results: results.map(r => ({
-      title: r.title,
-      excerpt: r.excerpt.substring(0, 200),
-      filePath: r.filePath,
-      githubUrl: r.githubUrl,
-      type: r.type,
-      subType: r.subType,
-      relevanceScore: r.relevanceScore,
-      repository: r.repository,
-      repositoryType: r.repositoryType,
-      namespace: r.namespace,
-      codeExamples: r.codeExamples,
-      context: r.context
-    })),
-    totalResults,
-    query,
-    suggestions
-  };
-};
+	const metadataResults = [];
+	for (const entry of topHashes) {
+		try {
+			const metaResult = await client.send(new GetCommand({
+				TableName: tableName,
+				Key: {
+					pk: `content:${entry.hash}`,
+					sk: `v:${version}:metadata`
+				}
+			}));
 
-/**
- * Extract markdown headings from content
- */
-const extractMarkdownHeadings = (content) => {
-  const headings = [];
-  const lines = content.split('\n');
+			if (metaResult.Item) {
+				metadataResults.push({
+					...metaResult.Item,
+					relevanceScore: entry.totalScore
+				});
+			}
+		} catch (error) {
+			DebugAndLog.warn(`Failed to fetch metadata for hash ${entry.hash}: ${error.message}`);
+		}
+	}
 
-  let currentHeading = null;
-  let currentContent = [];
-  let lineNumber = 0;
+	// >! Apply type filters
+	let filtered = metadataResults;
+	if (type) {
+		filtered = filtered.filter(item => item.type === type);
+	}
+	if (subType) {
+		filtered = filtered.filter(item => item.subType === subType);
+	}
 
-  for (const line of lines) {
-    lineNumber++;
+	// >! Sort by relevance descending (already mostly sorted, but re-sort after filtering)
+	filtered.sort((a, b) => b.relevanceScore - a.relevanceScore);
 
-    const headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
+	const totalResults = filtered.length;
+	const results = filtered.slice(0, limit);
 
-    if (headingMatch) {
-      // Save previous heading
-      if (currentHeading) {
-        headings.push({
-          ...currentHeading,
-          content: currentContent.join('\n').trim(),
-          excerpt: currentContent.join(' ').substring(0, 200).trim()
-        });
-      }
+	// >! Generate suggestions if no results
+	const suggestions = totalResults === 0
+		? ['Try using fewer or more general keywords', 'Try filtering by type: documentation, template-pattern, or code-example']
+		: [];
 
-      // Start new heading
-      const level = headingMatch[1].length;
-      const title = headingMatch[2].trim();
-      const anchor = title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-
-      currentHeading = {
-        level,
-        title,
-        anchor,
-        lineNumber
-      };
-      currentContent = [];
-    } else if (currentHeading) {
-      currentContent.push(line);
-    }
-  }
-
-  // Save last heading
-  if (currentHeading) {
-    headings.push({
-      ...currentHeading,
-      content: currentContent.join('\n').trim(),
-      excerpt: currentContent.join(' ').substring(0, 200).trim()
-    });
-  }
-
-  return headings;
-};
-
-/**
- * Determine documentation type from heading
- */
-const determineDocumentationType = (title) => {
-  const lowerTitle = title.toLowerCase();
-
-  if (lowerTitle.includes('guide') || lowerTitle.includes('how to')) {
-    return 'guide';
-  }
-  if (lowerTitle.includes('tutorial') || lowerTitle.includes('getting started')) {
-    return 'tutorial';
-  }
-  if (lowerTitle.includes('reference') || lowerTitle.includes('api')) {
-    return 'reference';
-  }
-  if (lowerTitle.includes('troubleshoot') || lowerTitle.includes('debug') || lowerTitle.includes('error')) {
-    return 'troubleshooting';
-  }
-
-  return 'guide';
-};
-
-/**
- * Extract keywords from text
- */
-const extractKeywords = (text) => {
-  if (!text) {
-    return [];
-  }
-
-  // Normalize and split into words
-  const words = text
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, ' ')
-    .split(/\s+/)
-    .filter(word => word.length > 2);
-
-  // Remove common stop words
-  const stopWords = new Set(['the', 'and', 'for', 'with', 'from', 'this', 'that', 'are', 'was', 'were', 'been', 'have', 'has', 'had']);
-
-  return [...new Set(words.filter(word => !stopWords.has(word)))];
-};
-
-/**
- * Calculate relevance score
- */
-const calculateRelevance = (entry, queryKeywords) => {
-  let score = 0;
-
-  const entryKeywords = entry.keywords || [];
-  const titleKeywords = extractKeywords(entry.title);
-  const excerptKeywords = extractKeywords(entry.excerpt);
-
-  // Title matches are most important
-  for (const keyword of queryKeywords) {
-    if (titleKeywords.includes(keyword)) {
-      score += 10;
-    }
-    if (excerptKeywords.includes(keyword)) {
-      score += 5;
-    }
-    if (entryKeywords.includes(keyword)) {
-      score += 3;
-    }
-  }
-
-  // Exact phrase match bonus
-  const queryLower = queryKeywords.join(' ');
-  if (entry.title.toLowerCase().includes(queryLower)) {
-    score += 20;
-  }
-  if (entry.excerpt.toLowerCase().includes(queryLower)) {
-    score += 10;
-  }
-
-  return score;
-};
-
-/**
- * Generate search suggestions
- */
-const generateSuggestions = (query, index) => {
-  const suggestions = [];
-
-  // Suggest popular topics
-  const topicCounts = {};
-  for (const entry of index.entries) {
-    for (const keyword of entry.keywords || []) {
-      topicCounts[keyword] = (topicCounts[keyword] || 0) + 1;
-    }
-  }
-
-  const topTopics = Object.entries(topicCounts)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
-    .map(([topic]) => topic);
-
-  if (topTopics.length > 0) {
-    suggestions.push(`Try searching for: ${topTopics.join(', ')}`);
-  }
-
-  // Suggest broadening search
-  suggestions.push('Try using fewer or more general keywords');
-
-  // Suggest specific types
-  suggestions.push('Try filtering by type: documentation, template-pattern, or code-example');
-
-  return suggestions;
-};
+	return {
+		results: results.map(r => ({
+			title: r.title || '',
+			excerpt: (r.excerpt || '').substring(0, 200),
+			filePath: r.path || '',
+			githubUrl: r.githubUrl || null,
+			type: r.type || '',
+			subType: r.subType || '',
+			relevanceScore: r.relevanceScore,
+			repository: r.repository || null,
+			repositoryType: r.repositoryType || null,
+			namespace: r.namespace || null,
+			codeExamples: r.codeExamples || undefined,
+			context: r.context || undefined
+		})),
+		totalResults,
+		query,
+		suggestions
+	};
+}
 
 /**
  * Test harness for accessing internal state for testing purposes.
  * WARNING: This class is for testing only and should NEVER be used in production code.
- * 
+ *
  * @private
  */
 class TestHarness {
-  /**
-   * Reset the documentation index cache for testing purposes.
-   * WARNING: This method is for testing only and should never be used in production.
-   * 
-   * @private
-   */
-  static resetCache() {
-    documentationIndex = null;
-    indexBuildInProgress = false;
-    indexLastBuilt = null;
-  }
+	/**
+	 * Reset the DynamoDB client for testing purposes.
+	 * WARNING: This method is for testing only and should never be used in production.
+	 *
+	 * @private
+	 */
+	static resetClient() {
+		docClient = null;
+	}
 }
 
 module.exports = {
-  buildIndex,
-  search,
-  TestHarness
+	getActiveVersion,
+	getMainIndex,
+	queryIndex,
+	setDocClient,
+	TestHarness
 };

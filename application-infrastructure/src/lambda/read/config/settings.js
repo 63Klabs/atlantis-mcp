@@ -575,6 +575,18 @@ const settings = {
    */
   dynamoDbSessionsTable: process.env.MCP_DYNAMODB_SESSIONS_TABLE || '',
 
+  /**
+   * DynamoDB table name for the documentation index.
+   * 
+   * Read from the DOC_INDEX_TABLE environment variable.
+   * This table stores the persistent documentation index built by the
+   * Indexer Lambda, including content entries, main index, search keywords,
+   * and version pointers.
+   * 
+   * @type {string}
+   */
+  docIndexTable: process.env.DOC_INDEX_TABLE || '',
+
   rateLimits: {
 
     /**

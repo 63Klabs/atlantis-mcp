@@ -93,6 +93,12 @@ Metadata:
           - CacheDataDynamoDbTableName
           - CacheDataS3BucketName
           - CacheDataTimeZoneForInterval
+      -
+        Label:
+          default: "Documentation Indexer Settings"
+        Parameters:
+          - DocIndexScheduleForDEVTEST
+          - DocIndexScheduleForPROD
 
 # =============================================================================
 # PARAMETERS
@@ -300,6 +306,21 @@ Parameters:
     Description: "Comma-delimited list of managed policy ARNs to attach to the Read Lambda execution role for extended permissions. Leave empty if no additional policies needed."
     Default: ""
     ConstraintDescription: "Comma-delimited list of valid IAM policy ARNs"
+
+  # ---------------------------------------------------------------------------
+  # Documentation Indexer Schedule Parameters
+
+  DocIndexScheduleForDEVTEST:
+    Type: String
+    Description: "Cron schedule for the Documentation Indexer in DEV/TEST environments (weekly by default)"
+    Default: "cron(0 8 ? * MON *)"
+    ConstraintDescription: "A valid EventBridge cron expression"
+
+  DocIndexScheduleForPROD:
+    Type: String
+    Description: "Cron schedule for the Documentation Indexer in PROD environments (daily by default)"
+    Default: "cron(0 6 * * ? *)"
+    ConstraintDescription: "A valid EventBridge cron expression"
 
   # ---------------------------------------------------------------------------
   # Cache TTL Parameters (in seconds)
@@ -649,6 +670,9 @@ Resources:
           # Rate Limiter Sessions Table
           MCP_DYNAMODB_SESSIONS_TABLE: !Ref DynamoDbSessions
 
+          # Documentation Index Table
+          DOC_INDEX_TABLE: !Ref DocIndexTable
+
       Events:
         McpV1Post:
           Type: Api
@@ -700,6 +724,150 @@ Resources:
           Value: !Ref ProjectId
         - Key: ManagedBy
           Value: CloudFormation
+
+  # -- DocIndex DynamoDB Table --
+  # Stores indexed documentation content, main index, search keywords, and version pointers
+
+  DocIndexTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: !If [IsProduction, Retain, Delete]
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Sub '${Prefix}-${ProjectId}-${StageId}-DocIndex'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref StageId
+        - Key: Project
+          Value: !Ref ProjectId
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  # -- Doc Indexer Lambda Function --
+  # Scheduled Lambda that builds the persistent DynamoDB documentation index
+
+  DocIndexerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${Prefix}-${ProjectId}-${StageId}-DocIndexer'
+      Description: "Documentation Indexer - Builds persistent DynamoDB index from GitHub repositories"
+      CodeUri: src/lambda/indexer/
+      Handler: index.handler
+      Runtime: nodejs24.x
+      Architectures:
+        - !Ref FunctionArchitecture
+      Timeout: 900
+      MemorySize: 1024
+      Role: !GetAtt DocIndexerExecutionRole.Arn
+
+      Layers:
+        - !If
+          - IsArmArch
+          - !FindInMap [LambdaParamSecretsArm, !Ref 'AWS::Region', ExtArn]
+          - !FindInMap [LambdaParamSecretsX86, !Ref 'AWS::Region', ExtArn]
+
+      Environment:
+        Variables:
+          ATLANTIS_GITHUB_USER_ORGS: !Join [',', !Ref AtlantisGitHubUserOrgs]
+          DOC_INDEX_TABLE: !Ref DocIndexTable
+          PARAM_STORE_PATH: !Ref ParameterStoreHierarchy
+          DEPLOY_ENVIRONMENT: !Ref DeployEnvironment
+
+  # -- Doc Indexer Lambda Log Group --
+
+  DocIndexerLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: !If [IsProduction, Retain, Delete]
+    UpdateReplacePolicy: Retain
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${Prefix}-${ProjectId}-${StageId}-DocIndexer'
+      RetentionInDays: !If [ IsProduction, !Ref LogRetentionInDaysForPROD, !Ref LogRetentionInDaysForDEVTEST]
+
+  # -- Doc Indexer Execution Role --
+  # DynamoDB read/write on DocIndex table, SSM GetParameter for GitHubToken, CloudWatch Logs
+
+  DocIndexerExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${Prefix}-${ProjectId}-${StageId}-DocIndexerRole"
+      Description: "IAM Role for Doc Indexer Lambda with DynamoDB write and SSM read permissions"
+      Path: !Ref RolePath
+      PermissionsBoundary: !If [HasPermissionsBoundaryArn, !Ref PermissionsBoundaryArn, !Ref 'AWS::NoValue']
+
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: [lambda.amazonaws.com]
+          Action: sts:AssumeRole
+
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess'
+
+      Policies:
+      - PolicyName: DocIndexerResourceAccessPolicies
+        PolicyDocument:
+          Statement:
+
+          - Sid: LambdaAccessToWriteLogs
+            Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            Effect: Allow
+            Resource: !GetAtt DocIndexerLogGroup.Arn
+
+          - Sid: LambdaAccessToSSMParameters
+            Action:
+            - ssm:GetParameter
+            Effect: Allow
+            Resource:
+            - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${ParameterStoreHierarchy}*"
+
+          - Sid: DocIndexTableReadWriteAccess
+            Action:
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:BatchWriteItem
+            - dynamodb:Query
+            Effect: Allow
+            Resource:
+            - !GetAtt DocIndexTable.Arn
+
+  # -- EventBridge Schedule for Doc Indexer --
+
+  DocIndexerScheduleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub '${Prefix}-${ProjectId}-${StageId}-DocIndexerSchedule'
+      Description: "Scheduled trigger for Documentation Indexer Lambda"
+      ScheduleExpression: !If [IsProduction, !Ref DocIndexScheduleForPROD, !Ref DocIndexScheduleForDEVTEST]
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt DocIndexerFunction.Arn
+          Id: DocIndexerTarget
+
+  DocIndexerSchedulePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt DocIndexerFunction.Arn
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt DocIndexerScheduleRule.Arn
 
   # -- Read Lambda Execution Role --
   # Minimal permissions: S3 GetObject/ListBucket/GetObjectVersion, DynamoDB read, SSM GetParameter
@@ -787,6 +955,15 @@ Resources:
             Effect: Allow
             Resource:
             - !GetAtt DynamoDbSessions.Arn
+
+          - Sid: DocIndexTableReadAccess
+            Action:
+            - dynamodb:GetItem
+            - dynamodb:Query
+            - dynamodb:BatchGetItem
+            Effect: Allow
+            Resource:
+            - !GetAtt DocIndexTable.Arn
 
   # -- Lambda permissions allowing API Gateway to Execute Read Lambda --
 
@@ -907,6 +1084,39 @@ Resources:
       AlarmActions:
         - Ref: ReadLambdaErrorAlarmNotification
   
+  # -- Doc Indexer Lambda Function Error Alarm --
+
+  DocIndexerErrorsAlarm:
+    Type: "AWS::CloudWatch::Alarm"
+    Condition: CreateAlarms
+    Properties:
+      AlarmDescription: Doc Indexer Lambda Function Error > 1
+      MetricName: Errors
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 1
+      Period: 900
+      EvaluationPeriods: 1
+      TreatMissingData: notBreaching
+      Namespace: AWS/Lambda
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref DocIndexerFunction
+      AlarmActions:
+        - Ref: DocIndexerErrorAlarmNotification
+
+  # -- Doc Indexer Lambda Function Notification for Error Alarm --
+
+  DocIndexerErrorAlarmNotification:
+      Type: AWS::SNS::Topic
+      Condition: CreateAlarms
+      Properties:
+        DisplayName: !Sub 'AWS-Alarm-${Prefix}-${ProjectId}-${StageId}-DocIndexer'
+        FifoTopic: false
+        Subscription:
+          - Endpoint: !Ref AlarmNotificationEmail
+            Protocol: 'email'
+
   # -- CloudWatch Dashboard --
 
   Fn::Transform:

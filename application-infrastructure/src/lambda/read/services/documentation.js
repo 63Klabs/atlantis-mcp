@@ -126,8 +126,8 @@ async function search(options = {}) {
       usersOrgs: connection.host
     });
 
-    // >! Call Models.DocIndex.search() to perform the search
-    const searchResult = await Models.DocIndex.search({
+    // >! Call Models.DocIndex.queryIndex() to search the DynamoDB-backed index
+    const searchResult = await Models.DocIndex.queryIndex({
       query: connection.parameters.query,
       type: connection.parameters.type,
       subType: connection.parameters.subType,
