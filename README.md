@@ -48,39 +48,21 @@ The server exposes the following tools through the MCP protocol:
 
 ## Integration Guides
 
+- [Kiro IDE Integration](docs/end-user/integration/kiro.md)
+- [Amazon Q Developer Integration](docs/end-user/integration/amazon-q.md)
 - [Claude Desktop Integration](docs/end-user/integration/claude.md)
-- [ChatGPT Integration](docs/docs/end-user/integration/chatgpt.md)
-- [Cursor IDE Integration](docs/docs/end-user/integration/cursor.md)
-- [Kiro IDE Integration](docs/docs/end-user/integration/kiro.md)
-- [Amazon Q Developer Integration](docs/docs/end-user/integration/amazon-q.md)
+- [ChatGPT Integration](docs/end-user/integration/chatgpt.md)
+- [Cursor IDE Integration](docs/end-user/integration/cursor.md)
 
 ## Documentation
 
-### For Users
-- [MCP Tools Reference](docs/end-user/tools/README.md) - Detailed documentation for each MCP tool
-- [Common Use Cases](docs/end-user/use-cases/README.md) - Patterns and examples
-- [Troubleshooting Guide](docs/troubleshooting/README.md) - Common issues and solutions
+Documentation is divided into 3 user groups:
 
-### For Organizations
-- [Deployment Guide](docs/admin-ops/deployment/README.md) - How to deploy your own instance
-- [CloudFormation Parameters](docs/admin-ops/deployment/cloudformation-parameters.md) - Configuration reference
-- [GitHub Token Setup](docs/admin-ops/deployment/github-token-setup.md) - Configure GitHub integration
-- [GitHub Custom Properties](docs/admin-ops/deployment/github-custom-properties.md) - Repository filtering setup
-- [S3 Bucket Tagging](docs/admin-ops/deployment/s3-bucket-tagging.md) - Configure S3 buckets and tags
-- [Multiple S3 Buckets](docs/admin-ops/deployment/multiple-s3-buckets.md) - Multi-bucket configuration
-- [Multiple GitHub Orgs](docs/admin-ops/deployment/multiple-github-orgs.md) - Multi-org configuration
-- [Sidecar Metadata (CodeBuild)](docs/admin-ops/deployment/sidecar-metadata-codebuild.md) - Generate metadata in CodeBuild
-- [Sidecar Metadata (GitHub Actions)](docs/admin-ops/deployment/sidecar-metadata-github-actions.md) - Generate metadata in GitHub Actions
-- [Self-Hosting Guide](docs/admin-ops/deployment/self-hosting.md) - Deploy your own instance
+- [For Organizations](./docs/admin-ops/README.md)
+- [For Developers](./docs/developer/README.md)
+- [For End User](./docs/end-user/README.md)
 
-### For Developers
-- [Architecture Overview](docs/maintainer/architecture.md) - System design and components
-- [Lambda Structure](docs/maintainer/lambda-structure.md) - Function organization
-- [Caching Strategy](docs/maintainer/caching-strategy.md) - Multi-tier caching implementation
-- [Template Versioning](docs/maintainer/template-versioning.md) - Dual identifier system
-- [Namespace Discovery](docs/maintainer/namespace-discovery.md) - S3 namespace indexing
-- [Brown-Out Support](docs/maintainer/brown-out-support.md) - Partial data handling
-- [Maintainer Guide](docs/maintainer/README.md) - Complete maintainer documentation
+End User documentation is aggregated and published to a static website (S3 fronted by CloudFront) when the Post Deployment stage is enabled in the deployment pipeline.
 
 ## Prerequisites
 
@@ -91,91 +73,39 @@ No prerequisites - just configure your AI assistant to connect to the public Atl
 ### For Self-Hosting
 
 - AWS Account with appropriate permissions
-- Node.js 20.x or later
+- Node.js 24.x or later
 - AWS SAM CLI
 - Access to Atlantis SAM Configuration Repository
 - GitHub Personal Access Token (for private repository access)
 
-## Architecture
-
-The Atlantis MCP Server is built on AWS serverless services:
-
-- **AWS Lambda**: Serverless compute for MCP request handling
-- **API Gateway**: REST API with rate limiting
-- **DynamoDB**: Cache storage for frequently accessed data
-- **S3**: Template storage and cache overflow
-- **Systems Manager Parameter Store**: Secure credential storage
-- **CloudWatch**: Logging and monitoring
-
-```
-┌─────────────┐
-│ AI Assistant│
-└──────┬──────┘
-       │ MCP Protocol
-       ▼
-┌─────────────┐
-│ API Gateway │ ◄── Rate Limiting
-└──────┬──────┘
-       │
-       ▼
-┌─────────────┐
-│   Lambda    │ ◄── Read-Only Operations
-└──────┬──────┘
-       │
-       ├──► DynamoDB (Cache)
-       ├──► S3 (Templates & Cache)
-       └──► GitHub API (Metadata)
-```
-
-## Security
-
-- **Read-Only Access**: Phase 1 provides only read operations
-- **Rate Limiting**: Public access limited to 100 requests/hour per IP (configurable)
-- **Least Privilege**: Lambda functions have minimal IAM permissions
-- **No Authentication Required**: Public read access for discovery and documentation
-- **Secure Credentials**: GitHub tokens stored in AWS Systems Manager Parameter Store
-
-## Naming Convention
-
-All Atlantis resources follow this naming pattern:
-
-```
-<Prefix>-<ProjectId>-<StageId>-<ResourceName>
-```
-
-Example: `acme-person-api-test-GetPersonFunction`
-
-For S3 buckets:
-```
-<orgPrefix>-<Prefix>-<ProjectId>-<StageId>-<Region>-<AccountId>
-```
-
-Use the `validate_naming` tool to verify your resource names follow these conventions.
-
 ## Caching Strategy
 
-The MCP Server uses intelligent multi-tier caching:
+The MCP Server uses intelligent multi-tier caching provided by the [@63klabs/cache-data NPM package](https://github.com/63klabs/cache-data):
 
 1. **In-Memory Cache**: Fast access within Lambda invocation
 2. **DynamoDB Cache**: Shared cache across invocations
 3. **S3 Cache**: Long-term storage for large objects
 
 Default TTL values:
-- Template metadata: 1 hour
-- Starter metadata: 1 hour  
-- Documentation index: 6 hours
+- Template metadata: 24 hours
+- Starter metadata: 24 hours  
+- Documentation index: 24 hours
 - Full template content: 24 hours
+
+> Values are all set to 24 hours during BETA release.
 
 ## Rate Limiting
 
 Public access is rate-limited to prevent abuse:
 
-- Default: 100 requests per hour per IP address
+- Default: 50 requests per hour per IP address
 - Rate limit headers included in responses:
   - `X-RateLimit-Limit`: Maximum requests allowed
   - `X-RateLimit-Remaining`: Requests remaining in current window
   - `X-RateLimit-Reset`: Time when limit resets (Unix timestamp)
 - HTTP 429 returned when limit exceeded with `Retry-After` header
+
+> Only public access with a limit of 50 requests per hpur per IP is available during BETA release.
 
 ## Multi-Source Support
 
@@ -205,8 +135,7 @@ The MCP Server continues operation even when some data sources fail:
 ## Version Information
 
 - **MCP Protocol Version**: 1.0
-- **Phase**: 1 (Core Read-Only)
-- **AWS Lambda Runtime**: Node.js 20.x
+- **AWS Lambda Runtime**: Node.js 24.x
 - **Cache Package**: @63klabs/cache-data
 
 ## Related Resources
@@ -214,18 +143,39 @@ The MCP Server continues operation even when some data sources fail:
 - [Atlantis Template Repository](https://github.com/63Klabs/atlantis-cfn-template-repo-for-serverless-deployments)
 - [Atlantis Configuration Repository](https://github.com/63Klabs/atlantis-cfn-configuration-repo-for-serverless-deployments)
 - [Model Context Protocol Specification](https://modelcontextprotocol.io/)
-- [Changelog](CHANGELOG.md)
-- [Security Policy](SECURITY.md)
-- [License](LICENSE.txt)
 
 ## Support
 
 - **Issues**: [GitHub Issues](https://github.com/63klabs/atlantis-mcp-server/issues)
 - **Documentation**: [Full Documentation](docs/README.md)
-- **Email**: support@63klabs.com
 
-## License
+## Architecture
 
-Copyright © 2025 63Klabs. All rights reserved.
+See [Architecture](./ARCHITECTURE.md)
 
-See [LICENSE.txt](LICENSE.txt) for details.
+## Deployment Guide
+
+See [Deployment Guide](./DEPLOYMENT.md)
+
+## Advanced Documentation
+
+See [Docs Directory](./docs/README.md)
+
+## AI Context
+
+See [AGENTS.md](./AGENTS.md) for important context and guidelines for AI-generated code in this repository.
+
+The agents file is also helpful (and perhaps essential) for HUMANS developing within the application's structured platform as well.
+
+## Changelog
+
+See [Change Log](./CHANGELOG.md)
+
+## Security
+
+See [Security](./SECURITY.md)
+
+## Contributors
+
+- [63Klabs](https://github.com/63klabs)
+- [Chad Kluck](https://github.com/chadkluck)
