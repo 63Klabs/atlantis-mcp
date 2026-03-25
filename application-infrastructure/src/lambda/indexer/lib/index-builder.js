@@ -185,8 +185,10 @@ function buildKeywordEntries(entries) {
 
 	for (const entry of entries) {
 		const typeWeight = TYPE_WEIGHTS[entry.type] || 0.8;
+		// Deduplicate keywords per entry to avoid duplicate pk/sk in DynamoDB batch writes
+		const uniqueKeywords = [...new Set(entry.keywords.map(k => k.toLowerCase()))];
 
-		for (const keyword of entry.keywords) {
+		for (const keyword of uniqueKeywords) {
 			const baseScore = computeRelevanceScore(keyword, entry);
 			const relevanceScore = Math.round(baseScore * typeWeight);
 
@@ -373,15 +375,25 @@ async function build(options = {}) {
 		duration: Date.now() - startTime
 	}));
 
-	// Write to DynamoDB
-	await writeContentEntries(tableName, version, allEntries);
+	// Deduplicate entries by hash — keep first occurrence to avoid overwriting content
+	const seenHashes = new Set();
+	const uniqueEntries = [];
+	for (const entry of allEntries) {
+		if (!seenHashes.has(entry.hash)) {
+			seenHashes.add(entry.hash);
+			uniqueEntries.push(entry);
+		}
+	}
 
-	const keywordEntries = buildKeywordEntries(allEntries);
+	// Write to DynamoDB
+	await writeContentEntries(tableName, version, uniqueEntries);
+
+	const keywordEntries = buildKeywordEntries(uniqueEntries);
 	await writeSearchKeywords(tableName, version, keywordEntries);
 
 	// Build and write main index
 	const now = new Date().toISOString();
-	const indexEntries = allEntries.map(entry => ({
+	const indexEntries = uniqueEntries.map(entry => ({
 		hash: entry.hash,
 		path: entry.contentPath,
 		type: entry.type,

@@ -70,7 +70,24 @@ function chunk(items, size) {
 }
 
 /**
+ * Deduplicate items by their pk+sk composite key, keeping the last occurrence.
+ *
+ * @param {Array<Object>} items - Array of DynamoDB items with pk and sk attributes
+ * @returns {Array<Object>} Deduplicated array
+ */
+function deduplicateItems(items) {
+	const seen = new Map();
+	for (const item of items) {
+		const key = `${item.pk}#${item.sk}`;
+		seen.set(key, item);
+	}
+	return Array.from(seen.values());
+}
+
+/**
  * Execute a BatchWriteItem request, handling the 25-item limit.
+ * Deduplicates items by pk+sk before batching to avoid DynamoDB
+ * ValidationException for duplicate keys within a single batch.
  *
  * @param {string} tableName - DynamoDB table name
  * @param {Array<Object>} putRequests - Array of PutRequest items
@@ -78,7 +95,8 @@ function chunk(items, size) {
  */
 async function batchWrite(tableName, putRequests) {
 	const client = getDocClient();
-	const batches = chunk(putRequests, BATCH_LIMIT);
+	const deduplicated = deduplicateItems(putRequests);
+	const batches = chunk(deduplicated, BATCH_LIMIT);
 
 	for (const batch of batches) {
 		const params = {
@@ -284,6 +302,7 @@ module.exports = {
 	computeTtl,
 	batchWrite,
 	chunk,
+	deduplicateItems,
 	BATCH_LIMIT,
 	SEVEN_DAYS_SECONDS
 };
