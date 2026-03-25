@@ -194,10 +194,15 @@ img {
 
 /* Responsive */
 
+@media (max-width: 780px) {
+  body {
+    padding: 1.5rem 1rem;
+  }
+}
+
 @media (max-width: 480px) {
   body {
     font-size: 0.95rem;
-    padding: 1.5rem 1rem;
   }
 
   header {
