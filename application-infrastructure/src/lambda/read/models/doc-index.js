@@ -89,6 +89,8 @@ async function getActiveVersion(tableName) {
 
 /**
  * Read the main index entries for a specific version.
+ * Supports chunked main index: reads the manifest at sk=`entries`
+ * to get the chunk count, then fetches each chunk at sk=`entries:{i}`.
  *
  * @param {string} tableName - DynamoDB table name
  * @param {string} version - Index version identifier
@@ -100,16 +102,42 @@ async function getMainIndex(tableName, version) {
 	const client = getDocClient();
 
 	try {
-		const result = await client.send(new GetCommand({
+		// Read manifest item
+		const manifestResult = await client.send(new GetCommand({
 			TableName: tableName,
 			Key: { pk: `mainindex:${version}`, sk: 'entries' }
 		}));
 
-		if (result.Item && Array.isArray(result.Item.entries)) {
-			return result.Item.entries;
+		if (!manifestResult.Item) {
+			return [];
 		}
 
-		return [];
+		const manifest = manifestResult.Item;
+
+		// Legacy format: entries stored directly on the manifest item
+		if (Array.isArray(manifest.entries)) {
+			return manifest.entries;
+		}
+
+		// Chunked format: fetch each chunk
+		const totalChunks = manifest.totalChunks || 0;
+		if (totalChunks === 0) {
+			return [];
+		}
+
+		const allEntries = [];
+		for (let i = 0; i < totalChunks; i++) {
+			const chunkResult = await client.send(new GetCommand({
+				TableName: tableName,
+				Key: { pk: `mainindex:${version}`, sk: `entries:${i}` }
+			}));
+
+			if (chunkResult.Item && Array.isArray(chunkResult.Item.entries)) {
+				allEntries.push(...chunkResult.Item.entries);
+			}
+		}
+
+		return allEntries;
 	} catch (error) {
 		DebugAndLog.error(`Failed to read main index for version ${version}: ${error.message}`, error.stack);
 		return [];

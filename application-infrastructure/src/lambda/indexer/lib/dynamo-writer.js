@@ -225,20 +225,54 @@ async function writeSearchKeywords(tableName, version, entries) {
  *   lastIndexed: '2025-07-15T06:10:00Z'
  * }]);
  */
+/**
+ * Maximum number of index entries per main index chunk.
+ * Each entry is roughly 300-500 bytes serialized; 500 entries keeps
+ * each DynamoDB item well under the 400KB limit.
+ * @type {number}
+ */
+const MAIN_INDEX_CHUNK_SIZE = 500;
+
+/**
+ * Write the main index to DynamoDB, splitting across multiple items
+ * if the entry count exceeds MAIN_INDEX_CHUNK_SIZE. Each chunk is
+ * stored with sk=`entries:{chunkIndex}` and a manifest item at
+ * sk=`entries` records the total chunk count and entry count.
+ *
+ * @param {string} tableName - DynamoDB table name
+ * @param {string} version - Index version identifier
+ * @param {Array<Object>} indexEntries - Array of index entry objects with hash, path, type, subType, title, repository, owner, keywords
+ * @returns {Promise<void>}
+ * @throws {Error} When a DynamoDB write fails
+ */
 async function writeMainIndex(tableName, version, indexEntries) {
 	const ttl = computeTtl();
 	const client = getDocClient();
+	const chunks = chunk(indexEntries, MAIN_INDEX_CHUNK_SIZE);
 
-	const item = {
+	// Write each chunk
+	for (let i = 0; i < chunks.length; i++) {
+		const chunkItem = {
+			pk: `mainindex:${version}`,
+			sk: `entries:${i}`,
+			version,
+			entries: chunks[i],
+			chunkIndex: i,
+			ttl
+		};
+		await client.send(new PutCommand({ TableName: tableName, Item: chunkItem }));
+	}
+
+	// Write manifest item so readers know how many chunks to fetch
+	const manifest = {
 		pk: `mainindex:${version}`,
 		sk: 'entries',
 		version,
-		entries: indexEntries,
 		entryCount: indexEntries.length,
+		totalChunks: chunks.length,
 		ttl
 	};
-
-	await client.send(new PutCommand({ TableName: tableName, Item: item }));
+	await client.send(new PutCommand({ TableName: tableName, Item: manifest }));
 }
 
 /**
@@ -304,5 +338,6 @@ module.exports = {
 	chunk,
 	deduplicateItems,
 	BATCH_LIMIT,
-	SEVEN_DAYS_SECONDS
+	SEVEN_DAYS_SECONDS,
+	MAIN_INDEX_CHUNK_SIZE
 };
