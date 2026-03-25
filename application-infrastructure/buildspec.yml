@@ -103,6 +103,21 @@ phases:
       # Go back to application-infrastructure directory
       - cd ../../..
 
+      # Build Indexer Lambda function
+      - echo "Building Indexer Lambda function from src/lambda/indexer/"
+      - cd src/lambda/indexer
+
+      # Clean up any existing node_modules and install only production dependencies
+      - rm -rf node_modules
+      - npm install --omit=dev
+
+      # FAIL the build if npm audit has vulnerabilities it can't fix
+      - npm audit fix --force --omit=dev
+      - npm audit --audit-level=high
+
+      # Go back to application-infrastructure directory
+      - cd ../../..
+
       # Generate a random 256 bit key (hexidecimal) in SSM for cache data:
       - python3 ./build-scripts/generate-put-ssm.py ${PARAM_STORE_HIERARCHY}CacheData_SecureDataKey --generate 256
       # Save a spot for GitHub Token
