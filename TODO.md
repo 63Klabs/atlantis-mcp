@@ -1,5 +1,7 @@
 # TODO
 
+- [ ] Elaborate on tool descriptions
+
 - [-] Update validate naming
 - [ ] If no template returned, error occurs because it can't read name
 - [ ] Allow template current version to be long version S3
