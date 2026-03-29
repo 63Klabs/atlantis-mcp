@@ -27,3 +27,5 @@ __pycache__/
 !.nvmrc
 !.kiro
 !.config.kiro
+
+.kiro/settings
