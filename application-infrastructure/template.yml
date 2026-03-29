@@ -664,8 +664,9 @@ Resources:
           CACHE_DATA_S3_BUCKET: !If 
             - HasCacheDataS3BucketName
             - !Ref CacheDataS3BucketName
-            - Fn::ImportValue:
-                'Fn::Sub': '${Prefix}-CacheDataS3Bucket'
+            - 'prod63k-cache-data-us-east-2-458901159113'
+            # - Fn::ImportValue:
+            #     'Fn::Sub': '${Prefix}-CacheDataS3Bucket'
 
           # Rate Limiter Sessions Table
           MCP_DYNAMODB_SESSIONS_TABLE: !Ref DynamoDbSessions
