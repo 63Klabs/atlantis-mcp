@@ -1,6 +1,6 @@
 # TODO
 
-- [ ] Elaborate on tool descriptions
+- [-] Elaborate on tool descriptions
 
 - [-] Update validate naming
 - [ ] If no template returned, error occurs because it can't read name
@@ -8,6 +8,7 @@
 - [ ] Templates too much data
 
 - [ ] Why are there 2 package.json files in src tree
+- [ ] Refactor documentation indexer to use CacheData, and XRay
 
 - [ ] Review openapi spec
 - [ ] Review all documentation
