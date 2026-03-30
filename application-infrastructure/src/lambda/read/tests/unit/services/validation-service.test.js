@@ -426,6 +426,258 @@ describe('Validation Service', () => {
       expect(result.suggestions[0]).toContain('acme-myapp-prod');
     });
 
+    it('should prefer caller-provided prefix over environment config', async () => {
+      // Arrange
+      Config.settings.mockReturnValue({
+        naming: {
+          parameters: {
+            prefix: 'acme',
+            projectId: 'myapp',
+            stageId: 'prod'
+          }
+        }
+      });
+
+      NamingRules.detectResourceType.mockReturnValue('application');
+      NamingRules.validateNaming.mockReturnValue({
+        valid: true,
+        resourceType: 'application',
+        components: {},
+        errors: [],
+        suggestions: []
+      });
+
+      // Act
+      await Validation.validateNaming({
+        resourceName: 'my-org-myapp-prod-GetFunction',
+        prefix: 'my-org'
+      });
+
+      // Assert
+      expect(NamingRules.validateNaming).toHaveBeenCalledWith(
+        'my-org-myapp-prod-GetFunction',
+        expect.objectContaining({
+          config: expect.objectContaining({
+            prefix: 'my-org',
+            projectId: 'myapp',
+            stageId: 'prod'
+          })
+        })
+      );
+    });
+
+    it('should prefer caller-provided projectId over environment config', async () => {
+      // Arrange
+      Config.settings.mockReturnValue({
+        naming: {
+          parameters: {
+            prefix: 'acme',
+            projectId: 'myapp',
+            stageId: 'prod'
+          }
+        }
+      });
+
+      NamingRules.detectResourceType.mockReturnValue('application');
+      NamingRules.validateNaming.mockReturnValue({
+        valid: true,
+        resourceType: 'application',
+        components: {},
+        errors: [],
+        suggestions: []
+      });
+
+      // Act
+      await Validation.validateNaming({
+        resourceName: 'acme-person-api-prod-GetFunction',
+        projectId: 'person-api'
+      });
+
+      // Assert
+      expect(NamingRules.validateNaming).toHaveBeenCalledWith(
+        'acme-person-api-prod-GetFunction',
+        expect.objectContaining({
+          config: expect.objectContaining({
+            prefix: 'acme',
+            projectId: 'person-api',
+            stageId: 'prod'
+          })
+        })
+      );
+    });
+
+    it('should prefer caller-provided stageId over environment config', async () => {
+      // Arrange
+      Config.settings.mockReturnValue({
+        naming: {
+          parameters: {
+            prefix: 'acme',
+            projectId: 'myapp',
+            stageId: 'prod'
+          }
+        }
+      });
+
+      NamingRules.detectResourceType.mockReturnValue('application');
+      NamingRules.validateNaming.mockReturnValue({
+        valid: true,
+        resourceType: 'application',
+        components: {},
+        errors: [],
+        suggestions: []
+      });
+
+      // Act
+      await Validation.validateNaming({
+        resourceName: 'acme-myapp-beta-GetFunction',
+        stageId: 'beta'
+      });
+
+      // Assert
+      expect(NamingRules.validateNaming).toHaveBeenCalledWith(
+        'acme-myapp-beta-GetFunction',
+        expect.objectContaining({
+          config: expect.objectContaining({
+            prefix: 'acme',
+            projectId: 'myapp',
+            stageId: 'beta'
+          })
+        })
+      );
+    });
+
+    it('should pass all disambiguation parameters to naming rules', async () => {
+      // Arrange
+      Config.settings.mockReturnValue({
+        naming: {
+          parameters: {
+            prefix: 'acme',
+            projectId: 'myapp',
+            stageId: 'prod'
+          }
+        }
+      });
+
+      NamingRules.detectResourceType.mockReturnValue('application');
+      NamingRules.validateNaming.mockReturnValue({
+        valid: true,
+        resourceType: 'application',
+        components: {},
+        errors: [],
+        suggestions: []
+      });
+
+      // Act
+      await Validation.validateNaming({
+        resourceName: 'my-org-person-api-test-GetFunction',
+        prefix: 'my-org',
+        projectId: 'person-api',
+        stageId: 'test',
+        orgPrefix: '63k'
+      });
+
+      // Assert
+      expect(NamingRules.validateNaming).toHaveBeenCalledWith(
+        'my-org-person-api-test-GetFunction',
+        expect.objectContaining({
+          config: {
+            prefix: 'my-org',
+            projectId: 'person-api',
+            stageId: 'test',
+            orgPrefix: '63k',
+            isShared: false,
+            hasOrgPrefix: undefined
+          }
+        })
+      );
+    });
+
+    it('should pass orgPrefix to naming rules for S3 validation', async () => {
+      // Arrange
+      Config.settings.mockReturnValue({
+        naming: {
+          parameters: {
+            prefix: 'acme',
+            projectId: 'myapp',
+            stageId: 'prod'
+          }
+        }
+      });
+
+      NamingRules.detectResourceType.mockReturnValue('s3');
+      NamingRules.validateNaming.mockReturnValue({
+        valid: true,
+        resourceType: 's3',
+        components: {},
+        errors: [],
+        suggestions: [],
+        pattern: 'pattern1'
+      });
+
+      // Act
+      await Validation.validateNaming({
+        resourceName: '63k-acme-myapp-prod-123456789012-us-east-1-an',
+        resourceType: 's3',
+        orgPrefix: '63k',
+        hasOrgPrefix: true
+      });
+
+      // Assert
+      expect(NamingRules.validateNaming).toHaveBeenCalledWith(
+        '63k-acme-myapp-prod-123456789012-us-east-1-an',
+        expect.objectContaining({
+          config: expect.objectContaining({
+            prefix: 'acme',
+            projectId: 'myapp',
+            stageId: 'prod',
+            orgPrefix: '63k',
+            hasOrgPrefix: true,
+            region: 'us-east-1'
+          })
+        })
+      );
+    });
+
+    it('should fall back to environment config when caller values not provided', async () => {
+      // Arrange
+      Config.settings.mockReturnValue({
+        naming: {
+          parameters: {
+            prefix: 'acme',
+            projectId: 'myapp',
+            stageId: 'prod'
+          }
+        }
+      });
+
+      NamingRules.detectResourceType.mockReturnValue('application');
+      NamingRules.validateNaming.mockReturnValue({
+        valid: true,
+        resourceType: 'application',
+        components: {},
+        errors: [],
+        suggestions: []
+      });
+
+      // Act
+      await Validation.validateNaming({
+        resourceName: 'acme-myapp-prod-GetFunction'
+      });
+
+      // Assert
+      expect(NamingRules.validateNaming).toHaveBeenCalledWith(
+        'acme-myapp-prod-GetFunction',
+        expect.objectContaining({
+          config: expect.objectContaining({
+            prefix: 'acme',
+            projectId: 'myapp',
+            stageId: 'prod',
+            orgPrefix: undefined
+          })
+        })
+      );
+    });
+
     it('should handle missing configuration gracefully', async () => {
       // Arrange
       Config.settings.mockReturnValue({

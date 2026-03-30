@@ -5,6 +5,9 @@
  * Validates resource names against Atlantis naming conventions and provides
  * specific error messages and suggestions for invalid names.
  *
+ * Supports disambiguation parameters (prefix, projectId, stageId, orgPrefix)
+ * for accurate parsing of resource names with hyphenated components.
+ *
  * @module controllers/validation
  */
 
@@ -17,9 +20,10 @@ const { tools: { DebugAndLog } } = require('@63klabs/cache-data');
  * Validate resource name against Atlantis naming conventions
  *
  * Validates resource names against Atlantis naming conventions:
- * - Application resources: <Prefix>-<ProjectId>-<StageId>-<ResourceName>
- * - S3 buckets: <orgPrefix>-<Prefix>-<ProjectId>-<StageId>-<Region>-<AccountId>
- * - S3 buckets (alt): <orgPrefix>-<Prefix>-<ProjectId>-<Region>
+ * - Application resources: <Prefix>-<ProjectId>-<StageId>-<ResourceSuffix>
+ * - S3 Pattern 1 (Regional): [<OrgPrefix>-]<Prefix>-<ProjectId>[-<StageId>][-<ResourceName>]-<AccountId>-<Region>-an
+ * - S3 Pattern 2 (Global):   [<OrgPrefix>-]<Prefix>-<ProjectId>[-<StageId>][-<ResourceName>]-<AccountId>-<Region>
+ * - S3 Pattern 3 (Simple):   [<OrgPrefix>-]<Prefix>-<ProjectId>[-<StageId>][-<ResourceName>]
  *
  * Returns validation results with specific error messages and suggestions
  * for correcting invalid names.
@@ -29,6 +33,12 @@ const { tools: { DebugAndLog } } = require('@63klabs/cache-data');
  * @param {Object} props.body.input - Tool input parameters
  * @param {string} props.body.input.resourceName - Resource name to validate (required)
  * @param {string} [props.body.input.resourceType] - Resource type (s3, dynamodb, lambda, cloudformation, application)
+ * @param {boolean} [props.body.input.isShared] - When true, validates as a shared resource without StageId
+ * @param {boolean} [props.body.input.hasOrgPrefix] - When true, indicates S3 bucket includes org prefix
+ * @param {string} [props.body.input.prefix] - Known Prefix value for disambiguation of hyphenated components
+ * @param {string} [props.body.input.projectId] - Known ProjectId value for disambiguation of hyphenated components
+ * @param {string} [props.body.input.stageId] - Known StageId value for disambiguation of hyphenated components
+ * @param {string} [props.body.input.orgPrefix] - Known OrgPrefix value for disambiguation of hyphenated S3 components
  * @returns {Promise<Object>} MCP-formatted response with validation results
  *
  * @example
@@ -78,23 +88,31 @@ const validate = async (props) => {
     );
   }
 
-  // Extract parameters
-  const { resourceName, resourceType, isShared, hasOrgPrefix } = input;
+  // Extract parameters including disambiguation values
+  const { resourceName, resourceType, isShared, hasOrgPrefix, prefix, projectId, stageId, orgPrefix } = input;
 
   DebugAndLog.debug('Validation controller: Validating resource name', {
     resourceName,
     resourceType: resourceType || 'auto-detect',
     isShared: isShared || false,
-    hasOrgPrefix: hasOrgPrefix !== undefined ? hasOrgPrefix : 'auto'
+    hasOrgPrefix: hasOrgPrefix !== undefined ? hasOrgPrefix : 'auto',
+    prefix: prefix || '(not provided)',
+    projectId: projectId || '(not provided)',
+    stageId: stageId || '(not provided)',
+    orgPrefix: orgPrefix || '(not provided)'
   });
 
   try {
-    // Call validation service
+    // Call validation service with disambiguation parameters
     const result = await Services.Validation.validateNaming({
       resourceName,
       resourceType,
       isShared,
-      hasOrgPrefix
+      hasOrgPrefix,
+      prefix,
+      projectId,
+      stageId,
+      orgPrefix
     });
 
     DebugAndLog.info('Validation controller: Validation completed', {

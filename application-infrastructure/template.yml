@@ -436,29 +436,6 @@ Mappings:
     us-west-2:
       ExtArn: "arn:aws:lambda:us-west-2:580247275435:layer:LambdaInsightsExtension-Arm64:31"
 
-  # Add/Change to your regions as needed
-  # These accounts and layers are AWS Managed so you can trust them - They are not some random accounts
-  # https://docs.aws.amazon.com/systems-manager/latest/userguide/ps-integration-lambda-extensions.html#ps-integration-lambda-extensions-add
-  LambdaParamSecretsX86:
-    us-east-1:
-      ExtArn: "arn:aws:lambda:us-east-1:177933569100:layer:AWS-Parameters-and-Secrets-Lambda-Extension:61"
-    us-east-2:
-      ExtArn: "arn:aws:lambda:us-east-2:590474943231:layer:AWS-Parameters-and-Secrets-Lambda-Extension:67"
-    us-west-1:
-      ExtArn: "arn:aws:lambda:us-west-1:997803712105:layer:AWS-Parameters-and-Secrets-Lambda-Extension:59"
-    us-west-2:
-      ExtArn: "arn:aws:lambda:us-west-2:345057560386:layer:AWS-Parameters-and-Secrets-Lambda-Extension:61"
-
-  LambdaParamSecretsArm:
-    us-east-1:
-      ExtArn: "arn:aws:lambda:us-east-1:177933569100:layer:AWS-Parameters-and-Secrets-Lambda-Extension-Arm64:61"
-    us-east-2:
-      ExtArn: "arn:aws:lambda:us-east-2:590474943231:layer:AWS-Parameters-and-Secrets-Lambda-Extension-Arm64:67"
-    us-west-1:
-      ExtArn: "arn:aws:lambda:us-west-1:997803712105:layer:AWS-Parameters-and-Secrets-Lambda-Extension-Arm64:56"
-    us-west-2:
-      ExtArn: "arn:aws:lambda:us-west-2:345057560386:layer:AWS-Parameters-and-Secrets-Lambda-Extension-Arm64:61"
-
 # =============================================================================
 # CONDITIONS
 # -----------------------------------------------------------------------------
@@ -613,14 +590,15 @@ Resources:
       Role: !GetAtt ReadLambdaExecutionRole.Arn
 
       Layers:
+
+        # Lambda Insights Layer - ARN is Mapped in as they vary by region and architecture - Update regions and versions in Mapping section
         - !If
           - IsArmArch
           - !FindInMap [LambdaInsightsArm, !Ref 'AWS::Region', ExtArn]
           - !FindInMap [LambdaInsightsX86, !Ref 'AWS::Region', ExtArn]
-        - !If
-          - IsArmArch
-          - !FindInMap [LambdaParamSecretsArm, !Ref 'AWS::Region', ExtArn]
-          - !FindInMap [LambdaParamSecretsX86, !Ref 'AWS::Region', ExtArn]
+        
+        # Lambda SSM Parameters and Secrets Extension Layer - Using Public SSM Parameter from AWS - Use mapping if not available in your region
+        - '{{resolve:ssm:/aws/service/aws-parameters-and-secrets-lambda-extension/arm64/latest}}' #arm64 - There is also an x86 version available too
 
       Environment:
         Variables:

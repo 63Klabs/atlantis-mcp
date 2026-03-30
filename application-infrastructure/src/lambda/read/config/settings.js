@@ -258,7 +258,7 @@ const settings = {
       },
       {
         name: 'validate_naming',
-        description: 'Validate resource names against Atlantis naming conventions. Supports shared resources (no StageId) via isShared and S3 OrgPrefix disambiguation via hasOrgPrefix. Returns validation result with specific error messages, suggestions, and parsed components.',
+        description: 'Validate resource names against Atlantis naming conventions. Supports S3 regional buckets (Pattern 1: AccountId-Region with -an suffix), global buckets (Pattern 2: AccountId-Region, Pattern 3: simple), and application resources. Provide known component values (prefix, projectId) for accurate parsing of hyphenated components.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -278,6 +278,22 @@ const settings = {
             hasOrgPrefix: {
               type: 'boolean',
               description: 'When true, indicates the S3 bucket name includes an organization prefix segment for disambiguation'
+            },
+            prefix: {
+              type: 'string',
+              description: 'Known Prefix value for disambiguation of hyphenated components'
+            },
+            projectId: {
+              type: 'string',
+              description: 'Known ProjectId value for disambiguation of hyphenated components'
+            },
+            stageId: {
+              type: 'string',
+              description: 'Known StageId value for disambiguation of hyphenated components'
+            },
+            orgPrefix: {
+              type: 'string',
+              description: 'Known OrgPrefix value for disambiguation of hyphenated components'
             }
           },
           required: ['resourceName']
@@ -484,16 +500,18 @@ const settings = {
     applicationResourcePattern: '<Prefix>-<ProjectId>-<StageId>-<ResourceName>',
 
     /**
-     * S3 bucket naming pattern (primary)
-     * @type {string}
+     * S3 bucket naming patterns.
+     * Pattern 1 (Regional): includes AccountId-Region with `-an` suffix.
+     * Pattern 2 (Global with AccountId): includes AccountId-Region, no `-an` suffix.
+     * Pattern 3 (Global simple): no AccountId or Region.
+     * Optional segments shown in brackets.
+     * @type {{pattern1: string, pattern2: string, pattern3: string}}
      */
-    s3BucketPattern: '<orgPrefix>-<Prefix>-<ProjectId>-<StageId>-<Region>-<AccountId>',
-
-    /**
-     * S3 bucket naming pattern (alternative)
-     * @type {string}
-     */
-    s3BucketPatternAlt: '<orgPrefix>-<Prefix>-<ProjectId>-<Region>',
+    s3BucketPatterns: {
+      pattern1: '[<orgPrefix>-]<Prefix>-<ProjectId>[-<StageId>][-<ResourceName>]-<AccountId>-<Region>-an',
+      pattern2: '[<orgPrefix>-]<Prefix>-<ProjectId>[-<StageId>][-<ResourceName>]-<AccountId>-<Region>',
+      pattern3: '[<orgPrefix>-]<Prefix>-<ProjectId>[-<StageId>][-<ResourceName>]'
+    },
 
     /**
      * CloudFormation parameters

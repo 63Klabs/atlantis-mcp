@@ -494,6 +494,139 @@ describe('Validation Controller', () => {
       );
     });
 
+    test('should pass disambiguation parameters to service', async () => {
+      // Arrange
+      const props = {
+        bodyParameters: {
+          input: {
+            resourceName: 'my-org-person-api-prod-GetPersonFunction',
+            prefix: 'my-org',
+            projectId: 'person-api',
+            stageId: 'prod',
+            orgPrefix: '63k'
+          }
+        }
+      };
+
+      SchemaValidator.validate.mockReturnValue({ valid: true });
+
+      Services.Validation.validateNaming.mockResolvedValue({
+        valid: true,
+        resourceType: 'application',
+        components: {
+          prefix: 'my-org',
+          projectId: 'person-api',
+          stageId: 'prod',
+          resourceSuffix: 'GetPersonFunction'
+        },
+        errors: [],
+        suggestions: []
+      });
+
+      // Act
+      await ValidationController.validate(props);
+
+      // Assert
+      expect(Services.Validation.validateNaming).toHaveBeenCalledWith({
+        resourceName: 'my-org-person-api-prod-GetPersonFunction',
+        resourceType: undefined,
+        isShared: undefined,
+        hasOrgPrefix: undefined,
+        prefix: 'my-org',
+        projectId: 'person-api',
+        stageId: 'prod',
+        orgPrefix: '63k'
+      });
+    });
+
+    test('should pass only provided disambiguation parameters (partial set)', async () => {
+      // Arrange
+      const props = {
+        bodyParameters: {
+          input: {
+            resourceName: 'my-org-myapp-prod-GetFunction',
+            prefix: 'my-org'
+          }
+        }
+      };
+
+      SchemaValidator.validate.mockReturnValue({ valid: true });
+
+      Services.Validation.validateNaming.mockResolvedValue({
+        valid: true,
+        resourceType: 'application',
+        components: {},
+        errors: [],
+        suggestions: []
+      });
+
+      // Act
+      await ValidationController.validate(props);
+
+      // Assert
+      expect(Services.Validation.validateNaming).toHaveBeenCalledWith({
+        resourceName: 'my-org-myapp-prod-GetFunction',
+        resourceType: undefined,
+        isShared: undefined,
+        hasOrgPrefix: undefined,
+        prefix: 'my-org',
+        projectId: undefined,
+        stageId: undefined,
+        orgPrefix: undefined
+      });
+    });
+
+    test('should pass disambiguation parameters with S3 resource type', async () => {
+      // Arrange
+      const props = {
+        bodyParameters: {
+          input: {
+            resourceName: '63k-my-org-person-api-prod-123456789012-us-east-1-an',
+            resourceType: 's3',
+            hasOrgPrefix: true,
+            orgPrefix: '63k',
+            prefix: 'my-org',
+            projectId: 'person-api'
+          }
+        }
+      };
+
+      SchemaValidator.validate.mockReturnValue({ valid: true });
+
+      Services.Validation.validateNaming.mockResolvedValue({
+        valid: true,
+        resourceType: 's3',
+        components: {
+          orgPrefix: '63k',
+          prefix: 'my-org',
+          projectId: 'person-api',
+          stageId: 'prod',
+          accountId: '123456789012',
+          region: 'us-east-1'
+        },
+        errors: [],
+        suggestions: [],
+        pattern: 'pattern1'
+      });
+
+      // Act
+      const result = await ValidationController.validate(props);
+
+      // Assert
+      expect(Services.Validation.validateNaming).toHaveBeenCalledWith({
+        resourceName: '63k-my-org-person-api-prod-123456789012-us-east-1-an',
+        resourceType: 's3',
+        isShared: undefined,
+        hasOrgPrefix: true,
+        prefix: 'my-org',
+        projectId: 'person-api',
+        stageId: undefined,
+        orgPrefix: '63k'
+      });
+      expect(result.success).toBe(true);
+      expect(result.data.pattern).toBe('pattern1');
+    });
+
     test('should handle partial name validation', async () => {
       // Arrange
       const props = {

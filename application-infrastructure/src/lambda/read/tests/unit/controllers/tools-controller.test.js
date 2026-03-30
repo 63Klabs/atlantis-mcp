@@ -3,12 +3,15 @@
  *
  * Tests the list_tools controller endpoint and router 404 handler:
  * - Successful MCP response with all tool definitions
+ * - Extended descriptions merged for matched tools (Req 3.1, 3.2)
+ * - Fallback to short description for unmatched tools (Req 3.3)
+ * - name and inputSchema unchanged in response (Req 3.4)
+ * - Original availableToolsList not mutated (Req 3.5, 4.1, 4.2)
  * - INTERNAL_ERROR on unexpected exception
  * - Missing/empty body handling
  * - Invalid input rejection
- * - Router 404 includes centralized tool names
  *
- * Requirements: 3.2, 3.3, 3.4, 4.1, 4.2, 6.1, 6.2, 6.5
+ * Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 4.1, 4.2
  */
 
 // Set required env var before loading settings
@@ -57,9 +60,18 @@ jest.mock('../../../utils/error-handler', () => ({
   }
 }));
 
+// Mock tool-descriptions with extended descriptions for only SOME tools
+jest.mock('../../../config/tool-descriptions', () => ({
+  extendedDescriptions: {
+    list_tools: 'Extended description for list_tools test',
+    list_templates: 'Extended description for list_templates test'
+  }
+}));
+
 const ToolsController = require('../../../controllers/tools');
 const SchemaValidator = require('../../../utils/schema-validator');
 const settings = require('../../../config/settings');
+const { extendedDescriptions } = require('../../../config/tool-descriptions');
 const { tools: { DebugAndLog } } = require('@63klabs/cache-data');
 
 describe('Tools Controller', () => {
@@ -78,7 +90,7 @@ describe('Tools Controller', () => {
       expect(result.protocol).toBe('mcp');
       expect(result.tool).toBe('list_tools');
       expect(result.data).toBeDefined();
-      expect(result.data.tools).toEqual(settings.tools.availableToolsList);
+      expect(result.data.tools.length).toBe(settings.tools.availableToolsList.length);
       expect(result.data.tools.length).toBeGreaterThan(0);
 
       // Verify each tool has required properties
@@ -89,6 +101,60 @@ describe('Tools Controller', () => {
         expect(typeof tool.name).toBe('string');
         expect(typeof tool.description).toBe('string');
         expect(typeof tool.inputSchema).toBe('object');
+      }
+    });
+
+    test('should return extended descriptions for matched tools (Req 3.1, 3.2)', async () => {
+      const props = { bodyParameters: { input: {} } };
+
+      const result = await ToolsController.list(props);
+
+      const listToolsResult = result.data.tools.find(t => t.name === 'list_tools');
+      const listTemplatesResult = result.data.tools.find(t => t.name === 'list_templates');
+
+      expect(listToolsResult.description).toBe('Extended description for list_tools test');
+      expect(listTemplatesResult.description).toBe('Extended description for list_templates test');
+    });
+
+    test('should fall back to short description when no extended description exists (Req 3.3)', async () => {
+      const props = { bodyParameters: { input: {} } };
+
+      const result = await ToolsController.list(props);
+
+      // Pick a tool that is NOT in the mock extendedDescriptions
+      const originalTool = settings.tools.availableToolsList.find(t => t.name === 'get_template');
+      const responseTool = result.data.tools.find(t => t.name === 'get_template');
+
+      expect(responseTool.description).toBe(originalTool.description);
+    });
+
+    test('should preserve name and inputSchema unchanged for all tools (Req 3.4)', async () => {
+      const props = { bodyParameters: { input: {} } };
+
+      const result = await ToolsController.list(props);
+
+      for (const originalTool of settings.tools.availableToolsList) {
+        const responseTool = result.data.tools.find(t => t.name === originalTool.name);
+        expect(responseTool).toBeDefined();
+        expect(responseTool.name).toBe(originalTool.name);
+        expect(responseTool.inputSchema).toEqual(originalTool.inputSchema);
+      }
+    });
+
+    test('should not mutate settings.tools.availableToolsList (Req 3.5, 4.1, 4.2)', async () => {
+      // Snapshot original descriptions before calling list()
+      const originalDescriptions = settings.tools.availableToolsList.map(t => ({
+        name: t.name,
+        description: t.description
+      }));
+
+      const props = { bodyParameters: { input: {} } };
+      await ToolsController.list(props);
+
+      // Verify the original array is unchanged
+      for (const original of originalDescriptions) {
+        const current = settings.tools.availableToolsList.find(t => t.name === original.name);
+        expect(current.description).toBe(original.description);
       }
     });
 
@@ -131,7 +197,7 @@ describe('Tools Controller', () => {
       expect(result).toBeDefined();
       expect(result.success).toBe(true);
       expect(result.tool).toBe('list_tools');
-      expect(result.data.tools).toEqual(settings.tools.availableToolsList);
+      expect(result.data.tools.length).toBe(settings.tools.availableToolsList.length);
     });
 
     test('should handle empty bodyParameters gracefully', async () => {
@@ -143,7 +209,7 @@ describe('Tools Controller', () => {
       expect(result).toBeDefined();
       expect(result.success).toBe(true);
       expect(result.tool).toBe('list_tools');
-      expect(result.data.tools).toEqual(settings.tools.availableToolsList);
+      expect(result.data.tools.length).toBe(settings.tools.availableToolsList.length);
     });
 
     test('should reject invalid input with unexpected properties', async () => {
@@ -170,4 +236,3 @@ describe('Tools Controller', () => {
     });
   });
 });
-

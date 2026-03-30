@@ -80,43 +80,60 @@ All resource names must follow:
 Prefix-ProjectId-StageId-Resource
 ```
 
-S3 buckets have alternatives:
+S3 buckets follow three patterns with AccountId-Region order:
+
+**Pattern 1 (Regional)** — includes AccountId, Region, and `-an` suffix:
 
 ```
-Prefix-ProjectId-StageId-Region-AccountId (specific deployment instance, no Resource identifier)
-Prefix-ProjectId-Region-AccountId (shared instance, no Resource identifier)
-Prefix-ProjectId-StageId-Resource (not preferred)
+Prefix-ProjectId-StageId-AccountId-Region-an
+Prefix-ProjectId-StageId-ResourceName-AccountId-Region-an
+S3OrgPrefix-Prefix-ProjectId-StageId-AccountId-Region-an
 ```
 
-Or, if the organization requires an additional `S3OrgPrefix` identifier:
+**Pattern 2 (Global with AccountId)** — includes AccountId and Region, no `-an` suffix:
 
 ```
-S3BucketNameOrgPrefix-Prefix-ProjectId-StageId-Region-AccountId (specific deployment instance, no Resource identifier)
-S3BucketNameOrgPrefix-Prefix-ProjectId-Region-AccountId (shared instance, no Resource identifier)
-S3BucketNameOrgPrefix-Prefix-ProjectId-StageId-Resource (not preferred)
+Prefix-ProjectId-StageId-AccountId-Region
+Prefix-ProjectId-StageId-ResourceName-AccountId-Region
+S3OrgPrefix-Prefix-ProjectId-StageId-AccountId-Region
 ```
+
+**Pattern 3 (Global simple)** — no AccountId or Region:
+
+```
+Prefix-ProjectId-StageId-ResourceName
+S3OrgPrefix-Prefix-ProjectId-StageId-ResourceName
+```
+
+StageId, ResourceName, and S3OrgPrefix are optional in all patterns.
 
 Where:
 
-* **S3BucketNameOrgPrefix** = organization prefix for all S3 buckets (lowercase)
-* **Prefix** = team or org identifier (lowercase)
-* **ProjectId** = short identifier for the application (lowercase)
-* **StageId** = test, beta/stage, prod (lowercase)
+* **S3OrgPrefix** = organization prefix for all S3 buckets (lowercase, may contain hyphens)
+* **Prefix** = team or org identifier (lowercase, may contain hyphens)
+* **ProjectId** = short identifier for the application (lowercase, may contain hyphens)
+* **StageId** = test, beta/stage, prod (lowercase, starts with t, b, s, or p)
+* **ResourceName** = optional purpose identifier within S3 bucket names (lowercase, may contain hyphens)
 * **Resource** = Purpose of resource: Users, Sessions, Queue, Orders, etc. (Pascal Case, Only first letter of Acronyms are capital)
+* **AccountId** = 12-digit AWS account identifier
+* **Region** = AWS region string (e.g., us-east-1)
 
 **AI must respect these naming conventions in all generated example code, IAM roles, and infrastructure.**
 
-These names will be provided to the CloudFormation template as parameters (Prefix, ProjectId, and StageId, S3BucketNameOrgPrefix).
+These names will be provided to the CloudFormation template as parameters (Prefix, ProjectId, and StageId, S3OrgPrefix).
 
-Correct example:
+Correct examples:
 
 ```
 acme-person-api-test-GetPersonFunction
 acme-schedules-prod-RefreshStepFunction
 acme-schedules-prod-Sessions
 acme-schedules-test-ApiResponseCount
-acorp-acme-orders-test-123456789012-xy-east
-acorp-acme-orders-123456789012-xy-east
+acme-myapp-prod-123456789012-us-east-1-an
+acme-myapp-prod-assets-123456789012-us-east-1-an
+63k-acme-myapp-prod-123456789012-us-east-1-an
+acme-myapp-prod-123456789012-us-east-1
+acme-myapp-prod-assets
 ```
 
 ### 3.3 IAM Policies – Principle of Least Privilege

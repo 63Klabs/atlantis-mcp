@@ -5,6 +5,7 @@
 - [-] Update validate naming
 - [ ] If no template returned, error occurs because it can't read name
 - [ ] Allow template current version to be long version S3
+- [ ] Templates too much data
 
 - [ ] Why are there 2 package.json files in src tree
 

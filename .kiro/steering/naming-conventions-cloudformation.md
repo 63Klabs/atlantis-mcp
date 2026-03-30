@@ -72,11 +72,17 @@ Parameters:
   StageId:
     Type: String
     Description: Deployment stage
-    AllowedValues:
-      - test
-      - beta
-      - stage
-      - prod
+    ConstraintDescription: Must start with any of t, b, s, p
+
+  S3BucketNameOrgPrefix:
+    Type: String
+    Description: "Can be used to pre-pend an organization identifier to a bucket name."
+```
+
+In the following examples, assume `${ApplicationName} is using the following Atlantis naming convention:
+
+```
+${Prefix}-${ProjectId}-${StageId}
 ```
 
 ---
@@ -90,32 +96,27 @@ Resources:
   UserTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub ${EnvironmentName}-users
-  
-  CacheBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: !Sub ${EnvironmentName}-cache-bucket
-  
+      TableName: !Sub ${ApplicationName}-Users
+    
   APIGatewayRestAPI:
     Type: AWS::ApiGateway::RestApi
     Properties:
-      Name: !Sub ${EnvironmentName}-api
+      Name: !Sub ${ApplicationName}-ReadApi
   
   LambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub ${EnvironmentName}-lambda-execution-role
+      RoleName: !Sub ${ApplicationName}-LambdaExecutionRole
   
   ApplicationLoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
-      Name: !Sub ${EnvironmentName}-alb
+      Name: !Sub ${ApplicationName}-Alb
   
   GetUserFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub ${Prefix}-${ProjectId}-${StageId}-GetUser
+      FunctionName: !Sub ${ApplicationName}-GetUser
 ```
 
 ---
@@ -130,19 +131,26 @@ Resources:
     Type: AWS::DynamoDB::Table
     Properties:
       # Actual resource name: kebab-case with environment prefix
-      TableName: !Sub ${EnvironmentName}-users-table
+      TableName: !Sub ${ApplicationName}-Users
   
   CacheBucket:
     Type: AWS::S3::Bucket
     Properties:
       # Actual bucket name: kebab-case with environment prefix
-      BucketName: !Sub ${EnvironmentName}-cache-bucket
+      BucketName: !Sub ${S3BucketNameOrgPrefix}-${ApplicationName}-cache-${AccountId}-${Region}-an
+      BucketNamespace: "account-regional"
+
+  GlobalBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      # Actual bucket name: kebab-case with environment prefix
+      BucketName: !Sub ${S3BucketNameOrgPrefix}-${ApplicationName}-store-${AccountId}-${Region}
   
   ProcessingFunction:
     Type: AWS::Lambda::Function
     Properties:
       # Actual function name: kebab-case with environment prefix
-      FunctionName: !Sub ${EnvironmentName}-data-processor
+      FunctionName: !Sub ${ApplicationName}-DataProcessor
 ```
 
 ### Atlantis Platform Resource Naming
@@ -336,7 +344,7 @@ Resources:
               - s3:GetObject
               - s3:PutObject
             Resource:
-              - !Sub arn:aws:s3:::${Prefix}-${ProjectId}-${StageId}-data/*
+              - !Sub arn:aws:s3:::${Prefix}-${ProjectId}-${StageId}-data*/*
 ```
 
 ---
@@ -404,148 +412,6 @@ Tags:
   
   - Key: database:EnableEncryption
     Value: true
-```
-
----
-
-## Complete Template Example
-
-```yaml
-AWSTemplateFormatVersion: '2010-09-09'
-Transform: AWS::Serverless-2016-10-31
-Description: Person API - Serverless application for managing person data
-
-Parameters:
-  Prefix:
-    Type: String
-    Description: Team or organization identifier
-    Default: acme
-  
-  ProjectId:
-    Type: String
-    Description: Short identifier for the application
-    Default: person-api
-  
-  StageId:
-    Type: String
-    Description: Deployment stage
-    AllowedValues:
-      - test
-      - beta
-      - stage
-      - prod
-  
-  LogRetentionDays:
-    Type: Number
-    Description: CloudWatch Logs retention in days
-    Default: 7
-
-Conditions:
-  IsProduction: !Equals [!Ref StageId, prod]
-  IsTestEnvironment: !Equals [!Ref StageId, test]
-
-Mappings:
-  StageConfig:
-    test:
-      MemorySize: 512
-      Timeout: 30
-    prod:
-      MemorySize: 1024
-      Timeout: 60
-
-Resources:
-  # DynamoDB Table
-  PersonTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: !Sub ${Prefix}-${ProjectId}-${StageId}-Person
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: id
-          AttributeType: S
-      KeySchema:
-        - AttributeName: id
-          KeyType: HASH
-      Tags:
-        - Key: Environment
-          Value: !Ref StageId
-        - Key: Project
-          Value: !Ref ProjectId
-        - Key: ManagedBy
-          Value: CloudFormation
-  
-  # Lambda Execution Role
-  LambdaExecutionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: !Sub ${Prefix}-${ProjectId}-${StageId}-LambdaExecution
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: lambda.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-      Policies:
-        - PolicyName: DynamoDBAccess
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - dynamodb:GetItem
-                  - dynamodb:PutItem
-                  - dynamodb:UpdateItem
-                  - dynamodb:DeleteItem
-                  - dynamodb:Query
-                  - dynamodb:Scan
-                Resource:
-                  - !GetAtt PersonTable.Arn
-  
-  # Lambda Function
-  GetPersonFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: !Sub ${Prefix}-${ProjectId}-${StageId}-GetPerson
-      Handler: index.handler
-      Runtime: nodejs20.x
-      MemorySize: !FindInMap [StageConfig, !Ref StageId, MemorySize]
-      Timeout: !FindInMap [StageConfig, !Ref StageId, Timeout]
-      Role: !GetAtt LambdaExecutionRole.Arn
-      Environment:
-        Variables:
-          TABLE_NAME: !Ref PersonTable
-          STAGE_ID: !Ref StageId
-          LOG_LEVEL: !If [IsTestEnvironment, debug, info]
-      Tags:
-        Environment: !Ref StageId
-        Project: !Ref ProjectId
-  
-  # CloudWatch Log Group
-  GetPersonFunctionLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub /aws/lambda/${GetPersonFunction}
-      RetentionInDays: !Ref LogRetentionDays
-
-Outputs:
-  PersonTableName:
-    Description: DynamoDB table name for persons
-    Value: !Ref PersonTable
-    Export:
-      Name: !Sub ${AWS::StackName}-PersonTableName
-  
-  GetPersonFunctionArn:
-    Description: ARN of GetPerson Lambda function
-    Value: !GetAtt GetPersonFunction.Arn
-    Export:
-      Name: !Sub ${AWS::StackName}-GetPersonFunctionArn
-  
-  LambdaExecutionRoleArn:
-    Description: ARN of Lambda execution role
-    Value: !GetAtt LambdaExecutionRole.Arn
 ```
 
 ---

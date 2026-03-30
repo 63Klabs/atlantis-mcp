@@ -5,9 +5,13 @@
  * Validates resource names against Atlantis naming conventions:
  * - Application resources: <Prefix>-<ProjectId>-<StageId>-<ResourceSuffix>
  * - Shared application resources: <Prefix>-<ProjectId>-<ResourceSuffix>
- * - S3 buckets: <OrgPrefix>-<Prefix>-<ProjectId>-<StageId>-<Region>-<AccountId>
- * - S3 buckets (shared): <OrgPrefix>-<Prefix>-<ProjectId>-<Region>-<AccountId>
- * - S3 buckets (pattern3): <Prefix>-<ProjectId>-<StageId>-<ResourceSuffix>
+ * - S3 buckets (Pattern 1 Regional): [<OrgPrefix>-]<Prefix>-<ProjectId>[-<StageId>][-<ResourceName>]-<AccountId>-<Region>-an
+ * - S3 buckets (Pattern 2 Global):   [<OrgPrefix>-]<Prefix>-<ProjectId>[-<StageId>][-<ResourceName>]-<AccountId>-<Region>
+ * - S3 buckets (Pattern 3 Simple):   [<OrgPrefix>-]<Prefix>-<ProjectId>[-<StageId>][-<ResourceName>]
+ *
+ * Supports disambiguation parameters (prefix, projectId, stageId, orgPrefix)
+ * for accurate parsing of resource names with hyphenated components.
+ * Caller-provided values take precedence over environment config defaults.
  *
  * This service does NOT use caching as it performs pure validation logic
  * without external data access.
@@ -31,6 +35,10 @@ const { tools: { DebugAndLog, AWS } } = require('@63klabs/cache-data');
  * @param {string} [options.resourceType] - Resource type (s3, dynamodb, lambda, cloudformation, application) - auto-detected if not provided
  * @param {boolean} [options.isShared=false] - When true, validates as a shared resource without a StageId component
  * @param {boolean} [options.hasOrgPrefix] - When true, indicates the S3 bucket name includes an organization prefix for disambiguation
+ * @param {string} [options.prefix] - Known Prefix value for disambiguation of hyphenated components (overrides environment config)
+ * @param {string} [options.projectId] - Known ProjectId value for disambiguation of hyphenated components (overrides environment config)
+ * @param {string} [options.stageId] - Known StageId value for disambiguation of hyphenated components (overrides environment config)
+ * @param {string} [options.orgPrefix] - Known OrgPrefix value for disambiguation of hyphenated S3 bucket components
  * @param {boolean} [options.partial=false] - Allow partial name validation (e.g., just Prefix-ProjectId)
  * @returns {Promise<Object>} Validation result with errors, suggestions, and parsed components
  *
@@ -49,7 +57,7 @@ const { tools: { DebugAndLog, AWS } } = require('@63klabs/cache-data');
  *   },
  *   errors: Array<string>,
  *   suggestions: Array<string>,
- *   pattern?: string  // For S3 buckets: 'pattern1' or 'pattern2'
+ *   pattern?: string  // For S3 buckets: 'pattern1', 'pattern2', or 'pattern3'
  * }
  *
  * @example
@@ -60,10 +68,18 @@ const { tools: { DebugAndLog, AWS } } = require('@63klabs/cache-data');
  * // Returns: { valid: true, resourceType: 'application', components: {...}, errors: [], suggestions: [] }
  *
  * @example
- * // Validate S3 bucket name
+ * // Validate S3 bucket name (Pattern 1 regional with -an suffix)
  * const result = await Validation.validateNaming({
- *   resourceName: '63k-acme-myapp-prod-us-east-1-123456789012',
+ *   resourceName: 'acme-myapp-prod-123456789012-us-east-1-an',
  *   resourceType: 's3'
+ * });
+ *
+ * @example
+ * // Validate with disambiguation for hyphenated components
+ * const result = await Validation.validateNaming({
+ *   resourceName: 'my-org-person-api-prod-GetPersonFunction',
+ *   prefix: 'my-org',
+ *   projectId: 'person-api'
  * });
  *
  * @example
@@ -74,7 +90,17 @@ const { tools: { DebugAndLog, AWS } } = require('@63klabs/cache-data');
  * });
  */
 async function validateNaming(options = {}) {
-  const { resourceName, resourceType, isShared = false, hasOrgPrefix, partial = false } = options;
+  const {
+    resourceName,
+    resourceType,
+    isShared = false,
+    hasOrgPrefix,
+    prefix,
+    projectId,
+    stageId,
+    orgPrefix,
+    partial = false
+  } = options;
 
   // Validate input
   if (!resourceName || typeof resourceName !== 'string') {
@@ -92,6 +118,10 @@ async function validateNaming(options = {}) {
     resourceType,
     isShared,
     hasOrgPrefix,
+    prefix: prefix || '(not provided)',
+    projectId: projectId || '(not provided)',
+    stageId: stageId || '(not provided)',
+    orgPrefix: orgPrefix || '(not provided)',
     partial
   });
 
@@ -115,11 +145,13 @@ async function validateNaming(options = {}) {
   }
 
   // Get configuration values from settings
+  // Caller-provided values take precedence over environment config defaults
   const settings = Config.settings();
   const config = {
-    prefix: settings.naming.parameters.prefix,
-    projectId: settings.naming.parameters.projectId,
-    stageId: settings.naming.parameters.stageId,
+    prefix: prefix || settings.naming.parameters.prefix,
+    projectId: projectId || settings.naming.parameters.projectId,
+    stageId: stageId || settings.naming.parameters.stageId,
+    orgPrefix,
     isShared,
     hasOrgPrefix
   };
@@ -134,6 +166,7 @@ async function validateNaming(options = {}) {
     prefix: config.prefix || '(not set)',
     projectId: config.projectId || '(not set)',
     stageId: config.stageId || '(not set)',
+    orgPrefix: config.orgPrefix || '(not set)',
     isShared: config.isShared,
     hasOrgPrefix: config.hasOrgPrefix !== undefined ? config.hasOrgPrefix : '(auto)'
   });
