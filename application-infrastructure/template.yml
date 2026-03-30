@@ -752,10 +752,15 @@ Resources:
       Role: !GetAtt DocIndexerExecutionRole.Arn
 
       Layers:
+      
+        # Lambda Insights Layer - ARN is Mapped in as they vary by region and architecture - Update regions and versions in Mapping section
         - !If
           - IsArmArch
-          - !FindInMap [LambdaParamSecretsArm, !Ref 'AWS::Region', ExtArn]
-          - !FindInMap [LambdaParamSecretsX86, !Ref 'AWS::Region', ExtArn]
+          - !FindInMap [LambdaInsightsArm, !Ref 'AWS::Region', ExtArn]
+          - !FindInMap [LambdaInsightsX86, !Ref 'AWS::Region', ExtArn]
+        
+        # Lambda SSM Parameters and Secrets Extension Layer - Using Public SSM Parameter from AWS - Use mapping if not available in your region
+        - '{{resolve:ssm:/aws/service/aws-parameters-and-secrets-lambda-extension/arm64/latest}}' #arm64 - There is also an x86 version available too
 
       Environment:
         Variables:
