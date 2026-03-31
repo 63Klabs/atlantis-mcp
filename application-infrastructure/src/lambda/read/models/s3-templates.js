@@ -181,6 +181,26 @@ function filterByCategory(template, category) {
 }
 
 /**
+ * Check if a template version matches a user-provided version filter.
+ * Supports both exact match (vX.Y.Z/YYYY-MM-DD) and semver-only match (vX.Y.Z).
+ * When the user provides a semver-only version, it matches any template whose
+ * semver portion is identical regardless of the date suffix.
+ *
+ * @param {string} templateVersion - Full version from template (e.g., v0.0.14/2025-08-08)
+ * @param {string} filterVersion - User-provided version filter (e.g., v0.0.14 or v0.0.14/2025-08-08)
+ * @returns {boolean} True if versions match
+ */
+function versionsMatch(templateVersion, filterVersion) {
+  if (templateVersion === filterVersion) {
+    return true;
+  }
+  // >! Allow semver-only filter to match full Human_Readable_Version
+  const filterSemver = filterVersion.split('/')[0];
+  const templateSemver = templateVersion ? templateVersion.split('/')[0] : null;
+  return filterSemver === templateSemver;
+}
+
+/**
  * Filter template by Human_Readable_Version
  *
  * @param {Object} template - Template metadata
@@ -191,7 +211,7 @@ function filterByVersion(template, version) {
   if (!version) {
     return true;
   }
-  return template.version === version;
+  return versionsMatch(template.version, version);
 }
 
 /**
@@ -467,7 +487,7 @@ async function get(connection, options = {}) {
                     const parsed = parseCloudFormationTemplate(templateContent);
 
                     // Check if this version matches EITHER criterion (OR condition)
-                    const versionMatches = parsed.version === version;
+                    const versionMatches = versionsMatch(parsed.version, version);
                     const versionIdMatches = v.VersionId === versionId;
 
                     if (versionMatches || versionIdMatches) {
@@ -518,7 +538,7 @@ async function get(connection, options = {}) {
             const parsed = parseCloudFormationTemplate(templateContent);
 
             // >! If only version specified, check if it matches
-            if (version && !versionId && parsed.version !== version) {
+            if (version && !versionId && !versionsMatch(parsed.version, version)) {
               continue; // Try next namespace/bucket
             }
 
@@ -701,6 +721,7 @@ module.exports = {
   filterByCategory,
   filterByVersion,
   filterByVersionId,
+  versionsMatch,
   deduplicateTemplates,
   parseTemplateMetadata
 };
