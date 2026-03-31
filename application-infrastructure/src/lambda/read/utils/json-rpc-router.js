@@ -15,6 +15,7 @@
 
 const MCPProtocol = require('./mcp-protocol');
 const Controllers = require('../controllers');
+const { extendedDescriptions } = require('../config/tool-descriptions');
 
 /**
  * Standard CORS and MCP headers included on every response.
@@ -160,8 +161,14 @@ async function handleJsonRpc(event, context) {
       case 'initialize':
         return buildResponse(200, MCPProtocol.initializeResponse(id));
 
-      case 'tools/list':
-        return buildResponse(200, MCPProtocol.toolsListResponse(id, MCPProtocol.MCP_TOOLS));
+      case 'tools/list': {
+        // Merge extended descriptions at response time
+        const mergedTools = MCPProtocol.MCP_TOOLS.map(tool => {
+          const extended = extendedDescriptions[tool.name];
+          return extended ? { ...tool, description: extended } : tool;
+        });
+        return buildResponse(200, MCPProtocol.toolsListResponse(id, mergedTools));
+      }
 
       case 'tools/call':
         return await handleToolsCall(id, params, event, context);
