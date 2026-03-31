@@ -15,7 +15,8 @@
 // Mock dependencies before requiring controller
 jest.mock('../../../services', () => ({
   Templates: {
-    checkUpdates: jest.fn()
+    checkUpdates: jest.fn(),
+    listVersions: jest.fn()
   }
 }));
 
@@ -455,7 +456,8 @@ describe('Updates Controller', () => {
     });
 
     test('should handle invalid version format', async () => {
-      // Arrange
+      // Arrange — 'invalid-version' is classified as S3_VersionId by the version resolver
+      // and fails resolution when no matching versionId exists in history
       const props = {
         bodyParameters: {
           input: {
@@ -468,21 +470,285 @@ describe('Updates Controller', () => {
 
       SchemaValidator.validate.mockReturnValue({ valid: true });
 
-      const mockUpdateResult = [
-        {
-          templateName: 'template-storage-s3-artifacts',
-          error: 'Invalid version format. Expected: vX.X.X/YYYY-MM-DD'
-        }
-      ];
-
-      Services.Templates.checkUpdates.mockResolvedValue(mockUpdateResult);
+      Services.Templates.listVersions.mockResolvedValue({
+        templateName: 'template-storage-s3-artifacts',
+        category: 'storage',
+        versions: []
+      });
 
       // Act
       const result = await UpdatesController.check(props);
 
-      // Assert
+      // Assert — VERSION_RESOLUTION_FAILED because 'invalid-version' is treated as S3_VersionId
       expect(result.success).toBe(false);
-      expect(result.details.message).toContain('Invalid version format');
+      expect(MCPProtocol.errorResponse).toHaveBeenCalledWith(
+        'VERSION_RESOLUTION_FAILED',
+        expect.objectContaining({
+          message: expect.any(String),
+          versionId: 'invalid-version'
+        }),
+        'check_template_updates'
+      );
+    });
+  });
+
+  describe('version resolution flow', () => {
+    test('should pass Human_Readable_Version through to service unchanged', async () => {
+      // Arrange
+      const props = {
+        bodyParameters: {
+          input: {
+            templateName: 'template-storage-s3-artifacts',
+            currentVersion: 'v1.3.4/2024-01-10',
+            category: 'storage'
+          }
+        }
+      };
+
+      SchemaValidator.validate.mockReturnValue({ valid: true });
+
+      Services.Templates.checkUpdates.mockResolvedValue([
+        {
+          templateName: 'template-storage-s3-artifacts',
+          category: 'storage',
+          currentVersion: 'v1.3.4/2024-01-10',
+          latestVersion: 'v1.3.5/2024-01-15',
+          updateAvailable: true,
+          releaseDate: '2024-01-15',
+          changelog: 'Bug fixes',
+          breakingChanges: false,
+          migrationGuide: null,
+          s3Path: 's3://bucket/templates/v2/storage/template-storage-s3-artifacts.yml',
+          namespace: 'atlantis',
+          bucket: 'test-bucket'
+        }
+      ]);
+
+      // Act
+      const result = await UpdatesController.check(props);
+
+      // Assert — Human_Readable_Version passed directly, no listVersions call
+      expect(Services.Templates.listVersions).not.toHaveBeenCalled();
+      expect(Services.Templates.checkUpdates).toHaveBeenCalledWith(
+        expect.objectContaining({
+          templates: [expect.objectContaining({
+            currentVersion: 'v1.3.4/2024-01-10'
+          })]
+        })
+      );
+      expect(result.success).toBe(true);
+      expect(result.data.currentVersion).toBe('v1.3.4/2024-01-10');
+    });
+
+    test('should resolve Short_Version before passing to service', async () => {
+      // Arrange
+      const props = {
+        bodyParameters: {
+          input: {
+            templateName: 'template-storage-s3-artifacts',
+            currentVersion: 'v1.3.4',
+            category: 'storage'
+          }
+        }
+      };
+
+      SchemaValidator.validate.mockReturnValue({ valid: true });
+
+      Services.Templates.listVersions.mockResolvedValue({
+        templateName: 'template-storage-s3-artifacts',
+        category: 'storage',
+        versions: [
+          { version: 'v1.3.5/2024-01-15', versionId: 'id-2', lastModified: '2024-01-15', size: 4096, isLatest: true },
+          { version: 'v1.3.4/2024-01-10', versionId: 'id-1', lastModified: '2024-01-10', size: 4096, isLatest: false }
+        ]
+      });
+
+      Services.Templates.checkUpdates.mockResolvedValue([
+        {
+          templateName: 'template-storage-s3-artifacts',
+          category: 'storage',
+          currentVersion: 'v1.3.4/2024-01-10',
+          latestVersion: 'v1.3.5/2024-01-15',
+          updateAvailable: true,
+          releaseDate: '2024-01-15',
+          changelog: 'Bug fixes',
+          breakingChanges: false,
+          migrationGuide: null,
+          s3Path: 's3://bucket/templates/v2/storage/template-storage-s3-artifacts.yml',
+          namespace: 'atlantis',
+          bucket: 'test-bucket'
+        }
+      ]);
+
+      // Act
+      const result = await UpdatesController.check(props);
+
+      // Assert — Short_Version resolved via listVersions
+      expect(Services.Templates.listVersions).toHaveBeenCalledWith(
+        expect.objectContaining({
+          category: 'storage',
+          templateName: 'template-storage-s3-artifacts'
+        })
+      );
+      expect(Services.Templates.checkUpdates).toHaveBeenCalledWith(
+        expect.objectContaining({
+          templates: [expect.objectContaining({
+            currentVersion: 'v1.3.4/2024-01-10'
+          })]
+        })
+      );
+      expect(result.success).toBe(true);
+    });
+
+    test('should resolve S3_VersionId before passing to service', async () => {
+      // Arrange
+      const props = {
+        bodyParameters: {
+          input: {
+            templateName: 'template-storage-s3-artifacts',
+            currentVersion: 'abc123def456',
+            category: 'storage'
+          }
+        }
+      };
+
+      SchemaValidator.validate.mockReturnValue({ valid: true });
+
+      Services.Templates.listVersions.mockResolvedValue({
+        templateName: 'template-storage-s3-artifacts',
+        category: 'storage',
+        versions: [
+          { version: 'v1.3.4/2024-01-10', versionId: 'abc123def456', lastModified: '2024-01-10', size: 4096, isLatest: false }
+        ]
+      });
+
+      Services.Templates.checkUpdates.mockResolvedValue([
+        {
+          templateName: 'template-storage-s3-artifacts',
+          category: 'storage',
+          currentVersion: 'v1.3.4/2024-01-10',
+          latestVersion: 'v1.3.5/2024-01-15',
+          updateAvailable: true,
+          releaseDate: '2024-01-15',
+          changelog: 'Bug fixes',
+          breakingChanges: false,
+          migrationGuide: null,
+          s3Path: 's3://bucket/templates/v2/storage/template-storage-s3-artifacts.yml',
+          namespace: 'atlantis',
+          bucket: 'test-bucket'
+        }
+      ]);
+
+      // Act
+      const result = await UpdatesController.check(props);
+
+      // Assert — S3_VersionId resolved via listVersions
+      expect(Services.Templates.listVersions).toHaveBeenCalledWith(
+        expect.objectContaining({
+          category: 'storage',
+          templateName: 'template-storage-s3-artifacts'
+        })
+      );
+      expect(Services.Templates.checkUpdates).toHaveBeenCalledWith(
+        expect.objectContaining({
+          templates: [expect.objectContaining({
+            currentVersion: 'v1.3.4/2024-01-10'
+          })]
+        })
+      );
+      expect(result.success).toBe(true);
+    });
+
+    test('should return VERSION_RESOLUTION_FAILED for unresolvable S3_VersionId', async () => {
+      // Arrange
+      const props = {
+        bodyParameters: {
+          input: {
+            templateName: 'template-storage-s3-artifacts',
+            currentVersion: 'nonexistent-id',
+            category: 'storage'
+          }
+        }
+      };
+
+      SchemaValidator.validate.mockReturnValue({ valid: true });
+
+      Services.Templates.listVersions.mockResolvedValue({
+        templateName: 'template-storage-s3-artifacts',
+        category: 'storage',
+        versions: [
+          { version: 'v1.3.4/2024-01-10', versionId: 'other-id', lastModified: '2024-01-10', size: 4096, isLatest: false }
+        ]
+      });
+
+      // Act
+      const result = await UpdatesController.check(props);
+
+      // Assert — VERSION_RESOLUTION_FAILED error returned
+      expect(Services.Templates.checkUpdates).not.toHaveBeenCalled();
+      expect(MCPProtocol.errorResponse).toHaveBeenCalledWith(
+        'VERSION_RESOLUTION_FAILED',
+        expect.objectContaining({
+          message: expect.any(String),
+          versionId: 'nonexistent-id',
+          templateName: 'template-storage-s3-artifacts',
+          category: 'storage'
+        }),
+        'check_template_updates'
+      );
+      expect(result.success).toBe(false);
+    });
+
+    test('should include resolved currentVersion in success response', async () => {
+      // Arrange
+      const props = {
+        bodyParameters: {
+          input: {
+            templateName: 'template-storage-s3-artifacts',
+            currentVersion: 'v1.3.4',
+            category: 'storage'
+          }
+        }
+      };
+
+      SchemaValidator.validate.mockReturnValue({ valid: true });
+
+      Services.Templates.listVersions.mockResolvedValue({
+        templateName: 'template-storage-s3-artifacts',
+        category: 'storage',
+        versions: [
+          { version: 'v1.3.4/2024-01-10', versionId: 'id-1', lastModified: '2024-01-10', size: 4096, isLatest: false }
+        ]
+      });
+
+      Services.Templates.checkUpdates.mockResolvedValue([
+        {
+          templateName: 'template-storage-s3-artifacts',
+          category: 'storage',
+          currentVersion: 'v1.3.4/2024-01-10',
+          latestVersion: 'v1.3.5/2024-01-15',
+          updateAvailable: true,
+          releaseDate: '2024-01-15',
+          changelog: 'Bug fixes',
+          breakingChanges: false,
+          migrationGuide: null,
+          s3Path: 's3://bucket/templates/v2/storage/template-storage-s3-artifacts.yml',
+          namespace: 'atlantis',
+          bucket: 'test-bucket'
+        }
+      ]);
+
+      // Act
+      const result = await UpdatesController.check(props);
+
+      // Assert — response contains the resolved version, not the original Short_Version
+      expect(result.success).toBe(true);
+      expect(MCPProtocol.successResponse).toHaveBeenCalledWith(
+        'check_template_updates',
+        expect.objectContaining({
+          currentVersion: 'v1.3.4/2024-01-10'
+        })
+      );
     });
   });
 });

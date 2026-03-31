@@ -292,8 +292,8 @@ const schemas = {
       },
       currentVersion: {
         type: 'string',
-        pattern: '^v\\d+\\.\\d+\\.\\d+(\\/\\d{4}-\\d{2}-\\d{2})?$',
-        description: 'Current Human_Readable_Version (e.g., v1.2.3 or v1.2.3/2024-01-15)'
+        minLength: 1,
+        description: 'Current version identifier. Accepts Human_Readable_Version (v1.2.3/2024-01-15), Short_Version (v1.2.3), or S3_VersionId'
       },
       category: {
         type: 'string',

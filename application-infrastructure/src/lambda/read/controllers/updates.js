@@ -11,6 +11,7 @@
  */
 
 const Services = require('../services');
+const VersionResolver = require('../services/version-resolver');
 const SchemaValidator = require('../utils/schema-validator');
 const MCPProtocol = require('../utils/mcp-protocol');
 const { tools: { DebugAndLog } } = require('@63klabs/cache-data');
@@ -79,13 +80,41 @@ async function check(props) {
       s3BucketsCount: s3Buckets ? s3Buckets.length : 0
     });
 
+    // >! Resolve version format before passing to service
+    let resolvedVersion = currentVersion;
+    const format = VersionResolver.detectFormat(currentVersion);
+
+    if (format !== 'HUMAN_READABLE_VERSION') {
+      try {
+        resolvedVersion = await VersionResolver.resolve(currentVersion, {
+          category, templateName, s3Buckets, namespace
+        });
+
+        DebugAndLog.info('check_template_updates version resolved', {
+          originalVersion: currentVersion,
+          resolvedVersion,
+          format
+        });
+      } catch (resolveError) {
+        if (resolveError.code === 'VERSION_RESOLUTION_FAILED') {
+          return MCPProtocol.errorResponse('VERSION_RESOLUTION_FAILED', {
+            message: resolveError.message,
+            versionId: currentVersion,
+            templateName,
+            category
+          }, 'check_template_updates');
+        }
+        throw resolveError;
+      }
+    }
+
     // >! Call Services.Templates.checkUpdates()
     // The service expects an array of templates to check
     const updateResults = await Services.Templates.checkUpdates({
       templates: [{
         category,
         templateName,
-        currentVersion
+        currentVersion: resolvedVersion
       }],
       s3Buckets,
       namespace
@@ -121,7 +150,7 @@ async function check(props) {
     return MCPProtocol.successResponse('check_template_updates', {
       templateName: updateInfo.templateName,
       category: updateInfo.category,
-      currentVersion: updateInfo.currentVersion,
+      currentVersion: resolvedVersion,
       latestVersion: updateInfo.latestVersion,
       updateAvailable: updateInfo.updateAvailable,
       releaseDate: updateInfo.releaseDate,

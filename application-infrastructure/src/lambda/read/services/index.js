@@ -11,10 +11,12 @@ const Templates = require('./templates');
 const Starters = require('./starters');
 const Documentation = require('./documentation');
 const Validation = require('./validation');
+const VersionResolver = require('./version-resolver');
 
 module.exports = {
   Templates,
   Starters,
   Documentation,
-  Validation
+  Validation,
+  VersionResolver
 };
