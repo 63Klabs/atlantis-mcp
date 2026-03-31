@@ -258,7 +258,7 @@ const settings = {
       },
       {
         name: 'validate_naming',
-        description: 'Validate resource names against Atlantis naming conventions. Supports S3 regional buckets (Pattern 1: AccountId-Region with -an suffix), global buckets (Pattern 2: AccountId-Region, Pattern 3: simple), and application resources. Provide known component values (prefix, projectId) for accurate parsing of hyphenated components.',
+        description: 'Validate resource names against Atlantis naming conventions. Supports S3 regional buckets (Pattern 1: AccountId-Region with -an suffix), global buckets (Pattern 2: AccountId-Region, Pattern 3: simple), service-role resources (ALL CAPS Prefix, no StageId), and application resources. Provide known component values (prefix, projectId) for accurate parsing of hyphenated components.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -268,8 +268,7 @@ const settings = {
             },
             resourceType: {
               type: 'string',
-              description: 'Type of AWS resource',
-              enum: ['application', 's3', 'dynamodb', 'lambda', 'cloudformation']
+              description: 'Type of AWS resource. "s3" and "service-role" have special validation patterns; all other values use standard application resource validation (Prefix-ProjectId-StageId-ResourceSuffix).'
             },
             isShared: {
               type: 'boolean',

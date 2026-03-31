@@ -247,8 +247,7 @@ const schemas = {
       },
       resourceType: {
         type: 'string',
-        enum: ['application', 's3', 'dynamodb', 'lambda', 'cloudformation'],
-        description: 'Type of AWS resource'
+        description: 'Type of AWS resource. "s3" and "service-role" have special handling; all other values use standard application resource validation.'
       },
       isShared: {
         type: 'boolean',
@@ -257,6 +256,22 @@ const schemas = {
       hasOrgPrefix: {
         type: 'boolean',
         description: 'When true, indicates the S3 bucket name includes an organization prefix segment for disambiguation'
+      },
+      prefix: {
+        type: 'string',
+        description: 'Known Prefix value for disambiguation of hyphenated components'
+      },
+      projectId: {
+        type: 'string',
+        description: 'Known ProjectId value for disambiguation of hyphenated components'
+      },
+      stageId: {
+        type: 'string',
+        description: 'Known StageId value for disambiguation of hyphenated components'
+      },
+      orgPrefix: {
+        type: 'string',
+        description: 'Known OrgPrefix value for disambiguation of hyphenated S3 components'
       }
     },
     required: ['resourceName'],

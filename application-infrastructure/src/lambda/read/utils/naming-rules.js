@@ -827,14 +827,162 @@ function validateS3Bucket(name, options = {}) {
 }
 
 /**
- * Validate resource name based on resource type.
+ * Validate service-role resource name.
  *
- * Routes to the appropriate validator (S3 or application) and threads
- * all disambiguation parameters through to the underlying functions.
+ * Pattern: PREFIX-ProjectId-ResourceSuffix
+ * - PREFIX is ALL CAPS (uppercase letters and digits only, starts with uppercase letter)
+ * - No StageId component (always treated as shared)
+ * - ProjectId is lowercase
+ *
+ * Parsing strategy:
+ * 1. If prefix and projectId are provided: strip them from the front, remainder is ResourceSuffix.
+ * 2. If only prefix is provided: strip prefix, take next segment as projectId, remainder is ResourceSuffix.
+ * 3. If no known values: split by hyphen, first segment is PREFIX (must be ALL CAPS),
+ *    positional assignment for projectId and ResourceSuffix. Minimum 3 segments required.
  *
  * @param {string} name - Resource name to validate
  * @param {Object} options - Validation options
- * @param {string} options.resourceType - Resource type (s3, dynamodb, lambda, cloudformation, application)
+ * @param {string} [options.prefix] - Known PREFIX value (ALL CAPS)
+ * @param {string} [options.projectId] - Known ProjectId value
+ * @param {boolean} [options.partial=false] - Allow partial name validation
+ * @returns {{valid: boolean, errors: Array<string>, suggestions: Array<string>, components: Object}}
+ * @example
+ * validateServiceRoleResource('ACME-myapp-CodePipelineServiceRole');
+ * // { valid: true, errors: [], suggestions: [], components: { prefix: 'ACME', projectId: 'myapp', resourceSuffix: 'CodePipelineServiceRole' } }
+ *
+ * @example
+ * validateServiceRoleResource('ACME-person-api-CloudFormationRole', { prefix: 'ACME', projectId: 'person-api' });
+ * // { valid: true, errors: [], suggestions: [], components: { prefix: 'ACME', projectId: 'person-api', resourceSuffix: 'CloudFormationRole' } }
+ */
+function validateServiceRoleResource(name, options = {}) {
+  const { prefix, projectId, partial = false } = options;
+
+  const errors = [];
+  const suggestions = [];
+  const components = {};
+
+  if (!name || typeof name !== 'string') {
+    errors.push('Resource name is required and must be a string');
+    return { valid: false, errors, suggestions, components };
+  }
+
+  const parts = name.split('-');
+  let parsed = false;
+
+  // --- Strategy 1: Both prefix and projectId known ---
+  if (prefix && projectId) {
+    const expectedStart = prefix + '-' + projectId + '-';
+    if (name.startsWith(expectedStart)) {
+      components.prefix = prefix;
+      components.projectId = projectId;
+      const remainder = name.substring(expectedStart.length);
+      components.resourceSuffix = remainder || undefined;
+      parsed = true;
+    }
+  }
+
+  // --- Strategy 2: Only prefix known ---
+  if (!parsed && prefix && !projectId) {
+    const prefixDash = prefix + '-';
+    if (name.startsWith(prefixDash)) {
+      components.prefix = prefix;
+      const afterPrefix = name.substring(prefixDash.length);
+      const afterSegments = afterPrefix.split('-');
+
+      if (afterSegments.length >= 2) {
+        // First segment after prefix is projectId, rest is ResourceSuffix
+        components.projectId = afterSegments[0];
+        components.resourceSuffix = afterSegments.slice(1).join('-') || undefined;
+      } else if (afterSegments.length === 1) {
+        components.projectId = afterSegments[0];
+      }
+      parsed = true;
+    }
+  }
+
+  // --- Strategy 3: No known values — positional assignment ---
+  if (!parsed) {
+    if (parts.length >= 3) {
+      components.prefix = parts[0];
+      components.projectId = parts[1];
+      components.resourceSuffix = parts.slice(2).join('-') || undefined;
+      parsed = true;
+    }
+  }
+
+  // --- Not enough segments ---
+  if (!parsed) {
+    if (!partial) {
+      errors.push('Service-role resource name must have at least 3 components: PREFIX-ProjectId-ResourceSuffix');
+      suggestions.push('Expected format: PREFIX-ProjectId-ResourceSuffix (e.g., ACME-myapp-CodePipelineServiceRole)');
+    }
+
+    // Assign what we can
+    if (parts.length >= 1) components.prefix = parts[0];
+    if (parts.length >= 2) components.projectId = parts[1];
+
+    // Still validate prefix even in partial mode
+    if (components.prefix && !prefix && !/^[A-Z][A-Z0-9]*$/.test(components.prefix)) {
+      errors.push(`Service-role Prefix '${components.prefix}' must be ALL CAPS (uppercase letters and digits only)`);
+      suggestions.push('Prefix must match pattern: starts with uppercase letter, only uppercase letters and digits (e.g., ACME, AWS1)');
+    }
+
+    return { valid: errors.length === 0, errors, suggestions, components };
+  }
+
+  // --- Component validation ---
+
+  // Validate PREFIX: must be ALL CAPS
+  if (components.prefix) {
+    if (!prefix && !/^[A-Z][A-Z0-9]*$/.test(components.prefix)) {
+      errors.push(`Service-role Prefix '${components.prefix}' must be ALL CAPS (uppercase letters and digits only)`);
+      suggestions.push('Prefix must match pattern: starts with uppercase letter, only uppercase letters and digits (e.g., ACME, AWS1)');
+    }
+    if (prefix && components.prefix !== prefix) {
+      errors.push(`Prefix '${components.prefix}' does not match expected value '${prefix}'`);
+      suggestions.push(`Use prefix: ${prefix}`);
+    }
+  }
+
+  // Validate ProjectId
+  if (components.projectId) {
+    if (projectId && components.projectId !== projectId) {
+      errors.push(`ProjectId '${components.projectId}' does not match expected value '${projectId}'`);
+      suggestions.push(`Use project ID: ${projectId}`);
+    }
+  }
+
+  // Validate ResourceSuffix
+  if (!partial && components.resourceSuffix) {
+    const pascalWarnings = checkPascalCase(components.resourceSuffix);
+    suggestions.push(...pascalWarnings);
+  } else if (!partial && !components.resourceSuffix) {
+    errors.push('ResourceSuffix component is required');
+    suggestions.push('Add a resource suffix after ProjectId (e.g., CodePipelineServiceRole, CloudFormationRole)');
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    suggestions,
+    components
+  };
+}
+
+/**
+ * Validate resource name based on resource type.
+ *
+ * Routes to the appropriate validator based on the resource type:
+ * - 's3' → validateS3Bucket()
+ * - 'service-role' → validateServiceRoleResource()
+ * - Any other value → validateApplicationResource() with type-specific length limits
+ *   when the type is known in AWS_NAMING_RULES; unknown types skip length validation.
+ *
+ * The provided resourceType string is always preserved in the result object.
+ *
+ * @param {string} name - Resource name to validate
+ * @param {Object} options - Validation options
+ * @param {string} options.resourceType - Resource type ('s3' and 'service-role' have special handling; all others use standard application resource validation)
  * @param {Object} [options.config] - Configuration values
  * @param {string} [options.config.prefix] - Known prefix value
  * @param {string} [options.config.projectId] - Known projectId value
@@ -852,7 +1000,7 @@ function validateNaming(name, options = {}) {
     return {
       valid: false,
       errors: ['Resource type is required'],
-      suggestions: ['Specify resourceType: s3, dynamodb, lambda, cloudformation, or application'],
+      suggestions: ['Specify resourceType: s3, service-role, dynamodb, lambda, cloudformation, or any AWS resource type'],
       components: {},
       resourceType: null
     };
@@ -868,22 +1016,19 @@ function validateNaming(name, options = {}) {
       partial
     });
     return { ...result, resourceType: 's3' };
-  } else if (['dynamodb', 'lambda', 'cloudformation', 'application'].includes(normalizedType)) {
+  } else if (normalizedType === 'service-role') {
+    const result = validateServiceRoleResource(name, { ...config, partial });
+    return { ...result, resourceType: 'service-role' };
+  } else {
+    // ALL other types route to application resource validation
+    // Known types (in AWS_NAMING_RULES) get length limits applied; unknown types skip length checks
     const result = validateApplicationResource(name, {
-      resourceType: normalizedType === 'application' ? 'lambda' : normalizedType,
+      resourceType: normalizedType,
       ...config,
       isShared: config.isShared,
       partial
     });
     return { ...result, resourceType: normalizedType };
-  } else {
-    return {
-      valid: false,
-      errors: [`Unknown resource type: ${resourceType}`],
-      suggestions: ['Use one of: s3, dynamodb, lambda, cloudformation, application'],
-      components: {},
-      resourceType: null
-    };
   }
 }
 
@@ -894,12 +1039,16 @@ function validateNaming(name, options = {}) {
  *   1. Ends with "-an" and contains Region pattern → s3
  *   2. All-lowercase, contains AccountId (12 digits) followed by Region → s3
  *
+ * Service-role detection:
+ *   First hyphen-separated segment is ALL CAPS (matches /^[A-Z][A-Z0-9]*$/),
+ *   3+ segments, and name is not all-lowercase.
+ *
  * Application detection:
  *   4+ hyphen-separated segments where the third segment (0-indexed position 2)
  *   matches the StageId pattern (starts with t, b, s, or p).
  *
  * @param {string} name - Resource name
- * @returns {string|null} 's3', 'application', or null
+ * @returns {string|null} 's3', 'service-role', 'application', or null
  */
 function detectResourceType(name) {
   if (!name || typeof name !== 'string') {
@@ -932,8 +1081,15 @@ function detectResourceType(name) {
     }
   }
 
-  // Application resources: 4+ segments with valid StageId at position 2
+  // Service-role: first segment is ALL CAPS, 3+ segments, not all-lowercase
   const parts = name.split('-');
+  if (parts.length >= 3 && name !== name.toLowerCase()) {
+    if (/^[A-Z][A-Z0-9]*$/.test(parts[0])) {
+      return 'service-role';
+    }
+  }
+
+  // Application resources: 4+ segments with valid StageId at position 2
   if (parts.length >= 4) {
     const potentialStageId = parts[2].toLowerCase();
     if (isValidStageId(potentialStageId)) {
@@ -947,6 +1103,7 @@ function detectResourceType(name) {
 module.exports = {
   validateApplicationResource,
   validateS3Bucket,
+  validateServiceRoleResource,
   validateNaming,
   detectResourceType,
   isValidStageId,

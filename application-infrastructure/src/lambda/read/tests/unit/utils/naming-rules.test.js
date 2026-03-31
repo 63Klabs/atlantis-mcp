@@ -9,6 +9,7 @@
 const {
   validateApplicationResource,
   validateS3Bucket,
+  validateServiceRoleResource,
   validateNaming,
   detectResourceType,
   isValidStageId,
@@ -16,6 +17,9 @@ const {
   AWS_NAMING_RULES,
   STAGE_ID_PATTERN
 } = require('../../../utils/naming-rules');
+
+const settings = require('../../../config/settings');
+const SchemaValidator = require('../../../utils/schema-validator');
 
 describe('Naming Rules Utility', () => {
   describe('AWS_NAMING_RULES', () => {
@@ -952,13 +956,14 @@ describe('Naming Rules Utility', () => {
       expect(result.errors).toContain('Resource type is required');
     });
 
-    test('should return error for unknown resourceType', () => {
-      const result = validateNaming('some-name', {
+    test('should route unknown resourceType to application validation', () => {
+      const result = validateNaming('acme-myapp-test-Resource', {
         resourceType: 'unknown'
       });
 
-      expect(result.valid).toBe(false);
-      expect(result.errors.some(e => e.includes('Unknown resource type'))).toBe(true);
+      expect(result.valid).toBe(true);
+      expect(result.errors.some(e => e.includes('Unknown resource type'))).toBe(false);
+      expect(result.resourceType).toBe('unknown');
     });
 
     test('should pass config options to underlying validators', () => {
@@ -1122,6 +1127,197 @@ describe('Naming Rules Utility', () => {
       const result = validateApplicationResource('prefix-project-test-Resource', undefined);
 
       expect(result.valid).toBe(true);
+    });
+  });
+
+  describe('schema and settings changes', () => {
+    test('settings.js validate_naming tool schema resourceType has no enum property', () => {
+      const validateNamingTool = settings.tools.availableToolsList.find(
+        t => t.name === 'validate_naming'
+      );
+      expect(validateNamingTool).toBeDefined();
+
+      const resourceTypeProp = validateNamingTool.inputSchema.properties.resourceType;
+      expect(resourceTypeProp).toBeDefined();
+      expect(resourceTypeProp.type).toBe('string');
+      expect(resourceTypeProp).not.toHaveProperty('enum');
+    });
+
+    test('schema-validator.js validate_naming resourceType has no enum property', () => {
+      const schema = SchemaValidator.getSchema('validate_naming');
+      expect(schema).toBeDefined();
+
+      const resourceTypeProp = schema.properties.resourceType;
+      expect(resourceTypeProp).toBeDefined();
+      expect(resourceTypeProp.type).toBe('string');
+      expect(resourceTypeProp).not.toHaveProperty('enum');
+    });
+
+    test('schema-validator.js accepts prefix, projectId, stageId, orgPrefix without errors', () => {
+      const result = SchemaValidator.validate('validate_naming', {
+        resourceName: 'acme-myapp-test-Resource',
+        resourceType: 'application',
+        prefix: 'acme',
+        projectId: 'myapp',
+        stageId: 'test',
+        orgPrefix: 'org'
+      });
+
+      expect(result.valid).toBe(true);
+      expect(result.errors).toEqual([]);
+    });
+
+    test('settings.js validate_naming tool description mentions service-role', () => {
+      const validateNamingTool = settings.tools.availableToolsList.find(
+        t => t.name === 'validate_naming'
+      );
+      expect(validateNamingTool).toBeDefined();
+      expect(validateNamingTool.description.toLowerCase()).toContain('service-role');
+    });
+  });
+
+  describe('service-role validation', () => {
+    test('should validate ACME-myapp-CodePipelineServiceRole as valid with correct components', () => {
+      const result = validateServiceRoleResource('ACME-myapp-CodePipelineServiceRole');
+
+      expect(result.valid).toBe(true);
+      expect(result.errors).toEqual([]);
+      expect(result.components.prefix).toBe('ACME');
+      expect(result.components.projectId).toBe('myapp');
+      expect(result.components.resourceSuffix).toBe('CodePipelineServiceRole');
+    });
+
+    test('should validate ACME-person-api-CloudFormationRole with known prefix and projectId', () => {
+      const result = validateServiceRoleResource('ACME-person-api-CloudFormationRole', {
+        prefix: 'ACME',
+        projectId: 'person-api'
+      });
+
+      expect(result.valid).toBe(true);
+      expect(result.errors).toEqual([]);
+      expect(result.components.prefix).toBe('ACME');
+      expect(result.components.projectId).toBe('person-api');
+      expect(result.components.resourceSuffix).toBe('CloudFormationRole');
+    });
+
+    test('should reject lowercase prefix via validateNaming with service-role type', () => {
+      const result = validateNaming('acme-myapp-ServiceRole', {
+        resourceType: 'service-role'
+      });
+
+      expect(result.valid).toBe(false);
+      expect(result.errors.some(e => e.includes('ALL CAPS'))).toBe(true);
+    });
+
+    test('should reject mixed case prefix via validateNaming with service-role type', () => {
+      const result = validateNaming('Acme-myapp-ServiceRole', {
+        resourceType: 'service-role'
+      });
+
+      expect(result.valid).toBe(false);
+      expect(result.errors.some(e => e.includes('ALL CAPS'))).toBe(true);
+    });
+
+    test('should reject too few segments via validateNaming with service-role type', () => {
+      const result = validateNaming('ACME-myapp', {
+        resourceType: 'service-role'
+      });
+
+      expect(result.valid).toBe(false);
+      expect(result.errors.some(e => e.includes('at least 3 components'))).toBe(true);
+    });
+  });
+
+  describe('unknown resource type routing', () => {
+    test('should validate sqs resource type with valid app name', () => {
+      const result = validateNaming('acme-myapp-test-MyQueue', {
+        resourceType: 'sqs'
+      });
+
+      expect(result.valid).toBe(true);
+      expect(result.resourceType).toBe('sqs');
+      expect(result.errors.every(e => !e.includes('Unknown resource type'))).toBe(true);
+    });
+
+    test('should validate stepfunction resource type with valid app name', () => {
+      const result = validateNaming('acme-myapp-prod-MyStateMachine', {
+        resourceType: 'stepfunction'
+      });
+
+      expect(result.valid).toBe(true);
+      expect(result.resourceType).toBe('stepfunction');
+      expect(result.errors.every(e => !e.includes('Unknown resource type'))).toBe(true);
+    });
+
+    test('should validate apigateway resource type with valid app name', () => {
+      const result = validateNaming('acme-myapp-beta-RestApi', {
+        resourceType: 'apigateway'
+      });
+
+      expect(result.valid).toBe(true);
+      expect(result.resourceType).toBe('apigateway');
+      expect(result.errors.every(e => !e.includes('Unknown resource type'))).toBe(true);
+    });
+
+    test('should not return "Unknown resource type" error for any unknown type', () => {
+      const unknownTypes = ['sqs', 'stepfunction', 'apigateway'];
+
+      unknownTypes.forEach(type => {
+        const result = validateNaming('acme-myapp-test-Resource', {
+          resourceType: type
+        });
+
+        expect(result.errors.some(e => e.includes('Unknown resource type'))).toBe(false);
+      });
+    });
+  });
+
+  describe('length limit behavior with known vs unknown types', () => {
+    test('should return length error for lambda resource type with name > 64 chars', () => {
+      const longName = 'acme-myapp-test-' + 'A'.repeat(50);
+      expect(longName.length).toBeGreaterThan(64);
+
+      const result = validateNaming(longName, { resourceType: 'lambda' });
+
+      expect(result.valid).toBe(false);
+      expect(result.errors.some(e => e.includes('too long') || e.includes('maximum'))).toBe(true);
+    });
+
+    test('should return length error for dynamodb resource type with name > 255 chars', () => {
+      const longName = 'acme-myapp-test-' + 'A'.repeat(250);
+      expect(longName.length).toBeGreaterThan(255);
+
+      const result = validateNaming(longName, { resourceType: 'dynamodb' });
+
+      expect(result.valid).toBe(false);
+      expect(result.errors.some(e => e.includes('too long') || e.includes('maximum'))).toBe(true);
+    });
+
+    test('should NOT return length error for sqs (unknown type) with name > 64 chars', () => {
+      const longName = 'acme-myapp-test-' + 'A'.repeat(50);
+      expect(longName.length).toBeGreaterThan(64);
+
+      const result = validateNaming(longName, { resourceType: 'sqs' });
+
+      expect(result.errors.some(e => e.includes('too long') || e.includes('maximum'))).toBe(false);
+    });
+  });
+
+  describe('detectResourceType service-role detection', () => {
+    test('should detect ACME-myapp-ServiceRole as service-role', () => {
+      expect(detectResourceType('ACME-myapp-ServiceRole')).toBe('service-role');
+    });
+
+    test('should detect ACME-person-api-CodeBuildRole as service-role', () => {
+      expect(detectResourceType('ACME-person-api-CodeBuildRole')).toBe('service-role');
+    });
+
+    test('should detect acme-myapp-prod-GetFunction as application (not service-role, lowercase prefix)', () => {
+      expect(detectResourceType('acme-myapp-prod-GetFunction')).toBe('application');
+    });
+
+    test('should detect S3 names as s3 (priority over service-role)', () => {
+      expect(detectResourceType('acme-myapp-test-123456789012-us-east-1-an')).toBe('s3');
     });
   });
 });

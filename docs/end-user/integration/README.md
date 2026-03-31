@@ -4,11 +4,11 @@ Connect the Atlantis MCP Server to your preferred AI assistant. Each guide walks
 
 ## Available Integrations
 
+- [Kiro](kiro.md) - Kiro IDE with MCP support
 - [Amazon Q](amazon-q.md) - AWS AI coding companion
 - [ChatGPT](chatgpt.md) - OpenAI ChatGPT with custom actions
 - [Claude](claude.md) - Anthropic Claude Desktop via MCP
 - [Cursor](cursor.md) - Cursor IDE with MCP support
-- [Kiro](kiro.md) - Kiro IDE with MCP support
 
 ## Prerequisites
 

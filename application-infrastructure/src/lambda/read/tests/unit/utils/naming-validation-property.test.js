@@ -18,6 +18,7 @@ const {
   checkPascalCase,
   AWS_NAMING_RULES
 } = require('../../../utils/naming-rules');
+const SchemaValidator = require('../../../utils/schema-validator');
 
 describe('Naming Validation - Property-Based Tests', () => {
 
@@ -363,11 +364,12 @@ describe('Naming Validation - Property-Based Tests', () => {
       expect(appResult.resourceType).toBe('lambda');
     });
 
-    it('should handle unknown resource types', () => {
-      const result = validateNaming('some-name', { resourceType: 'unknown' });
+    it('should handle unknown resource types by routing to application validation', () => {
+      const result = validateNaming('acme-myapp-test-Resource', { resourceType: 'unknown' });
 
-      expect(result.valid).toBe(false);
-      expect(result.errors.some(e => e.includes('Unknown resource type'))).toBe(true);
+      expect(result.valid).toBe(true);
+      expect(result.errors.some(e => e.includes('Unknown resource type'))).toBe(false);
+      expect(result.resourceType).toBe('unknown');
     });
 
     it('should require resource type', () => {
@@ -929,6 +931,102 @@ describe('Naming Validation - Property-Based Tests', () => {
     });
   });
 
+  describe('Property SR1: Service-role resource name round-trip', () => {
+    /**
+     * **Validates: Requirements 2.1, 2.5**
+     *
+     * For any valid service-role resource name constructed from an ALL CAPS Prefix,
+     * a lowercase ProjectId, and a PascalCase ResourceSuffix, when the known prefix
+     * and projectId values are provided, parsing the name with resourceType: 'service-role'
+     * and reconstructing it from the returned components shall produce the original name.
+     */
+    it('should reconstruct original service-role name from parsed components', () => {
+      // Generator: ALL CAPS Prefix (2-8 chars, starts with uppercase letter)
+      const prefixGen = fc.stringMatching(/^[A-Z][A-Z0-9]{1,7}$/);
+      // Generator: lowercase ProjectId (1-10 chars, lowercase alphanumeric)
+      const projectIdGen = fc.stringMatching(/^[a-z][a-z0-9]{0,9}$/);
+      // Generator: PascalCase ResourceSuffix (starts with uppercase, 3-20 chars)
+      const resourceSuffixGen = fc.stringMatching(/^[A-Z][a-zA-Z0-9]{2,19}$/);
+
+      fc.assert(
+        fc.property(
+          prefixGen, projectIdGen, resourceSuffixGen,
+          (prefix, projectId, resourceSuffix) => {
+            const name = `${prefix}-${projectId}-${resourceSuffix}`;
+
+            const result = validateNaming(name, {
+              resourceType: 'service-role',
+              config: { prefix, projectId }
+            });
+
+            expect(result.valid).toBe(true);
+            expect(result.resourceType).toBe('service-role');
+            expect(result.components.prefix).toBe(prefix);
+            expect(result.components.projectId).toBe(projectId);
+            expect(result.components.resourceSuffix).toBe(resourceSuffix);
+
+            // Round-trip: reconstruct from components
+            const reconstructed = result.components.prefix + '-' + result.components.projectId + '-' + result.components.resourceSuffix;
+            expect(reconstructed).toBe(name);
+          }
+        ),
+        { numRuns: 100 }
+      );
+    });
+  });
+
+  describe('Property SR2: Unknown resource types route to application validation and preserve resourceType', () => {
+    /**
+     * **Validates: Requirements 3.1, 3.2**
+     *
+     * For any string resourceType that is not 's3' and not 'service-role',
+     * and for any valid application resource name (Prefix-ProjectId-StageId-ResourceSuffix),
+     * calling validateNaming with that resourceType shall:
+     * (a) not return an "Unknown resource type" error,
+     * (b) return result.resourceType equal to the provided resourceType string (lowercased),
+     * (c) validate the name using the standard application resource pattern (result.valid === true).
+     */
+    it('should route unknown resource types to application validation and preserve resourceType', () => {
+      // Generator: lowercase resourceType string (1-12 chars), filtered to exclude 's3' and 'service-role'
+      const resourceTypeGen = fc.stringMatching(/^[a-z][a-z0-9]{0,11}$/)
+        .filter(rt => rt !== 's3' && rt !== 'service-role');
+
+      // Generators for valid application resource name components
+      const prefixGen = fc.stringMatching(/^[a-z][a-z0-9]{1,6}$/);
+      const projectIdGen = fc.stringMatching(/^[a-z][a-z0-9]{1,6}$/);
+      const stageIdGen = fc.stringMatching(/^[tbsp][a-z0-9]{0,4}$/);
+      const resourceSuffixGen = fc.stringMatching(/^[A-Z][a-zA-Z0-9]{1,12}$/);
+
+      fc.assert(
+        fc.property(
+          resourceTypeGen, prefixGen, projectIdGen, stageIdGen, resourceSuffixGen,
+          (resourceType, prefix, projectId, stageId, resourceSuffix) => {
+            const name = `${prefix}-${projectId}-${stageId}-${resourceSuffix}`;
+
+            // Skip names that exceed Lambda length limit (64 chars) to avoid
+            // length errors from known types that happen to match
+            if (name.length > 64) return;
+
+            const result = validateNaming(name, {
+              resourceType,
+              config: { prefix, projectId }
+            });
+
+            // (a) No "Unknown resource type" error
+            expect(result.errors.some(e => e.includes('Unknown resource type'))).toBe(false);
+
+            // (b) resourceType is preserved (lowercased)
+            expect(result.resourceType).toBe(resourceType.toLowerCase());
+
+            // (c) Valid application resource name passes validation
+            expect(result.valid).toBe(true);
+          }
+        ),
+        { numRuns: 100 }
+      );
+    });
+  });
+
   describe('Property 18: detectResourceType identifies application resource names', () => {
     it('should identify application names with StageId at position 2', () => {
       const prefixGen = fc.stringMatching(/^[a-z][a-z0-9]{1,6}$/);
@@ -945,6 +1043,133 @@ describe('Naming Validation - Property-Based Tests', () => {
             expect(detectResourceType(name)).toBe('application');
           }
         ),
+        { numRuns: 100 }
+      );
+    });
+  });
+
+  describe('Property SR4: Known resource types apply length limits, unknown types skip them', () => {
+    /**
+     * **Validates: Requirements 3.3**
+     *
+     * For any resource name that exceeds 64 characters and a resourceType of 'lambda',
+     * validation shall return a length error. For any resource name of the same length
+     * and an unrecognized resourceType string (not in AWS_NAMING_RULES), validation
+     * shall not return a length error.
+     */
+    it('should apply length limits for known types and skip them for unknown types', () => {
+      const knownKeys = Object.keys(AWS_NAMING_RULES);
+
+      // Generator for a valid application resource name pattern > 64 chars
+      const longNameGen = fc.tuple(
+        fc.stringMatching(/^[a-z][a-z0-9]{2,6}$/),
+        fc.stringMatching(/^[a-z][a-z0-9]{2,6}$/),
+        fc.stringMatching(/^[tbsp][a-z0-9]{0,3}$/),
+        fc.stringMatching(/^[A-Z][a-zA-Z0-9]{40,55}$/)
+      ).map(([prefix, projectId, stageId, resourceSuffix]) =>
+        `${prefix}-${projectId}-${stageId}-${resourceSuffix}`
+      ).filter(name => name.length > 64);
+
+      // Generator for unknown resourceType strings (not in AWS_NAMING_RULES keys)
+      const unknownTypeGen = fc.stringMatching(/^[a-z]{3,12}$/)
+        .filter(s => !knownKeys.includes(s) && s !== 'service-role');
+
+      fc.assert(
+        fc.property(longNameGen, unknownTypeGen, (longName, unknownType) => {
+          // Known type (lambda, maxLength=64) should produce a length error
+          const knownResult = validateNaming(longName, {
+            resourceType: 'lambda',
+            config: {}
+          });
+          expect(knownResult.errors.some(e =>
+            e.includes('too long') || e.includes('maximum')
+          )).toBe(true);
+
+          // Unknown type should NOT produce a length error
+          const unknownResult = validateNaming(longName, {
+            resourceType: unknownType,
+            config: {}
+          });
+          expect(unknownResult.errors.some(e =>
+            e.includes('too long') || e.includes('maximum')
+          )).toBe(false);
+        }),
+        { numRuns: 100 }
+      );
+    });
+  });
+
+  describe('Property SR3: Schema validator accepts any resourceType string and disambiguation parameters', () => {
+    /**
+     * **Validates: Requirements 1.3, 5.1, 5.2**
+     *
+     * For any non-empty string value for resourceType, and for any combination of
+     * the disambiguation parameters (prefix, projectId, stageId, orgPrefix as strings),
+     * the schema validator shall not return validation errors for these properties
+     * when validating a validate_naming input that includes a valid resourceName.
+     */
+    it('should accept any resourceType string and disambiguation parameters without schema errors', () => {
+      const resourceTypeGen = fc.string({ minLength: 1, maxLength: 30 })
+        .filter(s => s.trim().length > 0);
+      const optionalStringGen = fc.string({ minLength: 1, maxLength: 20 });
+
+      fc.assert(
+        fc.property(
+          resourceTypeGen, optionalStringGen, optionalStringGen, optionalStringGen, optionalStringGen,
+          (resourceType, prefix, projectId, stageId, orgPrefix) => {
+            const result = SchemaValidator.validate('validate_naming', {
+              resourceName: 'test-name',
+              resourceType,
+              prefix,
+              projectId,
+              stageId,
+              orgPrefix
+            });
+
+            expect(result.valid).toBe(true);
+          }
+        ),
+        { numRuns: 100 }
+      );
+    });
+  });
+
+  describe('Property SR5: detectResourceType identifies service-role names', () => {
+    /**
+     * **Validates: Requirements 6.1**
+     *
+     * For any resource name where the first hyphen-separated segment matches
+     * /^[A-Z][A-Z0-9]*$/ (ALL CAPS), the name has 3 or more hyphen-separated
+     * segments, and the name is not all-lowercase, detectResourceType shall
+     * return 'service-role'.
+     */
+    it('should detect service-role names with ALL CAPS first segment and 3+ segments', () => {
+      // Generator: ALL CAPS first segment (2-8 chars, starts with uppercase letter)
+      const allCapsSegGen = fc.stringMatching(/^[A-Z][A-Z0-9]{1,7}$/);
+
+      // Generator: lowercase segment (1-10 chars)
+      const lowerSegGen = fc.stringMatching(/^[a-z][a-z0-9]{0,9}$/);
+
+      // Generator: 2+ additional lowercase segments (for 3+ total segments)
+      const additionalSegsGen = fc.tuple(lowerSegGen, lowerSegGen)
+        .chain(([seg1, seg2]) =>
+          fc.array(lowerSegGen, { minLength: 0, maxLength: 3 })
+            .map(extra => [seg1, seg2, ...extra])
+        );
+
+      fc.assert(
+        fc.property(allCapsSegGen, additionalSegsGen, (capsPrefix, lowerSegs) => {
+          const name = [capsPrefix, ...lowerSegs].join('-');
+
+          // Verify preconditions: 3+ segments, not all-lowercase, first segment ALL CAPS
+          const parts = name.split('-');
+          expect(parts.length).toBeGreaterThanOrEqual(3);
+          expect(name).not.toBe(name.toLowerCase());
+          expect(/^[A-Z][A-Z0-9]*$/.test(parts[0])).toBe(true);
+
+          const result = detectResourceType(name);
+          expect(result).toBe('service-role');
+        }),
         { numRuns: 100 }
       );
     });
