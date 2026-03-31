@@ -145,6 +145,15 @@ async function get(props) {
       namespace
     });
 
+    // >! Null guard: handle edge case where service returns null instead of throwing
+    if (!template) {
+      DebugAndLog.warn('get_template null result', { templateName, category });
+      return MCPProtocol.errorResponse('TEMPLATE_NOT_FOUND', {
+        message: `Template not found: ${category}/${templateName}`,
+        availableTemplates: []
+      }, 'get_template');
+    }
+
     DebugAndLog.info('get_template response', {
       templateName: template.name,
       version: template.version,

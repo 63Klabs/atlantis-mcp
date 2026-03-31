@@ -132,6 +132,15 @@ async function get(props) {
       namespace
     });
 
+    // >! Null guard: handle edge case where service returns null instead of throwing
+    if (!starter) {
+      DebugAndLog.warn('get_starter_info null result', { starterName });
+      return MCPProtocol.errorResponse('STARTER_NOT_FOUND', {
+        message: `Starter not found: ${starterName}`,
+        availableStarters: []
+      }, 'get_starter_info');
+    }
+
     DebugAndLog.info('get_starter_info response', {
       starterName: starter.name,
       hasS3Package: starter.hasS3Package,
