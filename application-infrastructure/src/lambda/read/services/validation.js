@@ -156,11 +156,9 @@ async function validateNaming(options = {}) {
     hasOrgPrefix
   };
 
-  // Add AWS region and account ID for S3 validation
-  if (detectedType === 's3') {
-    config.region = AWS.REGION;
-    // Account ID would come from AWS STS in production, but we don't validate it strictly
-  }
+  // S3 validation: region format is validated by naming-rules but we do NOT
+  // enforce the server's deployed region — buckets can legitimately target any AWS region.
+  // Account ID would come from AWS STS in production, but we don't validate it strictly.
 
   DebugAndLog.debug('Using configuration for validation', {
     prefix: config.prefix || '(not set)',

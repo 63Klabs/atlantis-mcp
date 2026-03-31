@@ -1,0 +1,92 @@
+# Implementation Plan
+
+- [x] 1. Write bug condition exploration test
+  - **Property 1: Bug Condition** - Date-Suffixed Versions Rejected by Validation
+  - **CRITICAL**: This test MUST FAIL on unfixed code - failure confirms the bug exists
+  - **DO NOT attempt to fix the test or the code when it fails**
+  - **NOTE**: This test encodes the expected behavior - it will validate the fix when it passes after implementation
+  - **GOAL**: Surface counterexamples that demonstrate the bug exists in `schema-validator.js`
+  - **Scoped PBT Approach**: Scope the property to concrete failing cases — version strings with valid `/YYYY-MM-DD` date suffixes passed to `get_template`, `list_templates`, and `check_template_updates`
+  - Create test file: `application-infrastructure/src/lambda/read/tests/unit/utils/schema-validator-version-bug.property.test.js`
+  - Import `validate` from `schema-validator.js` and `fc` from `fast-check`
+  - Generate random valid `vX.Y.Z/YYYY-MM-DD` strings using `fc.nat()` for X, Y, Z and `fc.integer({min:2000,max:2099})` for year, `fc.integer({min:1,max:12})` for month, `fc.integer({min:1,max:28})` for day
+  - Test that `validate('get_template', { templateName: 'vpc', category: 'network', version: generatedVersion })` returns `{ valid: true }`
+  - Test that `validate('list_templates', { version: generatedVersion })` returns `{ valid: true }`
+  - Test that `validate('check_template_updates', { templateName: 'vpc', category: 'network', currentVersion: generatedVersion })` returns `{ valid: true }`
+  - Also test concrete cases: `v0.0.14/2025-08-08`, `v1.2.3/2024-01-15`
+  - Run test on UNFIXED code
+  - **EXPECTED OUTCOME**: Test FAILS (this is correct - it proves the bug exists because the `$` anchor in `^v\d+\.\d+\.\d+$` rejects the `/YYYY-MM-DD` suffix)
+  - Document counterexamples found: `validate()` returns `{ valid: false, errors: ["Property 'version' does not match required pattern: ^v\\d+\\.\\d+\\.\\d+$"] }` for all date-suffixed versions
+  - Mark task complete when test is written, run, and failure is documented
+  - _Requirements: 1.1, 1.2, 1.3, 1.4, 2.1, 2.2, 2.3_
+
+- [x] 2. Write preservation property tests (BEFORE implementing fix)
+  - **Property 2: Preservation** - Semver-Only Acceptance and Invalid Version Rejection Unchanged
+  - **IMPORTANT**: Follow observation-first methodology
+  - Create test file: `application-infrastructure/src/lambda/read/tests/unit/utils/schema-validator-version-preservation.property.test.js`
+  - Import `validate` from `schema-validator.js` and `fc` from `fast-check`
+  - **Observe on UNFIXED code first:**
+  - Observe: `validate('get_template', { templateName: 'vpc', category: 'network', version: 'v1.2.3' })` returns `{ valid: true }` on unfixed code
+  - Observe: `validate('list_templates', { version: 'v0.0.14' })` returns `{ valid: true }` on unfixed code
+  - Observe: `validate('check_template_updates', { templateName: 'vpc', category: 'network', currentVersion: 'v1.2.3' })` returns `{ valid: true }` on unfixed code
+  - Observe: `validate('get_template', { templateName: 'vpc', category: 'network', version: '0.0.14' })` returns `{ valid: false }` on unfixed code (missing `v` prefix)
+  - Observe: `validate('get_template', { templateName: 'vpc', category: 'network', version: 'v1.2' })` returns `{ valid: false }` on unfixed code (incomplete semver)
+  - Observe: `validate('get_template', { templateName: 'vpc', category: 'network', version: 'v1.2.3/not-a-date' })` returns `{ valid: false }` on unfixed code (malformed date)
+  - Observe: `validate('list_tools', {})` returns `{ valid: true }` on unfixed code (non-version tool)
+  - **Write property-based tests capturing observed behavior:**
+  - Property 2a: For all random valid semver-only strings `vX.Y.Z` (X, Y, Z as non-negative integers), `validate()` returns `valid: true` for version/currentVersion across all three affected tools
+  - Property 2b: For all random invalid version strings (missing `v` prefix, incomplete semver like `vX.Y`, malformed date suffixes like `v1.2.3/not-a-date`, `v1.2.3/13-01-2024`), `validate()` returns `valid: false`
+  - Property 2c: For non-version tools (`list_tools`, `list_categories`), `validate()` returns `valid: true` with empty input
+  - Property 2d: For non-version parameters (templateName, category, s3Buckets), validation behavior is unchanged — test with valid and invalid values
+  - Run tests on UNFIXED code
+  - **EXPECTED OUTCOME**: Tests PASS (this confirms baseline behavior to preserve)
+  - Mark task complete when tests are written, run, and passing on unfixed code
+  - _Requirements: 2.4, 3.1, 3.2, 3.3, 3.4, 3.5_
+
+- [x] 3. Fix version pattern validation
+
+  - [x] 3.1 Update regex patterns in schema-validator.js
+    - In `application-infrastructure/src/lambda/read/utils/schema-validator.js`:
+    - Change `list_templates.properties.version.pattern` from `'^v\\d+\\.\\d+\\.\\d+$'` to `'^v\\d+\\.\\d+\\.\\d+(\\/\\d{4}-\\d{2}-\\d{2})?$'`
+    - Change `get_template.properties.version.pattern` from `'^v\\d+\\.\\d+\\.\\d+$'` to `'^v\\d+\\.\\d+\\.\\d+(\\/\\d{4}-\\d{2}-\\d{2})?$'`
+    - Change `check_template_updates.properties.currentVersion.pattern` from `'^v\\d+\\.\\d+\\.\\d+$'` to `'^v\\d+\\.\\d+\\.\\d+(\\/\\d{4}-\\d{2}-\\d{2})?$'`
+    - Update `list_templates.properties.version.description` to `'Filter by Human_Readable_Version (e.g., v1.2.3 or v1.2.3/2024-01-15)'`
+    - Update `get_template.properties.version.description` to `'Human_Readable_Version (e.g., v1.2.3 or v1.2.3/2024-01-15)'`
+    - Update `check_template_updates.properties.currentVersion.description` to `'Current Human_Readable_Version (e.g., v1.2.3 or v1.2.3/2024-01-15)'`
+    - _Bug_Condition: isBugCondition(input) where input.paramValue matches /^v\d+\.\d+\.\d+\/\d{4}-\d{2}-\d{2}$/ AND validate returns valid: false_
+    - _Expected_Behavior: validate returns { valid: true } for both vX.Y.Z and vX.Y.Z/YYYY-MM-DD formats_
+    - _Preservation: Semver-only versions still accepted; invalid versions still rejected; all other validation unchanged_
+    - _Requirements: 1.1, 1.2, 1.3, 2.1, 2.2, 2.3, 2.4, 3.1, 3.2_
+
+  - [x] 3.2 Add pattern constraints to settings.js inputSchema
+    - In `application-infrastructure/src/lambda/read/config/settings.js`:
+    - Add `pattern: '^v\\d+\\.\\d+\\.\\d+(\\/\\d{4}-\\d{2}-\\d{2})?$'` to `list_templates` tool's `version` property in `inputSchema`
+    - Add `pattern: '^v\\d+\\.\\d+\\.\\d+(\\/\\d{4}-\\d{2}-\\d{2})?$'` to `get_template` tool's `version` property in `inputSchema`
+    - Add `pattern: '^v\\d+\\.\\d+\\.\\d+(\\/\\d{4}-\\d{2}-\\d{2})?$'` to `check_template_updates` tool's `currentVersion` property in `inputSchema`
+    - This ensures MCP clients receive the corrected pattern via `list_tools`
+    - _Bug_Condition: settings.js inputSchema lacked pattern constraints, creating inconsistency with schema-validator.js_
+    - _Expected_Behavior: inputSchema patterns match schema-validator.js patterns for consistency_
+    - _Preservation: No functional change to validation (schema-validator.js handles actual validation), but client-facing schemas are now consistent_
+    - _Requirements: 2.1, 2.2, 2.3, 3.3_
+
+  - [x] 3.3 Verify bug condition exploration test now passes
+    - **Property 1: Expected Behavior** - Date-Suffixed Versions Accepted by Validation
+    - **IMPORTANT**: Re-run the SAME test from task 1 - do NOT write a new test
+    - The test from task 1 encodes the expected behavior (date-suffixed versions should be accepted)
+    - When this test passes, it confirms the expected behavior is satisfied
+    - Run bug condition exploration test from step 1: `application-infrastructure/src/lambda/read/tests/unit/utils/schema-validator-version-bug.property.test.js`
+    - **EXPECTED OUTCOME**: Test PASSES (confirms bug is fixed — `validate()` now returns `{ valid: true }` for date-suffixed versions)
+    - _Requirements: 2.1, 2.2, 2.3_
+
+  - [x] 3.4 Verify preservation tests still pass
+    - **Property 2: Preservation** - Semver-Only Acceptance and Invalid Version Rejection Unchanged
+    - **IMPORTANT**: Re-run the SAME tests from task 2 - do NOT write new tests
+    - Run preservation property tests from step 2: `application-infrastructure/src/lambda/read/tests/unit/utils/schema-validator-version-preservation.property.test.js`
+    - **EXPECTED OUTCOME**: Tests PASS (confirms no regressions — semver-only versions still accepted, invalid versions still rejected, non-version validation unchanged)
+    - Confirm all tests still pass after fix (no regressions)
+
+- [x] 4. Checkpoint - Ensure all tests pass
+  - Run the full test suite to ensure no regressions across the codebase
+  - Verify both property test files pass: `schema-validator-version-bug.property.test.js` and `schema-validator-version-preservation.property.test.js`
+  - Verify existing `schema-validator.test.js` and `schema-validator-namespace.property.test.js` still pass
+  - Ensure all tests pass, ask the user if questions arise.

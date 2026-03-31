@@ -28,8 +28,8 @@ const schemas = {
       },
       version: {
         type: 'string',
-        pattern: '^v\\d+\\.\\d+\\.\\d+$',
-        description: 'Filter by Human_Readable_Version (e.g., v1.2.3)'
+        pattern: '^v\\d+\\.\\d+\\.\\d+(\\/\\d{4}-\\d{2}-\\d{2})?$',
+        description: 'Filter by Human_Readable_Version (e.g., v1.2.3 or v1.2.3/2024-01-15)'
       },
       versionId: {
         type: 'string',
@@ -74,8 +74,8 @@ const schemas = {
       },
       version: {
         type: 'string',
-        pattern: '^v\\d+\\.\\d+\\.\\d+$',
-        description: 'Human_Readable_Version (e.g., v1.2.3)'
+        pattern: '^v\\d+\\.\\d+\\.\\d+(\\/\\d{4}-\\d{2}-\\d{2})?$',
+        description: 'Human_Readable_Version (e.g., v1.2.3 or v1.2.3/2024-01-15)'
       },
       versionId: {
         type: 'string',
@@ -292,8 +292,8 @@ const schemas = {
       },
       currentVersion: {
         type: 'string',
-        pattern: '^v\\d+\\.\\d+\\.\\d+$',
-        description: 'Current Human_Readable_Version (e.g., v1.2.3)'
+        pattern: '^v\\d+\\.\\d+\\.\\d+(\\/\\d{4}-\\d{2}-\\d{2})?$',
+        description: 'Current Human_Readable_Version (e.g., v1.2.3 or v1.2.3/2024-01-15)'
       },
       category: {
         type: 'string',

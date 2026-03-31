@@ -131,8 +131,8 @@ describe('Validation Service', () => {
         '63k-acme-myapp-prod-us-east-1-123456789012',
         expect.objectContaining({
           resourceType: 's3',
-          config: expect.objectContaining({
-            region: 'us-east-1'
+          config: expect.not.objectContaining({
+            region: expect.anything()
           })
         })
       );
@@ -290,8 +290,8 @@ describe('Validation Service', () => {
       );
     });
 
-    it('should include region in config for S3 validation', async () => {
-      // Arrange
+    it('should NOT include server region in config for S3 validation', async () => {
+      // Arrange - S3 buckets can target any AWS region, not just the server's region
       NamingRules.detectResourceType.mockReturnValue('s3');
       NamingRules.validateNaming.mockReturnValue({
         valid: true,
@@ -307,12 +307,12 @@ describe('Validation Service', () => {
         resourceType: 's3'
       });
 
-      // Assert
+      // Assert - region should NOT be in config (format validation is handled by naming-rules)
       expect(NamingRules.validateNaming).toHaveBeenCalledWith(
         '63k-acme-myapp-prod-us-east-1-123456789012',
         expect.objectContaining({
-          config: expect.objectContaining({
-            region: 'us-east-1'
+          config: expect.not.objectContaining({
+            region: expect.anything()
           })
         })
       );
@@ -622,7 +622,7 @@ describe('Validation Service', () => {
         hasOrgPrefix: true
       });
 
-      // Assert
+      // Assert - region should NOT be in config (S3 buckets can target any region)
       expect(NamingRules.validateNaming).toHaveBeenCalledWith(
         '63k-acme-myapp-prod-123456789012-us-east-1-an',
         expect.objectContaining({
@@ -631,11 +631,13 @@ describe('Validation Service', () => {
             projectId: 'myapp',
             stageId: 'prod',
             orgPrefix: '63k',
-            hasOrgPrefix: true,
-            region: 'us-east-1'
+            hasOrgPrefix: true
           })
         })
       );
+      // Verify region is NOT passed in config
+      const actualCall = NamingRules.validateNaming.mock.calls[0][1];
+      expect(actualCall.config).not.toHaveProperty('region');
     });
 
     it('should fall back to environment config when caller values not provided', async () => {

@@ -113,7 +113,8 @@ const settings = {
             },
             version: {
               type: 'string',
-              description: 'Filter by Human_Readable_Version (e.g., v1.2.3/2024-01-15)'
+              description: 'Filter by Human_Readable_Version (e.g., v1.2.3/2024-01-15)',
+              pattern: '^v\\d+\\.\\d+\\.\\d+(\\/\\d{4}-\\d{2}-\\d{2})?$'
             },
             versionId: {
               type: 'string',
@@ -144,7 +145,8 @@ const settings = {
             },
             version: {
               type: 'string',
-              description: 'Human_Readable_Version (e.g., v1.2.3/2024-01-15)'
+              description: 'Human_Readable_Version (e.g., v1.2.3/2024-01-15)',
+              pattern: '^v\\d+\\.\\d+\\.\\d+(\\/\\d{4}-\\d{2}-\\d{2})?$'
             },
             versionId: {
               type: 'string',
@@ -315,7 +317,8 @@ const settings = {
             },
             currentVersion: {
               type: 'string',
-              description: 'Current Human_Readable_Version (e.g., v1.2.3/2024-01-15)'
+              description: 'Current Human_Readable_Version (e.g., v1.2.3/2024-01-15)',
+              pattern: '^v\\d+\\.\\d+\\.\\d+(\\/\\d{4}-\\d{2}-\\d{2})?$'
             },
             s3Buckets: {
               type: 'array',
