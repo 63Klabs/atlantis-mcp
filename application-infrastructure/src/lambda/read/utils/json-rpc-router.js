@@ -14,6 +14,8 @@
  */
 
 const MCPProtocol = require('./mcp-protocol');
+const ContentSizer = require('./content-sizer');
+const ContentChunker = require('./content-chunker');
 const Controllers = require('../controllers');
 const { extendedDescriptions } = require('../config/tool-descriptions');
 
@@ -40,6 +42,7 @@ const STANDARD_HEADERS = {
 const TOOL_DISPATCH = {
   list_templates: Controllers.Templates.list,
   get_template: Controllers.Templates.get,
+  get_template_chunk: Controllers.Templates.getChunk,
   list_template_versions: Controllers.Templates.listVersions,
   list_categories: Controllers.Templates.listCategories,
   list_starters: Controllers.Starters.list,
@@ -274,7 +277,67 @@ async function handleToolsCall(id, params, event, context) {
     ]
   };
 
+  // >! Size-aware response for get_template: return summary if payload exceeds threshold
+  if (toolName === 'get_template') {
+    try {
+      const serialized = result.content[0].text;
+      const sizeResult = ContentSizer.measure(serialized);
+
+      if (sizeResult.exceedsThreshold) {
+        const summary = buildTemplateSummary(resultData, serialized);
+        const summaryResult = {
+          content: [{ type: 'text', text: JSON.stringify(summary) }]
+        };
+        return buildResponse(200, MCPProtocol.jsonRpcSuccess(id, summaryResult));
+      }
+    } catch (summaryErr) {
+      // >! Graceful fallback: if summary generation fails, return the original full response
+    }
+  }
+
   return buildResponse(200, MCPProtocol.jsonRpcSuccess(id, result));
+}
+
+/**
+ * Build a Template_Summary from template data when the response exceeds the size threshold.
+ *
+ * @param {Object} templateData - The full template data object
+ * @param {string} serializedContent - The JSON-serialized template content
+ * @returns {Object} Template_Summary with metadata, resources, and retrieval hint
+ * @private
+ */
+function buildTemplateSummary(templateData, serializedContent) {
+  const chunks = ContentChunker.chunk(serializedContent);
+
+  // >! Extract top-level resource logical IDs and types
+  const resources = [];
+  const rawContent = templateData.content || templateData.templateContent || '';
+  if (typeof rawContent === 'object' && rawContent !== null) {
+    const resourcesSection = rawContent.Resources || {};
+    for (const [logicalId, resourceDef] of Object.entries(resourcesSection)) {
+      resources.push({
+        logicalId,
+        type: resourceDef.Type || 'Unknown'
+      });
+    }
+  }
+
+  return {
+    name: templateData.name || null,
+    version: templateData.version || null,
+    versionId: templateData.versionId || null,
+    description: templateData.description || null,
+    category: templateData.category || null,
+    namespace: templateData.namespace || null,
+    bucket: templateData.bucket || null,
+    s3Path: templateData.s3Path || null,
+    parameters: templateData.parameters || {},
+    outputs: templateData.outputs || {},
+    resources,
+    contentTruncated: true,
+    totalChunks: chunks.length,
+    retrievalHint: `Use the get_template_chunk tool with templateName and category to retrieve the full content. Pass chunkIndex from 0 to ${chunks.length - 1} to retrieve each chunk sequentially.`
+  };
 }
 
 module.exports = {
@@ -282,6 +345,7 @@ module.exports = {
   // Exported for testing
   extractId,
   buildResponse,
+  buildTemplateSummary,
   TOOL_DISPATCH,
   STANDARD_HEADERS
 };

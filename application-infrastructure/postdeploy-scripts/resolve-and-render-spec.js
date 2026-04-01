@@ -115,10 +115,32 @@ const html = `<!DOCTYPE html>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>${title}</title>
-  <style>body { margin: 0; padding: 0; }</style>
+  <style>
+    body { margin: 0; padding: 0; }
+    .breadcrumb-nav { padding: 0.75rem 1rem; margin-bottom: 0; }
+    .breadcrumb-nav ol { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; align-items: center; }
+    .breadcrumb-nav li { display: inline; font-size: 0.9rem; color: #4a4a68; }
+    .breadcrumb-nav li::before { content: "/"; margin: 0 0.5rem; color: #8888a0; }
+    .breadcrumb-nav li:first-child::before { content: none; margin: 0; }
+    .breadcrumb-nav a { color: #4a6cf7; text-decoration: none; }
+    .breadcrumb-nav a:hover, .breadcrumb-nav a:focus { text-decoration: underline; }
+    .breadcrumb-nav a:focus-visible { outline: 2px solid #4a6cf7; outline-offset: 2px; }
+    footer { margin-top: 0; padding: 1.5rem 1rem; border-top: 1px solid #e0e0e8; text-align: center; font-size: 0.8rem; color: #8888a0; }
+  </style>
 </head>
 <body>
+  <nav aria-label="Breadcrumb" class="breadcrumb-nav">
+    <ol>
+      <li><a href="/">Home</a></li>
+      <li><a href="/">Docs</a></li>
+      <li aria-current="page">API Reference</li>
+    </ol>
+  </nav>
   <div id="redoc-container"></div>
+  <footer>
+    <p>&copy; <span id="copyright-year"></span> 63Klabs. All rights reserved.</p>
+  </footer>
+  <script>document.getElementById('copyright-year').textContent = new Date().getFullYear();</script>
   <script src="https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js"></script>
   <script>
     var spec = ${JSON.stringify(resolved)};

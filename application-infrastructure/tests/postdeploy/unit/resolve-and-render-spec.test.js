@@ -151,4 +151,38 @@ describe('resolve-and-render-spec.js', () => {
       });
     }).toThrow();
   });
+
+  it('should contain breadcrumb navigation with Home, Docs, and API Reference', () => {
+    execFileSync('node', [SCRIPT_PATH, FIXTURE_PATH, outputPath], {
+      timeout: 15000
+    });
+
+    const html = fs.readFileSync(outputPath, 'utf8');
+    expect(html).toContain('<nav aria-label="Breadcrumb"');
+    expect(html).toContain('<a href="/">Home</a>');
+    expect(html).toContain('<a href="/">Docs</a>');
+    expect(html).toContain('aria-current="page">API Reference</li>');
+  });
+
+  it('should contain inline CSS for breadcrumb and footer', () => {
+    execFileSync('node', [SCRIPT_PATH, FIXTURE_PATH, outputPath], {
+      timeout: 15000
+    });
+
+    const html = fs.readFileSync(outputPath, 'utf8');
+    expect(html).toContain('.breadcrumb-nav');
+    expect(html).toMatch(/footer\s*\{/);
+  });
+
+  it('should contain copyright footer with year script', () => {
+    execFileSync('node', [SCRIPT_PATH, FIXTURE_PATH, outputPath], {
+      timeout: 15000
+    });
+
+    const html = fs.readFileSync(outputPath, 'utf8');
+    expect(html).toContain('<footer>');
+    expect(html).toContain('copyright-year');
+    expect(html).toContain('63Klabs');
+    expect(html).toContain('new Date().getFullYear()');
+  });
 });

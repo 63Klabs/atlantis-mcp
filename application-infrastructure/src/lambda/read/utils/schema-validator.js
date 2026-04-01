@@ -328,6 +328,56 @@ const schemas = {
     type: 'object',
     properties: {},
     additionalProperties: false
+  },
+
+  /**
+   * Schema for get_template_chunk tool input
+   * Retrieves a specific chunk of a large template's content
+   */
+  get_template_chunk: {
+    type: 'object',
+    properties: {
+      templateName: {
+        type: 'string',
+        minLength: 1,
+        description: 'Name of the template to retrieve'
+      },
+      category: {
+        type: 'string',
+        enum: TEMPLATE_CATEGORIES.map(cat => cat.name),
+        description: 'Template category'
+      },
+      chunkIndex: {
+        type: 'integer',
+        minimum: 0,
+        description: 'Zero-based index of the chunk to retrieve'
+      },
+      version: {
+        type: 'string',
+        description: 'Human_Readable_Version (e.g., v1.2.3 or v1.2.3/2024-01-15)'
+      },
+      versionId: {
+        type: 'string',
+        description: 'S3_VersionId for specific version'
+      },
+      s3Buckets: {
+        type: 'array',
+        items: {
+          type: 'string',
+          minLength: 3,
+          maxLength: 63
+        },
+        minItems: 1,
+        description: 'Filter to specific S3 buckets from configured list'
+      },
+      namespace: {
+        type: 'string',
+        maxLength: 63,
+        description: 'Filter to a specific namespace (S3 root prefix)'
+      }
+    },
+    required: ['templateName', 'category', 'chunkIndex'],
+    additionalProperties: false
   }
 };
 
@@ -391,10 +441,25 @@ const validate = (toolName, input) => {
 
     // Validate type
     if (propSchema.type) {
-      const actualType = Array.isArray(propValue) ? 'array' : typeof propValue;
-      if (actualType !== propSchema.type) {
-        errors.push(`Property '${propName}' must be of type ${propSchema.type}, got ${actualType}`);
-        continue;
+      if (propSchema.type === 'integer') {
+        // Integer type: must be a number and an integer
+        if (typeof propValue !== 'number' || !Number.isInteger(propValue)) {
+          errors.push(`Property '${propName}' must be of type integer, got ${Array.isArray(propValue) ? 'array' : typeof propValue}`);
+          continue;
+        }
+      } else {
+        const actualType = Array.isArray(propValue) ? 'array' : typeof propValue;
+        if (actualType !== propSchema.type) {
+          errors.push(`Property '${propName}' must be of type ${propSchema.type}, got ${actualType}`);
+          continue;
+        }
+      }
+    }
+
+    // Validate minimum (for numbers/integers)
+    if (propSchema.minimum !== undefined && typeof propValue === 'number') {
+      if (propValue < propSchema.minimum) {
+        errors.push(`Property '${propName}' must be at least ${propSchema.minimum}`);
       }
     }
 

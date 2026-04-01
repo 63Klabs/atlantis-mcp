@@ -19,6 +19,7 @@ jest.mock('../../controllers', () => {
     Templates: {
       list: jest.fn(),
       get: jest.fn(),
+      getChunk: jest.fn(),
       listVersions: jest.fn(),
       listCategories: jest.fn()
     },
@@ -52,6 +53,7 @@ const Controllers = require('../../controllers');
 const TOOL_TO_CONTROLLER = {
   list_templates: Controllers.Templates.list,
   get_template: Controllers.Templates.get,
+  get_template_chunk: Controllers.Templates.getChunk,
   list_template_versions: Controllers.Templates.listVersions,
   list_categories: Controllers.Templates.listCategories,
   list_starters: Controllers.Starters.list,

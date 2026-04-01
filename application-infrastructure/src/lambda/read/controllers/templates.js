@@ -7,6 +7,7 @@
  * Supported operations:
  * - list() - List all available templates with filtering
  * - get() - Retrieve specific template with full metadata
+ * - getChunk() - Retrieve a specific chunk of a large template's content
  * - listVersions() - List all versions of a template
  * - listCategories() - List all template categories
  *
@@ -16,6 +17,7 @@
 const Services = require('../services');
 const SchemaValidator = require('../utils/schema-validator');
 const MCPProtocol = require('../utils/mcp-protocol');
+const ContentChunker = require('../utils/content-chunker');
 const { tools: { DebugAndLog } } = require('@63klabs/cache-data');
 
 /**
@@ -320,9 +322,138 @@ async function listCategories(props) {
   }
 }
 
+/**
+ * Retrieve a specific chunk of a large template's content.
+ *
+ * Fetches the full template, serializes it to JSON, splits it into chunks
+ * using ContentChunker, and returns the requested chunk by index.
+ *
+ * @param {Object} props - Request properties from ClientRequest
+ * @param {Object} props.bodyParameters - Request body containing tool input
+ * @returns {Promise<Object>} MCP-formatted chunk response or error
+ *
+ * @example
+ * const response = await Templates.getChunk({
+ *   bodyParameters: {
+ *     input: {
+ *       templateName: 'template-storage-s3-artifacts',
+ *       category: 'storage',
+ *       chunkIndex: 0
+ *     }
+ *   }
+ * });
+ */
+async function getChunk(props) {
+  try {
+    // >! Validate input against JSON Schema
+    const input = props.bodyParameters?.input || {};
+    const validation = SchemaValidator.validate('get_template_chunk', input);
+
+    if (!validation.valid) {
+      DebugAndLog.warn('get_template_chunk validation failed', {
+        errors: validation.errors,
+        input
+      });
+      return MCPProtocol.errorResponse('INVALID_INPUT', {
+        message: 'Input validation failed',
+        errors: validation.errors
+      }, 'get_template_chunk');
+    }
+
+    // >! Extract parameters
+    const { templateName, category, chunkIndex, version, versionId, s3Buckets, namespace } = input;
+
+    DebugAndLog.info('get_template_chunk request', {
+      templateName,
+      category,
+      chunkIndex,
+      version,
+      versionId,
+      namespace,
+      s3BucketsCount: s3Buckets ? s3Buckets.length : 0
+    });
+
+    // >! Fetch full template via Services.Templates.get()
+    const template = await Services.Templates.get({
+      templateName,
+      category,
+      version,
+      versionId,
+      s3Buckets,
+      namespace
+    });
+
+    // >! Null guard: handle edge case where service returns null instead of throwing
+    if (!template) {
+      DebugAndLog.warn('get_template_chunk null result', { templateName, category });
+      return MCPProtocol.errorResponse('TEMPLATE_NOT_FOUND', {
+        message: `Template not found: ${category}/${templateName}`,
+        availableTemplates: []
+      }, 'get_template_chunk');
+    }
+
+    // >! Serialize template content and chunk via ContentChunker
+    const serialized = JSON.stringify(template);
+    const chunks = ContentChunker.chunk(serialized);
+
+    // >! Validate chunkIndex range
+    if (chunkIndex < 0 || chunkIndex >= chunks.length) {
+      DebugAndLog.warn('get_template_chunk invalid index', {
+        chunkIndex,
+        totalChunks: chunks.length
+      });
+      return MCPProtocol.errorResponse('INVALID_CHUNK_INDEX', {
+        message: `chunkIndex ${chunkIndex} is out of range. Valid range: 0-${chunks.length - 1}`,
+        validRange: { min: 0, max: chunks.length - 1 }
+      }, 'get_template_chunk');
+    }
+
+    DebugAndLog.info('get_template_chunk response', {
+      templateName,
+      category,
+      chunkIndex,
+      totalChunks: chunks.length
+    });
+
+    // >! Return MCP-formatted chunk response
+    return MCPProtocol.successResponse('get_template_chunk', {
+      chunkIndex,
+      totalChunks: chunks.length,
+      templateName,
+      category,
+      content: chunks[chunkIndex]
+    });
+
+  } catch (error) {
+    // >! Handle TEMPLATE_NOT_FOUND error with available templates
+    if (error.code === 'TEMPLATE_NOT_FOUND') {
+      DebugAndLog.warn('get_template_chunk not found', {
+        error: error.message,
+        availableTemplates: error.availableTemplates
+      });
+
+      return MCPProtocol.errorResponse('TEMPLATE_NOT_FOUND', {
+        message: error.message,
+        availableTemplates: error.availableTemplates || []
+      }, 'get_template_chunk');
+    }
+
+    DebugAndLog.error('get_template_chunk error', {
+      error: error.message,
+      stack: error.stack
+    });
+
+    return MCPProtocol.errorResponse('INTERNAL_ERROR', {
+      message: 'Failed to retrieve template chunk',
+      error: error.message
+    }, 'get_template_chunk');
+  }
+}
+
 module.exports = {
   list,
   get,
+  getChunk,
   listVersions,
   listCategories
 };

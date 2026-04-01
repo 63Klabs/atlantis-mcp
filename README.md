@@ -1,4 +1,4 @@
-# Atlantis MCP Server - Phase 1 (Core Read-Only)
+# Atlantis MCP Server
 
 The Atlantis MCP (Model Context Protocol) Server provides AI-assisted development capabilities for the 63Klabs Atlantis Templates and Scripts Platform. It enables developers to discover, validate, and utilize CloudFormation templates, starter code, and documentation through AI assistants and IDEs.
 

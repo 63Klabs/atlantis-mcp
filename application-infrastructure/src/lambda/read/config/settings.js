@@ -328,6 +328,48 @@ const settings = {
           },
           required: ['templateName', 'category', 'currentVersion']
         }
+      },
+      {
+        name: 'get_template_chunk',
+        description: 'Retrieve a specific chunk of a large CloudFormation template that was too large to return in a single get_template response.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            templateName: {
+              type: 'string',
+              description: 'Name of the template to retrieve'
+            },
+            category: {
+              type: 'string',
+              description: 'Template category',
+              enum: TEMPLATE_CATEGORIES.map(cat => cat.name)
+            },
+            chunkIndex: {
+              type: 'integer',
+              description: 'Zero-based index of the chunk to retrieve',
+              minimum: 0
+            },
+            version: {
+              type: 'string',
+              description: 'Human_Readable_Version (e.g., v1.2.3/2024-01-15)',
+              pattern: '^v\\d+\\.\\d+\\.\\d+(\\/\\d{4}-\\d{2}-\\d{2})?$'
+            },
+            versionId: {
+              type: 'string',
+              description: 'S3_VersionId for specific version'
+            },
+            s3Buckets: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Filter to specific S3 buckets from configured list'
+            },
+            namespace: {
+              type: 'string',
+              description: 'Filter to a specific namespace (S3 root prefix)'
+            }
+          },
+          required: ['templateName', 'category', 'chunkIndex']
+        }
       }
     ],
 

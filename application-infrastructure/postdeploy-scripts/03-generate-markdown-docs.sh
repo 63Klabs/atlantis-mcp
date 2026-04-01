@@ -39,6 +39,19 @@ extract_title() {
   echo "${title}"
 }
 
+# >! Format a kebab-case directory name for display in breadcrumbs.
+# >! Capitalizes the first character and replaces hyphens with spaces.
+#
+# @param $1 - Directory name (e.g., 'use-cases')
+format_directory_name() {
+  local name="$1"
+  local first_char
+  first_char=$(echo "${name:0:1}" | tr '[:lower:]' '[:upper:]')
+  local rest
+  rest=$(echo "${name:1}" | sed 's/-/ /g')
+  echo "${first_char}${rest}"
+}
+
 # Track whether any directory was processed
 has_processed=false
 
@@ -115,6 +128,30 @@ for dir in ${PUBLIC_DOC_DIRS}; do
       "${html_file}"
   done
   echo "${LOG_PREFIX} INFO: Rewrote .md links to .html in ${output_dir}"
+
+  # >! Inject breadcrumb navigation and copyright footer into generated HTML files.
+  # >! Breadcrumb trail varies by page type (index vs sub-page).
+  # >! Footer includes dynamic year script matching the landing page pattern.
+  display_name=$(format_directory_name "${dir}")
+  find "${output_dir}" -name '*.html' -type f | while read -r html_file; do
+    file_basename=$(basename "${html_file}")
+
+    if [[ "${file_basename}" == "index.html" ]]; then
+      # Index page: Home → Docs → Directory_Name (plain text)
+      breadcrumb='<nav aria-label="Breadcrumb" class="breadcrumb-nav"><ol><li><a href="/">Home</a></li><li><a href="/">Docs</a></li><li aria-current="page">'"${display_name}"'</li></ol></nav>'
+    else
+      # Sub-page: extract title from HTML <title> tag
+      page_title=$(grep -oP '(?<=<title>).*?(?=</title>)' "${html_file}" || echo "${file_basename%.html}")
+      breadcrumb='<nav aria-label="Breadcrumb" class="breadcrumb-nav"><ol><li><a href="/">Home</a></li><li><a href="/">Docs</a></li><li><a href="/docs/'"${dir}"'/">'"${display_name}"'</a></li><li aria-current="page">'"${page_title}"'</li></ol></nav>'
+    fi
+
+    # >! Inject breadcrumb after <body> tag (handles <body> with or without attributes)
+    sed -i 's|<body\([^>]*\)>|<body\1>'"${breadcrumb}"'|' "${html_file}"
+
+    # >! Inject footer and year script before </body>
+    sed -i 's|</body>|<footer><p>\&copy; <span id="copyright-year"></span> 63Klabs. All rights reserved.</p></footer>\n<script>document.getElementById('"'"'copyright-year'"'"').textContent = new Date().getFullYear();</script>\n</body>|' "${html_file}"
+  done
+  echo "${LOG_PREFIX} INFO: Injected breadcrumb and footer in ${output_dir}"
 done
 
 # Copy CSS stylesheet to staging directory so it is available at /docs/css/style.css
