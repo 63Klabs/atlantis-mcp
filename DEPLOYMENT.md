@@ -58,6 +58,7 @@ Using the Atlantis SAM Config scripts in your organization's central infrastruct
 
 # Create a pipeline for the test branch
 ./cli/config.py pipeline PREFIX YOUR_PROJECT_ID test
+# - Set post deploy to false
 
 # Deploy the pipeline
 ./cli/deploy.py pipeline PREFIX YOUR_PROJECT_ID test
@@ -113,7 +114,42 @@ For each branch you wish to deploy from, set up a pipeline using your organizati
 ```bash
 # Create a pipeline for the test branch
 ./cli/config.py pipeline PREFIX YOUR_PROJECT_ID beta
+# set post deploy to false
 
 # Deploy the pipeline
 ./cli/deploy.py pipeline PREFIX YOUR_PROJECT_ID beta
+```
+
+## Post Deployment Documentation Generation and CloudFront
+
+The MCP application contains code to generate static documentation from the `docs/end-user` directory and deployed API Gateway service.
+
+Documentation and the MCP API will reside under a single domain:
+
+- yourdomain.com/mcp/v1 (MCP endpoint)
+- yourdomain.com/ (documentation)
+
+To host documentation you will need to do the following:
+
+- Deploy a storage stack (S3 OAC) to host the documentation
+- Deploy a network stack (CloudFront and Route53) to provide a combined MCP and Documentation site under one domain.
+- Configure deployment pipeline Post Deploy stage
+- (Optional) Deploy the Cache-Invalidator application to invalidate documentation CloudFront cache (in production) after production deployments.
+
+```bash
+./cli/config.py storage PREFIX YOUR_PROJECT_ID
+# - Choose S3 OAC
+# - Deploy
+
+./cli/config.py network PREFIX YOUR_PROJECT_ID test
+# - You do not need a domain, you can use the CloudFront domain
+
+./cli/config.py pipeline PREFIX YOUR_PROJECT_ID test
+# - Configure the Post Deploy stage. Use the bucket you created as the Post Deploy STATIC_HOST
+
+# Optional - Install, config, and deploy CloudFront cache invalidator
+./cli/create_repo.py YOUR_CACHE_INVALIDATOR_SERVICE
+# - Choose Starter 03 Cache Invalidator
+# - Follow instructions provided by cache invalidator
+# - Be sure to configure the S3 OAC bucket to use the invalidator, set consolidation tag to 0
 ```
