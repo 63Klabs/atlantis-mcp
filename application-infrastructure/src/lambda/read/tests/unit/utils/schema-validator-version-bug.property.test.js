@@ -67,15 +67,18 @@ describe('Bug Condition: Date-Suffixed Versions Rejected by Validation', () => {
 
   /**
    * **Validates: Requirements 2.2**
+   *
+   * list_templates no longer accepts version parameter.
+   * Version filtering was removed; use list_template_versions instead.
    */
-  it('Property 1b: list_templates accepts date-suffixed version strings', () => {
+  it('Property 1b: list_templates rejects version as unknown property', () => {
     fc.assert(
       fc.property(
         humanReadableVersionArb(),
         (version) => {
           const result = validate('list_templates', { version });
-          expect(result.valid).toBe(true);
-          expect(result.errors).toHaveLength(0);
+          expect(result.valid).toBe(false);
+          expect(result.errors).toContain('Unknown property: version');
         }
       ),
       { numRuns: 100 }
@@ -117,12 +120,12 @@ describe('Bug Condition: Date-Suffixed Versions Rejected by Validation', () => {
     expect(result.errors).toHaveLength(0);
   });
 
-  it('Concrete: v1.2.3/2024-01-15 accepted by list_templates', () => {
+  it('Concrete: v1.2.3/2024-01-15 rejected by list_templates as unknown property', () => {
     const result = validate('list_templates', {
       version: 'v1.2.3/2024-01-15'
     });
-    expect(result.valid).toBe(true);
-    expect(result.errors).toHaveLength(0);
+    expect(result.valid).toBe(false);
+    expect(result.errors).toContain('Unknown property: version');
   });
 
   it('Concrete: v1.2.3/2024-01-15 accepted by check_template_updates', () => {

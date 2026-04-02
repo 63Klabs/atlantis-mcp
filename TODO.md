@@ -2,7 +2,8 @@
 
 - [-] Templates too much data
 - [-] Add footer to static docs
-- [ ] Update the domain in api documentation mcp.atlantis.63klabs.net when stage is prod (and api spec download)
+- [-] Add a DOCS index page and to breadcrumbs
+- [-] Update the domain in api documentation mcp.atlantis.63klabs.net when stage is prod (and api spec download)
 - [ ] Fix text failures, ensure tests are run during deployment
 
 - [ ] Why are there 2 package.json files in src tree
@@ -11,3 +12,4 @@
 - [ ] Review openapi spec
 - [ ] Review all documentation
 
+- [ ] Add authentication

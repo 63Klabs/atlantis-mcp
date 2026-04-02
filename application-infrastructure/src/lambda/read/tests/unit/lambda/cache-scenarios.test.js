@@ -248,14 +248,12 @@ describe('Cache Scenarios', () => {
       );
 
       await TemplatesService.list({
-        category: 'storage',
-        version: 'v1.0.0'
+        category: 'storage'
       });
 
       const call = cache.CacheableDataAccess.getData.mock.calls[0];
       expect(call[2].parameters).toMatchObject({
-        category: 'storage',
-        version: 'v1.0.0'
+        category: 'storage'
       });
     });
 

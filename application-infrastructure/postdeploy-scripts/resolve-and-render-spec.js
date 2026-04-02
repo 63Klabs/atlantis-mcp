@@ -132,13 +132,13 @@ const html = `<!DOCTYPE html>
   <nav aria-label="Breadcrumb" class="breadcrumb-nav">
     <ol>
       <li><a href="/">Home</a></li>
-      <li><a href="/">Docs</a></li>
+      <li><a href="/docs/">Docs</a></li>
       <li aria-current="page">API Reference</li>
     </ol>
   </nav>
   <div id="redoc-container"></div>
   <footer>
-    <p>&copy; <span id="copyright-year"></span> 63Klabs. All rights reserved.</p>
+    {{{settings.footer}}}
   </footer>
   <script>document.getElementById('copyright-year').textContent = new Date().getFullYear();</script>
   <script src="https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js"></script>

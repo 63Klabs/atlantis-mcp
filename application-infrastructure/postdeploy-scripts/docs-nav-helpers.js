@@ -31,6 +31,7 @@ function formatDirectoryName(dirName) {
  *
  * For index pages the trail is: Home → Docs → Directory_Name (plain text).
  * For sub-pages the trail is: Home → Docs → Directory_Name (link) → Page_Title (plain text).
+ * The "Docs" link points to /docs/ (the documentation landing page).
  * The last item always carries `aria-current="page"`.
  *
  * @param {string} dir - Raw directory name (e.g., 'integration')
@@ -52,7 +53,7 @@ function buildBreadcrumbHtml(dir, title, isIndex) {
   let items = '';
 
   items += '<li><a href="/">Home</a></li>';
-  items += '<li><a href="/">Docs</a></li>';
+  items += '<li><a href="/docs/">Docs</a></li>';
 
   if (isIndex) {
     items += `<li aria-current="page">${displayName}</li>`;
@@ -95,7 +96,7 @@ function injectBreadcrumb(html, breadcrumbHtml) {
  * // '...<footer><p>&copy; <span id="copyright-year"></span> 63Klabs. ...</footer><script>...</script></body></html>'
  */
 function injectFooter(html) {
-  const footer = '<footer><p>&copy; <span id="copyright-year"></span> 63Klabs. All rights reserved.</p></footer>';
+  const footer = '<footer>{{{settings.footer}}}</footer>';
   const script = "document.getElementById('copyright-year').textContent = new Date().getFullYear();";
   return html.replace('</body>', `${footer}\n<script>${script}</script>\n</body>`);
 }

@@ -82,8 +82,6 @@ describe('Controller Namespace Extraction', () => {
         bodyParameters: {
           input: {
             category: 'storage',
-            version: 'v1.0.0',
-            versionId: 'abc123',
             s3Buckets: ['bucket1'],
             namespace: 'turbo-kiln'
           }
@@ -92,8 +90,6 @@ describe('Controller Namespace Extraction', () => {
 
       expect(Services.Templates.list).toHaveBeenCalledWith({
         category: 'storage',
-        version: 'v1.0.0',
-        versionId: 'abc123',
         s3Buckets: ['bucket1'],
         namespace: 'turbo-kiln'
       });

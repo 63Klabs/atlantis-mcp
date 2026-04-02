@@ -160,7 +160,7 @@ describe('resolve-and-render-spec.js', () => {
     const html = fs.readFileSync(outputPath, 'utf8');
     expect(html).toContain('<nav aria-label="Breadcrumb"');
     expect(html).toContain('<a href="/">Home</a>');
-    expect(html).toContain('<a href="/">Docs</a>');
+    expect(html).toContain('<a href="/docs/">Docs</a>');
     expect(html).toContain('aria-current="page">API Reference</li>');
   });
 
@@ -182,7 +182,7 @@ describe('resolve-and-render-spec.js', () => {
     const html = fs.readFileSync(outputPath, 'utf8');
     expect(html).toContain('<footer>');
     expect(html).toContain('copyright-year');
-    expect(html).toContain('63Klabs');
+    expect(html).toContain('{{{settings.footer}}}');
     expect(html).toContain('new Date().getFullYear()');
   });
 });

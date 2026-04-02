@@ -273,9 +273,7 @@ function parseTemplateMetadata(s3Object, bucketName, namespace) {
     s3Path: `s3://${bucketName}/${s3Object.Key}`,
     key: s3Object.Key,
     lastModified: s3Object.LastModified,
-    size: s3Object.Size,
-    versionId: s3Object.VersionId || null,
-    version: null // Will be populated when content is fetched
+    size: s3Object.Size
   };
 }
 
@@ -287,13 +285,11 @@ function parseTemplateMetadata(s3Object, bucketName, namespace) {
  * @param {string} connection.path - S3 object key prefix (e.g., "templates/v2")
  * @param {Object} connection.parameters - Query parameters
  * @param {string} connection.parameters.category - Template category filter
- * @param {string} connection.parameters.version - Human_Readable_Version filter
- * @param {string} connection.parameters.versionId - S3 VersionId filter
  * @param {Object} options - Reserved for future use (not in cache key)
  * @returns {Promise<Object>} { templates: Array, errors: Array, partialData: boolean }
  */
 async function list(connection, options = {}) {
-  const { category, version, versionId, namespace } = connection.parameters || {};
+  const { category, namespace } = connection.parameters || {};
   const basePath = connection.path || 'templates/v2';
 
   // Ensure host is an array
@@ -345,36 +341,7 @@ async function list(connection, options = {}) {
           let templates = (response.Contents || [])
             .filter(obj => obj.Key.endsWith('.yml') || obj.Key.endsWith('.yaml'))
             .map(obj => parseTemplateMetadata(obj, bucket, namespace))
-            .filter(t => filterByCategory(t, category))
-            .filter(t => filterByVersionId(t, versionId));
-
-          // >! If version filter is provided, fetch content to extract Human_Readable_Version
-          if (version) {
-            const templatesWithVersion = await Promise.all(
-              templates.map(async (template) => {
-                try {
-                  const command = new GetObjectCommand({
-                    Bucket: bucket,
-                    Key: template.key
-                  });
-                  const response = await AWS.s3.client.send(command);
-                  const content = await response.Body.transformToString();
-                  const parsedVersion = parseHumanReadableVersion(content);
-
-                  return {
-                    ...template,
-                    version: parsedVersion
-                  };
-                } catch (error) {
-                  DebugAndLog.warn(`Failed to fetch version for ${template.key}: ${error.message}`);
-                  return template; // Return without version if fetch fails
-                }
-              })
-            );
-
-            // >! Now filter by version after fetching
-            templates = templatesWithVersion.filter(t => filterByVersion(t, version));
-          }
+            .filter(t => filterByCategory(t, category));
 
           allTemplates.push(...templates);
         } catch (error) {

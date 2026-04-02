@@ -55,6 +55,41 @@ else
   echo "${LOG_PREFIX} WARN: Public directory not found at ${PUBLIC_DIR}"
 fi
 
+# Copy exported OpenAPI spec to build/final/ for download
+if [[ -f "${STAGING_DIR}/api-spec/openapi.json" ]]; then
+  mkdir -p "${FINAL_DIR}/docs/api"
+  cp "${STAGING_DIR}/api-spec/openapi.json" "${FINAL_DIR}/docs/api/openapi.json"
+  echo "${LOG_PREFIX} INFO: Copied openapi.json to ${FINAL_DIR}/docs/api/openapi.json"
+else
+  echo "${LOG_PREFIX} WARN: OpenAPI spec not found at ${STAGING_DIR}/api-spec/openapi.json"
+fi
+
+# Source API Gateway environment variables from script 01 output
+ENV_FILE="${STAGING_DIR}/api-spec/env.sh"
+if [[ -f "${ENV_FILE}" ]]; then
+  # shellcheck disable=SC1090
+  source "${ENV_FILE}"
+  echo "${LOG_PREFIX} INFO: Sourced ${ENV_FILE} (REST_API_ID=${REST_API_ID:-unset}, API_STAGE_NAME=${API_STAGE_NAME:-unset})"
+else
+  echo "${LOG_PREFIX} WARN: ${ENV_FILE} not found — skipping API Gateway URL replacement"
+fi
+
+# Apply settings token replacement across all consolidated content
+SETTINGS_FILE="application-infrastructure/src/static/settings.json"
+APPLY_SETTINGS_SCRIPT="application-infrastructure/postdeploy-scripts/apply-settings.js"
+
+APPLY_SETTINGS_ARGS=("${SETTINGS_FILE}" "${FINAL_DIR}" "${STAGE_ID}")
+if [[ -n "${REST_API_ID:-}" && -n "${AWS_REGION:-}" && -n "${API_STAGE_NAME:-}" ]]; then
+  APPLY_SETTINGS_ARGS+=(--rest-api-id "${REST_API_ID}" --region "${AWS_REGION}" --api-stage-name "${API_STAGE_NAME}")
+fi
+
+echo "${LOG_PREFIX} INFO: Running apply-settings.js..."
+node "${APPLY_SETTINGS_SCRIPT}" "${APPLY_SETTINGS_ARGS[@]}" || {
+  echo "${LOG_PREFIX} ERROR: apply-settings.js failed" >&2
+  exit 1
+}
+echo "${LOG_PREFIX} INFO: Settings applied successfully"
+
 # Count files for logging
 file_count=$(find "${FINAL_DIR}" -type f | wc -l)
 echo "${LOG_PREFIX} INFO: Final build directory contains ${file_count} file(s)"

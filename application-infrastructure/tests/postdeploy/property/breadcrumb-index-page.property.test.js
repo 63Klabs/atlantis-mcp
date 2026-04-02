@@ -34,8 +34,8 @@ describe('Property 1: Index page breadcrumb structure and content', () => {
         // Req 1.1: First item — Home link to /
         expect(liMatches[0]).toBe('<li><a href="/">Home</a></li>');
 
-        // Req 1.1: Second item — Docs link to /
-        expect(liMatches[1]).toBe('<li><a href="/">Docs</a></li>');
+        // Req 1.1: Second item — Docs link to /docs/
+        expect(liMatches[1]).toBe('<li><a href="/docs/">Docs</a></li>');
 
         // Req 1.1 + 1.4: Third item — formatted directory name with aria-current="page"
         expect(liMatches[2]).toBe(`<li aria-current="page">${expectedDisplayName}</li>`);

@@ -98,10 +98,11 @@ describe('JSON Schema Validator', () => {
       expect(result.errors).toEqual([]);
     });
 
-    test('should accept valid input with version', () => {
+    test('should accept valid input with version (now rejected as unknown property)', () => {
       const result = validate('list_templates', { version: 'v1.2.3' });
 
-      expect(result.valid).toBe(true);
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain('Unknown property: version');
     });
 
     test('should accept valid input with s3Buckets array', () => {

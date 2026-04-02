@@ -49,13 +49,11 @@ async function list(props) {
       }, 'list_templates');
     }
 
-    // >! Extract parameters (category, version, versionId, s3Buckets, namespace)
-    const { category, version, versionId, s3Buckets, namespace } = input;
+    // >! Extract parameters (category, s3Buckets, namespace)
+    const { category, s3Buckets, namespace } = input;
 
     DebugAndLog.info('list_templates request', {
       category,
-      version,
-      versionId,
       namespace,
       s3BucketsCount: s3Buckets ? s3Buckets.length : 0
     });
@@ -63,8 +61,6 @@ async function list(props) {
     // >! Call Services.Templates.list()
     const result = await Services.Templates.list({
       category,
-      version,
-      versionId,
       s3Buckets,
       namespace
     });

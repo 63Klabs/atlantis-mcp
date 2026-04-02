@@ -123,13 +123,16 @@ describe('Property 2a: Semver-only versions accepted by all affected tools', () 
 
   /**
    * **Validates: Requirements 2.4**
+   *
+   * list_templates no longer accepts version parameter.
+   * Version filtering was removed; use list_template_versions instead.
    */
-  it('list_templates accepts all semver-only vX.Y.Z versions', () => {
+  it('list_templates rejects version parameter as unknown property', () => {
     fc.assert(
       fc.property(semverOnlyArb(), (version) => {
         const result = validate('list_templates', { version });
-        expect(result.valid).toBe(true);
-        expect(result.errors).toHaveLength(0);
+        expect(result.valid).toBe(false);
+        expect(result.errors).toContain('Unknown property: version');
       }),
       { numRuns: 100 }
     );
@@ -241,14 +244,15 @@ describe('Property 2b: Invalid version strings rejected', () => {
   /**
    * **Validates: Requirements 3.1, 3.2**
    *
-   * Invalid versions are also rejected by list_templates and check_template_updates
+   * list_templates no longer accepts version parameter.
+   * Version filtering was removed; use list_template_versions instead.
    */
-  it('list_templates rejects missing v prefix', () => {
+  it('list_templates rejects version as unknown property', () => {
     fc.assert(
       fc.property(missingVPrefixArb(), (version) => {
         const result = validate('list_templates', { version });
         expect(result.valid).toBe(false);
-        expect(result.errors[0]).toContain('does not match required pattern');
+        expect(result.errors).toContain('Unknown property: version');
       }),
       { numRuns: 100 }
     );

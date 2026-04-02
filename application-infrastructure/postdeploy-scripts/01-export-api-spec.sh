@@ -82,3 +82,9 @@ if [[ ! -s "${STAGING_DIR}/openapi.json" ]]; then
 fi
 
 echo "${LOG_PREFIX} INFO: OpenAPI spec exported successfully to ${STAGING_DIR}/openapi.json"
+
+# Write environment variables for downstream scripts (script 04 sources this file)
+ENV_FILE="${STAGING_DIR}/env.sh"
+echo "export REST_API_ID=\"${REST_API_ID}\"" > "${ENV_FILE}"
+echo "export API_STAGE_NAME=\"${API_STAGE_NAME}\"" >> "${ENV_FILE}"
+echo "${LOG_PREFIX} INFO: Wrote REST_API_ID and API_STAGE_NAME to ${ENV_FILE}"

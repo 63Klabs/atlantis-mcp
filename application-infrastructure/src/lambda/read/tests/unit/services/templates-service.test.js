@@ -230,7 +230,7 @@ describe('Templates Service', () => {
       expect(Models.S3Templates.list).toHaveBeenCalled();
     });
 
-    it('should filter templates by version', async () => {
+    it('should filter templates by version (version no longer supported in list)', async () => {
       // Arrange
       const mockConnCache = createMockConnCacheProfile();
       Config.getConnCacheProfile.mockReturnValue(mockConnCache);
@@ -241,19 +241,18 @@ describe('Templates Service', () => {
         partialData: false
       });
 
-      // Act
-      await Templates.list({ version: 'v1.3.5/2024-01-15' });
+      // Act - version is ignored, only category and namespace are passed
+      await Templates.list({ category: 'storage' });
 
       // Assert
       expect(mockConnCache.conn.parameters).toEqual({
-        category: undefined,
-        version: 'v1.3.5/2024-01-15',
-        versionId: undefined
+        category: 'storage',
+        namespace: undefined
       });
       expect(Models.S3Templates.list).toHaveBeenCalled();
     });
 
-    it('should filter templates by versionId', async () => {
+    it('should filter templates by versionId (versionId no longer supported in list)', async () => {
       // Arrange
       const mockConnCache = createMockConnCacheProfile();
       Config.getConnCacheProfile.mockReturnValue(mockConnCache);
@@ -264,14 +263,13 @@ describe('Templates Service', () => {
         partialData: false
       });
 
-      // Act
-      await Templates.list({ versionId: 'abc123' });
+      // Act - versionId is ignored, only category and namespace are passed
+      await Templates.list({ category: 'network' });
 
       // Assert
       expect(mockConnCache.conn.parameters).toEqual({
-        category: undefined,
-        version: undefined,
-        versionId: 'abc123'
+        category: 'network',
+        namespace: undefined
       });
       expect(Models.S3Templates.list).toHaveBeenCalled();
     });

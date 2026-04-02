@@ -102,7 +102,7 @@ const settings = {
       },
       {
         name: 'list_templates',
-        description: 'List all Pipeline, Storage, Network, and Service Role CloudFormation templates available for deployment via Atlantis scripts. Returns template metadata including name, version, category, description, namespace, and S3 location. While not directly used by application templates, they can provide useful patterns and standards for applying to application templates.',
+        description: 'List all Pipeline, Storage, Network, and Service Role CloudFormation templates available for deployment via Atlantis scripts. Returns template metadata including name, category, description, namespace, and S3 location. Use list_template_versions to get version information for a specific template.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -110,15 +110,6 @@ const settings = {
               type: 'string',
               description: 'Filter by template category (storage, network, pipeline, service-role, modules)',
               enum: TEMPLATE_CATEGORIES.map(cat => cat.name)
-            },
-            version: {
-              type: 'string',
-              description: 'Filter by Human_Readable_Version (e.g., v1.2.3/2024-01-15)',
-              pattern: '^v\\d+\\.\\d+\\.\\d+(\\/\\d{4}-\\d{2}-\\d{2})?$'
-            },
-            versionId: {
-              type: 'string',
-              description: 'Filter by S3_VersionId'
             },
             s3Buckets: {
               type: 'array',

@@ -26,15 +26,6 @@ const schemas = {
         enum: TEMPLATE_CATEGORIES.map(cat => cat.name),
         description: 'Filter templates by category'
       },
-      version: {
-        type: 'string',
-        pattern: '^v\\d+\\.\\d+\\.\\d+(\\/\\d{4}-\\d{2}-\\d{2})?$',
-        description: 'Filter by Human_Readable_Version (e.g., v1.2.3 or v1.2.3/2024-01-15)'
-      },
-      versionId: {
-        type: 'string',
-        description: 'Filter by S3_VersionId'
-      },
       s3Buckets: {
         type: 'array',
         items: {

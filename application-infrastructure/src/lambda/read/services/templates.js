@@ -22,8 +22,6 @@ const Models = require('../models');
  *
  * @param {Object} options - Filter options
  * @param {string} [options.category] - Template category (optional)
- * @param {string} [options.version] - Template version (Human_Readable_Version, optional)
- * @param {string} [options.versionId] - S3 object Version Id (optional)
  * @param {Array<string>} [options.s3Buckets] - Filter to specific buckets (optional, validated against settings)
  * @param {string} [options.namespace] - Filter to a specific namespace S3 root prefix (optional)
  * @returns {Promise<Object>} { templates: Array, errors: Array, partialData: boolean }
@@ -42,7 +40,7 @@ const Models = require('../models');
  */
 async function list(options = {}) {
   const logName = "service.templates.list";
-  const { category, version, versionId, s3Buckets, namespace } = options;
+  const { category, s3Buckets, namespace } = options;
 
   // >! Get connection and cache profile from config
   const { conn, cacheProfile } = Config.getConnCacheProfile('s3-templates', 'templates-list');
@@ -75,15 +73,13 @@ async function list(options = {}) {
   conn.host = bucketsToSearch;
 
   // >! Set parameters for cache key and DAO filtering
-  conn.parameters = { category, version, versionId, namespace };
+  conn.parameters = { category, namespace };
 
   // >! Define fetch function for cache miss
   const fetchFunction = async (connection, opts) => {
     DebugAndLog.debug(`${logName}.fetchFunction: Fetching templates from S3 (cache miss)`, {
       buckets: connection.host,
       category: connection.parameters?.category,
-      version: connection.parameters?.version,
-      versionId: connection.parameters?.versionId,
       namespace: connection.parameters?.namespace
     });
 

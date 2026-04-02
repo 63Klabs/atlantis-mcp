@@ -27,7 +27,7 @@ This guide helps you diagnose and resolve common issues when using the Atlantis 
 
 1. **Incorrect URL**
    - Check configuration for typos
-   - Verify URL format: `https://mcp.atlantis.63klabs.com/v1`
+   - Verify URL format: `https://mcp.atlantis.63klabs.net/mcp/v1`
    - Ensure no trailing slash
 
 2. **Network Issues**
@@ -44,7 +44,7 @@ This guide helps you diagnose and resolve common issues when using the Atlantis 
 
 ```bash
 # Test connection with curl
-curl -X POST https://mcp.atlantis.63klabs.com/v1/tools/list_categories \
+curl -X POST https://mcp.atlantis.63klabs.net/mcp/v1 \
   -H "Content-Type: application/json" \
   -d '{}'
 
@@ -56,7 +56,7 @@ curl -X POST https://mcp.atlantis.63klabs.com/v1/tools/list_categories \
 {
   "mcpServers": {
     "atlantis": {
-      "url": "https://mcp.atlantis.63klabs.com/v1",
+      "url": "https://mcp.atlantis.63klabs.net/mcp/v1",
       "timeout": 30000
     }
   }
@@ -111,11 +111,6 @@ X-RateLimit-Reset: 1706284800
    - Deploy your own instance
    - Configure custom rate limits
    - See [Deployment Guide](deployment/README.md)
-
-4. **Contact Support**
-   - Request increased limits
-   - Explain use case
-   - Email: support@63klabs.com
 
 **Prevention:**
 
@@ -275,22 +270,17 @@ Ask AI: "List starters from 63klabs"
 
 **Possible Causes:**
 
-1. **Cold Start**
-   - First request after idle period
-   - Lambda function warming up
-   - Normal for serverless
-
-2. **Large Result Sets**
+1. **Large Result Sets**
    - Listing all templates across many buckets
    - Searching large documentation index
    - Getting full template content
 
-3. **Network Latency**
+2. **Network Latency**
    - Geographic distance from server
    - Network congestion
    - ISP issues
 
-4. **Cache Miss**
+3. **Cache Miss**
    - First request for specific data
    - Cache expired
    - Subsequent requests will be faster
@@ -311,27 +301,15 @@ Ask AI: "List starters from 63klabs"
    {
      "mcpServers": {
        "atlantis": {
-         "url": "https://mcp.atlantis.63klabs.com/v1",
+         "url": "https://mcp.atlantis.63klabs.net/mcp/v1",
          "timeout": 60000
        }
      }
    }
    ```
 
-3. **Self-Host for Better Performance**
-   - Deploy in your AWS region
-   - Optimize Lambda memory
-   - Configure VPC endpoints
-
-4. **Cache Responses**
-   - AI assistants cache responses
-   - Avoid repeated identical requests
-   - Use cached data when possible
-
 **Performance Tips:**
 
-- First request is slower (cold start + cache miss)
-- Subsequent requests are faster (warm + cached)
 - Use specific queries instead of broad searches
 - Filter results to reduce data transfer
 
@@ -339,9 +317,7 @@ Ask AI: "List starters from 63klabs"
 
 ## Authentication Problems
 
-### Problem: Authentication Required (Phase 2+)
-
-**Note:** Phase 1 does not require authentication. This section is for future reference.
+### Problem: Authentication Required
 
 **Symptoms:**
 - "Authentication required" error
@@ -350,19 +326,11 @@ Ask AI: "List starters from 63klabs"
 
 **Solutions:**
 
-Phase 1 is public read-only - no authentication needed. If you see authentication errors:
+If you see authentication errors:
 
 1. **Verify URL**
    - Ensure using public endpoint
    - Check for typos
-
-2. **Check Phase**
-   - Confirm server is running Phase 1
-   - Phase 2+ may require authentication
-
-3. **Contact Support**
-   - Report unexpected authentication requirements
-   - Email: support@63klabs.com
 
 ---
 
@@ -449,9 +417,9 @@ The MCP server continues operation when some data sources fail:
 **Understanding Caching:**
 
 Data is cached for performance:
-- Template metadata: 1 hour
-- Starter metadata: 1 hour
-- Documentation index: 6 hours
+- Template metadata: 24 hours
+- Starter metadata: 24 hours
+- Documentation index: 24 hours
 - Full template content: 24 hours
 
 **Solutions:**
@@ -529,7 +497,6 @@ Data is cached for performance:
 
 - Check network latency
 - Verify MCP server health
-- Consider self-hosting
 
 ---
 
@@ -614,41 +581,19 @@ Data is cached for performance:
 
 ```bash
 # Test server is responding
-curl https://mcp.atlantis.63klabs.com/v1/health
-
-# Test list_categories (no parameters)
-curl -X POST https://mcp.atlantis.63klabs.com/v1/tools/list_categories \
-  -H "Content-Type: application/json" \
-  -d '{}'
-
-# Test with parameters
-curl -X POST https://mcp.atlantis.63klabs.com/v1/tools/list_templates \
-  -H "Content-Type: application/json" \
-  -d '{"category": "pipeline"}'
+curl -i -X POST https://mcp.atlantis.63klabs.net/mcp/v1
 ```
 
 ### Check Rate Limit Status
 
 ```bash
 # Make request and check headers
-curl -i -X POST https://mcp.atlantis.63klabs.com/v1/tools/list_categories \
-  -H "Content-Type: application/json" \
-  -d '{}'
+curl -i -X POST https://mcp.atlantis.63klabs.net/mcp/v1
 
 # Look for headers:
 # X-RateLimit-Limit: 100
 # X-RateLimit-Remaining: 95
 # X-RateLimit-Reset: 1706284800
-```
-
-### Validate Configuration
-
-```bash
-# Validate JSON syntax
-cat config.json | python -m json.tool
-
-# Or with jq
-cat config.json | jq .
 ```
 
 ---
@@ -670,7 +615,7 @@ cat config.json | jq .
 
 **Q: Why am I getting rate limited?**
 
-A: Public instance has 100 requests/hour limit. Self-host for higher limits or wait for reset.
+A: Public instance has 50 requests/hour limit. Self-host for higher limits or wait for reset.
 
 **Q: Why is my first request slow?**
 
@@ -678,11 +623,11 @@ A: Cold start + cache miss. Subsequent requests are faster.
 
 **Q: Can I increase rate limits?**
 
-A: Contact support for public instance, or self-host with custom limits.
+A: In the future you will be able to register for a public or paid account, or self-host with custom limits.
 
 **Q: Why don't I see my template?**
 
-A: Check bucket configuration, verify template name, ensure sidecar metadata exists.
+A: Check bucket configuration, verify template name, namespace, and category.
 
 **Q: How do I clear the cache?**
 

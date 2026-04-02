@@ -61,8 +61,7 @@ describe('Templates Controller', () => {
       const props = {
         bodyParameters: {
           input: {
-            category: 'storage',
-            version: 'v1.3.5/2024-01-15'
+            category: 'storage'
           }
         }
       };
@@ -71,8 +70,8 @@ describe('Templates Controller', () => {
 
       const mockTemplates = {
         templates: [
-          { name: 'template-storage-s3-artifacts', version: 'v1.3.5/2024-01-15', category: 'storage' },
-          { name: 'template-storage-s3-oac-for-cloudfront', version: 'v1.2.3/2024-01-10', category: 'storage' }
+          { name: 'template-storage-s3-artifacts', category: 'storage' },
+          { name: 'template-storage-s3-oac-for-cloudfront', category: 'storage' }
         ]
       };
 
@@ -85,8 +84,6 @@ describe('Templates Controller', () => {
       expect(SchemaValidator.validate).toHaveBeenCalledWith('list_templates', props.bodyParameters.input);
       expect(Services.Templates.list).toHaveBeenCalledWith({
         category: 'storage',
-        version: 'v1.3.5/2024-01-15',
-        versionId: undefined,
         s3Buckets: undefined,
         namespace: undefined
       });
@@ -106,8 +103,6 @@ describe('Templates Controller', () => {
       // Assert
       expect(Services.Templates.list).toHaveBeenCalledWith({
         category: undefined,
-        version: undefined,
-        versionId: undefined,
         s3Buckets: undefined,
         namespace: undefined
       });
@@ -191,8 +186,6 @@ describe('Templates Controller', () => {
         bodyParameters: {
           input: {
             category: 'storage',
-            version: 'v1.3.5/2024-01-15',
-            versionId: 'abc123',
             s3Buckets: ['bucket1', 'bucket2']
           }
         }
@@ -207,8 +200,6 @@ describe('Templates Controller', () => {
       // Assert
       expect(Services.Templates.list).toHaveBeenCalledWith({
         category: 'storage',
-        version: 'v1.3.5/2024-01-15',
-        versionId: 'abc123',
         s3Buckets: ['bucket1', 'bucket2'],
         namespace: undefined
       });

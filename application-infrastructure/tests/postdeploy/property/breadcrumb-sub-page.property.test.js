@@ -42,8 +42,8 @@ describe('Property 2: Sub-page breadcrumb structure and content', () => {
         // Req 1.2: First item — Home link to /
         expect(liMatches[0]).toBe('<li><a href="/">Home</a></li>');
 
-        // Req 1.2: Second item — Docs link to /
-        expect(liMatches[1]).toBe('<li><a href="/">Docs</a></li>');
+        // Req 1.2: Second item — Docs link to /docs/
+        expect(liMatches[1]).toBe('<li><a href="/docs/">Docs</a></li>');
 
         // Req 1.2: Third item — formatted directory name as link to /docs/{dir}/
         expect(liMatches[2]).toBe(`<li><a href="/docs/${dirName}/">${expectedDisplayName}</a></li>`);

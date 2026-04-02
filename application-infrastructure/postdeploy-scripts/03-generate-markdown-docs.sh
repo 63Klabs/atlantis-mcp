@@ -138,18 +138,18 @@ for dir in ${PUBLIC_DOC_DIRS}; do
 
     if [[ "${file_basename}" == "index.html" ]]; then
       # Index page: Home → Docs → Directory_Name (plain text)
-      breadcrumb='<nav aria-label="Breadcrumb" class="breadcrumb-nav"><ol><li><a href="/">Home</a></li><li><a href="/">Docs</a></li><li aria-current="page">'"${display_name}"'</li></ol></nav>'
+      breadcrumb='<nav aria-label="Breadcrumb" class="breadcrumb-nav"><ol><li><a href="/">Home</a></li><li><a href="/docs/">Docs</a></li><li aria-current="page">'"${display_name}"'</li></ol></nav>'
     else
       # Sub-page: extract title from HTML <title> tag
       page_title=$(grep -oP '(?<=<title>).*?(?=</title>)' "${html_file}" || echo "${file_basename%.html}")
-      breadcrumb='<nav aria-label="Breadcrumb" class="breadcrumb-nav"><ol><li><a href="/">Home</a></li><li><a href="/">Docs</a></li><li><a href="/docs/'"${dir}"'/">'"${display_name}"'</a></li><li aria-current="page">'"${page_title}"'</li></ol></nav>'
+      breadcrumb='<nav aria-label="Breadcrumb" class="breadcrumb-nav"><ol><li><a href="/">Home</a></li><li><a href="/docs/">Docs</a></li><li><a href="/docs/'"${dir}"'/">'"${display_name}"'</a></li><li aria-current="page">'"${page_title}"'</li></ol></nav>'
     fi
 
     # >! Inject breadcrumb after <body> tag (handles <body> with or without attributes)
     sed -i 's|<body\([^>]*\)>|<body\1>'"${breadcrumb}"'|' "${html_file}"
 
     # >! Inject footer and year script before </body>
-    sed -i 's|</body>|<footer><p>\&copy; <span id="copyright-year"></span> 63Klabs. All rights reserved.</p></footer>\n<script>document.getElementById('"'"'copyright-year'"'"').textContent = new Date().getFullYear();</script>\n</body>|' "${html_file}"
+    sed -i 's|</body>|<footer>{{{settings.footer}}}</footer>\n<script>document.getElementById('"'"'copyright-year'"'"').textContent = new Date().getFullYear();</script>\n</body>|' "${html_file}"
   done
   echo "${LOG_PREFIX} INFO: Injected breadcrumb and footer in ${output_dir}"
 done

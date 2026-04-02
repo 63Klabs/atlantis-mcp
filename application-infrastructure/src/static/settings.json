@@ -1,0 +1,11 @@
+{
+  "default": {
+    "footer": "<p>&copy; <span id=\"copyright-year\"></span> 63Klabs. All rights reserved.</p>"
+  },
+  "beta": {
+    "domain": "mcp-beta.atlantis.63klabs.net"
+  },
+  "prod": {
+    "domain": "mcp.atlantis.63klabs.net"
+  }
+}

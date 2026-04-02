@@ -32,11 +32,11 @@ describe('Property 4: Footer uniqueness and position', () => {
         const bodyClosePos = result.indexOf('</body>');
         expect(footerPos).toBeLessThan(bodyClosePos);
 
-        // Req 2.2: Footer contains copyright-year span
-        expect(result).toContain('<span id="copyright-year"></span>');
+        // Req 2.2: Footer contains settings.footer token (resolved at deploy time)
+        expect(result).toContain('{{{settings.footer}}}');
 
-        // Req 2.1: Footer contains 63Klabs text
-        expect(result).toContain('63Klabs');
+        // Req 2.1: Year script is adjacent to footer
+        expect(result).toContain('copyright-year');
       }),
       { numRuns: 100 }
     );
