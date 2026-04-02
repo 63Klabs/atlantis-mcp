@@ -202,3 +202,52 @@ footer {
     font-size: 1.4rem;
     }
 }
+
+
+/* Breadcrumb Navigation */
+
+.breadcrumb-nav {
+  padding: 0.75rem 0;
+  margin-bottom: 1rem;
+}
+
+.breadcrumb-nav ol {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.breadcrumb-nav li {
+  display: inline;
+  font-size: 0.9rem;
+  color: #4a4a68;
+}
+
+.breadcrumb-nav li::before {
+  content: "/";
+  margin: 0 0.5rem;
+  color: #8888a0;
+}
+
+.breadcrumb-nav li:first-child::before {
+  content: none;
+  margin: 0;
+}
+
+.breadcrumb-nav a {
+  color: #4a6cf7;
+  text-decoration: none;
+}
+
+.breadcrumb-nav a:hover,
+.breadcrumb-nav a:focus {
+  text-decoration: underline;
+}
+
+.breadcrumb-nav a:focus-visible {
+  outline: 2px solid #4a6cf7;
+  outline-offset: 2px;
+}
