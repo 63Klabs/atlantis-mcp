@@ -24,7 +24,7 @@ Click "Open MCP Config":
 ```json
 {
   "mcpServers": {
-    "atlantis-mcp": {
+    "atlantis": {
       "url": "https://mcp.atlantis.63klabs.net/mcp/v1",
       "disabled": false,
       "autoApprove": []
@@ -54,7 +54,7 @@ Edit `.kiro/settings/mcp.json` in your workspace:
 ```json
 {
   "mcpServers": {
-    "atlantis-mcp": {
+    "atlantis": {
       "url": "https://mcp.atlantis.63klabs.net/mcp/v1",
       "disabled": false,
       "autoApprove": []
