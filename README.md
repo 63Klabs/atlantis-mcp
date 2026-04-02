@@ -16,6 +16,8 @@ The Atlantis MCP (Model Context Protocol) Server provides AI-assisted developmen
 
 ## Quick Start
 
+This application is hosted by 63Klabs at [mcp.atlantis.63klabs.net](https://mcp.atlantis.63klabs.net). However, you may choose to self-host by [deploying atlantis-mcp](./DEPLOYMENT.md).
+
 ### For AI Assistant Users
 
 The Atlantis MCP Server is designed to work seamlessly with AI assistants. Once configured, you can ask your AI assistant to:
