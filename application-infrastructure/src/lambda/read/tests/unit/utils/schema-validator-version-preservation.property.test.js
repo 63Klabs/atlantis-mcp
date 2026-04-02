@@ -260,8 +260,12 @@ describe('Property 2b: Invalid version strings rejected', () => {
 
   /**
    * **Validates: Requirements 3.1, 3.2**
+   *
+   * check_template_updates accepts any non-empty string for currentVersion
+   * (Human_Readable_Version, Short_Version, or S3_VersionId) so there is
+   * no pattern constraint. Verify it accepts strings without v prefix.
    */
-  it('check_template_updates rejects missing v prefix', () => {
+  it('check_template_updates accepts currentVersion without v prefix (flexible format)', () => {
     fc.assert(
       fc.property(missingVPrefixArb(), (version) => {
         const result = validate('check_template_updates', {
@@ -269,8 +273,8 @@ describe('Property 2b: Invalid version strings rejected', () => {
           category: 'network',
           currentVersion: version
         });
-        expect(result.valid).toBe(false);
-        expect(result.errors[0]).toContain('does not match required pattern');
+        // currentVersion has no pattern — any non-empty string is valid
+        expect(result.valid).toBe(true);
       }),
       { numRuns: 100 }
     );

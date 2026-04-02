@@ -44,13 +44,32 @@ jest.mock('../../../utils/mcp-protocol', () => ({
 }));
 
 jest.mock('@63klabs/cache-data', () => ({
+  cache: {
+    CacheableDataAccess: {
+      getData: jest.fn()
+    }
+  },
   tools: {
     DebugAndLog: {
       error: jest.fn(),
       warn: jest.fn(),
       info: jest.fn(),
       debug: jest.fn()
+    },
+    ApiRequest: {
+      success: jest.fn((opts) => ({ statusCode: 200, ...opts })),
+      error: jest.fn((opts) => ({ statusCode: 500, ...opts }))
     }
+  }
+}));
+
+jest.mock('../../../config', () => ({
+  Config: {
+    getConnCacheProfile: jest.fn().mockReturnValue({
+      conn: { host: 'internal', path: '/chunks', parameters: {} },
+      cacheProfile: { profile: 'chunk-data', hostId: 'template-chunks', pathId: 'data' }
+    }),
+    settings: jest.fn().mockReturnValue({ s3Buckets: ['63klabs'] })
   }
 }));
 
@@ -363,7 +382,7 @@ describe('Controller Error Handling', () => {
   describe('Updates Controller Error Handling', () => {
     test('check() should handle service errors from update check', async () => {
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             templateName: 'template-storage-s3-artifacts',
             currentVersion: 'v1.3.4/2024-01-10',
@@ -394,7 +413,7 @@ describe('Controller Error Handling', () => {
 
     test('check() should handle S3 connection errors', async () => {
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             templateName: 'template-storage-s3-artifacts',
             currentVersion: 'v1.3.4/2024-01-10',
@@ -422,7 +441,7 @@ describe('Controller Error Handling', () => {
 
     test('check() should handle version parsing errors', async () => {
       const props = {
-        body: {
+        bodyParameters: {
           input: {
             templateName: 'template-storage-s3-artifacts',
             currentVersion: 'invalid-version',
@@ -459,7 +478,7 @@ describe('Controller Error Handling', () => {
       await StartersController.list({ body: { input: {} } });
       await DocumentationController.search({ body: { input: { query: 'test' } } });
       await ValidationController.validate({ body: { input: { resourceName: 'test' } } });
-      await UpdatesController.check({ body: { input: { templateName: 'test', currentVersion: 'v1.0.0/2024-01-01' } } });
+      await UpdatesController.check({ bodyParameters: { input: { templateName: 'test', currentVersion: 'v1.0.0/2024-01-01' } } });
 
       // All controllers should have logged errors
       expect(tools.DebugAndLog.error).toHaveBeenCalledTimes(5);
@@ -494,7 +513,7 @@ describe('Controller Error Handling', () => {
       const result2 = await StartersController.list({ body: { input: {} } });
       const result3 = await DocumentationController.search({ body: { input: { query: 'test' } } });
       const result4 = await ValidationController.validate({ body: { input: { resourceName: 'test' } } });
-      const result5 = await UpdatesController.check({ body: { input: { templateName: 'test', currentVersion: 'v1.0.0/2024-01-01' } } });
+      const result5 = await UpdatesController.check({ bodyParameters: { input: { templateName: 'test', currentVersion: 'v1.0.0/2024-01-01' } } });
 
       // All should have success: false
       expect(result1.success).toBe(false);

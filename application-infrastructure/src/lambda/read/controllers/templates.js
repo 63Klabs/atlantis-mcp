@@ -18,7 +18,8 @@ const Services = require('../services');
 const SchemaValidator = require('../utils/schema-validator');
 const MCPProtocol = require('../utils/mcp-protocol');
 const ContentChunker = require('../utils/content-chunker');
-const { tools: { DebugAndLog } } = require('@63klabs/cache-data');
+const { cache: { CacheableDataAccess }, tools: { DebugAndLog, ApiRequest } } = require('@63klabs/cache-data');
+const { Config } = require('../config');
 
 /**
  * List all available CloudFormation templates
@@ -321,8 +322,10 @@ async function listCategories(props) {
 /**
  * Retrieve a specific chunk of a large template's content.
  *
- * Fetches the full template, serializes it to JSON, splits it into chunks
- * using ContentChunker, and returns the requested chunk by index.
+ * Uses CacheableDataAccess to cache individual chunk results keyed by
+ * template identity and chunk index. On cache miss, fetches the full template,
+ * serializes it to JSON, splits it into chunks using ContentChunker, and
+ * returns the requested chunk.
  *
  * @param {Object} props - Request properties from ClientRequest
  * @param {Object} props.bodyParameters - Request body containing tool input
@@ -369,56 +372,106 @@ async function getChunk(props) {
       s3BucketsCount: s3Buckets ? s3Buckets.length : 0
     });
 
-    // >! Fetch full template via Services.Templates.get()
-    const template = await Services.Templates.get({
-      templateName,
-      category,
-      version,
-      versionId,
-      s3Buckets,
-      namespace
-    });
+    // >! Get connection and cache profile for template-chunks
+    const { conn, cacheProfile } = Config.getConnCacheProfile('template-chunks', 'chunk-data');
 
-    // >! Null guard: handle edge case where service returns null instead of throwing
-    if (!template) {
-      DebugAndLog.warn('get_template_chunk null result', { templateName, category });
-      return MCPProtocol.errorResponse('TEMPLATE_NOT_FOUND', {
-        message: `Template not found: ${category}/${templateName}`,
-        availableTemplates: []
-      }, 'get_template_chunk');
+    if (!conn || !cacheProfile) {
+      const errorMsg = 'get_template_chunk: Failed to get connection and/or cache profile for template-chunks/chunk-data';
+      DebugAndLog.error(errorMsg);
+      throw new Error(errorMsg);
     }
 
-    // >! Serialize template content and chunk via ContentChunker
-    const serialized = JSON.stringify(template);
-    const chunks = ContentChunker.chunk(serialized);
+    // >! Resolve S3 buckets (default from settings if not provided)
+    let bucketsToSearch = s3Buckets;
+    if (!bucketsToSearch || bucketsToSearch.length === 0) {
+      bucketsToSearch = Config.settings().s3.buckets;
+    }
 
-    // >! Validate chunkIndex range
-    if (chunkIndex < 0 || chunkIndex >= chunks.length) {
+    // >! Set host to resolved bucket list (used in cache key)
+    conn.host = bucketsToSearch;
+
+    // >! Set parameters for cache key generation and fetch function
+    conn.parameters = { templateName, category, chunkIndex, version, versionId, s3Buckets, namespace };
+
+    // >! Define fetch function that reads all parameters from connection.parameters
+    const fetchFunction = async (connection, opts) => {
+      const {
+        templateName, category, chunkIndex,
+        version, versionId, s3Buckets, namespace
+      } = connection.parameters;
+
+      // >! Fetch full template via Services.Templates.get()
+      const template = await Services.Templates.get({
+        templateName, category, version, versionId, s3Buckets, namespace
+      });
+
+      // >! TEMPLATE_NOT_FOUND: throw so CacheableDataAccess does not cache the error
+      if (!template) {
+        const error = new Error(`Template not found: ${category}/${templateName}`);
+        error.code = 'TEMPLATE_NOT_FOUND';
+        error.availableTemplates = [];
+        throw error;
+      }
+
+      // >! Serialize and chunk
+      const serialized = JSON.stringify(template);
+      const chunks = ContentChunker.chunk(serialized);
+
+      // >! INVALID_CHUNK_INDEX: return as ApiRequest.error() so it IS cached
+      if (chunkIndex < 0 || chunkIndex >= chunks.length) {
+        return ApiRequest.error({
+          body: {
+            code: 'INVALID_CHUNK_INDEX',
+            message: `chunkIndex ${chunkIndex} is out of range. Valid range: 0-${chunks.length - 1}`,
+            validRange: { min: 0, max: chunks.length - 1 }
+          }
+        });
+      }
+
+      // >! Return the specific chunk
+      return ApiRequest.success({
+        body: {
+          chunkIndex,
+          totalChunks: chunks.length,
+          templateName,
+          category,
+          content: chunks[chunkIndex]
+        }
+      });
+    };
+
+    // >! Use CacheableDataAccess pass-through caching
+    const cacheObj = await CacheableDataAccess.getData(
+      cacheProfile,
+      fetchFunction,
+      conn,
+      {},
+    );
+
+    // >! Extract result body
+    const body = cacheObj.getBody(true);
+
+    // >! Check if cached body contains INVALID_CHUNK_INDEX error
+    if (body && body.code === 'INVALID_CHUNK_INDEX') {
       DebugAndLog.warn('get_template_chunk invalid index', {
         chunkIndex,
-        totalChunks: chunks.length
+        message: body.message
       });
       return MCPProtocol.errorResponse('INVALID_CHUNK_INDEX', {
-        message: `chunkIndex ${chunkIndex} is out of range. Valid range: 0-${chunks.length - 1}`,
-        validRange: { min: 0, max: chunks.length - 1 }
+        message: body.message,
+        validRange: body.validRange
       }, 'get_template_chunk');
     }
 
     DebugAndLog.info('get_template_chunk response', {
-      templateName,
-      category,
-      chunkIndex,
-      totalChunks: chunks.length
+      templateName: body.templateName,
+      category: body.category,
+      chunkIndex: body.chunkIndex,
+      totalChunks: body.totalChunks
     });
 
     // >! Return MCP-formatted chunk response
-    return MCPProtocol.successResponse('get_template_chunk', {
-      chunkIndex,
-      totalChunks: chunks.length,
-      templateName,
-      category,
-      content: chunks[chunkIndex]
-    });
+    return MCPProtocol.successResponse('get_template_chunk', body);
 
   } catch (error) {
     // >! Handle TEMPLATE_NOT_FOUND error with available templates

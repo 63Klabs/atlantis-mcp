@@ -290,6 +290,28 @@ const connections = [
         encrypt: false
       }
     ]
+  },
+
+  // Template Chunk Internal Cache Connection
+  {
+    name: 'template-chunks',
+    host: 'internal', // Internal processing, not external API
+    path: '/chunks',
+    cache: [
+      // Chunk data cache profile
+      {
+        profile: 'chunk-data',
+        overrideOriginHeaderExpiration: true,
+        // >! Production: 24 hour TTL matching template-detail (chunk TTL ≤ template-detail TTL)
+        // >! Test: Short TTL for rapid iteration
+        defaultExpirationInSeconds: IS_PRODUCTION ? (24 * 60 * 60) : TTL_NON_PROD,
+        expirationIsOnInterval: false,
+        headersToRetain: '',
+        hostId: 'template-chunks',
+        pathId: 'data',
+        encrypt: false
+      }
+    ]
   }
 ];
 

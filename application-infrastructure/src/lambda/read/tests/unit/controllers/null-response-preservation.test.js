@@ -32,13 +32,32 @@ jest.mock('../../../utils/mcp-protocol', () => ({
 }));
 
 jest.mock('@63klabs/cache-data', () => ({
+  cache: {
+    CacheableDataAccess: {
+      getData: jest.fn()
+    }
+  },
   tools: {
     DebugAndLog: {
       error: jest.fn(),
       warn: jest.fn(),
       info: jest.fn(),
       debug: jest.fn()
+    },
+    ApiRequest: {
+      success: jest.fn((opts) => ({ statusCode: 200, ...opts })),
+      error: jest.fn((opts) => ({ statusCode: 500, ...opts }))
     }
+  }
+}));
+
+jest.mock('../../../config', () => ({
+  Config: {
+    getConnCacheProfile: jest.fn().mockReturnValue({
+      conn: { host: 'internal', path: '/chunks', parameters: {} },
+      cacheProfile: { profile: 'chunk-data', hostId: 'template-chunks', pathId: 'data' }
+    }),
+    settings: jest.fn().mockReturnValue({ s3Buckets: ['63klabs'] })
   }
 }));
 

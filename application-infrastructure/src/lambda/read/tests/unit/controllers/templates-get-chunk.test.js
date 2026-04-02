@@ -35,13 +35,29 @@ jest.mock('../../../utils/content-chunker', () => ({
 }));
 
 jest.mock('@63klabs/cache-data', () => ({
+  cache: {
+    CacheableDataAccess: {
+      getData: jest.fn()
+    }
+  },
   tools: {
     DebugAndLog: {
       error: jest.fn(),
       warn: jest.fn(),
       info: jest.fn(),
       debug: jest.fn()
+    },
+    ApiRequest: {
+      success: jest.fn(({ body }) => ({ statusCode: 200, body: JSON.stringify(body) })),
+      error: jest.fn(({ body }) => ({ statusCode: 400, body: JSON.stringify(body) }))
     }
+  }
+}));
+
+jest.mock('../../../config', () => ({
+  Config: {
+    getConnCacheProfile: jest.fn(),
+    settings: jest.fn()
   }
 }));
 
@@ -50,11 +66,23 @@ const Services = require('../../../services');
 const SchemaValidator = require('../../../utils/schema-validator');
 const MCPProtocol = require('../../../utils/mcp-protocol');
 const ContentChunker = require('../../../utils/content-chunker');
-const { tools } = require('@63klabs/cache-data');
+const { cache: { CacheableDataAccess }, tools } = require('@63klabs/cache-data');
+const { Config } = require('../../../config');
 
 describe('Templates Controller - getChunk()', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+
+    // >! Default mock for Config.getConnCacheProfile
+    Config.getConnCacheProfile.mockReturnValue({
+      conn: { host: '', path: '/chunks', parameters: {} },
+      cacheProfile: { hostId: 'template-chunks', pathId: 'data' }
+    });
+
+    // >! Default mock for Config.settings
+    Config.settings.mockReturnValue({
+      s3: { buckets: ['63klabs'] }
+    });
   });
 
   test('should retrieve first chunk (index 0) successfully', async () => {
@@ -78,23 +106,23 @@ describe('Templates Controller - getChunk()', () => {
       content: 'AWSTemplateFormatVersion...'
     };
 
+    // >! Mock CacheableDataAccess.getData to simulate cache miss and call fetch function
     Services.Templates.get.mockResolvedValue(mockTemplate);
     ContentChunker.chunk.mockReturnValue(['chunk-0-content', 'chunk-1-content', 'chunk-2-content']);
+
+    CacheableDataAccess.getData.mockImplementation(async (cacheProfile, fetchFn, conn, opts) => {
+      const result = await fetchFn(conn, opts);
+      return {
+        getBody: (parse) => parse ? JSON.parse(result.body) : result.body
+      };
+    });
 
     // Act
     const result = await TemplatesController.getChunk(props);
 
     // Assert
     expect(SchemaValidator.validate).toHaveBeenCalledWith('get_template_chunk', props.bodyParameters.input);
-    expect(Services.Templates.get).toHaveBeenCalledWith({
-      templateName: 'template-storage-s3-artifacts',
-      category: 'storage',
-      version: undefined,
-      versionId: undefined,
-      s3Buckets: undefined,
-      namespace: undefined
-    });
-    expect(ContentChunker.chunk).toHaveBeenCalledWith(JSON.stringify(mockTemplate));
+    expect(CacheableDataAccess.getData).toHaveBeenCalled();
     expect(MCPProtocol.successResponse).toHaveBeenCalledWith('get_template_chunk', {
       chunkIndex: 0,
       totalChunks: 3,
@@ -122,6 +150,13 @@ describe('Templates Controller - getChunk()', () => {
     const mockTemplate = { name: 'template-storage-s3-artifacts', category: 'storage' };
     Services.Templates.get.mockResolvedValue(mockTemplate);
     ContentChunker.chunk.mockReturnValue(['chunk-0', 'chunk-1', 'chunk-2']);
+
+    CacheableDataAccess.getData.mockImplementation(async (cacheProfile, fetchFn, conn, opts) => {
+      const result = await fetchFn(conn, opts);
+      return {
+        getBody: (parse) => parse ? JSON.parse(result.body) : result.body
+      };
+    });
 
     // Act
     const result = await TemplatesController.getChunk(props);
@@ -154,6 +189,14 @@ describe('Templates Controller - getChunk()', () => {
     const mockTemplate = { name: 'template-storage-s3-artifacts', category: 'storage' };
     Services.Templates.get.mockResolvedValue(mockTemplate);
     ContentChunker.chunk.mockReturnValue(['chunk-0', 'chunk-1']);
+
+    // >! Mock CacheableDataAccess.getData to call fetch function which returns ApiRequest.error
+    CacheableDataAccess.getData.mockImplementation(async (cacheProfile, fetchFn, conn, opts) => {
+      const result = await fetchFn(conn, opts);
+      return {
+        getBody: (parse) => parse ? JSON.parse(result.body) : result.body
+      };
+    });
 
     // Act
     const result = await TemplatesController.getChunk(props);
@@ -189,6 +232,13 @@ describe('Templates Controller - getChunk()', () => {
     Services.Templates.get.mockResolvedValue(mockTemplate);
     ContentChunker.chunk.mockReturnValue(['chunk-0', 'chunk-1', 'chunk-2']);
 
+    CacheableDataAccess.getData.mockImplementation(async (cacheProfile, fetchFn, conn, opts) => {
+      const result = await fetchFn(conn, opts);
+      return {
+        getBody: (parse) => parse ? JSON.parse(result.body) : result.body
+      };
+    });
+
     // Act
     const result = await TemplatesController.getChunk(props);
 
@@ -218,6 +268,11 @@ describe('Templates Controller - getChunk()', () => {
 
     SchemaValidator.validate.mockReturnValue({ valid: true });
     Services.Templates.get.mockResolvedValue(null);
+
+    // >! When fetch function throws, CacheableDataAccess propagates the error
+    CacheableDataAccess.getData.mockImplementation(async (cacheProfile, fetchFn, conn, opts) => {
+      return await fetchFn(conn, opts);
+    });
 
     // Act
     const result = await TemplatesController.getChunk(props);
@@ -254,6 +309,11 @@ describe('Templates Controller - getChunk()', () => {
     notFoundError.code = 'TEMPLATE_NOT_FOUND';
     notFoundError.availableTemplates = ['template-a', 'template-b'];
     Services.Templates.get.mockRejectedValue(notFoundError);
+
+    // >! CacheableDataAccess propagates thrown errors from fetch function
+    CacheableDataAccess.getData.mockImplementation(async (cacheProfile, fetchFn, conn, opts) => {
+      return await fetchFn(conn, opts);
+    });
 
     // Act
     const result = await TemplatesController.getChunk(props);
@@ -324,6 +384,11 @@ describe('Templates Controller - getChunk()', () => {
 
     const serviceError = new Error('S3 connection timeout');
     Services.Templates.get.mockRejectedValue(serviceError);
+
+    // >! CacheableDataAccess propagates thrown errors from fetch function
+    CacheableDataAccess.getData.mockImplementation(async (cacheProfile, fetchFn, conn, opts) => {
+      return await fetchFn(conn, opts);
+    });
 
     // Act
     const result = await TemplatesController.getChunk(props);

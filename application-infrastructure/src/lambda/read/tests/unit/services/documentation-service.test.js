@@ -118,7 +118,7 @@ describe('Documentation Service', () => {
       const result = await Documentation.search({ query: 'cache-data' });
 
       // Assert
-      expect(Config.getConnCacheProfile).toHaveBeenCalledWith('doc-index', 'search');
+      expect(Config.getConnCacheProfile).toHaveBeenCalledWith('documentation-index', 'doc-index');
       expect(CacheableDataAccess.getData).toHaveBeenCalled();
       expect(result).toEqual(mockResults);
       expect(mockConnCache.conn.host).toEqual(['63klabs', 'myorg', 'testorg']);

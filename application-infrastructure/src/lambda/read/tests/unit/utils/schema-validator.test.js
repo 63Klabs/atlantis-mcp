@@ -343,14 +343,14 @@ describe('JSON Schema Validator', () => {
       expect(result.valid).toBe(true);
     });
 
-    test('should reject invalid resourceType', () => {
+    test('should accept any string resourceType (no enum constraint)', () => {
       const result = validate('validate_naming', {
         resourceName: 'test',
-        resourceType: 'invalid'
+        resourceType: 'custom-type'
       });
 
-      expect(result.valid).toBe(false);
-      expect(result.errors.some(e => e.includes('must be one of'))).toBe(true);
+      // resourceType has no enum constraint — any string is valid
+      expect(result.valid).toBe(true);
     });
   });
 

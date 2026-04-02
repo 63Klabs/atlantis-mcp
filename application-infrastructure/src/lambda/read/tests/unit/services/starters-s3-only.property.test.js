@@ -224,18 +224,17 @@ describe('Bug Condition Exploration: Starters Tools Use GitHub API Instead of S3
   // Test 1e: parseSidecarMetadata should return arrays for languages/frameworks
   // **Validates: Requirements 1.9**
   // -----------------------------------------------------------------------
-  test('1e: parseSidecarMetadata returns arrays for languages and frameworks', () => {
+  test('1e: parseSidecarMetadata returns categorized structures for languages and frameworks', () => {
     const metadata = parseSidecarMetadata(
-      '{"languages":["Node.js"],"frameworks":["Express"]}'
+      '{"languages":{"buildDeploy":["Node.js"],"applicationStack":[],"postDeploy":[]},"frameworks":{"buildDeploy":["Express"],"applicationStack":[],"postDeploy":[]}}'
     );
 
-    // The EXPECTED (correct) behavior: languages and frameworks are arrays
-    // On UNFIXED code: it reads singular 'language'/'framework' fields,
-    // so metadata.languages is undefined and metadata.language is '' (empty string)
-    expect(Array.isArray(metadata.languages)).toBe(true);
-    expect(metadata.languages).toEqual(['Node.js']);
-    expect(Array.isArray(metadata.frameworks)).toBe(true);
-    expect(metadata.frameworks).toEqual(['Express']);
+    // The EXPECTED (correct) behavior: languages and frameworks are categorized objects
+    // normalizeCategorized converts them to {buildDeploy, applicationStack, postDeploy}
+    expect(typeof metadata.languages).toBe('object');
+    expect(metadata.languages.buildDeploy).toEqual(['Node.js']);
+    expect(typeof metadata.frameworks).toBe('object');
+    expect(metadata.frameworks.buildDeploy).toEqual(['Express']);
   });
 
   // -----------------------------------------------------------------------

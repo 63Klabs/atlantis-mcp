@@ -56,20 +56,33 @@ phases:
       - ls -l -a
       - cd application-infrastructure
       
-      # Run all tests (unit, integration, property) from src/tests/ directory
-      - echo "Running application tests from src/tests/ directory"
+      # Run all tests (unit, integration, property) from src/ directory
+      - echo "Running application tests from src/ directory"
       - cd src
       
-      # Install test dependencies (include dev for jest, fast-check, etc.)
+      # Install test dependencies at src level (jest, fast-check, etc.)
       - |
         if [ -f "package.json" ]; then
-          echo "Installing test dependencies"
+          echo "Installing test dependencies at src level"
           npm install --include=dev
         else
           echo "No package.json found in src/, skipping tests"
         fi
       
-      # Run all tests with coverage
+      # Install Lambda function dependencies needed by tests
+      # (node_modules are gitignored, so they must be installed in CI)
+      - |
+        echo "Installing Read Lambda dependencies for testing"
+        cd lambda/read
+        npm install --include=dev
+        cd ../..
+      - |
+        echo "Installing Indexer Lambda dependencies for testing"
+        cd lambda/indexer
+        npm install --include=dev
+        cd ../..
+      
+      # Run all tests with coverage — fail the build if any test fails
       - |
         if [ -f "package.json" ] && npm run | grep -q "test"; then
           echo "Running all tests with coverage"
