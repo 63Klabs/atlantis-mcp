@@ -226,9 +226,21 @@ async function handleToolsCall(id, params, event, context) {
   const toolName = params.name;
   const toolArgs = params.arguments || {};
 
-  // >! Look up the controller handler for this tool
+  // >! Validate toolName is an own property of TOOL_DISPATCH to prevent
+  // >! prototype chain lookups (hasOwnProperty, constructor, __proto__, etc.)
+  if (!Object.hasOwn(TOOL_DISPATCH, toolName)) {
+    return buildResponse(200, MCPProtocol.jsonRpcError(
+      id,
+      MCPProtocol.JSON_RPC_ERRORS.METHOD_NOT_FOUND,
+      'Method not found',
+      { details: `Unknown tool: ${toolName}` }
+    ));
+  }
+
   const handler = TOOL_DISPATCH[toolName];
-  if (!handler) {
+
+  // >! Defense-in-depth: verify the resolved handler is callable
+  if (typeof handler !== 'function') {
     return buildResponse(200, MCPProtocol.jsonRpcError(
       id,
       MCPProtocol.JSON_RPC_ERRORS.METHOD_NOT_FOUND,

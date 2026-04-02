@@ -37,9 +37,9 @@ describe('Landing page (index.html)', () => {
 
   it('should not reference any JavaScript framework or external JS files', () => {
     // No <script src="..."> tags
-    expect(html).not.toMatch(/<script[^>]+src=/);
+    expect(html).not.toMatch(/<script[^>]+src=/i);
     // No inline <script> blocks
-    expect(html).not.toMatch(/<script[\s>]/);
+    expect(html).not.toMatch(/<script[\s>]/i);
     // No common framework references
     expect(html.toLowerCase()).not.toMatch(/react/);
     expect(html.toLowerCase()).not.toMatch(/angular/);

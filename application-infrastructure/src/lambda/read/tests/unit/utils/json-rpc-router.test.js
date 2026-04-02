@@ -353,6 +353,58 @@ describe('JSON-RPC Router', () => {
   });
 
   // ---------------------------------------------------------------
+  // Prototype chain tool name rejection — Validates: Requirements 2.1, 2.2, 2.3
+  // ---------------------------------------------------------------
+  describe('Prototype chain tool name rejection', () => {
+    const protoNames = [
+      'hasOwnProperty',
+      'constructor',
+      '__proto__',
+      'toString',
+      'valueOf'
+    ];
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    test.each(protoNames)(
+      'params.name = "%s" returns -32601 Method not found',
+      async (name) => {
+        const event = makeEvent({
+          jsonrpc: '2.0',
+          method: 'tools/call',
+          id: `proto-${name}`,
+          params: {
+            name,
+            arguments: {}
+          }
+        });
+
+        const response = await handleJsonRpc(event, {});
+        const body = parseBody(response);
+
+        expect(body.jsonrpc).toBe('2.0');
+        expect(body.id).toBe(`proto-${name}`);
+        expect(body.error.code).toBe(-32601);
+        expect(body.error.message).toBe('Method not found');
+
+        // Verify no controller mock was invoked
+        expect(Controllers.Templates.list).toHaveBeenCalledTimes(0);
+        expect(Controllers.Templates.get).toHaveBeenCalledTimes(0);
+        expect(Controllers.Templates.listVersions).toHaveBeenCalledTimes(0);
+        expect(Controllers.Templates.listCategories).toHaveBeenCalledTimes(0);
+        expect(Controllers.Starters.list).toHaveBeenCalledTimes(0);
+        expect(Controllers.Starters.get).toHaveBeenCalledTimes(0);
+        expect(Controllers.Documentation.search).toHaveBeenCalledTimes(0);
+        expect(Controllers.Validation.validate).toHaveBeenCalledTimes(0);
+        expect(Controllers.Updates.check).toHaveBeenCalledTimes(0);
+        expect(Controllers.Tools.list).toHaveBeenCalledTimes(0);
+      }
+    );
+  });
+
+  // ---------------------------------------------------------------
   // Response headers — Validates: Requirements 4.1, 4.2
   // ---------------------------------------------------------------
   describe('Response headers', () => {
