@@ -1,6 +1,6 @@
 {
   "default": {
-    "footer": "<p>&copy; <span id=\"copyright-year\"></span> 63Klabs. All rights reserved.</p>"
+    "footer": "<p>&copy; <span id=\"copyright-year\"></span> 63Klabs. All rights reserved.</p><p><a href=\"https://github.com/63Klabs/atlantis-mcp/blob/main/PRIVACY.md\">Data Privacy</a></p>"
   },
   "prod": {
     "domain": "mcp.atlantis.63klabs.net"
