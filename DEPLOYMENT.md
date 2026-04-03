@@ -138,18 +138,32 @@ To host documentation you will need to do the following:
 
 ```bash
 ./cli/config.py storage PREFIX YOUR_PROJECT_ID
-# - Choose S3 OAC
+# - Choose template-storage-s3-oac-for-cloudfront.yml
 # - Deploy
 
 ./cli/config.py network PREFIX YOUR_PROJECT_ID test
-# - You do not need a domain, you can use the CloudFront domain
+# - Choose template-network-route53-cloudfront-s3-apigw.yml
+# - ApiGatewayId: <YourApiGwId>
+# - PathApi: mcp
+# - S3OriginDomainName: <OriginBucketDomainForCloudFront> (output from S3 OAC storage stack)
+# - You do not need a DomainForCloudFront, you can use the CloudFront domain
+# - Deploy
 
 ./cli/config.py pipeline PREFIX YOUR_PROJECT_ID test
-# - Configure the Post Deploy stage. Use the bucket you created as the Post Deploy STATIC_HOST
+# - Configure the Post Deploy stage.
+# - PostDeployS3StaticHostBucket: <s3BucketNameFromStorage>
+# - PostDeployStageEnabled: true
+# - Deploy
 
 # Optional - Install, config, and deploy CloudFront cache invalidator
 ./cli/create_repo.py YOUR_CACHE_INVALIDATOR_SERVICE
 # - Choose Starter 03 Cache Invalidator
 # - Follow instructions provided by cache invalidator
-# - Be sure to configure the S3 OAC bucket to use the invalidator, set consolidation tag to 0
+
+# - Be sure to go back and config and deploy the storage and network stacks to use the invalidator:
+# - STORAGE:
+#   - InvalidatorArn: <ArnOfInvalidator>
+#   - Tag: invalidator:ConsolidationStopLevel=0
+# - NETWORK:
+#   - Tag: AllowInvalidationEvents=true
 ```

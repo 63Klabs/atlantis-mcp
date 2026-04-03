@@ -113,5 +113,5 @@ Follow same steps as VS Code above.
 ## Additional Resources
 
 - Amazon Q Documentation: [aws.amazon.com/q/developer](https://aws.amazon.com/q/developer/)
-- [Atlantis MCP Server: GitHub](https://github.com/63klabs/atlantis-mcp-server/) ([Issues](https://github.com/63klabs/atlantis-mcp-server/issues))
+- [Atlantis MCP Server: GitHub](https://github.com/63klabs/atlantis-mcp/) ([Issues](https://github.com/63klabs/atlantis-mcp/issues))
 - [Atlantis Platform Documentation](https://github.com/63Klabs/atlantis)

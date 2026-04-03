@@ -518,15 +518,15 @@ Ask AI: "Show me code examples for [feature]"
 
 ---
 
-## Next Steps
+## Related Documentation
 
-- [MCP Tools Reference](../tools/README.md) - Detailed tool documentation
 - [Integration Guides](../integration/README.md) - Set up your AI assistant
 - [Troubleshooting Guide](../troubleshooting/README.md) - Common issues and solutions
+- [MCP Tools Reference](../tools/README.md) - Detailed tool documentation
 
 ## Support
 
 If you need help with a specific use case:
 
-- Documentation: [Full Docs on GitHub](https://github.com/63klabs/atlantis-mcp-server)
-- GitHub Issues: [Report Issue](https://github.com/63klabs/atlantis-mcp-server/issues)
+- Documentation: [Full Docs on GitHub](https://github.com/63klabs/atlantis-mcp)
+- GitHub Issues: [Report Issue](https://github.com/63klabs/atlantis-mcp/issues)

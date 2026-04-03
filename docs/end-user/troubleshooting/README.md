@@ -82,15 +82,15 @@ curl -X POST https://mcp.atlantis.63klabs.net/mcp/v1 \
 **Understanding Rate Limits:**
 
 Default limits (public instance):
-- 100 requests per hour per IP address
-- Resets every hour
+- 50 requests per hour per IP address
+- Resets every hour on the hour
 - Applies to all tools
 
 **Check Rate Limit Status:**
 
 Response headers show current status:
 ```
-X-RateLimit-Limit: 100
+X-RateLimit-Limit: 50
 X-RateLimit-Remaining: 45
 X-RateLimit-Reset: 1706284800
 ```
@@ -110,7 +110,7 @@ X-RateLimit-Reset: 1706284800
 3. **Self-Host for Higher Limits**
    - Deploy your own instance
    - Configure custom rate limits
-   - See [Deployment Guide](deployment/README.md)
+   - [Atlantis MCP on GitHub](https://github.com/63klabs/atlantis-mcp)
 
 **Prevention:**
 
@@ -534,9 +534,9 @@ Data is cached for performance:
 
 ---
 
-## Getting Help
+## Reporting an Issue
 
-### Before Contacting Support
+### Before Submitting an Issue
 
 1. **Check This Guide**
    - Review relevant sections
@@ -554,9 +554,7 @@ Data is cached for performance:
    - Steps to reproduce
    - Configuration (sanitized)
 
-### Contact Support
-
-**Email:** support@63klabs.com
+### Submit an Issue
 
 **Include:**
 - Description of issue
@@ -566,12 +564,7 @@ Data is cached for performance:
 - Steps to reproduce
 - Configuration (remove sensitive data)
 
-**GitHub Issues:** [atlantis-mcp-server/issues](https://github.com/63klabs/atlantis-mcp-server/issues)
-
-**Response Time:**
-- Critical issues: 4 hours
-- High priority: 24 hours
-- Normal: 48 hours
+**GitHub Issues:** [atlantis-mcp-server/issues](https://github.com/63klabs/atlantis-mcp/issues)
 
 ---
 
@@ -591,8 +584,8 @@ curl -i -X POST https://mcp.atlantis.63klabs.net/mcp/v1
 curl -i -X POST https://mcp.atlantis.63klabs.net/mcp/v1
 
 # Look for headers:
-# X-RateLimit-Limit: 100
-# X-RateLimit-Remaining: 95
+# X-RateLimit-Limit: 50
+# X-RateLimit-Remaining: 45
 # X-RateLimit-Reset: 1706284800
 ```
 
@@ -603,7 +596,7 @@ curl -i -X POST https://mcp.atlantis.63klabs.net/mcp/v1
 | Code | Meaning | Solution |
 |------|---------|----------|
 | 400 | Bad Request | Check input parameters |
-| 401 | Unauthorized | Phase 1 doesn't require auth - check URL |
+| 401 | Unauthorized | Check URL or credentials |
 | 404 | Not Found | Verify resource name and category |
 | 429 | Rate Limit Exceeded | Wait for reset or self-host |
 | 500 | Internal Server Error | Retry or contact support |
@@ -616,10 +609,6 @@ curl -i -X POST https://mcp.atlantis.63klabs.net/mcp/v1
 **Q: Why am I getting rate limited?**
 
 A: Public instance has 50 requests/hour limit. Self-host for higher limits or wait for reset.
-
-**Q: Why is my first request slow?**
-
-A: Cold start + cache miss. Subsequent requests are faster.
 
 **Q: Can I increase rate limits?**
 
@@ -643,9 +632,15 @@ A: Yes, but consider self-hosting for better performance and higher limits.
 
 ---
 
-## Next Steps
+## Related Documentation
 
-- [MCP Tools Reference](tools/README.md)
-- [Integration Guides](integration/)
-- [Common Use Cases](use-cases/README.md)
-- [Deployment Guide](deployment/README.md)
+- [Integration Guides](../integration/README.md) - Set up your AI assistant
+- [Common Use Cases](../use-cases/README.md) - Practical examples
+- [MCP Tools Reference](../tools/README.md) - Available tools and parameters
+
+## Support
+
+If you need help with a specific use case:
+
+- Documentation: [Full Docs on GitHub](https://github.com/63klabs/atlantis-mcp)
+- GitHub Issues: [Report Issue](https://github.com/63klabs/atlantis-mcp/issues)

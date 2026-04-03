@@ -5,10 +5,10 @@ info:
   version: "0.0.1"
   contact:
     name: "63klabs.net"
-    url: "https://github.com/63Klabs/atlantis-mcp-server"
+    url: "https://github.com/63klabs/atlantis-mcp"
   license:
     name: "Distributed on an AS IS BASIS"
-    url: "https://github.com/63Klabs/atlantis-mcp-server/blob/main/LICENSE.txt"
+    url: "https://github.com/63klabs/atlantis-mcp/blob/main/LICENSE.txt"
 
 # =============================================================================
 # PATHS - MCP Endpoints

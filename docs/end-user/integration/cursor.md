@@ -75,5 +75,5 @@ Open Cursor AI chat and ask:
 ## Additional Resources
 
 - Cursor Documentation: [cursor.sh/docs](https://cursor.sh/docs)
-- [Atlantis MCP Server: GitHub](https://github.com/63klabs/atlantis-mcp-server/) ([Issues](https://github.com/63klabs/atlantis-mcp-server/issues))
+- [Atlantis MCP Server: GitHub](https://github.com/63klabs/atlantis-mcp/) ([Issues](https://github.com/63klabs/atlantis-mcp/issues))
 - [Atlantis Platform Documentation](https://github.com/63Klabs/atlantis)

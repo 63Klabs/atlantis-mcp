@@ -1,7 +1,7 @@
 {
   "name": "atlantis-mcp-server-read-lambda",
   "version": "0.0.1",
-  "description": "Read Lambda function for Atlantis MCP Server - Phase 1 (Core Read-Only)",
+  "description": "Read Lambda function for Atlantis MCP Server",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test command specified\" && exit 1"

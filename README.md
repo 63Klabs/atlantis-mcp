@@ -148,7 +148,7 @@ The MCP Server continues operation even when some data sources fail:
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/63klabs/atlantis-mcp-server/issues)
+- **Issues**: [GitHub Issues](https://github.com/63klabs/atlantis-mcp/issues)
 - **Documentation**: [Full Documentation](docs/README.md)
 
 ## Architecture

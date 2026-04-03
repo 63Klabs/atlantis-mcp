@@ -18,8 +18,17 @@ Before setting up any integration, ensure:
 2. You have the server URL (e.g., `https://mcp.atlantis.63klabs.net/mcp/v1`)
 3. Your AI assistant supports MCP or custom API actions
 
+---
+
 ## Related Documentation
 
 - [MCP Tools Reference](../tools/README.md) - Available tools and parameters
 - [Common Use Cases](../use-cases/README.md) - Practical examples
 - [Troubleshooting Guide](../troubleshooting/README.md) - Common issues and solutions
+
+## Support
+
+If you need help with a specific use case:
+
+- Documentation: [Full Docs on GitHub](https://github.com/63klabs/atlantis-mcp)
+- GitHub Issues: [Report Issue](https://github.com/63klabs/atlantis-mcp/issues)

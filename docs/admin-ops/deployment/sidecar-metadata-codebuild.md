@@ -446,5 +446,5 @@ aws s3 ls s3://${S3_BUCKET}/${NAMESPACE}/app-starters/v2/
 ## Support
 
 For issues or questions:
-- GitHub Issues: [atlantis-mcp-server-phase-1/issues](https://github.com/63klabs/atlantis-mcp-server-phase-1/issues)
+- GitHub Issues: [atlantis-mcp-server-phase-1/issues](https://github.com/63klabs/atlantis-mcp-phase-1/issues)
 - Documentation: [README.md](../../README.md)

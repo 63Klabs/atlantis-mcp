@@ -209,12 +209,11 @@ function getCapabilities() {
     version: MCP_VERSION,
     capabilities: MCP_CAPABILITIES,
     tools: MCP_TOOLS,
-    description: 'Atlantis MCP Server - Phase 1 (Core Read-Only)',
+    description: 'Atlantis MCP Server',
     vendor: '63Klabs',
     serverInfo: {
       name: 'atlantis-mcp-server',
-      version: '0.0.1',
-      phase: 'Phase 1 - Read-Only Operations'
+      version: '0.0.1'
     }
   };
 }

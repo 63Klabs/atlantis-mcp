@@ -62,7 +62,7 @@ servers:
 
 ### 4. Configure Authentication
 
-For Phase 1 (public read-only):
+Public:
 - Authentication: None
 - API Key: Not required
 
@@ -97,5 +97,5 @@ Show me available CloudFormation templates
 ## Additional Resources
 
 - Documentation: [Full Docs](../README.md)
-- [Atlantis MCP Server: GitHub](https://github.com/63klabs/atlantis-mcp-server/) ([Issues](https://github.com/63klabs/atlantis-mcp-server/issues))
+- [Atlantis MCP Server: GitHub](https://github.com/63klabs/atlantis-mcp/) ([Issues](https://github.com/63klabs/atlantis-mcp/issues))
 - [Atlantis Platform Documentation](https://github.com/63Klabs/atlantis)

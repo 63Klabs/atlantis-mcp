@@ -3,23 +3,25 @@
 # and limitations under the License.
 #
 # Atlantis for AWS SAM Deployments
-# Atlantis MCP Server - Phase 1 (Core Read-Only)
+# Atlantis MCP Server
 # Author: 63klabs.net
 # Version: v0.0.1/2026-02-24
 
 # Documentation, Issues/Feature Requests, Latest Updates, and Security Reports on GitHub:
-# https://github.com/63Klabs/atlantis-mcp-server
+# https://github.com/63klabs/atlantis-mcp
 
 # Creates an MCP (Model Context Protocol) server for Atlantis Templates and Scripts Platform
-# Provides read-only operations for template discovery, starter code, and documentation
+# Provides tools for template and starter code discovery and documentation
 # This template is designed to be used with 63KLabs Atlantis for automated deployments.
 
 # USE WITH:
-# - Atlantis pipeline/pipeline-template.yml
+# - atlantis/templates/v2/pipeline/template-pipeline.yml
+# - atlantis/templates/v2/storage/template-storage-s3-oac-for-cloudfront.yml # (optional) for hosting documentation
+# - atlantis/templates/v2/network/template-network-route53-cloudfront-s3-apigw.yml # (optional) for hosting documentation
 
 AWSTemplateFormatVersion: "2010-09-09"
 Transform:  AWS::Serverless-2016-10-31
-Description: "Atlantis MCP Server - Phase 1 (Core Read-Only) - Model Context Protocol server for AI-assisted development"
+Description: "Atlantis MCP Server - Model Context Protocol server for AI-assisted development"
 
 # =============================================================================
 # META DATA
@@ -557,7 +559,7 @@ Resources:
   # https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-resource-function.html
   #
 
-  # -- Read Lambda Function (Phase 1) --
+  # -- Read Lambda Function --
   # Handles all read-only MCP operations with minimal AWS permissions
 
   ReadLambdaFunction:

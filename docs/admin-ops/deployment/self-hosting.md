@@ -100,7 +100,7 @@ Clone the required repositories:
 
 ```bash
 # Clone MCP Server repository
-git clone https://github.com/63klabs/atlantis-mcp-server-phase-1.git
+git clone https://github.com/63klabs/atlantis-mcp-phase-1.git
 cd atlantis-mcp-server-phase-1
 
 # Clone SAM Configuration repository
@@ -551,7 +551,7 @@ See [Deployment Guide - Troubleshooting](./README.md#troubleshooting) for common
 
 ### Getting Help
 
-- **GitHub Issues**: [atlantis-mcp-server-phase-1/issues](https://github.com/63klabs/atlantis-mcp-server-phase-1/issues)
+- **GitHub Issues**: [atlantis-mcp-server-phase-1/issues](https://github.com/63klabs/atlantis-mcp-phase-1/issues)
 - **Documentation**: [README.md](../../README.md)
 - **Community**: Join discussions in GitHub Discussions
 
@@ -614,5 +614,5 @@ Integrate with existing AWS infrastructure:
 ## Support
 
 For issues or questions:
-- GitHub Issues: [atlantis-mcp-server-phase-1/issues](https://github.com/63klabs/atlantis-mcp-server-phase-1/issues)
+- GitHub Issues: [atlantis-mcp-server-phase-1/issues](https://github.com/63klabs/atlantis-mcp-phase-1/issues)
 - Documentation: [README.md](../../README.md)

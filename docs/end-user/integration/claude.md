@@ -80,5 +80,5 @@ Claude should respond with a list of templates from the MCP server.
 ## Additional Resources
 
 - [Claude Desktop Documentation](https://claude.ai/docs)
-- [Atlantis MCP Server: GitHub](https://github.com/63klabs/atlantis-mcp-server/) ([Issues](https://github.com/63klabs/atlantis-mcp-server/issues))
+- [Atlantis MCP Server: GitHub](https://github.com/63klabs/atlantis-mcp/) ([Issues](https://github.com/63klabs/atlantis-mcp/issues))
 - [Atlantis Platform Documentation](https://github.com/63Klabs/atlantis)

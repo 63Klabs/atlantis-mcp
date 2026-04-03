@@ -408,8 +408,15 @@ All tools are subject to rate limiting:
 
 ---
 
-## Next Steps
+## Related Documentation
 
-- [Integration Guides](../integration/) - Set up your AI assistant
+- [Integration Guides](../integration/README.md) - Set up your AI assistant
 - [Common Use Cases](../use-cases/README.md) - Practical examples
 - [Troubleshooting](../troubleshooting/README.md) - Common issues and solutions
+
+## Support
+
+If you need help with a specific use case:
+
+- Documentation: [Full Docs on GitHub](https://github.com/63klabs/atlantis-mcp)
+- GitHub Issues: [Report Issue](https://github.com/63klabs/atlantis-mcp/issues)
