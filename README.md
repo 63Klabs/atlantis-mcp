@@ -177,6 +177,10 @@ See [Change Log](./CHANGELOG.md)
 
 See [Security](./SECURITY.md)
 
+## Data Collection and Use
+
+See [Privacy](./PRIVACY.md)
+
 ## Contributors
 
 - [63Klabs](https://github.com/63klabs)
