@@ -39,7 +39,7 @@ const process = async (clientRequest, response, event, context) => {
 
   if (path.endsWith('mcp/v1') && method === 'POST') {
     // >! Delegate POST to JSON-RPC Router for full MCP protocol handling
-    DebugAndLog.info('Routing /mcp/v1 POST to JSON-RPC Router');
+    DebugAndLog.info('Routing mcp/v1 POST to JSON-RPC Router');
     const jsonRpcResponse = await JsonRpcRouter.handleJsonRpc(event, context);
 
     response.setStatusCode(jsonRpcResponse.statusCode);
