@@ -37,7 +37,7 @@ const process = async (clientRequest, response, event, context) => {
   const JsonRpcRouter = require('../utils/json-rpc-router');
   const MCPProtocol = require('../utils/mcp-protocol');
 
-  if (path.endsWith('/mcp/v1') && method === 'POST') {
+  if (path.endsWith('mcp/v1') && method === 'POST') {
     // >! Delegate POST to JSON-RPC Router for full MCP protocol handling
     DebugAndLog.info('Routing /mcp/v1 POST to JSON-RPC Router');
     const jsonRpcResponse = await JsonRpcRouter.handleJsonRpc(event, context);
@@ -61,7 +61,7 @@ const process = async (clientRequest, response, event, context) => {
     null,
     MCPProtocol.JSON_RPC_ERRORS.METHOD_NOT_FOUND,
     'Not found',
-    { details: `Only POST /mcp/v1 is supported. Received ${method} ${path}` }
+    { details: `Only POST mcp/v1 is supported. Received ${method} ${path}` }
   );
   response.setStatusCode(400);
   response.setBody(errorBody);

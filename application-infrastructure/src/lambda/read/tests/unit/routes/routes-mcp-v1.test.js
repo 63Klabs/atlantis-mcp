@@ -62,7 +62,7 @@ describe('/mcp/v1 Routing', () => {
     jest.clearAllMocks();
 
     mockClientRequest = {
-      getProps: jest.fn().mockReturnValue({ path: '/mcp/v1', method: 'POST' })
+      getProps: jest.fn().mockReturnValue({ path: 'mcp/v1', method: 'POST' })
     };
 
     mockResponse = {
@@ -124,7 +124,7 @@ describe('/mcp/v1 Routing', () => {
     });
 
     test('detects /mcp/v1 from clientRequest.getProps().path', async () => {
-      mockClientRequest.getProps.mockReturnValue({ path: '/stage/mcp/v1', method: 'POST' });
+      mockClientRequest.getProps.mockReturnValue({ path: 'stage/mcp/v1', method: 'POST' });
       const jsonRpcResponse = { statusCode: 200, body: '{}' };
       mockHandleJsonRpc.mockResolvedValue(jsonRpcResponse);
 
@@ -158,7 +158,7 @@ describe('/mcp/v1 Routing', () => {
   // ---------------------------------------------------------------
   describe('Rejects non-POST and non-/mcp/v1 requests', () => {
     test('GET /mcp/v1 sets error on response', async () => {
-      mockClientRequest.getProps.mockReturnValue({ path: '/mcp/v1', method: 'GET' });
+      mockClientRequest.getProps.mockReturnValue({ path: 'mcp/v1', method: 'GET' });
 
       const event = { path: '/mcp/v1', httpMethod: 'GET' };
 

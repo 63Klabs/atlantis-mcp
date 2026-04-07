@@ -13,7 +13,7 @@ const fc = require('fast-check');
 
 // --- Mocks ---
 const mockClientRequestInstance = {
-  getProps: jest.fn().mockReturnValue({ path: '/mcp/v1', method: 'POST', pathArray: ['mcp', 'v1'] })
+  getProps: jest.fn().mockReturnValue({ path: 'mcp/v1', method: 'POST', pathArray: ['mcp', 'v1'] })
 };
 
 jest.mock('@63klabs/cache-data', () => ({
@@ -130,7 +130,7 @@ describe('Feature: use-client-request-and-response-classes', () => {
             };
 
             const mockCr = {
-              getProps: () => ({ path: '/mcp/v1', method: 'POST' })
+              getProps: () => ({ path: 'mcp/v1', method: 'POST' })
             };
 
             const event = { path: '/mcp/v1', httpMethod: 'POST', body: '{}' };
@@ -177,7 +177,7 @@ describe('Feature: use-client-request-and-response-classes', () => {
               rateLimits: { public: { limit: 100, window: 3600 } }
             });
             mockClientRequestInstance.getProps.mockReturnValue({
-              path: '/mcp/v1', method: 'POST', pathArray: ['mcp', 'v1']
+              path: 'mcp/v1', method: 'POST', pathArray: ['mcp', 'v1']
             });
 
             mockCheckRateLimit.mockReset();
@@ -259,7 +259,7 @@ describe('Feature: use-client-request-and-response-classes', () => {
               rateLimits: { public: { limit: 100, window: 3600 } }
             });
             mockClientRequestInstance.getProps.mockReturnValue({
-              path: '/mcp/v1', method: 'POST', pathArray: ['mcp', 'v1']
+              path: 'mcp/v1', method: 'POST', pathArray: ['mcp', 'v1']
             });
 
             mockCheckRateLimit.mockReset();

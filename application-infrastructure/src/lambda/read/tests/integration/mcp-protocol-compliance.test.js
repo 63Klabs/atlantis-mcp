@@ -14,11 +14,16 @@ jest.mock('@63klabs/cache-data', () => {
     tools: {
       ...actual.tools,
       ClientRequest: jest.fn().mockImplementation((event) => ({
-        getProps: () => ({
-          path: event.path || event.requestContext?.resourcePath || '',
-          method: event.httpMethod || '',
-          pathArray: (event.path || '').split('/').filter(Boolean)
-        })
+        getProps: () => {
+          const rawPath = event.path || event.requestContext?.resourcePath || '';
+          // Strip leading slash to match real ClientRequest behavior
+          const path = rawPath.startsWith('/') ? rawPath.slice(1) : rawPath;
+          return {
+            path,
+            method: event.httpMethod || '',
+            pathArray: rawPath.split('/').filter(Boolean)
+          };
+        }
       })),
       Response: jest.fn().mockImplementation((arg) => {
         let statusCode = arg?.statusCode || 200;

@@ -12,7 +12,7 @@
 
 // Mock ClientRequest instance
 const mockClientRequestInstance = {
-  getProps: jest.fn().mockReturnValue({ path: '/mcp/v1', method: 'POST' })
+  getProps: jest.fn().mockReturnValue({ path: 'mcp/v1', method: 'POST' })
 };
 
 // Mock Response instance for happy path
