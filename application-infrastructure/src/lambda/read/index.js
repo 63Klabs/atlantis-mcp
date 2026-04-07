@@ -18,7 +18,7 @@
  */
 
 // >! Web service and cache framework package
-const { tools: {DebugAndLog, Response, Timer} } = require("@63klabs/cache-data");
+const { tools: {DebugAndLog, ClientRequest, Response, Timer} } = require("@63klabs/cache-data");
 
 // >! Application Modules
 const { Config } = require("./config");
@@ -42,40 +42,25 @@ Config.init(); // >! we will await completion in the handler
  *    - Calls Config.prime() to pre-populate caches
  *    - Logs cold start timing (only on first invocation)
  * 
- * 2. Rate Limiting:
+ * 2. Request Parsing:
+ *    - Creates a ClientRequest from the event and context
+ *    - Creates a Response linked to the ClientRequest
+ * 
+ * 3. Rate Limiting:
  *    - Checks rate limits using Config.settings().rateLimits
  *    - Returns 429 Too Many Requests if limit exceeded
- *    - Adds rate limit headers to all responses
+ *    - Adds rate limit headers to the Response
  * 
- * 3. Request Processing:
+ * 4. Request Processing:
  *    - Delegates to Routes.process() for tool routing
- *    - Adds standard MCP and CORS headers
- *    - Logs request metrics and execution time
+ *    - Routes populates the shared Response instance
+ *    - Calls response.finalize() once to produce the API Gateway response
  * 
- * 4. Error Handling:
+ * 5. Error Handling:
  *    - Catches and logs all errors with context
+ *    - Reuses existing Response if available, otherwise creates standalone
  *    - Returns sanitized error responses to clients
- *    - Emits CloudWatch metrics for monitoring
  * 
- * Config Usage:
- * - Config.promise(): Waits for async initialization to complete
- * - Config.prime(): Pre-loads caches for optimal performance
- * - Config.settings(): Accesses application settings (rate limits, S3 buckets, etc.)
- * - Config.getConnCacheProfile(): Retrieves cache profiles for data sources
- * 
- * Rate Limiter Integration:
- * The handler integrates with the rate limiter using Config.settings().rateLimits
- * to enforce request limits per IP address. Rate limit configuration includes:
- * - public: 100 requests/hour (unauthenticated)
- * - registered: 500 requests/hour (authenticated free tier)
- * - paid: 2500 requests/hour (authenticated paid tier)
- * - private: 1000 requests/hour (internal/admin)
- * 
- * Cold Start Behavior:
- * - First invocation: Config.init() runs, typically 200-500ms
- * - Subsequent invocations: Config already initialized, returns immediately
- * - Documentation index builds asynchronously without blocking
- *
  * @async
  * @param {Object} event - API Gateway event object
  * @param {Object} event.body - Request body (JSON string)
@@ -117,32 +102,12 @@ Config.init(); // >! we will await completion in the handler
  * //   },
  * //   body: '{"templates": [...]}'
  * // }
- * 
- * @example
- * // Subsequent invocation (warm start)
- * const response = await handler(event, context);
- * // Config already initialized, no cold start delay
- * // Rate limit headers updated with remaining count
- * 
- * @example
- * // Rate limit exceeded
- * // After 100 requests from same IP
- * const response = await handler(event, context);
- * // Returns: {
- * //   statusCode: 429,
- * //   headers: {
- * //     'X-RateLimit-Limit': '100',
- * //     'X-RateLimit-Remaining': '0',
- * //     'Retry-After': '3600',
- * //     ...
- * //   },
- * //   body: '{"error": "Too Many Requests", "retryAfter": 3600}'
- * // }
  *
  * @throws {Error} If critical initialization fails (cache, configuration, SSM)
  */
 exports.handler = async (event, context) => {
 
+  let clientRequest = null;
   let response = null;
 
   try {
@@ -156,12 +121,15 @@ exports.handler = async (event, context) => {
 		if (coldStartInitTimer.isRunning()) { DebugAndLog.log(coldStartInitTimer.stop(),"COLDSTART"); }
     // >! Now that we have verified that all cold start tasks have completed we can continue handling the request
 
+    // >! Create ClientRequest and Response from event/context
+    clientRequest = new ClientRequest(event, context);
+    response = new Response(clientRequest);
+
     // >! Check rate limit before processing request
     // >! Rate limit is per IP address, resets every hour
     // >! Returns 429 if limit exceeded with Retry-After header
     const rateLimitCheck = await RateLimiter.checkRateLimit(event, Config.settings().rateLimits);
 
-    console.log("SETTINGS", Config.settings());
     if (!rateLimitCheck.allowed) {
       // >! Await DynamoDB update before returning to ensure state is persisted
       if (rateLimitCheck.dynamoPromise) { await rateLimitCheck.dynamoPromise; }
@@ -173,100 +141,41 @@ exports.handler = async (event, context) => {
       );
     }
 
+    // >! Add rate-limit and MCP headers to the Response before routing
+    for (const [name, value] of Object.entries(rateLimitCheck.headers)) {
+      response.addHeader(name, value);
+    }
+    response.addHeader('X-MCP-Version', '1.0');
+
     // >! Delegate request processing to routing layer
-    // >! Routes.process() handles tool routing and controller invocation
-    const response = await Routes.process(event, context);
-
-    DebugAndLog.debug("RESPONSE FROM ROUTES", response);
-
-
-    // TODO: A lot of this metric and logging stuff is already handled by Response so we should clean up and ensure this isn't used by a downstream process. Or, if it is, figure out what data is needed and use already provided methods from DebugAndLog and Response
-
-    // // >! Log successful request with execution time
-    // const ErrorHandler = require('./utils/error-handler');
-    // const props = response.getProps ? response.getProps() : {};
-    // ErrorHandler.logRequest({
-    //   tool: event.body ? JSON.parse(event.body).tool : event.queryStringParameters?.tool,
-    //   method: event.httpMethod,
-    //   path: event.path,
-    //   ip,
-    //   requestId,
-    //   executionTime,
-    //   statusCode: props.statusCode || 200,
-    //   cacheHit: props.cacheHit || false
-    // });
-
-    // // >! Emit latency metric
-    // ErrorHandler.emitLatencyMetric({
-    //   tool: event.body ? JSON.parse(event.body).tool : event.queryStringParameters?.tool,
-    //   latency: executionTime,
-    //   cacheHit: props.cacheHit || false
-    // });
-
-    // >! Convert Response object to API Gateway format
-    // >! Add rate limit headers to all successful responses
-    const apiGatewayResponse = response.finalize();
-    apiGatewayResponse.headers = {
-      ...apiGatewayResponse.headers,
-      ...rateLimitCheck.headers,
-      'X-MCP-Version': '1.0',
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With'
-    };
+    // >! Routes.process() populates the shared Response instance (void return)
+    await Routes.process(clientRequest, response, event, context);
 
     // >! Await DynamoDB update before returning to ensure state is persisted
     if (rateLimitCheck.dynamoPromise) { await rateLimitCheck.dynamoPromise; }
 
-    return apiGatewayResponse;
+    // >! Finalize and return the API Gateway response
+    // >! Response.finalize() handles CORS, cache-control, execution-time, and logging
+    return response.finalize();
 
   } catch (error) {
-    // // >! Handle top-level errors that escape routing layer
-    // // >! These are typically initialization failures or unexpected errors
-    // const ErrorHandler = require('./utils/error-handler');
-
-    // // >! Log all errors with stack traces and request context
-    // ErrorHandler.logError(error, {
-    //   requestId,
-    //   ip,
-    //   tool: event.body ? JSON.parse(event.body).tool : event.queryStringParameters?.tool,
-    //   parameters: event.body ? JSON.parse(event.body) : event.queryStringParameters
-    // });
-
-    // // >! Emit error metric
-    // ErrorHandler.emitErrorMetric({
-    //   tool: event.body ? JSON.parse(event.body).tool : event.queryStringParameters?.tool,
-    //   errorCode: error.code || 'INTERNAL_ERROR',
-    //   statusCode: ErrorHandler.getStatusCode(error)
-    // });
-
-    // // >! Emit latency metric even for errors
-    // ErrorHandler.emitLatencyMetric({
-    //   tool: event.body ? JSON.parse(event.body).tool : event.queryStringParameters?.tool,
-    //   latency: executionTime,
-    //   cacheHit: false
-    // });
-
-    // Get requestId from event
     const requestId = event.requestContext?.requestId || context?.awsRequestId || 'unknown';
 
     // >! Return sanitized error response to client
     // >! Don't expose internal implementation details
-    // >! Include request IDs in error responses
-    
-		/* Log the error */
 		DebugAndLog.error(`Unhandled Execution Error in Handler  Error: ${error.message}`, error.stack);
 
-		/* This failed before we even got to parsing the request so we don't have all the log info */
-		response = new Response({statusCode: 500});
-    response.addHeader('Content-Type', 'application/json');
+    // >! Reuse existing Response if available (linked to ClientRequest for logging)
+    // >! Otherwise create standalone Response for error
+    if (!response) {
+      response = new Response({statusCode: 500});
+    } else {
+      response.setStatusCode(500);
+    }
     response.addHeader('X-Request-Id', requestId);
 		response.addHeader('X-MCP-Version', '1.0');
-		response.addHeader('Access-Control-Allow-Origin', '*');
-		response.addHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-		response.addHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
 		response.setBody({
-			message: 'Error initializing request - 1701-D', // 1701-D just so we know it is an app and not API Gateway error
+			message: 'Error initializing request - 1701-D',
       requestId: requestId
 		});
     return response.finalize();

@@ -6,6 +6,43 @@
  * error responses, and JSON Schema validation.
  */
 
+// Mock @63klabs/cache-data to provide ClientRequest and Response
+jest.mock('@63klabs/cache-data', () => {
+  const actual = jest.requireActual('@63klabs/cache-data');
+  return {
+    ...actual,
+    tools: {
+      ...actual.tools,
+      ClientRequest: jest.fn().mockImplementation((event) => ({
+        getProps: () => ({
+          path: event.path || event.requestContext?.resourcePath || '',
+          method: event.httpMethod || '',
+          pathArray: (event.path || '').split('/').filter(Boolean)
+        })
+      })),
+      Response: jest.fn().mockImplementation((arg) => {
+        let statusCode = arg?.statusCode || 200;
+        let body = null;
+        const headers = {};
+        return {
+          setStatusCode: jest.fn().mockImplementation((code) => { statusCode = code; }),
+          setBody: jest.fn().mockImplementation((b) => { body = b; }),
+          addHeader: jest.fn().mockImplementation((name, value) => { headers[name] = value; }),
+          finalize: jest.fn().mockImplementation(() => ({
+            statusCode,
+            headers: { 'Content-Type': 'application/json', ...headers },
+            body: typeof body === 'string' ? body : JSON.stringify(body)
+          }))
+        };
+      }),
+      Timer: jest.fn().mockImplementation(() => ({
+        isRunning: jest.fn().mockReturnValue(false),
+        stop: jest.fn().mockReturnValue('timer stopped')
+      }))
+    }
+  };
+});
+
 // Mock Config module before importing handler
 jest.mock('../../config', () => ({
   Config: {
