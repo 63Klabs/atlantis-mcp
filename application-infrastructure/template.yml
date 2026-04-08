@@ -636,6 +636,7 @@ Resources:
           CACHE_DATA_TIME_ZONE_FOR_INTERVAL: !Ref CacheDataTimeZoneForInterval
           CACHE_DATA_AWS_X_RAY_ON: true
           CACHE_DATA_USE_TOOLS_HASH_METHOD: true
+          CACHE_USE_IN_MEMORY: true
           CACHE_DATA_DYNAMO_DB_TABLE: !If 
             - HasCacheDataDynamoDbTableName
             - !Ref CacheDataDynamoDbTableName
