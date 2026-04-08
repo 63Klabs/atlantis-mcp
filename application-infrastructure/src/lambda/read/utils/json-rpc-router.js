@@ -115,6 +115,7 @@ function extractId(rawId) {
 async function handleJsonRpc(clientRequest) {
 
   const event = clientRequest.getEvent();
+  console.log("EVENT", event);
 
   let id = null;
 
@@ -159,7 +160,7 @@ async function handleJsonRpc(clientRequest) {
     }
 
     const { method, params } = body;
-    clientRequest.addQueryLog(method);
+    clientRequest.addQueryLog(`m:${method}`);
 
     // --- Step 4: Dispatch by method -------------------------------------------
     switch (method) {
@@ -252,7 +253,7 @@ async function handleToolsCall(id, params, clientRequest) {
   }
 
   // log the tool name
-  clientRequest.addQueryLog(toolName);
+  clientRequest.addQueryLog(`t:${toolName}`);
 
   // >! Build props object matching the controller interface
   // Controllers expect props.bodyParameters.input
