@@ -149,7 +149,7 @@ exports.handler = async (event, context) => {
 
     // >! Delegate request processing to routing layer
     // >! Routes.process() populates the shared Response instance (void return)
-    await Routes.process(clientRequest, response, event, context);
+    await Routes.process(clientRequest, response);
 
     // >! Await DynamoDB update before returning to ensure state is persisted
     if (rateLimitCheck.dynamoPromise) { await rateLimitCheck.dynamoPromise; }

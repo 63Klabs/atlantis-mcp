@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Updated logs on the backend to better request and response metrics
+- Updated logs better record request and response metrics such as tool usage.
 
 ## [v0.0.1] (2026-04-02)
 

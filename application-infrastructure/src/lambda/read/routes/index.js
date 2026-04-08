@@ -19,14 +19,12 @@ const { tools: { DebugAndLog } } = require('@63klabs/cache-data');
  *
  * @param {ClientRequest} clientRequest - Parsed request instance from @63klabs/cache-data
  * @param {Response} response - Response instance to populate
- * @param {Object} event - Raw API Gateway event (for JSON-RPC Router)
- * @param {Object} context - Raw Lambda context (for JSON-RPC Router)
  * @returns {Promise<void>}
  * @example
  * await Routes.process(clientRequest, response, event, context);
  * // response is now populated; caller calls response.finalize()
  */
-const process = async (clientRequest, response, event, context) => {
+const process = async (clientRequest, response) => {
   const props = clientRequest.getProps();
   const path = props.path || '';
   const method = (props.method || '').toUpperCase();
@@ -40,7 +38,7 @@ const process = async (clientRequest, response, event, context) => {
   if (path.endsWith('mcp/v1') && method === 'POST') {
     // >! Delegate POST to JSON-RPC Router for full MCP protocol handling
     DebugAndLog.info('Routing mcp/v1 POST to JSON-RPC Router');
-    const jsonRpcResponse = await JsonRpcRouter.handleJsonRpc(event, context);
+    const jsonRpcResponse = await JsonRpcRouter.handleJsonRpc(clientRequest);
 
     response.setStatusCode(jsonRpcResponse.statusCode);
     response.setBody(JSON.parse(jsonRpcResponse.body));

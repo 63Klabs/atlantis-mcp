@@ -100,9 +100,7 @@ function extractId(rawId) {
  * 5. Wrap every response with `Content-Type: application/json`.
  *
  * @async
- * @param {Object} event - API Gateway event object
- * @param {string|Object} event.body - Request body (string or pre-parsed object)
- * @param {Object} context - Lambda context object
+ * @param {ClientRequest} clientRequest - ClientRequest object
  * @returns {Promise<Object>} API Gateway response with statusCode, headers, body
  *
  * @example
@@ -114,7 +112,10 @@ function extractId(rawId) {
  *   })
  * }, context);
  */
-async function handleJsonRpc(event, context) {
+async function handleJsonRpc(clientRequest) {
+
+  const event = clientRequest.getEvent();
+
   let id = null;
 
   try {
@@ -158,6 +159,7 @@ async function handleJsonRpc(event, context) {
     }
 
     const { method, params } = body;
+    clientRequest.addQueryLog(method);
 
     // --- Step 4: Dispatch by method -------------------------------------------
     switch (method) {
@@ -174,7 +176,7 @@ async function handleJsonRpc(event, context) {
       }
 
       case 'tools/call':
-        return await handleToolsCall(id, params, event, context);
+        return await handleToolsCall(id, params, clientRequest);
 
       default:
         return buildResponse(200, MCPProtocol.jsonRpcError(
@@ -208,11 +210,10 @@ async function handleJsonRpc(event, context) {
  * @param {Object} params - JSON-RPC params object
  * @param {string} params.name - Tool name to invoke
  * @param {Object} [params.arguments] - Tool arguments
- * @param {Object} event - API Gateway event (passed to controller)
- * @param {Object} context - Lambda context (passed to controller)
+ * @param {ClientRequest} clientRequest - Object containing client request information
  * @returns {Promise<Object>} API Gateway response
  */
-async function handleToolsCall(id, params, event, context) {
+async function handleToolsCall(id, params, clientRequest) {
   // >! Validate that params.name is present
   if (!params || typeof params.name !== 'string') {
     return buildResponse(200, MCPProtocol.jsonRpcError(
@@ -225,6 +226,8 @@ async function handleToolsCall(id, params, event, context) {
 
   const toolName = params.name;
   const toolArgs = params.arguments || {};
+
+  clientRequest.addQueryLog(toolName);
 
   // >! Validate toolName is an own property of TOOL_DISPATCH to prevent
   // >! prototype chain lookups (hasOwnProperty, constructor, __proto__, etc.)
