@@ -115,7 +115,6 @@ function extractId(rawId) {
 async function handleJsonRpc(clientRequest) {
 
   const event = clientRequest.getEvent();
-  console.log("EVENT", event);
 
   let id = null;
 

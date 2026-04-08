@@ -107,6 +107,8 @@ Config.init(); // >! we will await completion in the handler
  */
 exports.handler = async (event, context) => {
 
+  DebugAndLog.debug("EVENT RECEIVED:", event);
+
   let clientRequest = null;
   let response = null;
 

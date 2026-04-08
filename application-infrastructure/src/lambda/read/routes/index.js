@@ -13,7 +13,7 @@ const { tools: { DebugAndLog } } = require('@63klabs/cache-data');
 /**
  * Process incoming request and route to JSON-RPC Router.
  *
- * Only POST requests to `/mcp/v1` are accepted. All other paths and
+ * Only POST requests to `mcp/v1` are accepted. All other paths and
  * methods receive an error response. Populates the shared Response
  * instance instead of returning a value.
  *
