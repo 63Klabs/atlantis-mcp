@@ -227,7 +227,6 @@ async function handleToolsCall(id, params, clientRequest) {
   const toolName = params.name;
   const toolArgs = params.arguments || {};
 
-  clientRequest.addQueryLog(toolName);
 
   // >! Validate toolName is an own property of TOOL_DISPATCH to prevent
   // >! prototype chain lookups (hasOwnProperty, constructor, __proto__, etc.)
@@ -251,6 +250,9 @@ async function handleToolsCall(id, params, clientRequest) {
       { details: `Unknown tool: ${toolName}` }
     ));
   }
+
+  // log the tool name
+  clientRequest.addQueryLog(toolName);
 
   // >! Build props object matching the controller interface
   // Controllers expect props.bodyParameters.input
