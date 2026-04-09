@@ -28,7 +28,6 @@ const process = async (clientRequest, response) => {
   const props = clientRequest.getProps();
   const path = props.path || '';
   const method = (props.method || '').toUpperCase();
-  console.log("PROPS", props);
 
   // >! Lazy-load to avoid pulling in Controllers (and their service
   // >! dependencies) at module-load time, which would break tests that
