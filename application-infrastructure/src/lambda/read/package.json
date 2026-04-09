@@ -1,6 +1,6 @@
 {
   "name": "atlantis-mcp-server-read-lambda",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Read Lambda function for Atlantis MCP Server",
   "main": "index.js",
   "scripts": {
