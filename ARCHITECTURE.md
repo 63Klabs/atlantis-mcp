@@ -18,44 +18,44 @@ The Atlantis MCP Server is a serverless application that exposes Atlantis platfo
          │  POST /mcp/v1
          ▼
 ┌──────────────────┐       ┌──────────────────┐
-│  Read Lambda     │──────▶│  SSM Parameter   │  Credentials & config
+│  Read Lambda     │─────► │  SSM Parameter   │  Credentials & config
 │  (MCP Handler)   │       │  Store           │  (GitHub token, hash salt)
 └───┬────┬────┬────┘       └──────────────────┘
     │    │    │
-    │    │    └──────────▶ ┌──────────────────┐
+    │    │    └──────────► ┌──────────────────┐
     │    │                 │  GitHub API      │  Repository metadata
     │    │                 └──────────────────┘
     │    │
-    │    └───────────────▶ ┌──────────────────┐
+    │    └───────────────► ┌──────────────────┐
     │                      │  S3 Buckets      │  Templates & starters
     │                      └──────────────────┘
     │
-    ├────────────────────▶ ┌──────────────────┐
+    ├────────────────────► ┌──────────────────┐
     │                      │  DynamoDB        │  Rate limit sessions
     │                      │  (Sessions)      │
     │                      └──────────────────┘
     │
-    ├────────────────────▶ ┌──────────────────┐
+    ├────────────────────► ┌──────────────────┐
     │                      │  DynamoDB        │  Documentation search index
     │                      │  (DocIndex)      │
     │                      └──────────────────┘
     │
-    └────────────────────▶ ┌──────────────────┐
+    └────────────────────► ┌──────────────────┐
                            │  DynamoDB + S3   │  Response caching
                            │  (Cache-Data)    │  (@63klabs/cache-data)
                            └──────────────────┘
 
 
 ┌──────────────────┐       ┌──────────────────┐
-│  EventBridge     │──────▶│  Doc Indexer     │  Scheduled index rebuild
+│  EventBridge     │──────►│  Doc Indexer     │  Scheduled index rebuild
 │  (Cron Schedule) │       │  Lambda          │
 └──────────────────┘       └───┬────┬─────────┘
                                │    │
-                               │    └────────▶ ┌──────────────────┐
+                               │    └────────► ┌──────────────────┐
                                │               │  GitHub API      │
                                │               └──────────────────┘
                                │
-                               └─────────────▶ ┌──────────────────┐
+                               └─────────────► ┌──────────────────┐
                                                │  DynamoDB        │
                                                │  (DocIndex)      │
                                                └──────────────────┘
@@ -162,4 +162,4 @@ All resources follow the Atlantis naming convention:
 <Prefix>-<ProjectId>-<StageId>-<ResourceId>
 ```
 
-S3 buckets include AccountId and Region for global uniqueness. See the `validate_naming` MCP tool for programmatic validation of resource names.
+S3 buckets include AccountId and Region (and optionally, an Organization Prefix) for global uniqueness, however, S3 Account Regional Namespaces are preferred. See the `validate_naming` MCP tool for programmatic validation of resource names.
