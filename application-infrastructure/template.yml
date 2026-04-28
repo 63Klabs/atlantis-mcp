@@ -825,7 +825,7 @@ Resources:
   CognitoUserPoolIdParameter:
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub "${ParameterStoreHierarchy}${DeployEnvironment}/${Prefix}-${ProjectId}-${StageId}/Mcp_CognitoUserPoolId"
+      Name: !Sub "${ParameterStoreHierarchy}app-stack/Mcp_CognitoUserPoolId" # app-stack/ sub-path is CRUD for application templates
       Type: String
       Value: !Ref CognitoUserPool
       Description: "Cognito User Pool ID for Auth Lambda API endpoints"
