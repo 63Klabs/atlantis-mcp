@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Profile - Atlantis MCP Server</title>
+  <link rel="stylesheet" href="/css/index.css">
+</head>
+<body>
+  <div class="container">
+    <nav aria-label="Breadcrumb" class="breadcrumb-nav">
+      <ol>
+        <li><a href="/">Home</a></li>
+        <li aria-current="page">Profile</li>
+      </ol>
+    </nav>
+
+    <header>
+      <h1>Your Profile</h1>
+      <p class="description">Manage your account, API key, and access tier.</p>
+    </header>
+
+    <!-- Loading state -->
+    <div id="loading" class="auth-form" aria-live="polite">
+      <p>Loading your profile…</p>
+    </div>
+
+    <!-- Profile content (hidden until authenticated) -->
+    <div id="profile-content" class="hidden">
+
+      <!-- Tier info -->
+      <section class="profile-section" aria-labelledby="tier-heading">
+        <h2 id="tier-heading">Access Tier</h2>
+        <dl class="profile-info">
+          <dt>Current tier</dt>
+          <dd id="current-tier">—</dd>
+          <dt>Rate limit</dt>
+          <dd id="rate-limit">—</dd>
+          <dt>Window</dt>
+          <dd id="rate-window">—</dd>
+          <dt id="expiry-label" class="hidden">Tier expires</dt>
+          <dd id="tier-expiry" class="hidden">—</dd>
+        </dl>
+        <p style="margin-top:1rem;font-size:0.85rem;">
+          <a href="/docs/rate-limits/">View all tier rate limits</a>
+        </p>
+      </section>
+
+      <!-- API Key regeneration -->
+      <section class="profile-section" aria-labelledby="apikey-heading">
+        <h2 id="apikey-heading">API Key</h2>
+        <p style="font-size:0.9rem;color:#6b6b80;margin-bottom:1rem;">
+          Your current API key is not displayed for security. Generate a new one if needed — the old key will stop working immediately.
+        </p>
+        <div id="regen-error" class="alert alert-error" role="alert" aria-live="polite"></div>
+        <div id="regen-success" class="alert alert-success" role="alert" aria-live="polite"></div>
+        <div id="new-key-display" class="api-key-display hidden" role="region" aria-label="New API key">
+          <span id="new-key-value"></span>
+          <button class="copy-btn" id="copy-key-btn" aria-label="Copy API key to clipboard">Copy</button>
+        </div>
+        <button class="btn" id="regen-btn">Regenerate API Key</button>
+      </section>
+
+      <!-- Voucher redemption -->
+      <section class="profile-section" aria-labelledby="voucher-heading">
+        <h2 id="voucher-heading">Promotion Code</h2>
+        <div id="voucher-error" class="alert alert-error" role="alert" aria-live="polite"></div>
+        <div id="voucher-success" class="alert alert-success" role="alert" aria-live="polite"></div>
+        <form id="voucher-form" class="inline-form" novalidate>
+          <div class="form-group">
+            <label for="voucher-code">Enter code</label>
+            <input type="text" id="voucher-code" name="code" required aria-required="true" placeholder="e.g. SUMMER2025">
+          </div>
+          <button type="submit" class="btn" id="voucher-btn">Redeem</button>
+        </form>
+      </section>
+
+      <!-- Payment placeholder -->
+      <section class="profile-section" aria-labelledby="payment-heading">
+        <h2 id="payment-heading">Upgrade to Paid Tier</h2>
+        <p style="font-size:0.9rem;color:#6b6b80;">
+          Paid tier subscriptions are coming soon. For now, contact us or use a promotion code to upgrade.
+        </p>
+      </section>
+
+      <!-- Logout -->
+      <div style="margin-top:1.5rem;">
+        <button class="btn btn-secondary" id="logout-btn">Log Out</button>
+      </div>
+    </div>
+
+    <footer>
+      {{{settings.footer}}}
+    </footer>
+  </div>
+
+<script>
+  document.getElementById('copyright-year').textContent = new Date().getFullYear();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6/dist/amazon-cognito-identity.min.js"></script>
+<script>
+(function() {
+  'use strict';
+
+  var USER_POOL_ID = '{{{settings.cognitoUserPoolId}}}';
+  var CLIENT_ID = '{{{settings.cognitoClientId}}}';
+  var API_BASE_URL = '{{{settings.apiBaseUrl}}}';
+
+  var RATE_LIMITS = {
+    public:     { limit: '{{{settings.rateLimitPublic}}}',     window: '{{{settings.rateLimitPublicWindow}}}' },
+    registered: { limit: '{{{settings.rateLimitRegistered}}}', window: '{{{settings.rateLimitRegisteredWindow}}}' },
+    paid:       { limit: '{{{settings.rateLimitPaid}}}',       window: '{{{settings.rateLimitPaidWindow}}}' },
+    private:    { limit: '{{{settings.rateLimitPrivate}}}',    window: '{{{settings.rateLimitPrivateWindow}}}' }
+  };
+
+  var poolData = { UserPoolId: USER_POOL_ID, ClientId: CLIENT_ID };
+  var userPool = new AmazonCognitoIdentity.CognitoUserPool(poolData);
+
+  var loadingEl = document.getElementById('loading');
+  var profileContent = document.getElementById('profile-content');
+
+  function getJwt(cognitoUser) {
+    return new Promise(function(resolve, reject) {
+      cognitoUser.getSession(function(err, session) {
+        if (err || !session || !session.isValid()) {
+          reject(err || new Error('Invalid session'));
+          return;
+        }
+        resolve(session.getIdToken().getJwtToken());
+      });
+    });
+  }
+
+  function formatWindow(minutes) {
+    var m = parseInt(minutes, 10);
+    if (isNaN(m)) return minutes + ' min';
+    if (m >= 1440) return (m / 1440) + ' day' + (m / 1440 > 1 ? 's' : '');
+    if (m >= 60) return (m / 60) + ' hour' + (m / 60 > 1 ? 's' : '');
+    return m + ' min';
+  }
+
+  function displayTierInfo(tier, expiresAt) {
+    var tierName = tier.charAt(0).toUpperCase() + tier.slice(1);
+    document.getElementById('current-tier').textContent = tierName;
+
+    var rl = RATE_LIMITS[tier] || RATE_LIMITS.registered;
+    document.getElementById('rate-limit').textContent = rl.limit + ' requests';
+    document.getElementById('rate-window').textContent = 'per ' + formatWindow(rl.window);
+
+    if (expiresAt) {
+      var d = new Date(expiresAt);
+      document.getElementById('tier-expiry').textContent = d.toLocaleDateString();
+      document.getElementById('tier-expiry').classList.remove('hidden');
+      document.getElementById('expiry-label').classList.remove('hidden');
+    }
+  }
+
+  function showError(id, msg) {
+    var el = document.getElementById(id);
+    el.textContent = msg;
+    el.classList.add('visible');
+  }
+
+  function hideError(id) {
+    var el = document.getElementById(id);
+    el.textContent = '';
+    el.classList.remove('visible');
+  }
+
+  // Check authentication
+  var cognitoUser = userPool.getCurrentUser();
+  if (!cognitoUser) {
+    window.location.href = '/login/';
+    return;
+  }
+
+  cognitoUser.getSession(function(err, session) {
+    if (err || !session || !session.isValid()) {
+      window.location.href = '/login/';
+      return;
+    }
+
+    // Read user attributes for tier info
+    cognitoUser.getUserAttributes(function(attrErr, attributes) {
+      loadingEl.classList.add('hidden');
+      profileContent.classList.remove('hidden');
+
+      var tier = 'registered';
+      var tierExpiresAt = null;
+
+      if (!attrErr && attributes) {
+        for (var i = 0; i < attributes.length; i++) {
+          if (attributes[i].getName() === 'custom:tier') {
+            tier = attributes[i].getValue() || 'registered';
+          }
+        }
+      }
+
+      displayTierInfo(tier, tierExpiresAt);
+    });
+  });
+
+  // Regenerate API Key
+  var regenBtn = document.getElementById('regen-btn');
+  var newKeyDisplay = document.getElementById('new-key-display');
+  var newKeyValue = document.getElementById('new-key-value');
+  var copyKeyBtn = document.getElementById('copy-key-btn');
+
+  regenBtn.addEventListener('click', function() {
+    hideError('regen-error');
+    hideError('regen-success');
+    newKeyDisplay.classList.add('hidden');
+    regenBtn.disabled = true;
+    regenBtn.textContent = 'Regenerating…';
+
+    getJwt(cognitoUser).then(function(jwt) {
+      return fetch(API_BASE_URL + '/auth/key/regenerate', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + jwt,
+          'Content-Type': 'application/json'
+        }
+      });
+    })
+    .then(function(resp) { return resp.json().then(function(data) { return { ok: resp.ok, data: data }; }); })
+    .then(function(result) {
+      regenBtn.disabled = false;
+      regenBtn.textContent = 'Regenerate API Key';
+
+      if (result.ok && result.data.apiKey) {
+        newKeyValue.textContent = result.data.apiKey;
+        newKeyDisplay.classList.remove('hidden');
+        showError('regen-success', 'New API key generated. Copy it now — it will not be shown again.');
+        document.getElementById('regen-success').classList.remove('alert-error');
+      } else {
+        showError('regen-error', result.data.error || 'Failed to regenerate API key.');
+      }
+    })
+    .catch(function() {
+      regenBtn.disabled = false;
+      regenBtn.textContent = 'Regenerate API Key';
+      showError('regen-error', 'Network error. Please try again.');
+    });
+  });
+
+  // Copy key
+  copyKeyBtn.addEventListener('click', function() {
+    var key = newKeyValue.textContent;
+    if (navigator.clipboard && key) {
+      navigator.clipboard.writeText(key).then(function() {
+        copyKeyBtn.textContent = 'Copied!';
+        setTimeout(function() { copyKeyBtn.textContent = 'Copy'; }, 2000);
+      });
+    }
+  });
+
+  // Voucher redemption
+  var voucherForm = document.getElementById('voucher-form');
+  var voucherBtn = document.getElementById('voucher-btn');
+
+  voucherForm.addEventListener('submit', function(e) {
+    e.preventDefault();
+    hideError('voucher-error');
+    hideError('voucher-success');
+
+    var code = document.getElementById('voucher-code').value.trim();
+    if (!code) {
+      showError('voucher-error', 'Please enter a promotion code.');
+      return;
+    }
+
+    voucherBtn.disabled = true;
+    voucherBtn.textContent = 'Redeeming…';
+
+    getJwt(cognitoUser).then(function(jwt) {
+      return fetch(API_BASE_URL + '/auth/voucher/redeem', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + jwt,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ code: code })
+      });
+    })
+    .then(function(resp) { return resp.json().then(function(data) { return { ok: resp.ok, data: data }; }); })
+    .then(function(result) {
+      voucherBtn.disabled = false;
+      voucherBtn.textContent = 'Redeem';
+
+      if (result.ok && result.data.tier) {
+        var msg = 'Upgraded to ' + result.data.tier + ' tier';
+        if (result.data.tierExpiresAt) {
+          msg += ' until ' + new Date(result.data.tierExpiresAt).toLocaleDateString();
+        }
+        msg += '.';
+        showError('voucher-success', msg);
+        document.getElementById('voucher-success').classList.remove('alert-error');
+        displayTierInfo(result.data.tier, result.data.tierExpiresAt);
+        document.getElementById('voucher-code').value = '';
+      } else {
+        showError('voucher-error', result.data.error || 'Failed to redeem code.');
+      }
+    })
+    .catch(function() {
+      voucherBtn.disabled = false;
+      voucherBtn.textContent = 'Redeem';
+      showError('voucher-error', 'Network error. Please try again.');
+    });
+  });
+
+  // Logout
+  document.getElementById('logout-btn').addEventListener('click', function() {
+    cognitoUser.signOut();
+    window.location.href = '/login/';
+  });
+})();
+</script>
+</body>
+</html>

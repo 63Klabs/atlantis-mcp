@@ -44,6 +44,11 @@ jest.mock('../../controllers', () => {
 });
 
 const { handleJsonRpc, TOOL_DISPATCH } = require('../../utils/json-rpc-router');
+
+/** Wrap a raw event in a mock clientRequest for handleJsonRpc */
+function wrapEvent(event) {
+  return { getEvent: () => event, getProps: () => ({ path: "mcp/v1", method: "POST" }), addQueryLog: jest.fn() };
+}
 const Controllers = require('../../controllers');
 
 /**
@@ -141,7 +146,7 @@ describe('Feature: get-integration-working, Property 3: Correct Method Dispatch'
           })
         };
 
-        const response = await handleJsonRpc(event, {});
+        const response = await handleJsonRpc(wrapEvent(event));
 
         // The correct controller must have been called exactly once
         expect(controllerFn).toHaveBeenCalledTimes(1);
@@ -202,7 +207,7 @@ describe('Feature: get-integration-working, Property 3: Correct Method Dispatch'
           })
         };
 
-        const response = await handleJsonRpc(event, {});
+        const response = await handleJsonRpc(wrapEvent(event));
         const body = JSON.parse(response.body);
 
         // Result should contain MCP content format

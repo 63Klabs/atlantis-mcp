@@ -8,10 +8,10 @@ const { hashContentPath } = require('../../lib/hasher');
  * Arbitrary that generates a realistic extracted content entry.
  */
 const entryArb = fc.record({
-	contentPath: fc.stringOf(
-		fc.constantFrom('a', 'b', 'c', '/', '.', '-', '_', '1', '2'),
-		{ minLength: 5, maxLength: 80 }
-	),
+	contentPath: fc.string({
+		unit: fc.constantFrom('a', 'b', 'c', '/', '.', '-', '_', '1', '2'),
+		minLength: 5, maxLength: 80
+	}),
 	title: fc.string({ minLength: 1, maxLength: 50 }),
 	excerpt: fc.string({ minLength: 0, maxLength: 200 }),
 	content: fc.string({ minLength: 0, maxLength: 500 }),

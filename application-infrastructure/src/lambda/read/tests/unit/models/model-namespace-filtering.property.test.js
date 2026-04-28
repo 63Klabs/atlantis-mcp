@@ -41,10 +41,10 @@ const S3Templates = require('../../../models/s3-templates');
  * Arbitrary that generates valid namespace strings matching ^[a-z0-9][a-z0-9-]*$
  * with maxLength 63.
  */
-const validNamespaceArb = fc.stringOf(
-  fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789-'.split('')),
-  { minLength: 1, maxLength: 62 }
-).map(s => {
+const validNamespaceArb = fc.string({
+  unit: fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789-'.split('')),
+  minLength: 1, maxLength: 62
+}).map(s => {
   const first = s.charAt(0) === '-' ? 'a' : s.charAt(0);
   return first + s.slice(1);
 }).filter(s => /^[a-z0-9][a-z0-9-]*$/.test(s) && s.length <= 63);

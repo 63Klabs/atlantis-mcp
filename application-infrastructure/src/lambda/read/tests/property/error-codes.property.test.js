@@ -40,6 +40,11 @@ jest.mock('../../controllers', () => ({
 }));
 
 const { handleJsonRpc } = require('../../utils/json-rpc-router');
+
+/** Wrap a raw event in a mock clientRequest for handleJsonRpc */
+function wrapEvent(event) {
+  return { getEvent: () => event, getProps: () => ({ path: "mcp/v1", method: "POST" }), addQueryLog: jest.fn() };
+}
 const { JSON_RPC_ERRORS } = require('../../utils/mcp-protocol');
 
 /** Known methods that the router recognizes */
@@ -83,7 +88,7 @@ describe('Feature: get-integration-working, Property 4: Standard Error Codes for
     await fc.assert(
       fc.asyncProperty(nonJsonStringArb, async (nonJsonBody) => {
         const event = { body: nonJsonBody };
-        const response = await handleJsonRpc(event, {});
+        const response = await handleJsonRpc(wrapEvent(event));
 
         expect(response.statusCode).toBe(200);
         const body = JSON.parse(response.body);
@@ -160,7 +165,7 @@ describe('Feature: get-integration-working, Property 4: Standard Error Codes for
     await fc.assert(
       fc.asyncProperty(invalidRequestArb, async (invalidObj) => {
         const event = { body: JSON.stringify(invalidObj) };
-        const response = await handleJsonRpc(event, {});
+        const response = await handleJsonRpc(wrapEvent(event));
 
         expect(response.statusCode).toBe(200);
         const body = JSON.parse(response.body);
@@ -204,7 +209,7 @@ describe('Feature: get-integration-working, Property 4: Standard Error Codes for
           })
         };
 
-        const response = await handleJsonRpc(event, {});
+        const response = await handleJsonRpc(wrapEvent(event));
 
         expect(response.statusCode).toBe(200);
         const body = JSON.parse(response.body);

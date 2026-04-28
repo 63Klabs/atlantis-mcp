@@ -189,7 +189,6 @@ describe('MCP Protocol Utilities', () => {
 
       expect(capabilities.serverInfo).toHaveProperty('name');
       expect(capabilities.serverInfo).toHaveProperty('version');
-      expect(capabilities.serverInfo).toHaveProperty('phase');
     });
 
     test('should include all tools', () => {

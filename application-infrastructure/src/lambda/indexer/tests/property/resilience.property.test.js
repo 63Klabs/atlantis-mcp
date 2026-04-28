@@ -34,10 +34,10 @@ function processWithResilience(items, processor) {
  */
 const itemListArb = fc.array(
 	fc.record({
-		name: fc.stringOf(
-			fc.constantFrom('a', 'b', 'c', 'd', 'e', '1', '2', '3'),
-			{ minLength: 1, maxLength: 15 }
-		),
+		name: fc.string({
+			unit: fc.constantFrom('a', 'b', 'c', 'd', 'e', '1', '2', '3'),
+			minLength: 1, maxLength: 15
+		}),
 		shouldFail: fc.boolean()
 	}),
 	{ minLength: 1, maxLength: 20 }
@@ -89,7 +89,7 @@ describe('Property 15: Brown-out resilience', () => {
 			fc.property(
 				fc.array(
 					fc.record({
-						name: fc.stringOf(fc.constantFrom('a', 'b', 'c'), { minLength: 1, maxLength: 10 }),
+						name: fc.string({ unit: fc.constantFrom('a', 'b', 'c'), minLength: 1, maxLength: 10 }),
 						shouldFail: fc.constant(false)
 					}),
 					{ minLength: 1, maxLength: 10 }
@@ -111,7 +111,7 @@ describe('Property 15: Brown-out resilience', () => {
 			fc.property(
 				fc.array(
 					fc.record({
-						name: fc.stringOf(fc.constantFrom('a', 'b', 'c'), { minLength: 1, maxLength: 10 }),
+						name: fc.string({ unit: fc.constantFrom('a', 'b', 'c'), minLength: 1, maxLength: 10 }),
 						shouldFail: fc.constant(true)
 					}),
 					{ minLength: 1, maxLength: 10 }
@@ -157,7 +157,7 @@ describe('Property 15: Brown-out resilience', () => {
 				fc.integer({ min: 0, max: 9 }),
 				fc.array(
 					fc.record({
-						name: fc.stringOf(fc.constantFrom('a', 'b', 'c', 'd'), { minLength: 1, maxLength: 10 }),
+						name: fc.string({ unit: fc.constantFrom('a', 'b', 'c', 'd'), minLength: 1, maxLength: 10 }),
 						shouldFail: fc.constant(false)
 					}),
 					{ minLength: 3, maxLength: 10 }

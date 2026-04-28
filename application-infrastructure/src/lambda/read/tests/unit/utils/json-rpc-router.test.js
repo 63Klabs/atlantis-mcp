@@ -59,6 +59,18 @@ function makeEvent(body) {
 }
 
 /**
+ * Helper: wrap a raw event in a mock clientRequest object
+ */
+function makeClientRequest(body) {
+  const event = makeEvent(body);
+  return {
+    getEvent: () => event,
+    getProps: () => ({ path: 'mcp/v1', method: 'POST' }),
+    addQueryLog: jest.fn()
+  };
+}
+
+/**
  * Helper: parse the response body JSON
  */
 function parseBody(response) {
@@ -75,13 +87,13 @@ describe('JSON-RPC Router', () => {
   // ---------------------------------------------------------------
   describe('initialize method', () => {
     test('returns correct serverInfo, capabilities, and protocolVersion', async () => {
-      const event = makeEvent({
+      const clientRequest = makeClientRequest({
         jsonrpc: '2.0',
         method: 'initialize',
         id: 'init-1'
       });
 
-      const response = await handleJsonRpc(event, {});
+      const response = await handleJsonRpc(clientRequest);
       const body = parseBody(response);
 
       expect(response.statusCode).toBe(200);
@@ -103,13 +115,13 @@ describe('JSON-RPC Router', () => {
   // ---------------------------------------------------------------
   describe('tools/list method', () => {
     test('returns all defined tools as an array', async () => {
-      const event = makeEvent({
+      const clientRequest = makeClientRequest({
         jsonrpc: '2.0',
         method: 'tools/list',
         id: 'list-1'
       });
 
-      const response = await handleJsonRpc(event, {});
+      const response = await handleJsonRpc(clientRequest);
       const body = parseBody(response);
 
       expect(response.statusCode).toBe(200);
@@ -137,7 +149,7 @@ describe('JSON-RPC Router', () => {
         data: [{ name: 'template-1' }]
       });
 
-      const event = makeEvent({
+      const clientRequest = makeClientRequest({
         jsonrpc: '2.0',
         method: 'tools/call',
         id: 'call-1',
@@ -147,7 +159,7 @@ describe('JSON-RPC Router', () => {
         }
       });
 
-      const response = await handleJsonRpc(event, {});
+      const response = await handleJsonRpc(clientRequest);
       const body = parseBody(response);
 
       expect(response.statusCode).toBe(200);
@@ -173,7 +185,7 @@ describe('JSON-RPC Router', () => {
         }
       });
 
-      const event = makeEvent({
+      const clientRequest = makeClientRequest({
         jsonrpc: '2.0',
         method: 'tools/call',
         id: 'call-err',
@@ -183,7 +195,7 @@ describe('JSON-RPC Router', () => {
         }
       });
 
-      const response = await handleJsonRpc(event, {});
+      const response = await handleJsonRpc(clientRequest);
       const body = parseBody(response);
 
       expect(body.jsonrpc).toBe('2.0');
@@ -193,7 +205,7 @@ describe('JSON-RPC Router', () => {
     });
 
     test('returns Method not found for unknown tool name', async () => {
-      const event = makeEvent({
+      const clientRequest = makeClientRequest({
         jsonrpc: '2.0',
         method: 'tools/call',
         id: 'call-unknown',
@@ -203,7 +215,7 @@ describe('JSON-RPC Router', () => {
         }
       });
 
-      const response = await handleJsonRpc(event, {});
+      const response = await handleJsonRpc(clientRequest);
       const body = parseBody(response);
 
       expect(body.jsonrpc).toBe('2.0');
@@ -217,9 +229,9 @@ describe('JSON-RPC Router', () => {
   // ---------------------------------------------------------------
   describe('Parse error (-32700)', () => {
     test('empty/null body returns Parse error', async () => {
-      const event = { body: null };
+      const clientRequest = makeClientRequest(null);
 
-      const response = await handleJsonRpc(event, {});
+      const response = await handleJsonRpc(clientRequest);
       const body = parseBody(response);
 
       expect(response.statusCode).toBe(200);
@@ -230,9 +242,9 @@ describe('JSON-RPC Router', () => {
     });
 
     test('invalid JSON string returns Parse error', async () => {
-      const event = { body: '{not valid json' };
+      const clientRequest = makeClientRequest('{not valid json');
 
-      const response = await handleJsonRpc(event, {});
+      const response = await handleJsonRpc(clientRequest);
       const body = parseBody(response);
 
       expect(body.jsonrpc).toBe('2.0');
@@ -241,9 +253,9 @@ describe('JSON-RPC Router', () => {
     });
 
     test('undefined body returns Parse error', async () => {
-      const event = { body: undefined };
+      const clientRequest = makeClientRequest(undefined);
 
-      const response = await handleJsonRpc(event, {});
+      const response = await handleJsonRpc(clientRequest);
       const body = parseBody(response);
 
       expect(body.error.code).toBe(-32700);
@@ -255,13 +267,13 @@ describe('JSON-RPC Router', () => {
   // ---------------------------------------------------------------
   describe('Invalid Request (-32600)', () => {
     test('jsonrpc: "1.0" returns Invalid Request', async () => {
-      const event = makeEvent({
+      const clientRequest = makeClientRequest({
         jsonrpc: '1.0',
         method: 'initialize',
         id: 'bad-ver'
       });
 
-      const response = await handleJsonRpc(event, {});
+      const response = await handleJsonRpc(clientRequest);
       const body = parseBody(response);
 
       expect(body.jsonrpc).toBe('2.0');
@@ -271,12 +283,12 @@ describe('JSON-RPC Router', () => {
     });
 
     test('missing method field returns Invalid Request', async () => {
-      const event = makeEvent({
+      const clientRequest = makeClientRequest({
         jsonrpc: '2.0',
         id: 'no-method'
       });
 
-      const response = await handleJsonRpc(event, {});
+      const response = await handleJsonRpc(clientRequest);
       const body = parseBody(response);
 
       expect(body.error.code).toBe(-32600);
@@ -284,12 +296,12 @@ describe('JSON-RPC Router', () => {
     });
 
     test('missing jsonrpc field returns Invalid Request', async () => {
-      const event = makeEvent({
+      const clientRequest = makeClientRequest({
         method: 'initialize',
         id: 'no-jsonrpc'
       });
 
-      const response = await handleJsonRpc(event, {});
+      const response = await handleJsonRpc(clientRequest);
       const body = parseBody(response);
 
       expect(body.error.code).toBe(-32600);
@@ -301,14 +313,14 @@ describe('JSON-RPC Router', () => {
   // ---------------------------------------------------------------
   describe('Invalid params (-32602)', () => {
     test('tools/call with missing params.name returns Invalid params', async () => {
-      const event = makeEvent({
+      const clientRequest = makeClientRequest({
         jsonrpc: '2.0',
         method: 'tools/call',
         id: 'no-name',
         params: { arguments: {} }
       });
 
-      const response = await handleJsonRpc(event, {});
+      const response = await handleJsonRpc(clientRequest);
       const body = parseBody(response);
 
       expect(body.jsonrpc).toBe('2.0');
@@ -318,13 +330,13 @@ describe('JSON-RPC Router', () => {
     });
 
     test('tools/call with no params at all returns Invalid params', async () => {
-      const event = makeEvent({
+      const clientRequest = makeClientRequest({
         jsonrpc: '2.0',
         method: 'tools/call',
         id: 'no-params'
       });
 
-      const response = await handleJsonRpc(event, {});
+      const response = await handleJsonRpc(clientRequest);
       const body = parseBody(response);
 
       expect(body.error.code).toBe(-32602);
@@ -336,13 +348,13 @@ describe('JSON-RPC Router', () => {
   // ---------------------------------------------------------------
   describe('Method not found (-32601)', () => {
     test('unrecognized method returns Method not found', async () => {
-      const event = makeEvent({
+      const clientRequest = makeClientRequest({
         jsonrpc: '2.0',
         method: 'unknown/method',
         id: 'unknown-1'
       });
 
-      const response = await handleJsonRpc(event, {});
+      const response = await handleJsonRpc(clientRequest);
       const body = parseBody(response);
 
       expect(body.jsonrpc).toBe('2.0');
@@ -371,7 +383,7 @@ describe('JSON-RPC Router', () => {
     test.each(protoNames)(
       'params.name = "%s" returns -32601 Method not found',
       async (name) => {
-        const event = makeEvent({
+        const clientRequest = makeClientRequest({
           jsonrpc: '2.0',
           method: 'tools/call',
           id: `proto-${name}`,
@@ -381,7 +393,7 @@ describe('JSON-RPC Router', () => {
           }
         });
 
-        const response = await handleJsonRpc(event, {});
+        const response = await handleJsonRpc(clientRequest);
         const body = parseBody(response);
 
         expect(body.jsonrpc).toBe('2.0');
@@ -410,28 +422,28 @@ describe('JSON-RPC Router', () => {
   describe('Response headers', () => {
     test('Content-Type is application/json on all responses', async () => {
       // Success case
-      const successEvent = makeEvent({
+      const successReq = makeClientRequest({
         jsonrpc: '2.0',
         method: 'initialize',
         id: 'hdr-1'
       });
-      const successResp = await handleJsonRpc(successEvent, {});
+      const successResp = await handleJsonRpc(successReq);
       expect(successResp.headers['Content-Type']).toBe('application/json');
 
       // Error case
-      const errorEvent = { body: null };
-      const errorResp = await handleJsonRpc(errorEvent, {});
+      const errorReq = makeClientRequest(null);
+      const errorResp = await handleJsonRpc(errorReq);
       expect(errorResp.headers['Content-Type']).toBe('application/json');
     });
 
     test('CORS headers are present on responses', async () => {
-      const event = makeEvent({
+      const clientRequest = makeClientRequest({
         jsonrpc: '2.0',
         method: 'initialize',
         id: 'cors-1'
       });
 
-      const response = await handleJsonRpc(event, {});
+      const response = await handleJsonRpc(clientRequest);
 
       expect(response.headers['Access-Control-Allow-Origin']).toBe('*');
       expect(response.headers['Access-Control-Allow-Methods']).toContain('POST');
@@ -439,13 +451,13 @@ describe('JSON-RPC Router', () => {
     });
 
     test('X-MCP-Version header is present', async () => {
-      const event = makeEvent({
+      const clientRequest = makeClientRequest({
         jsonrpc: '2.0',
         method: 'initialize',
         id: 'mcp-ver'
       });
 
-      const response = await handleJsonRpc(event, {});
+      const response = await handleJsonRpc(clientRequest);
       expect(response.headers['X-MCP-Version']).toBe('1.0');
     });
   });
@@ -528,8 +540,13 @@ describe('JSON-RPC Router', () => {
           id: 'pre-parsed'
         }
       };
+      const clientReq = {
+        getEvent: () => event,
+        getProps: () => ({ path: 'mcp/v1', method: 'POST' }),
+        addQueryLog: jest.fn()
+      };
 
-      const response = await handleJsonRpc(event, {});
+      const response = await handleJsonRpc(clientReq);
       const body = parseBody(response);
 
       expect(body.jsonrpc).toBe('2.0');

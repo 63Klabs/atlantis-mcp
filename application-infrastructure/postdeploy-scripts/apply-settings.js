@@ -14,7 +14,8 @@
  * @example
  * // CLI usage
  * node apply-settings.js settings.json build/final/ prod \
- *   --rest-api-id abc123 --region us-east-1 --api-stage-name prod
+ *   --rest-api-id abc123 --region us-east-1 --api-stage-name prod \
+ *   --cognito-user-pool-id us-east-1_abc123 --cognito-client-id 1a2b3c4d5e
  */
 
 'use strict';
@@ -184,12 +185,16 @@ if (require.main === module) {
   if (!settingsFile || !targetDir || !stageId) {
     console.error(
       'Usage: node apply-settings.js <settingsFile> <targetDir> <stageId> ' +
-      '[--rest-api-id ID] [--region REGION] [--api-stage-name NAME]'
+      '[--rest-api-id ID] [--region REGION] [--api-stage-name NAME] ' +
+      '[--cognito-user-pool-id ID] [--cognito-client-id ID]'
     );
     process.exit(1);
   }
 
-  const flags = parseFlags(args, ['rest-api-id', 'region', 'api-stage-name']);
+  const flags = parseFlags(args, [
+    'rest-api-id', 'region', 'api-stage-name',
+    'cognito-user-pool-id', 'cognito-client-id'
+  ]);
 
   // ---- Read and parse settings file ----
   let settingsData;
@@ -202,6 +207,20 @@ if (require.main === module) {
   }
 
   const settings = loadSettings(settingsData, stageId);
+
+  // ---- Inject dynamic Cognito config values from CLI flags ----
+  if (flags['cognito-user-pool-id']) {
+    settings.cognitoUserPoolId = flags['cognito-user-pool-id'];
+  }
+  if (flags['cognito-client-id']) {
+    settings.cognitoClientId = flags['cognito-client-id'];
+  }
+
+  // ---- Inject API base URL for auth pages ----
+  if (flags['rest-api-id'] && flags['region'] && flags['api-stage-name']) {
+    settings.apiBaseUrl = `https://${flags['rest-api-id']}.execute-api.${flags['region']}.amazonaws.com/${flags['api-stage-name']}`;
+  }
+
   console.log(`Resolved ${Object.keys(settings).length} setting(s) for stage "${stageId}"`);
 
   // ---- Determine whether API Gateway URL replacement is possible ----

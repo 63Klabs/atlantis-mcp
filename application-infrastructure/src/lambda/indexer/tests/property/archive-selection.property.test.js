@@ -7,18 +7,18 @@ const { getLatestRelease } = require('../../lib/github-client');
 /**
  * Arbitrary that generates a valid GitHub owner name.
  */
-const ownerArb = fc.stringOf(
-	fc.constantFrom('a', 'b', 'c', 'd', 'e', '1', '2', '3', '-'),
-	{ minLength: 1, maxLength: 20 }
-).filter((s) => /^[a-z0-9]/.test(s));
+const ownerArb = fc.string({
+	unit: fc.constantFrom('a', 'b', 'c', 'd', 'e', '1', '2', '3', '-'),
+	minLength: 1, maxLength: 20
+}).filter((s) => /^[a-z0-9]/.test(s));
 
 /**
  * Arbitrary that generates a valid GitHub repo name.
  */
-const repoArb = fc.stringOf(
-	fc.constantFrom('a', 'b', 'c', 'd', 'e', 'f', '1', '2', '-', '_'),
-	{ minLength: 1, maxLength: 30 }
-).filter((s) => /^[a-z0-9]/.test(s));
+const repoArb = fc.string({
+	unit: fc.constantFrom('a', 'b', 'c', 'd', 'e', 'f', '1', '2', '-', '_'),
+	minLength: 1, maxLength: 30
+}).filter((s) => /^[a-z0-9]/.test(s));
 
 /**
  * Arbitrary that generates a semver-like tag name.

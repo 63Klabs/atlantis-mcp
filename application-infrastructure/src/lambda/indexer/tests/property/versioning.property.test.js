@@ -20,10 +20,10 @@ const versionArb = fc.date({
  * Arbitrary that generates a realistic extracted content entry.
  */
 const entryArb = fc.record({
-	contentPath: fc.stringOf(
-		fc.constantFrom('a', 'b', 'c', '/', '.', '-', '_', '1', '2'),
-		{ minLength: 5, maxLength: 80 }
-	),
+	contentPath: fc.string({
+		unit: fc.constantFrom('a', 'b', 'c', '/', '.', '-', '_', '1', '2'),
+		minLength: 5, maxLength: 80
+	}),
 	title: fc.string({ minLength: 1, maxLength: 50 }),
 	type: fc.constantFrom('documentation', 'code-example', 'template-pattern'),
 	subType: fc.constantFrom('guide', 'function', 'parameter'),

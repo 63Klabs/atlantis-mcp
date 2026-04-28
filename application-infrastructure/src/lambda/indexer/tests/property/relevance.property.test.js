@@ -7,16 +7,16 @@ const { computeRelevanceScore, buildKeywordEntries, TYPE_WEIGHTS, SCORE_WEIGHTS 
 /**
  * Arbitrary for a keyword string.
  */
-const keywordArb = fc.stringOf(
-	fc.constantFrom('a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i'),
-	{ minLength: 2, maxLength: 12 }
-);
+const keywordArb = fc.string({
+	unit: fc.constantFrom('a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i'),
+	minLength: 2, maxLength: 12
+});
 
 /**
  * Arbitrary for a content entry with title, excerpt, keywords, and type.
  */
 const entryArb = fc.record({
-	hash: fc.hexaString({ minLength: 16, maxLength: 16 }),
+	hash: fc.string({ unit: fc.constantFrom(...'0123456789abcdef'.split('')), minLength: 16, maxLength: 16 }),
 	contentPath: fc.string({ minLength: 5, maxLength: 50 }),
 	title: fc.string({ minLength: 1, maxLength: 40 }),
 	excerpt: fc.string({ minLength: 0, maxLength: 200 }),

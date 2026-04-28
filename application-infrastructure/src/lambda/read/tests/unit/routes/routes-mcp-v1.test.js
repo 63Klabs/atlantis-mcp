@@ -85,15 +85,9 @@ describe('/mcp/v1 Routing', () => {
       };
       mockHandleJsonRpc.mockResolvedValue(jsonRpcResponse);
 
-      const event = {
-        path: '/mcp/v1',
-        httpMethod: 'POST',
-        body: JSON.stringify({ jsonrpc: '2.0', method: 'initialize', id: 'req-1' })
-      };
+      const result = await Routes.process(mockClientRequest, mockResponse);
 
-      const result = await Routes.process(mockClientRequest, mockResponse, event, mockContext);
-
-      expect(mockHandleJsonRpc).toHaveBeenCalledWith(event, mockContext);
+      expect(mockHandleJsonRpc).toHaveBeenCalledWith(mockClientRequest);
       expect(mockResponse.setStatusCode).toHaveBeenCalledWith(200);
       expect(mockResponse.setBody).toHaveBeenCalledWith(jsonRpcResult);
       expect(result).toBeUndefined();
@@ -111,9 +105,7 @@ describe('/mcp/v1 Routing', () => {
       };
       mockHandleJsonRpc.mockResolvedValue(jsonRpcResponse);
 
-      const event = { path: '/mcp/v1', httpMethod: 'POST', body: '{}' };
-
-      await Routes.process(mockClientRequest, mockResponse, event, mockContext);
+      await Routes.process(mockClientRequest, mockResponse);
 
       // Custom header should be forwarded
       expect(mockResponse.addHeader).toHaveBeenCalledWith('X-Custom-Header', 'custom-value');
@@ -128,28 +120,20 @@ describe('/mcp/v1 Routing', () => {
       const jsonRpcResponse = { statusCode: 200, body: '{}' };
       mockHandleJsonRpc.mockResolvedValue(jsonRpcResponse);
 
-      const event = {
-        requestContext: { resourcePath: '/mcp/v1' },
-        httpMethod: 'POST',
-        body: JSON.stringify({ jsonrpc: '2.0', method: 'tools/list', id: 1 })
-      };
+      const result = await Routes.process(mockClientRequest, mockResponse);
 
-      const result = await Routes.process(mockClientRequest, mockResponse, event, mockContext);
-
-      expect(mockHandleJsonRpc).toHaveBeenCalledWith(event, mockContext);
+      expect(mockHandleJsonRpc).toHaveBeenCalledWith(mockClientRequest);
       expect(mockResponse.setStatusCode).toHaveBeenCalledWith(200);
       expect(result).toBeUndefined();
     });
 
-    test('still passes raw event and context to handleJsonRpc', async () => {
+    test('still passes clientRequest to handleJsonRpc', async () => {
       const jsonRpcResponse = { statusCode: 200, body: '{}' };
       mockHandleJsonRpc.mockResolvedValue(jsonRpcResponse);
 
-      const event = { path: '/mcp/v1', httpMethod: 'POST', body: '{}' };
+      await Routes.process(mockClientRequest, mockResponse);
 
-      await Routes.process(mockClientRequest, mockResponse, event, mockContext);
-
-      expect(mockHandleJsonRpc).toHaveBeenCalledWith(event, mockContext);
+      expect(mockHandleJsonRpc).toHaveBeenCalledWith(mockClientRequest);
     });
   });
 
@@ -160,9 +144,7 @@ describe('/mcp/v1 Routing', () => {
     test('GET /mcp/v1 sets error on response', async () => {
       mockClientRequest.getProps.mockReturnValue({ path: 'mcp/v1', method: 'GET' });
 
-      const event = { path: '/mcp/v1', httpMethod: 'GET' };
-
-      const result = await Routes.process(mockClientRequest, mockResponse, event, mockContext);
+      const result = await Routes.process(mockClientRequest, mockResponse);
 
       expect(mockHandleJsonRpc).not.toHaveBeenCalled();
       expect(mockJsonRpcError).toHaveBeenCalled();
@@ -174,13 +156,7 @@ describe('/mcp/v1 Routing', () => {
     test('POST /mcp/list_templates sets error (legacy path removed)', async () => {
       mockClientRequest.getProps.mockReturnValue({ path: '/mcp/list_templates', method: 'POST' });
 
-      const event = {
-        path: '/mcp/list_templates',
-        httpMethod: 'POST',
-        body: JSON.stringify({ tool: 'list_templates' })
-      };
-
-      const result = await Routes.process(mockClientRequest, mockResponse, event, mockContext);
+      const result = await Routes.process(mockClientRequest, mockResponse);
 
       expect(mockHandleJsonRpc).not.toHaveBeenCalled();
       expect(mockResponse.setStatusCode).toHaveBeenCalledWith(400);
@@ -190,13 +166,7 @@ describe('/mcp/v1 Routing', () => {
     test('POST to unknown path sets error on response', async () => {
       mockClientRequest.getProps.mockReturnValue({ path: '/mcp/unknown_tool', method: 'POST' });
 
-      const event = {
-        path: '/mcp/unknown_tool',
-        httpMethod: 'POST',
-        body: '{}'
-      };
-
-      const result = await Routes.process(mockClientRequest, mockResponse, event, mockContext);
+      const result = await Routes.process(mockClientRequest, mockResponse);
 
       expect(mockHandleJsonRpc).not.toHaveBeenCalled();
       expect(mockResponse.setStatusCode).toHaveBeenCalledWith(400);

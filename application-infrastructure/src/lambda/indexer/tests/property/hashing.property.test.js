@@ -53,17 +53,17 @@ describe('Property 1: Content path hashing is deterministic', () => {
 	it('handles content paths with special characters', () => {
 		fc.assert(
 			fc.property(
-				fc.stringOf(
-					fc.oneof(
-						fc.char(),
+				fc.string({
+					unit: fc.oneof(
+						fc.constantFrom(...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'.split('')),
 						fc.constant('/'),
 						fc.constant('.'),
 						fc.constant('-'),
 						fc.constant('_'),
 						fc.constant('#')
 					),
-					{ minLength: 1, maxLength: 300 }
-				),
+					minLength: 1, maxLength: 300
+				}),
 				(contentPath) => {
 					const hash = hashContentPath(contentPath);
 					expect(hash).toHaveLength(16);

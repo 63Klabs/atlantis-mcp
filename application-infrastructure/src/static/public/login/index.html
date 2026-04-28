@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Log In - Atlantis MCP Server</title>
+  <link rel="stylesheet" href="/css/index.css">
+</head>
+<body>
+  <div class="container">
+    <nav aria-label="Breadcrumb" class="breadcrumb-nav">
+      <ol>
+        <li><a href="/">Home</a></li>
+        <li aria-current="page">Log In</li>
+      </ol>
+    </nav>
+
+    <header>
+      <h1>Log In</h1>
+      <p class="description">Sign in to manage your account and API key.</p>
+    </header>
+
+    <div class="auth-form">
+      <div id="login-error" class="alert alert-error" role="alert" aria-live="polite"></div>
+
+      <form id="login-form" novalidate>
+        <div class="form-group">
+          <label for="email">Email address</label>
+          <input type="email" id="email" name="email" required autocomplete="email" aria-required="true">
+        </div>
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" name="password" required autocomplete="current-password" aria-required="true">
+        </div>
+        <button type="submit" class="btn" id="login-btn">Log In</button>
+      </form>
+
+      <div class="form-footer">
+        Don't have an account? <a href="/register/">Register</a>
+      </div>
+    </div>
+
+    <footer>
+      {{{settings.footer}}}
+    </footer>
+  </div>
+
+<script>
+  document.getElementById('copyright-year').textContent = new Date().getFullYear();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6/dist/amazon-cognito-identity.min.js"></script>
+<script>
+(function() {
+  'use strict';
+
+  var USER_POOL_ID = '{{{settings.cognitoUserPoolId}}}';
+  var CLIENT_ID = '{{{settings.cognitoClientId}}}';
+
+  var poolData = { UserPoolId: USER_POOL_ID, ClientId: CLIENT_ID };
+  var userPool = new AmazonCognitoIdentity.CognitoUserPool(poolData);
+
+  var loginForm = document.getElementById('login-form');
+  var loginError = document.getElementById('login-error');
+  var loginBtn = document.getElementById('login-btn');
+
+  function showError(msg) {
+    loginError.textContent = msg;
+    loginError.classList.add('visible');
+  }
+
+  function hideError() {
+    loginError.textContent = '';
+    loginError.classList.remove('visible');
+  }
+
+  loginForm.addEventListener('submit', function(e) {
+    e.preventDefault();
+    hideError();
+
+    var email = document.getElementById('email').value.trim();
+    var password = document.getElementById('password').value;
+
+    if (!email || !password) {
+      showError('Please enter both email and password.');
+      return;
+    }
+
+    loginBtn.disabled = true;
+    loginBtn.textContent = 'Logging in…';
+
+    var authDetails = new AmazonCognitoIdentity.AuthenticationDetails({
+      Username: email,
+      Password: password
+    });
+
+    var userData = { Username: email, Pool: userPool };
+    var cognitoUser = new AmazonCognitoIdentity.CognitoUser(userData);
+
+    cognitoUser.authenticateUser(authDetails, {
+      onSuccess: function() {
+        window.location.href = '/profile/';
+      },
+      onFailure: function(err) {
+        loginBtn.disabled = false;
+        loginBtn.textContent = 'Log In';
+
+        var msg = err.message || 'Login failed.';
+        if (err.code === 'NotAuthorizedException') {
+          msg = 'Incorrect email or password.';
+        } else if (err.code === 'UserNotConfirmedException') {
+          msg = 'Your email is not verified. Please check your inbox for a verification link or register again.';
+        } else if (err.code === 'UserNotFoundException') {
+          msg = 'Incorrect email or password.';
+        }
+        showError(msg);
+      }
+    });
+  });
+})();
+</script>
+</body>
+</html>

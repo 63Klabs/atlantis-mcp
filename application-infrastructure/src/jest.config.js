@@ -2,7 +2,8 @@ module.exports = {
   testEnvironment: 'node',
   testMatch: [
     '**/lambda/read/tests/**/*.test.js',
-    '**/lambda/indexer/tests/**/*.test.js'
+    '**/lambda/indexer/tests/**/*.test.js',
+    '**/lambda/auth/tests/**/*.test.js'
   ],
   testPathIgnorePatterns: [
     '/node_modules/',
@@ -13,5 +14,5 @@ module.exports = {
     '!**/node_modules/**',
     '!**/lambda/read/tests/**'
   ],
-  moduleDirectories: ['node_modules', 'lambda/read/node_modules', 'lambda/indexer/node_modules']
+  moduleDirectories: ['node_modules', 'lambda/read/node_modules', 'lambda/indexer/node_modules', 'lambda/auth/node_modules']
 };

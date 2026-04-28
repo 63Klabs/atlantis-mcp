@@ -5,6 +5,8 @@
 - [Deployment](./deployment/README.md)
 - [Example CloudWatch Insights Queries](./cloudwatch-insights-queries.json)
 - [Documentation Indexer](./documentation-indexer.md)
+- [User Management](./user-management.md)
+- [Voucher Management](./voucher-management.md)
 
 Core Documents:
 

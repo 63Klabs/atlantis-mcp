@@ -72,7 +72,7 @@ function malformedDateSuffixArb() {
     fc.nat({ max: 999 }),
     fc.nat({ max: 999 }),
     fc.nat({ max: 999 }),
-    fc.stringOf(fc.char().filter(c => /[a-z]/.test(c)), { minLength: 3, maxLength: 10 })
+    fc.string({ unit: fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz'.split('')), minLength: 3, maxLength: 10 })
   ).map(([major, minor, patch, garbage]) => `v${major}.${minor}.${patch}/${garbage}`);
 }
 
@@ -323,7 +323,7 @@ describe('Property 2d: Non-version parameter validation unchanged', () => {
   it('get_template accepts valid templateName and category', () => {
     fc.assert(
       fc.property(
-        fc.stringOf(fc.char().filter(c => /[a-z0-9-]/.test(c)), { minLength: 1, maxLength: 20 }),
+        fc.string({ unit: fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789-'.split('')), minLength: 1, maxLength: 20 }),
         fc.constantFrom('storage', 'network', 'pipeline', 'service-role', 'modules'),
         (templateName, category) => {
           const result = validate('get_template', { templateName, category });
@@ -393,7 +393,7 @@ describe('Property 2d: Non-version parameter validation unchanged', () => {
     fc.assert(
       fc.property(
         fc.array(
-          fc.stringOf(fc.char().filter(c => /[a-z0-9-]/.test(c)), { minLength: 3, maxLength: 63 }),
+          fc.string({ unit: fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789-'.split('')), minLength: 3, maxLength: 63 }),
           { minLength: 1, maxLength: 5 }
         ),
         (s3Buckets) => {
@@ -414,7 +414,7 @@ describe('Property 2d: Non-version parameter validation unchanged', () => {
   it('list_templates rejects s3Buckets with items shorter than 3 chars', () => {
     fc.assert(
       fc.property(
-        fc.stringOf(fc.char().filter(c => /[a-z0-9]/.test(c)), { minLength: 1, maxLength: 2 }),
+        fc.string({ unit: fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789'.split('')), minLength: 1, maxLength: 2 }),
         (shortBucket) => {
           const result = validate('list_templates', { s3Buckets: [shortBucket] });
           expect(result.valid).toBe(false);

@@ -24,10 +24,10 @@ function parseOrgList(orgString) {
 /**
  * Arbitrary that generates a valid GitHub org/user name (alphanumeric + hyphens).
  */
-const orgNameArb = fc.stringOf(
-	fc.constantFrom('a', 'b', 'c', 'd', 'e', 'f', 'g', '1', '2', '3', '-'),
-	{ minLength: 1, maxLength: 20 }
-).filter((s) => /^[a-z0-9]/.test(s) && !s.endsWith('-'));
+const orgNameArb = fc.string({
+	unit: fc.constantFrom('a', 'b', 'c', 'd', 'e', 'f', 'g', '1', '2', '3', '-'),
+	minLength: 1, maxLength: 20
+}).filter((s) => /^[a-z0-9]/.test(s) && !s.endsWith('-'));
 
 describe('Property 16: Org list parsing from comma-delimited string', () => {
 
@@ -61,7 +61,7 @@ describe('Property 16: Org list parsing from comma-delimited string', () => {
 			fc.property(
 				fc.array(orgNameArb, { minLength: 1, maxLength: 5 }),
 				fc.array(
-					fc.stringOf(fc.constantFrom(' ', '\t'), { minLength: 0, maxLength: 3 }),
+					fc.string({ unit: fc.constantFrom(' ', '\t'), minLength: 0, maxLength: 3 }),
 					{ minLength: 1, maxLength: 5 }
 				),
 				(orgNames, spaces) => {
@@ -94,7 +94,7 @@ describe('Property 16: Org list parsing from comma-delimited string', () => {
 	it('string with only commas and whitespace returns empty array', () => {
 		fc.assert(
 			fc.property(
-				fc.stringOf(fc.constantFrom(',', ' ', '\t'), { minLength: 1, maxLength: 20 }),
+				fc.string({ unit: fc.constantFrom(',', ' ', '\t'), minLength: 1, maxLength: 20 }),
 				(input) => {
 					const result = parseOrgList(input);
 					// All elements should be empty after trim, so filtered out

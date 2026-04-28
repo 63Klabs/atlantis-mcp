@@ -648,6 +648,10 @@ Resources:
             - Fn::ImportValue:
                 'Fn::Sub': '${Prefix}-CacheDataS3Bucket'
 
+          # Authentication - Users Table and Cognito
+          MCP_DYNAMODB_USERS_TABLE: !Ref UsersTable
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPool
+
           # Rate Limiter Sessions Table
           MCP_DYNAMODB_SESSIONS_TABLE: !Ref DynamoDbSessions
 
@@ -736,6 +740,215 @@ Resources:
           Value: !Ref ProjectId
         - Key: ManagedBy
           Value: CloudFormation
+
+  # -- DynamoDB Users Table for Authentication --
+  # Stores user records (KEY#<hash>) and voucher records (VOUCHER#<code>)
+  # Used by Read Lambda for API key lookups and Auth Lambda for user management
+
+  UsersTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: !If [IsProduction, Retain, Delete]
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Sub '${Prefix}-${ProjectId}-${StageId}-Users'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+        - AttributeName: email
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: email-index
+          KeySchema:
+            - AttributeName: email
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref StageId
+        - Key: Project
+          Value: !Ref ProjectId
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  # ---------------------------------------------------------------------------
+  # Cognito User Pool and Client
+  # Manages user registration, email verification, and authentication
+  # Custom attributes store API key hash and tier for each user
+
+  CognitoUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub '${Prefix}-${ProjectId}-${StageId}-UserPool'
+      UsernameAttributes:
+        - email
+      AutoVerifiedAttributes:
+        - email
+      Schema:
+        - Name: email
+          Required: true
+          Mutable: true
+        - Name: tier
+          AttributeDataType: String
+          Mutable: true
+        - Name: api_key
+          AttributeDataType: String
+          Mutable: true
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+  CognitoUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: !Sub '${Prefix}-${ProjectId}-${StageId}-WebClient'
+      UserPoolId: !Ref CognitoUserPool
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      PreventUserExistenceErrors: ENABLED
+
+  # -- SSM Parameter for Cognito User Pool ID --
+  # Stored in SSM so Auth Lambda can retrieve it at runtime for API endpoints
+  # (Post-Confirmation trigger receives the pool ID in the event payload)
+  CognitoUserPoolIdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "${ParameterStoreHierarchy}${DeployEnvironment}/${Prefix}-${ProjectId}-${StageId}/Mcp_CognitoUserPoolId"
+      Type: String
+      Value: !Ref CognitoUserPool
+      Description: "Cognito User Pool ID for Auth Lambda API endpoints"
+
+  # ---------------------------------------------------------------------------
+  # Auth Lambda Function
+  # Handles API key regeneration, voucher redemption, and Cognito Post-Confirmation trigger
+
+  AuthLambdaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${Prefix}-${ProjectId}-${StageId}-AuthFunction'
+      Description: "Auth operations - Key regeneration, voucher redemption, Cognito Post-Confirmation"
+      CodeUri: src/lambda/auth/
+      Handler: index.handler
+      Runtime: nodejs24.x
+      Architectures:
+        - !Ref FunctionArchitecture
+      Timeout: 10
+      MemorySize: 512
+      Role: !GetAtt AuthLambdaExecutionRole.Arn
+
+      Environment:
+        Variables:
+          USERS_TABLE: !Ref UsersTable
+          PARAM_STORE_PATH: !Ref ParameterStoreHierarchy
+          DEPLOY_ENVIRONMENT: !Ref DeployEnvironment
+
+      Events:
+        CognitoPostConfirmation:
+          Type: Cognito
+          Properties:
+            UserPool: !Ref CognitoUserPool
+            Trigger: PostConfirmation
+        KeyRegenerate:
+          Type: Api
+          Properties:
+            Path: /auth/key/regenerate
+            Method: post
+            RestApiId: !Ref WebApi
+        VoucherRedeem:
+          Type: Api
+          Properties:
+            Path: /auth/voucher/redeem
+            Method: post
+            RestApiId: !Ref WebApi
+
+  # -- Auth Lambda Log Group --
+
+  AuthLambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: !If [IsProduction, Retain, Delete]
+    UpdateReplacePolicy: Retain
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${Prefix}-${ProjectId}-${StageId}-AuthFunction'
+      RetentionInDays: !If [ IsProduction, !Ref LogRetentionInDaysForPROD, !Ref LogRetentionInDaysForDEVTEST]
+
+  # -- Auth Lambda Execution Role --
+  # Least-privilege: DynamoDB CRUD on Users Table + GSI, SSM GetParameter, Cognito AdminUpdateUserAttributes, CloudWatch Logs
+
+  AuthLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${Prefix}-${ProjectId}-${StageId}-AuthExecutionRole"
+      Description: "IAM Role for Auth Lambda with DynamoDB, SSM, and Cognito permissions"
+      Path: !Ref RolePath
+      PermissionsBoundary: !If [HasPermissionsBoundaryArn, !Ref PermissionsBoundaryArn, !Ref 'AWS::NoValue']
+
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: [lambda.amazonaws.com]
+          Action: sts:AssumeRole
+
+      Policies:
+      - PolicyName: AuthLambdaResourceAccessPolicies
+        PolicyDocument:
+          Statement:
+
+          - Sid: LambdaAccessToWriteLogs
+            Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            Effect: Allow
+            Resource: !GetAtt AuthLambdaLogGroup.Arn
+
+          - Sid: LambdaAccessToSSMParameters
+            Action:
+            - ssm:GetParameter
+            Effect: Allow
+            Resource:
+            - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${ParameterStoreHierarchy}*"
+
+          - Sid: UsersTableReadWriteAccess
+            Action:
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+            - dynamodb:Query
+            Effect: Allow
+            Resource:
+            - !GetAtt UsersTable.Arn
+            - !Sub "${UsersTable.Arn}/index/*"
+
+          - Sid: CognitoAdminUpdateUserAttributes
+            Action:
+            - cognito-idp:AdminUpdateUserAttributes
+            Effect: Allow
+            Resource:
+            - !Sub "arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/*"
+
+  # -- Lambda permissions allowing API Gateway to execute Auth Lambda --
+
+  AuthLambdaPermission:
+    Type: "AWS::Lambda::Permission"
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref AuthLambdaFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebApi}/*"
 
   # -- Doc Indexer Lambda Function --
   # Scheduled Lambda that builds the persistent DynamoDB documentation index
@@ -950,6 +1163,14 @@ Resources:
             Effect: Allow
             Resource:
             - !GetAtt DocIndexTable.Arn
+
+          - Sid: UsersTableAuthAccess
+            Action:
+            - dynamodb:GetItem
+            - dynamodb:UpdateItem
+            Effect: Allow
+            Resource:
+            - !GetAtt UsersTable.Arn
 
   # -- Lambda permissions allowing API Gateway to Execute Read Lambda --
 

@@ -10,7 +10,7 @@ const { isIndexable, EXCLUDED_FILES } = require('../../lib/file-filter');
  */
 const dirPrefixArb = fc.oneof(
 	fc.constant(''),
-	fc.stringOf(fc.constantFrom('s', 'r', 'c', 'l', 'i', 'b', '/'), { minLength: 1, maxLength: 20 })
+	fc.string({ unit: fc.constantFrom('s', 'r', 'c', 'l', 'i', 'b', '/'), minLength: 1, maxLength: 20 })
 		.map((s) => s.replace(/\/+/g, '/').replace(/^\/|\/$/g, ''))
 		.map((s) => (s ? s + '/' : ''))
 );
@@ -18,10 +18,10 @@ const dirPrefixArb = fc.oneof(
 /**
  * Arbitrary that generates a valid base filename (no extension).
  */
-const baseNameArb = fc.stringOf(
-	fc.constantFrom('a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', '-', '_'),
-	{ minLength: 1, maxLength: 20 }
-);
+const baseNameArb = fc.string({
+	unit: fc.constantFrom('a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', '-', '_'),
+	minLength: 1, maxLength: 20
+});
 
 describe('Property 2: File filtering correctness', () => {
 

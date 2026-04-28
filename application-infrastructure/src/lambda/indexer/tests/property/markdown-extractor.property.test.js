@@ -14,12 +14,12 @@ const headingLevelArb = fc.integer({ min: 1, max: 6 });
  * so that slugification produces a non-empty slug.
  */
 const headingTextArb = fc.tuple(
-	fc.stringOf(
-		fc.constantFrom('A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
+	fc.string({
+		unit: fc.constantFrom('A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
 			'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
 			'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', ' ', '-'),
-		{ minLength: 1, maxLength: 40 }
-	)
+		minLength: 1, maxLength: 40
+	})
 ).map(([text]) => {
 	// Ensure at least one alphanumeric character for a valid slug
 	const hasAlphaNum = /[a-zA-Z0-9]/.test(text);
@@ -29,16 +29,16 @@ const headingTextArb = fc.tuple(
 /**
  * Arbitrary that generates body text for a section (may be empty).
  */
-const bodyTextArb = fc.stringOf(
-	fc.constantFrom(
+const bodyTextArb = fc.string({
+	unit: fc.constantFrom(
 		'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
 		'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
 		'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
 		'0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
 		' ', '.', ',', '!', '?', '-', '(', ')', ':', ';', '\n'
 	),
-	{ minLength: 0, maxLength: 300 }
-);
+	minLength: 0, maxLength: 300
+});
 
 /**
  * Arbitrary that generates a single Markdown section (heading + body).
@@ -59,8 +59,8 @@ const markdownArb = fc.array(sectionArb, { minLength: 1, maxLength: 5 })
  * Arbitrary that generates a context object with org and repo.
  */
 const contextArb = fc.record({
-	org: fc.stringOf(fc.constantFrom('a', 'b', 'c', 'd', 'e', '1', '2', '3', '-'), { minLength: 1, maxLength: 15 }),
-	repo: fc.stringOf(fc.constantFrom('a', 'b', 'c', 'd', 'e', '1', '2', '3', '-'), { minLength: 1, maxLength: 15 })
+	org: fc.string({ unit: fc.constantFrom('a', 'b', 'c', 'd', 'e', '1', '2', '3', '-'), minLength: 1, maxLength: 15 }),
+	repo: fc.string({ unit: fc.constantFrom('a', 'b', 'c', 'd', 'e', '1', '2', '3', '-'), minLength: 1, maxLength: 15 })
 });
 
 /**

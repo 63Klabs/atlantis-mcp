@@ -70,15 +70,15 @@ function shortVersionArb() {
 function s3VersionIdArb() {
   return fc.oneof(
     // Strings not starting with 'v'
-    fc.stringOf(
-      fc.constantFrom(...'abcdefghijklmnopqrstuwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-'.split('')),
-      { minLength: 1, maxLength: 50 }
-    ).filter(s => !s.startsWith('v')),
+    fc.string({
+      unit: fc.constantFrom(...'abcdefghijklmnopqrstuwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-'.split('')),
+      minLength: 1, maxLength: 50
+    }).filter(s => !s.startsWith('v')),
     // Random alphanumeric strings (typical S3 version IDs)
-    fc.stringOf(
-      fc.constantFrom(...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.'.split('')),
-      { minLength: 8, maxLength: 40 }
-    ).filter(s => !/^v\d+\.\d+\.\d+(\/\d{4}-\d{2}-\d{2})?$/.test(s))
+    fc.string({
+      unit: fc.constantFrom(...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.'.split('')),
+      minLength: 8, maxLength: 40
+    }).filter(s => !/^v\d+\.\d+\.\d+(\/\d{4}-\d{2}-\d{2})?$/.test(s))
   );
 }
 

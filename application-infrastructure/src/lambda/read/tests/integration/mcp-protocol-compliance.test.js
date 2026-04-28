@@ -14,6 +14,7 @@ jest.mock('@63klabs/cache-data', () => {
     tools: {
       ...actual.tools,
       ClientRequest: jest.fn().mockImplementation((event) => ({
+        getEvent: () => event,
         getProps: () => {
           const rawPath = event.path || event.requestContext?.resourcePath || '';
           // Strip leading slash to match real ClientRequest behavior
@@ -23,7 +24,8 @@ jest.mock('@63klabs/cache-data', () => {
             method: event.httpMethod || '',
             pathArray: rawPath.split('/').filter(Boolean)
           };
-        }
+        },
+        addQueryLog: jest.fn()
       })),
       Response: jest.fn().mockImplementation((arg) => {
         let statusCode = arg?.statusCode || 200;
@@ -43,7 +45,18 @@ jest.mock('@63klabs/cache-data', () => {
       Timer: jest.fn().mockImplementation(() => ({
         isRunning: jest.fn().mockReturnValue(false),
         stop: jest.fn().mockReturnValue('timer stopped')
-      }))
+      })),
+      CachedSsmParameter: jest.fn().mockImplementation(() => ({
+        getValue: jest.fn().mockResolvedValue('mock-salt-value')
+      })),
+      AWS: {
+        ...(actual.tools?.AWS || {}),
+        dynamo: {
+          get: jest.fn().mockResolvedValue({}),
+          put: jest.fn().mockResolvedValue({}),
+          update: jest.fn().mockResolvedValue({})
+        }
+      }
     }
   };
 });
@@ -83,6 +96,17 @@ jest.mock('../../utils/rate-limiter', () => ({
     }
   }),
   createRateLimitResponse: jest.fn()
+}));
+
+// Mock AuthResolver to always return public tier
+jest.mock('../../utils/auth-resolver', () => ({
+  resolveAuth: jest.fn().mockResolvedValue({
+    tier: 'public',
+    identity: '127.0.0.1',
+    isAuthenticated: false,
+    userId: null,
+    degraded: false
+  })
 }));
 
 // Mock controllers to avoid real AWS service calls during integration tests

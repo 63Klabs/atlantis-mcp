@@ -71,10 +71,10 @@ const SchemaValidator = require('../../../utils/schema-validator');
  * Arbitrary that generates valid namespace strings matching ^[a-z0-9][a-z0-9-]*$
  * with maxLength 63.
  */
-const validNamespaceArb = fc.stringOf(
-  fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789-'.split('')),
-  { minLength: 1, maxLength: 63 }
-).filter(s => /^[a-z0-9][a-z0-9-]*$/.test(s));
+const validNamespaceArb = fc.string({
+  unit: fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789-'.split('')),
+  minLength: 1, maxLength: 63
+}).filter(s => /^[a-z0-9][a-z0-9-]*$/.test(s));
 
 /* ------------------------------------------------------------------ */
 /*  Property 3: Controller passes namespace through to service layer  */

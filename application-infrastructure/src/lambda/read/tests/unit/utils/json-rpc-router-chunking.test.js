@@ -63,7 +63,7 @@ const ContentChunker = require('../../../utils/content-chunker');
  * @returns {Object} API Gateway event object
  */
 function makeToolCallEvent(toolName, args = {}, id = 'test-1') {
-  return {
+  const event = {
     body: JSON.stringify({
       jsonrpc: '2.0',
       method: 'tools/call',
@@ -73,6 +73,11 @@ function makeToolCallEvent(toolName, args = {}, id = 'test-1') {
         arguments: args
       }
     })
+  };
+  return {
+    getEvent: () => event,
+    getProps: () => ({ path: 'mcp/v1', method: 'POST' }),
+    addQueryLog: jest.fn()
   };
 }
 
@@ -140,12 +145,12 @@ describe('JSON-RPC Router Chunking Behavior', () => {
       // ContentChunker returns 3 chunks
       ContentChunker.chunk.mockReturnValue(['chunk-0', 'chunk-1', 'chunk-2']);
 
-      const event = makeToolCallEvent('get_template', {
+      const clientRequest = makeToolCallEvent('get_template', {
         templateName: 'template-storage-s3',
         category: 'storage'
       });
 
-      const response = await handleJsonRpc(event, {});
+      const response = await handleJsonRpc(clientRequest);
       const body = parseBody(response);
 
       expect(response.statusCode).toBe(200);
@@ -200,12 +205,12 @@ describe('JSON-RPC Router Chunking Behavior', () => {
         exceedsThreshold: false
       });
 
-      const event = makeToolCallEvent('get_template', {
+      const clientRequest = makeToolCallEvent('get_template', {
         templateName: 'small-template',
         category: 'storage'
       });
 
-      const response = await handleJsonRpc(event, {});
+      const response = await handleJsonRpc(clientRequest);
       const body = parseBody(response);
 
       expect(response.statusCode).toBe(200);
@@ -247,9 +252,9 @@ describe('JSON-RPC Router Chunking Behavior', () => {
         timestamp: new Date().toISOString()
       });
 
-      const event = makeToolCallEvent('list_templates', { category: 'storage' });
+      const clientRequest = makeToolCallEvent('list_templates', { category: 'storage' });
 
-      const response = await handleJsonRpc(event, {});
+      const response = await handleJsonRpc(clientRequest);
       const body = parseBody(response);
 
       expect(response.statusCode).toBe(200);
@@ -294,12 +299,12 @@ describe('JSON-RPC Router Chunking Behavior', () => {
         throw new Error('Chunking failed unexpectedly');
       });
 
-      const event = makeToolCallEvent('get_template', {
+      const clientRequest = makeToolCallEvent('get_template', {
         templateName: 'error-template',
         category: 'network'
       });
 
-      const response = await handleJsonRpc(event, {});
+      const response = await handleJsonRpc(clientRequest);
       const body = parseBody(response);
 
       expect(response.statusCode).toBe(200);

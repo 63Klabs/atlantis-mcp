@@ -81,6 +81,11 @@ phases:
         cd lambda/indexer
         npm install --include=dev
         cd ../..
+      - |
+        echo "Installing Auth Lambda dependencies for testing"
+        cd lambda/auth
+        npm install --include=dev
+        cd ../..
       
       # Run all tests with coverage — fail the build if any test fails
       - |
@@ -131,12 +136,36 @@ phases:
       # Go back to application-infrastructure directory
       - cd ../../..
 
+      # Build Auth Lambda function
+      - echo "Building Auth Lambda function from src/lambda/auth/"
+      - cd src/lambda/auth
+
+      # Clean up any existing node_modules and install only production dependencies
+      - rm -rf node_modules
+      - npm install --omit=dev
+
+      # FAIL the build if npm audit has vulnerabilities it can't fix
+      - npm audit fix --force --omit=dev
+      - npm audit --audit-level=high
+
+      # Go back to application-infrastructure directory
+      - cd ../../..
+
       # Generate a random 256 bit key (hexidecimal) in SSM for cache data:
       - python3 ./build-scripts/generate-put-ssm.py ${PARAM_STORE_HIERARCHY}CacheData_SecureDataKey --generate 256
       # Save a spot for GitHub Token
       - python3 ./build-scripts/generate-put-ssm.py ${PARAM_STORE_HIERARCHY}GitHubToken
       # Generate a random 256 bit hash (hexidecimal) in SSM for the Session Rate Client Identifier Key
       - python3 ./build-scripts/generate-put-ssm.py ${PARAM_STORE_HIERARCHY}Mcp_SessionHashSalt --generate 256
+
+      # Auth: Generate a random 256 bit key (hexidecimal) in SSM for API key HMAC hashing
+      - python3 ./build-scripts/generate-put-ssm.py ${PARAM_STORE_HIERARCHY}Mcp_ApiKeyHashSalt --generate 256
+      # Auth: Domain and country restriction parameters (BLANK = no restrictions)
+      - python3 ./build-scripts/generate-put-ssm.py ${PARAM_STORE_HIERARCHY}Mcp_AllowedPrivateDomains --value "BLANK"
+      - python3 ./build-scripts/generate-put-ssm.py ${PARAM_STORE_HIERARCHY}Mcp_BlockedEmailDomains --value "BLANK"
+      - python3 ./build-scripts/generate-put-ssm.py ${PARAM_STORE_HIERARCHY}Mcp_AllowedEmailDomains --value "BLANK"
+      - python3 ./build-scripts/generate-put-ssm.py ${PARAM_STORE_HIERARCHY}Mcp_BlockedCountries --value "BLANK"
+      - python3 ./build-scripts/generate-put-ssm.py ${PARAM_STORE_HIERARCHY}Mcp_AllowedCountries --value "BLANK"
 
 
   build:

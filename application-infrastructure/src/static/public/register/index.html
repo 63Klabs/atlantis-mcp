@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Register - Atlantis MCP Server</title>
+  <link rel="stylesheet" href="/css/index.css">
+</head>
+<body>
+  <div class="container">
+    <nav aria-label="Breadcrumb" class="breadcrumb-nav">
+      <ol>
+        <li><a href="/">Home</a></li>
+        <li aria-current="page">Register</li>
+      </ol>
+    </nav>
+
+    <header>
+      <h1>Create an Account</h1>
+      <p class="description">Register to receive an API key for authenticated access with higher rate limits.</p>
+    </header>
+
+    <!-- Step 1: Registration form -->
+    <div id="register-step" class="auth-form">
+      <div id="register-error" class="alert alert-error" role="alert" aria-live="polite"></div>
+
+      <form id="register-form" novalidate>
+        <div class="form-group">
+          <label for="email">Email address</label>
+          <input type="email" id="email" name="email" required autocomplete="email" aria-required="true">
+        </div>
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" name="password" required autocomplete="new-password"
+                 aria-required="true" aria-describedby="password-hint" minlength="8">
+          <small id="password-hint" style="color:#6b6b80;font-size:0.8rem;">
+            Minimum 8 characters: uppercase, lowercase, number, and special character.
+          </small>
+        </div>
+        <button type="submit" class="btn" id="register-btn">Register</button>
+      </form>
+
+      <div class="form-footer">
+        Already have an account? <a href="/login/">Log in</a>
+      </div>
+    </div>
+
+    <!-- Step 2: Email verification -->
+    <div id="verify-step" class="auth-form hidden">
+      <div id="verify-error" class="alert alert-error" role="alert" aria-live="polite"></div>
+      <div id="verify-info" class="alert alert-info visible" role="status">
+        A verification code has been sent to your email. Enter it below to complete registration.
+      </div>
+
+      <form id="verify-form" novalidate>
+        <div class="form-group">
+          <label for="verification-code">Verification code</label>
+          <input type="text" id="verification-code" name="code" required autocomplete="one-time-code"
+                 aria-required="true" inputmode="numeric" pattern="[0-9]*">
+        </div>
+        <button type="submit" class="btn" id="verify-btn">Verify Email</button>
+      </form>
+    </div>
+
+    <!-- Step 3: API key display -->
+    <div id="apikey-step" class="auth-form hidden">
+      <div class="alert alert-success visible" role="status">
+        Registration complete! Your API key is shown below. Copy it now — it will not be shown again.
+      </div>
+
+      <div class="api-key-display" role="region" aria-label="Your API key">
+        <span id="api-key-value"></span>
+        <button class="copy-btn" id="copy-key-btn" aria-label="Copy API key to clipboard">Copy</button>
+      </div>
+
+      <p style="font-size:0.9rem;color:#6b6b80;margin-top:0.75rem;">
+        Store this key in a password manager. You will need it to configure your MCP client.
+        If you lose it, you can generate a new one from your <a href="/profile/">profile page</a>.
+      </p>
+
+      <div class="form-footer">
+        <a href="/profile/">Go to your profile</a>
+      </div>
+    </div>
+
+    <footer>
+      {{{settings.footer}}}
+    </footer>
+  </div>
+
+<script>
+  document.getElementById('copyright-year').textContent = new Date().getFullYear();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6/dist/amazon-cognito-identity.min.js"></script>
+<script>
+(function() {
+  'use strict';
+
+  var USER_POOL_ID = '{{{settings.cognitoUserPoolId}}}';
+  var CLIENT_ID = '{{{settings.cognitoClientId}}}';
+
+  var poolData = {
+    UserPoolId: USER_POOL_ID,
+    ClientId: CLIENT_ID
+  };
+  var userPool = new AmazonCognitoIdentity.CognitoUserPool(poolData);
+
+  var registeredEmail = '';
+
+  // DOM references
+  var registerStep = document.getElementById('register-step');
+  var verifyStep = document.getElementById('verify-step');
+  var apikeyStep = document.getElementById('apikey-step');
+  var registerForm = document.getElementById('register-form');
+  var verifyForm = document.getElementById('verify-form');
+  var registerError = document.getElementById('register-error');
+  var verifyError = document.getElementById('verify-error');
+  var registerBtn = document.getElementById('register-btn');
+  var verifyBtn = document.getElementById('verify-btn');
+  var apiKeyValue = document.getElementById('api-key-value');
+  var copyKeyBtn = document.getElementById('copy-key-btn');
+
+  function showError(el, msg) {
+    el.textContent = msg;
+    el.classList.add('visible');
+  }
+
+  function hideError(el) {
+    el.textContent = '';
+    el.classList.remove('visible');
+  }
+
+  // Step 1: Register
+  registerForm.addEventListener('submit', function(e) {
+    e.preventDefault();
+    hideError(registerError);
+
+    var email = document.getElementById('email').value.trim();
+    var password = document.getElementById('password').value;
+
+    if (!email || !password) {
+      showError(registerError, 'Please enter both email and password.');
+      return;
+    }
+
+    registerBtn.disabled = true;
+    registerBtn.textContent = 'Registering…';
+
+    var attributeList = [
+      new AmazonCognitoIdentity.CognitoUserAttribute({ Name: 'email', Value: email })
+    ];
+
+    userPool.signUp(email, password, attributeList, null, function(err, result) {
+      registerBtn.disabled = false;
+      registerBtn.textContent = 'Register';
+
+      if (err) {
+        var msg = err.message || 'Registration failed.';
+        if (err.code === 'UsernameExistsException') {
+          msg = 'An account with this email already exists.';
+        } else if (err.code === 'InvalidParameterException' && msg.toLowerCase().includes('password')) {
+          msg = 'Password must be at least 8 characters with uppercase, lowercase, number, and special character.';
+        } else if (msg.toLowerCase().includes('blocked') || msg.toLowerCase().includes('not allowed')) {
+          // Domain-based rejection messages from Pre-SignUp or Post-Confirmation triggers
+          msg = err.message;
+        }
+        showError(registerError, msg);
+        return;
+      }
+
+      registeredEmail = email;
+      registerStep.classList.add('hidden');
+      verifyStep.classList.remove('hidden');
+      document.getElementById('verification-code').focus();
+    });
+  });
+
+  // Step 2: Verify email
+  verifyForm.addEventListener('submit', function(e) {
+    e.preventDefault();
+    hideError(verifyError);
+
+    var code = document.getElementById('verification-code').value.trim();
+    if (!code) {
+      showError(verifyError, 'Please enter the verification code.');
+      return;
+    }
+
+    verifyBtn.disabled = true;
+    verifyBtn.textContent = 'Verifying…';
+
+    var userData = { Username: registeredEmail, Pool: userPool };
+    var cognitoUser = new AmazonCognitoIdentity.CognitoUser(userData);
+
+    cognitoUser.confirmRegistration(code, true, function(err, result) {
+      verifyBtn.disabled = false;
+      verifyBtn.textContent = 'Verify Email';
+
+      if (err) {
+        var msg = err.message || 'Verification failed.';
+        if (err.code === 'CodeMismatchException') {
+          msg = 'Invalid verification code. Please check and try again.';
+        } else if (err.code === 'ExpiredCodeException') {
+          msg = 'Verification code has expired. Please request a new one.';
+        }
+        showError(verifyError, msg);
+        return;
+      }
+
+      // After verification, sign in to get the API key from the Post-Confirmation trigger response
+      // The API key is returned via Cognito custom attributes after Post-Confirmation
+      // We need to authenticate to read the custom:api_key attribute
+      // However, the raw key is only available during the Post-Confirmation trigger context
+      // For static sites, we authenticate and then call a profile endpoint or read from session
+
+      // Sign in to get the session and retrieve the API key
+      var authDetails = new AmazonCognitoIdentity.AuthenticationDetails({
+        Username: registeredEmail,
+        Password: document.getElementById('password').value
+      });
+
+      cognitoUser.authenticateUser(authDetails, {
+        onSuccess: function(session) {
+          // The raw API key was displayed by the Post-Confirmation trigger
+          // Since we can't get the raw key after the fact (only hash is stored),
+          // we need to call key/regenerate to get a fresh key
+          var jwt = session.getIdToken().getJwtToken();
+          var apiBaseUrl = '{{{settings.apiBaseUrl}}}';
+
+          fetch(apiBaseUrl + '/auth/key/regenerate', {
+            method: 'POST',
+            headers: {
+              'Authorization': 'Bearer ' + jwt,
+              'Content-Type': 'application/json'
+            }
+          })
+          .then(function(resp) { return resp.json(); })
+          .then(function(data) {
+            if (data.apiKey) {
+              apiKeyValue.textContent = data.apiKey;
+              verifyStep.classList.add('hidden');
+              apikeyStep.classList.remove('hidden');
+            } else {
+              showError(verifyError, 'Account verified but could not retrieve API key. Visit your profile to generate one.');
+            }
+          })
+          .catch(function() {
+            showError(verifyError, 'Account verified but could not retrieve API key. Visit your profile to generate one.');
+          });
+        },
+        onFailure: function() {
+          // Verification succeeded but auto-login failed — direct user to login
+          verifyStep.classList.add('hidden');
+          apikeyStep.classList.remove('hidden');
+          apiKeyValue.textContent = 'Please log in and regenerate your API key from your profile.';
+          copyKeyBtn.style.display = 'none';
+        }
+      });
+    });
+  });
+
+  // Copy button
+  copyKeyBtn.addEventListener('click', function() {
+    var key = apiKeyValue.textContent;
+    if (navigator.clipboard && key) {
+      navigator.clipboard.writeText(key).then(function() {
+        copyKeyBtn.textContent = 'Copied!';
+        setTimeout(function() { copyKeyBtn.textContent = 'Copy'; }, 2000);
+      });
+    }
+  });
+})();
+</script>
+</body>
+</html>

@@ -69,7 +69,7 @@ describe('Feature: add-namespace-filter-to-list-templates, Property 1: Invalid n
     // Empty string
     fc.constant(''),
     // Strings exceeding 63 characters (valid chars but too long)
-    fc.stringOf(fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789-'.split('')), { minLength: 64, maxLength: 128 })
+    fc.string({ unit: fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789-'.split('')), minLength: 64, maxLength: 128 })
       .map(s => s.startsWith('-') ? `a${s.slice(1)}` : s)
   );
 
@@ -112,10 +112,10 @@ describe('Feature: add-namespace-filter-to-list-templates, Property 2: Valid inp
     fc.integer({ min: 0, max: 99 }),
     fc.integer({ min: 0, max: 99 })
   ).map(([a, b, c]) => `v${a}.${b}.${c}`);
-  const validTemplateNameArb = fc.stringOf(
-    fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789-.'.split('')),
-    { minLength: 1, maxLength: 30 }
-  ).map(s => `${s}.yml`);
+  const validTemplateNameArb = fc.string({
+    unit: fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789-.'.split('')),
+    minLength: 1, maxLength: 30
+  }).map(s => `${s}.yml`);
 
   test('list_templates: valid inputs without namespace pass validation', () => {
     fc.assert(

@@ -51,7 +51,17 @@ jest.mock('@63klabs/cache-data', () => ({
     Timer: jest.fn().mockImplementation(() => ({
       isRunning: jest.fn().mockReturnValue(false),
       stop: jest.fn().mockReturnValue('timer stopped')
-    }))
+    })),
+    CachedSsmParameter: jest.fn().mockImplementation(() => ({
+      getValue: jest.fn().mockResolvedValue('mock-salt-value')
+    })),
+    AWS: {
+      dynamo: {
+        get: jest.fn().mockResolvedValue({}),
+        put: jest.fn().mockResolvedValue({}),
+        update: jest.fn().mockResolvedValue({})
+      }
+    }
   }
 }));
 
@@ -71,11 +81,21 @@ jest.mock('../../../utils/rate-limiter', () => ({
   checkRateLimit: jest.fn(),
   createRateLimitResponse: jest.fn()
 }));
+jest.mock('../../../utils/auth-resolver', () => ({
+  resolveAuth: jest.fn().mockResolvedValue({
+    tier: 'public',
+    identity: '192.168.1.1',
+    isAuthenticated: false,
+    userId: null,
+    degraded: false
+  })
+}));
 jest.mock('../../../utils/error-handler');
 
 const { Config } = require('../../../config');
 const Routes = require('../../../routes');
 const RateLimiter = require('../../../utils/rate-limiter');
+const AuthResolver = require('../../../utils/auth-resolver');
 const { tools } = require('@63klabs/cache-data');
 
 // Import handler after mocks are set up
@@ -203,7 +223,8 @@ describe('Read Lambda Handler', () => {
       await handler(mockEvent, mockContext);
       expect(RateLimiter.checkRateLimit).toHaveBeenCalledWith(
         mockEvent,
-        expect.objectContaining({ public: expect.any(Object) })
+        expect.objectContaining({ public: expect.any(Object) }),
+        expect.objectContaining({ tier: 'public', isAuthenticated: false })
       );
     });
 
@@ -253,9 +274,7 @@ describe('Read Lambda Handler', () => {
       await handler(mockEvent, mockContext);
       expect(Routes.process).toHaveBeenCalledWith(
         mockClientRequestInstance,
-        mockResponseInstance,
-        mockEvent,
-        mockContext
+        mockResponseInstance
       );
     });
 

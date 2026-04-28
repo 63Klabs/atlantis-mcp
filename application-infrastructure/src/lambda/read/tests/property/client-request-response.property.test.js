@@ -44,7 +44,17 @@ jest.mock('@63klabs/cache-data', () => ({
     Timer: jest.fn().mockImplementation(() => ({
       isRunning: jest.fn().mockReturnValue(false),
       stop: jest.fn().mockReturnValue('timer stopped')
-    }))
+    })),
+    CachedSsmParameter: jest.fn().mockImplementation(() => ({
+      getValue: jest.fn().mockResolvedValue('mock-salt-value')
+    })),
+    AWS: {
+      dynamo: {
+        get: jest.fn().mockResolvedValue({}),
+        put: jest.fn().mockResolvedValue({}),
+        update: jest.fn().mockResolvedValue({})
+      }
+    }
   }
 }));
 
@@ -77,6 +87,16 @@ jest.mock('../../utils/rate-limiter', () => ({
 }));
 
 jest.mock('../../utils/error-handler');
+
+jest.mock('../../utils/auth-resolver', () => ({
+  resolveAuth: jest.fn().mockResolvedValue({
+    tier: 'public',
+    identity: '127.0.0.1',
+    isAuthenticated: false,
+    userId: null,
+    degraded: false
+  })
+}));
 
 // Explicitly mock Routes with a jest.fn so we can use mockReset/mockResolvedValue
 jest.mock('../../routes', () => ({

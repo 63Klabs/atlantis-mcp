@@ -40,6 +40,11 @@ jest.mock('../../controllers', () => ({
 
 const { handleJsonRpc } = require('../../utils/json-rpc-router');
 
+/** Wrap a raw event in a mock clientRequest for handleJsonRpc */
+function wrapEvent(event) {
+  return { getEvent: () => event, getProps: () => ({ path: "mcp/v1", method: "POST" }), addQueryLog: jest.fn() };
+}
+
 /** Known MCP methods */
 const KNOWN_METHODS = ['initialize', 'tools/list'];
 
@@ -77,7 +82,7 @@ describe('Feature: get-integration-working, Property 5: Content-Type Header on A
           body: JSON.stringify({ jsonrpc: '2.0', method, id })
         };
 
-        const response = await handleJsonRpc(event, {});
+        const response = await handleJsonRpc(wrapEvent(event));
 
         expect(response.headers['Content-Type']).toBe('application/json');
         expect(response.headers['Content-Type']).not.toBe('text/html');
@@ -120,7 +125,7 @@ describe('Feature: get-integration-working, Property 5: Content-Type Header on A
           })
         };
 
-        const response = await handleJsonRpc(event, {});
+        const response = await handleJsonRpc(wrapEvent(event));
 
         expect(response.headers['Content-Type']).toBe('application/json');
         expect(response.headers['Content-Type']).not.toBe('text/html');
@@ -152,7 +157,7 @@ describe('Feature: get-integration-working, Property 5: Content-Type Header on A
     await fc.assert(
       fc.asyncProperty(nonJsonArb, async (badBody) => {
         const event = { body: badBody };
-        const response = await handleJsonRpc(event, {});
+        const response = await handleJsonRpc(wrapEvent(event));
 
         expect(response.headers['Content-Type']).toBe('application/json');
         expect(response.headers['Content-Type']).not.toBe('text/html');
@@ -184,7 +189,7 @@ describe('Feature: get-integration-working, Property 5: Content-Type Header on A
     await fc.assert(
       fc.asyncProperty(invalidRequestArb, async (invalidObj) => {
         const event = { body: JSON.stringify(invalidObj) };
-        const response = await handleJsonRpc(event, {});
+        const response = await handleJsonRpc(wrapEvent(event));
 
         expect(response.headers['Content-Type']).toBe('application/json');
         expect(response.headers['Content-Type']).not.toBe('text/html');
@@ -214,7 +219,7 @@ describe('Feature: get-integration-working, Property 5: Content-Type Header on A
           body: JSON.stringify({ jsonrpc: '2.0', method, id })
         };
 
-        const response = await handleJsonRpc(event, {});
+        const response = await handleJsonRpc(wrapEvent(event));
 
         expect(response.headers['Content-Type']).toBe('application/json');
         expect(response.headers['Content-Type']).not.toBe('text/html');

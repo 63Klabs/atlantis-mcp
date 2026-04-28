@@ -24,6 +24,7 @@ const { tools: {DebugAndLog, ClientRequest, Response, Timer} } = require("@63kla
 const { Config } = require("./config");
 const Routes = require('./routes');
 const RateLimiter = require('./utils/rate-limiter');
+const AuthResolver = require('./utils/auth-resolver');
 
 // >! Log a cold start and time it using Timer - stop Timer in finally block
 const coldStartInitTimer = new Timer("coldStartTimer", true);
@@ -127,10 +128,19 @@ exports.handler = async (event, context) => {
     clientRequest = new ClientRequest(event, context);
     response = new Response(clientRequest);
 
+    // >! Resolve authentication from request headers
+    // >! No key = public tier; valid key = authenticated tier; invalid key = 401
+    const authInfo = await AuthResolver.resolveAuth(event);
+
+    // >! If auth resolution returned a 401 error, return immediately
+    if (authInfo.error) {
+      return authInfo.errorResponse;
+    }
+
     // >! Check rate limit before processing request
-    // >! Rate limit is per IP address, resets every hour
+    // >! Rate limit tier and identity determined by auth resolution
     // >! Returns 429 if limit exceeded with Retry-After header
-    const rateLimitCheck = await RateLimiter.checkRateLimit(event, Config.settings().rateLimits);
+    const rateLimitCheck = await RateLimiter.checkRateLimit(event, Config.settings().rateLimits, authInfo);
 
     if (!rateLimitCheck.allowed) {
       // >! Await DynamoDB update before returning to ensure state is persisted
@@ -148,6 +158,11 @@ exports.handler = async (event, context) => {
       response.addHeader(name, value);
     }
     response.addHeader('X-MCP-Version', '1.0');
+
+    // >! Signal degraded auth status when SSM or DynamoDB was unavailable
+    if (authInfo.degraded) {
+      response.addHeader('X-MCP-Auth-Status', 'degraded');
+    }
 
     // >! Delegate request processing to routing layer
     // >! Routes.process() populates the shared Response instance (void return)

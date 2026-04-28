@@ -244,10 +244,10 @@ describe('Bug Condition Exploration: Starters Tools Use GitHub API Instead of S3
   // -----------------------------------------------------------------------
   test('1f: Property: for any valid starter name, get_starter_info schema accepts s3Buckets', () => {
     // Arbitrary: valid starter name strings (lowercase alphanumeric with hyphens)
-    const starterNameArb = fc.stringOf(
-      fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789-'.split('')),
-      { minLength: 1, maxLength: 50 }
-    ).filter(s => /^[a-z0-9][a-z0-9-]*$/.test(s));
+    const starterNameArb = fc.string({
+      unit: fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789-'.split('')),
+      minLength: 1, maxLength: 50
+    }).filter(s => /^[a-z0-9][a-z0-9-]*$/.test(s));
 
     const getStarterInfoTool = settings.tools.availableToolsList.find(
       t => t.name === 'get_starter_info'

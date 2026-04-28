@@ -45,6 +45,11 @@ jest.mock('../../controllers', () => {
 });
 
 const { handleJsonRpc, TOOL_DISPATCH } = require('../../utils/json-rpc-router');
+
+/** Wrap a raw event in a mock clientRequest for handleJsonRpc */
+function wrapEvent(event) {
+  return { getEvent: () => event, getProps: () => ({ path: "mcp/v1", method: "POST" }), addQueryLog: jest.fn() };
+}
 const Controllers = require('../../controllers');
 
 describe('Bugfix: Prototype Chain Tool Name Rejection — Property 1: Bug Condition', () => {
@@ -102,7 +107,7 @@ describe('Bugfix: Prototype Chain Tool Name Rejection — Property 1: Bug Condit
         };
 
         // Call handleJsonRpc — should NOT throw
-        const response = await handleJsonRpc(event, {});
+        const response = await handleJsonRpc(wrapEvent(event));
 
         // Response must be a valid API Gateway response
         expect(response).toBeDefined();
@@ -194,7 +199,7 @@ describe('Bugfix: Prototype Chain Tool Name Rejection — Property 2: Preservati
           })
         };
 
-        const response = await handleJsonRpc(event, {});
+        const response = await handleJsonRpc(wrapEvent(event));
 
         // Correct controller called exactly once
         expect(controllerFn).toHaveBeenCalledTimes(1);
@@ -250,7 +255,7 @@ describe('Bugfix: Prototype Chain Tool Name Rejection — Property 2: Preservati
           })
         };
 
-        const response = await handleJsonRpc(event, {});
+        const response = await handleJsonRpc(wrapEvent(event));
 
         expect(response.statusCode).toBe(200);
         const body = JSON.parse(response.body);
@@ -290,7 +295,7 @@ describe('Bugfix: Prototype Chain Tool Name Rejection — Property 2: Preservati
           })
         };
 
-        const response = await handleJsonRpc(event, {});
+        const response = await handleJsonRpc(wrapEvent(event));
 
         expect(response.statusCode).toBe(200);
         const body = JSON.parse(response.body);

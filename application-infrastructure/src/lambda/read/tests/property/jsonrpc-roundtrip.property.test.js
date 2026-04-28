@@ -15,6 +15,11 @@
 const fc = require('fast-check');
 const { handleJsonRpc } = require('../../utils/json-rpc-router');
 
+/** Wrap a raw event in a mock clientRequest for handleJsonRpc */
+function wrapEvent(event) {
+  return { getEvent: () => event, getProps: () => ({ path: "mcp/v1", method: "POST" }), addQueryLog: jest.fn() };
+}
+
 describe('Feature: get-integration-working, Property 7: JSON-RPC 2.0 Round-Trip', () => {
 
   /**
@@ -48,7 +53,7 @@ describe('Feature: get-integration-working, Property 7: JSON-RPC 2.0 Round-Trip'
         const context = {};
 
         // Send through the JSON-RPC router
-        const result = await handleJsonRpc(event, context);
+        const result = await handleJsonRpc(wrapEvent(event));
 
         // Parse the response body
         expect(result).toBeDefined();
@@ -104,7 +109,7 @@ describe('Feature: get-integration-working, Property 7: JSON-RPC 2.0 Round-Trip'
           headers: { 'Content-Type': 'application/json' }
         };
 
-        const result = await handleJsonRpc(event, {});
+        const result = await handleJsonRpc(wrapEvent(event));
 
         // Body must be parseable JSON — no exceptions
         expect(() => JSON.parse(result.body)).not.toThrow();
@@ -128,7 +133,7 @@ describe('Feature: get-integration-working, Property 7: JSON-RPC 2.0 Round-Trip'
       body: JSON.stringify({ jsonrpc: '2.0', method: 'tools/list', id: 'baseline' }),
       headers: { 'Content-Type': 'application/json' }
     };
-    const baselineResult = await handleJsonRpc(baselineEvent, {});
+    const baselineResult = await handleJsonRpc(wrapEvent(baselineEvent));
     const baselineBody = JSON.parse(baselineResult.body);
     const baselineToolNames = baselineBody.result.tools.map(t => t.name).sort();
 
@@ -141,7 +146,7 @@ describe('Feature: get-integration-working, Property 7: JSON-RPC 2.0 Round-Trip'
           headers: { 'Content-Type': 'application/json' }
         };
 
-        const result = await handleJsonRpc(event, {});
+        const result = await handleJsonRpc(wrapEvent(event));
         const body = JSON.parse(result.body);
         const toolNames = body.result.tools.map(t => t.name).sort();
 

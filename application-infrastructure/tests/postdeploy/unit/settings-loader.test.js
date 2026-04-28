@@ -5,20 +5,18 @@ const { loadSettings } = require('../../../postdeploy-scripts/settings-loader');
 const settingsData = require('../../../src/static/settings.json');
 
 describe('settings-loader – loadSettings()', () => {
-  it('should merge default footer with beta domain for beta stage', () => {
+  it('should merge default values with beta overrides for beta stage', () => {
     const result = loadSettings(settingsData, 'beta');
 
-    expect(result).toEqual({
-      footer: settingsData.default.footer,
-      domain: settingsData.beta.domain
-    });
+    // beta has no overrides in settings.json, so result equals defaults
+    expect(result).toEqual(settingsData.default);
   });
 
-  it('should merge default footer with prod domain for prod stage', () => {
+  it('should merge default values with prod domain for prod stage', () => {
     const result = loadSettings(settingsData, 'prod');
 
     expect(result).toEqual({
-      footer: settingsData.default.footer,
+      ...settingsData.default,
       domain: settingsData.prod.domain
     });
   });
@@ -26,9 +24,7 @@ describe('settings-loader – loadSettings()', () => {
   it('should return only default values for an unknown stage', () => {
     const result = loadSettings(settingsData, 'dev');
 
-    expect(result).toEqual({
-      footer: settingsData.default.footer
-    });
+    expect(result).toEqual(settingsData.default);
   });
 
   it('should handle empty default object with stage-specific keys', () => {

@@ -87,7 +87,7 @@ function makeEntry(version, versionId) {
  */
 function otherEntriesArb(excludePrefix) {
   return fc.array(
-    fc.tuple(shortVersionArb(), datePartArb(), fc.hexaString({ minLength: 6, maxLength: 12 })),
+    fc.tuple(shortVersionArb(), datePartArb(), fc.string({ unit: fc.constantFrom(...'0123456789abcdef'.split('')), minLength: 6, maxLength: 12 })),
     { minLength: 0, maxLength: 5 }
   ).map(entries =>
     entries

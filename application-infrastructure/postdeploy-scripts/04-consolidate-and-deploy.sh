@@ -74,6 +74,49 @@ else
   echo "${LOG_PREFIX} WARN: ${ENV_FILE} not found — skipping API Gateway URL replacement"
 fi
 
+# Query CloudFormation for Cognito resource IDs
+STACK_NAME="${PREFIX}-${PROJECT_ID}-${STAGE_ID}-application"
+COGNITO_USER_POOL_ID=""
+COGNITO_CLIENT_ID=""
+
+if [[ -n "${PREFIX:-}" && -n "${PROJECT_ID:-}" && -n "${STAGE_ID:-}" ]]; then
+  echo "${LOG_PREFIX} INFO: Querying CloudFormation for Cognito resources (stack: ${STACK_NAME})..."
+
+  COGNITO_USER_POOL_ID=$(aws cloudformation describe-stack-resource \
+    --stack-name "${STACK_NAME}" \
+    --logical-resource-id "CognitoUserPool" \
+    --query "StackResourceDetail.PhysicalResourceId" \
+    --output text 2>/dev/null) || {
+    echo "${LOG_PREFIX} WARN: Could not resolve CognitoUserPool from stack ${STACK_NAME}"
+    COGNITO_USER_POOL_ID=""
+  }
+
+  COGNITO_CLIENT_ID=$(aws cloudformation describe-stack-resource \
+    --stack-name "${STACK_NAME}" \
+    --logical-resource-id "CognitoUserPoolClient" \
+    --query "StackResourceDetail.PhysicalResourceId" \
+    --output text 2>/dev/null) || {
+    echo "${LOG_PREFIX} WARN: Could not resolve CognitoUserPoolClient from stack ${STACK_NAME}"
+    COGNITO_CLIENT_ID=""
+  }
+
+  if [[ -n "${COGNITO_USER_POOL_ID}" && "${COGNITO_USER_POOL_ID}" != "None" ]]; then
+    echo "${LOG_PREFIX} INFO: Cognito User Pool ID: ${COGNITO_USER_POOL_ID}"
+  else
+    echo "${LOG_PREFIX} WARN: Cognito User Pool ID is empty or not found"
+    COGNITO_USER_POOL_ID=""
+  fi
+
+  if [[ -n "${COGNITO_CLIENT_ID}" && "${COGNITO_CLIENT_ID}" != "None" ]]; then
+    echo "${LOG_PREFIX} INFO: Cognito Client ID: ${COGNITO_CLIENT_ID}"
+  else
+    echo "${LOG_PREFIX} WARN: Cognito Client ID is empty or not found"
+    COGNITO_CLIENT_ID=""
+  fi
+else
+  echo "${LOG_PREFIX} WARN: PREFIX, PROJECT_ID, or STAGE_ID not set — skipping Cognito resource lookup"
+fi
+
 # Apply settings token replacement across all consolidated content
 SETTINGS_FILE="application-infrastructure/src/static/settings.json"
 APPLY_SETTINGS_SCRIPT="application-infrastructure/postdeploy-scripts/apply-settings.js"
@@ -81,6 +124,12 @@ APPLY_SETTINGS_SCRIPT="application-infrastructure/postdeploy-scripts/apply-setti
 APPLY_SETTINGS_ARGS=("${SETTINGS_FILE}" "${FINAL_DIR}" "${STAGE_ID}")
 if [[ -n "${REST_API_ID:-}" && -n "${AWS_REGION:-}" && -n "${API_STAGE_NAME:-}" ]]; then
   APPLY_SETTINGS_ARGS+=(--rest-api-id "${REST_API_ID}" --region "${AWS_REGION}" --api-stage-name "${API_STAGE_NAME}")
+fi
+if [[ -n "${COGNITO_USER_POOL_ID:-}" ]]; then
+  APPLY_SETTINGS_ARGS+=(--cognito-user-pool-id "${COGNITO_USER_POOL_ID}")
+fi
+if [[ -n "${COGNITO_CLIENT_ID:-}" ]]; then
+  APPLY_SETTINGS_ARGS+=(--cognito-client-id "${COGNITO_CLIENT_ID}")
 fi
 
 echo "${LOG_PREFIX} INFO: Running apply-settings.js..."

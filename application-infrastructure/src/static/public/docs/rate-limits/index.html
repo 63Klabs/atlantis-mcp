@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rate Limits - Atlantis MCP Server</title>
+  <link rel="stylesheet" href="/css/index.css">
+</head>
+<body>
+  <div class="container">
+    <nav aria-label="Breadcrumb" class="breadcrumb-nav">
+      <ol>
+        <li><a href="/">Home</a></li>
+        <li><a href="/docs/">Docs</a></li>
+        <li aria-current="page">Rate limits</li>
+      </ol>
+    </nav>
+
+    <header>
+      <h1>Rate Limits</h1>
+      <p class="description">Request limits for each access tier. All limits reset on a rolling window basis.</p>
+    </header>
+
+    <table class="rate-limits-table" aria-label="Rate limits by tier">
+      <thead>
+        <tr>
+          <th scope="col">Tier</th>
+          <th scope="col">Requests</th>
+          <th scope="col">Window</th>
+          <th scope="col">Authentication</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Public</td>
+          <td>{{{settings.rateLimitPublic}}}</td>
+          <td>{{{settings.rateLimitPublicWindow}}} minutes</td>
+          <td>None (IP-based)</td>
+        </tr>
+        <tr>
+          <td>Registered</td>
+          <td>{{{settings.rateLimitRegistered}}}</td>
+          <td>{{{settings.rateLimitRegisteredWindow}}} minutes</td>
+          <td>API key</td>
+        </tr>
+        <tr>
+          <td>Paid</td>
+          <td>{{{settings.rateLimitPaid}}}</td>
+          <td>{{{settings.rateLimitPaidWindow}}} minutes</td>
+          <td>API key</td>
+        </tr>
+        <tr>
+          <td>Private</td>
+          <td>{{{settings.rateLimitPrivate}}}</td>
+          <td>{{{settings.rateLimitPrivateWindow}}} minutes</td>
+          <td>API key</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <section style="margin-top:2rem;">
+      <h2 style="font-size:1.1rem;font-weight:600;margin-bottom:0.75rem;">How it works</h2>
+      <ul style="padding-left:1.25rem;font-size:0.95rem;color:#4a4a68;">
+        <li>Public tier uses your IP address for rate limiting.</li>
+        <li>Authenticated tiers use your account identity, so limits follow you across IPs.</li>
+        <li>When a limit is exceeded, the server returns HTTP 429 with a <code>Retry-After</code> header.</li>
+        <li>All responses include <code>X-RateLimit-Limit</code>, <code>X-RateLimit-Remaining</code>, and <code>X-RateLimit-Reset</code> headers.</li>
+      </ul>
+    </section>
+
+    <section style="margin-top:2rem;">
+      <h2 style="font-size:1.1rem;font-weight:600;margin-bottom:0.75rem;">Get higher limits</h2>
+      <p style="font-size:0.95rem;color:#4a4a68;">
+        <a href="/register/">Register for free</a> to upgrade from public to registered tier.
+        Use a promotion code on your <a href="/profile/">profile page</a> to unlock paid tier access.
+      </p>
+    </section>
+
+    <footer>
+      {{{settings.footer}}}
+    </footer>
+  </div>
+<script>
+  document.getElementById('copyright-year').textContent = new Date().getFullYear();
+</script>
+</body>
+</html>

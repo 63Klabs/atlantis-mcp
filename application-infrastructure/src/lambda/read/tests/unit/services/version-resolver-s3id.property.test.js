@@ -39,7 +39,7 @@ const templateInfo = { category: 'storage', templateName: 'test-template' };
  * @returns {fc.Arbitrary<string>} Arbitrary producing S3_VersionId strings
  */
 function s3VersionIdArb() {
-  return fc.hexaString({ minLength: 8, maxLength: 32 })
+  return fc.string({ unit: fc.constantFrom(...'0123456789abcdef'.split('')), minLength: 8, maxLength: 32 })
     .filter(s => s.length > 0 && !/^v\d+\.\d+\.\d+(\/\d{4}-\d{2}-\d{2})?$/.test(s));
 }
 

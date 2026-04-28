@@ -375,22 +375,27 @@ const cache = new RateLimitCache();
  * @param {string} [event.headers['X-Forwarded-For']] - Forwarded IP addresses
  * @param {Object} limits - Rate limit configurations from Config.settings().rateLimits
  * @param {{limitPerWindow: number, windowInMinutes: number}} limits.public - Public tier rate limit
+ * @param {Object} [authInfo] - Resolved auth information from auth-resolver
+ * @param {string} [authInfo.tier] - Effective tier: 'public', 'registered', 'paid', or 'private'
+ * @param {string} [authInfo.identity] - Rate limit identity (IP for public, cognitoSub for authenticated)
+ * @param {boolean} [authInfo.isAuthenticated] - Whether the request is authenticated
  * @returns {Promise<{allowed: boolean, headers: Object, retryAfter: number|null, dynamoPromise: Promise|null}>}
  */
-async function checkRateLimit(event, limits) {
+async function checkRateLimit(event, limits, authInfo) {
 
-  // Determine tier — currently public only (TODO: auth tiers)
-  const isPublic = true;
-  const tier = 'public';
-  const limitPerWindow = limits.public.limitPerWindow;
-  const windowInMinutes = limits.public.windowInMinutes;
+  // Determine tier from authInfo (default to public for backward compatibility)
+  const tier = (authInfo && authInfo.tier) ? authInfo.tier : 'public';
+  const isPublic = !authInfo || !authInfo.isAuthenticated;
+  const tierConfig = limits[tier] || limits.public;
+  const limitPerWindow = tierConfig.limitPerWindow;
+  const windowInMinutes = tierConfig.windowInMinutes;
 
-  // Extract client identifier
-  const rawId = isPublic
-    ? (event.headers?.['X-Forwarded-For']?.split(',')[0]?.trim() ||
+  // Use authInfo.identity if available, otherwise extract IP from event
+  const rawId = (authInfo && authInfo.identity)
+    ? authInfo.identity
+    : (event.headers?.['X-Forwarded-For']?.split(',')[0]?.trim() ||
        event.requestContext?.identity?.sourceIp ||
-       'unknown')
-    : 'auth-user'; // TODO: extract userId for authenticated tiers
+       'unknown');
 
   // Compute window boundaries
   const resetTimeMinutes = nextIntervalInMinutes(windowInMinutes);
