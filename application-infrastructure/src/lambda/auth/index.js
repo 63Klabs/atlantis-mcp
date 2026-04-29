@@ -18,6 +18,34 @@ const postConfirmationHandler = require('./handlers/post-confirmation');
 const routeDispatcher = require('./routes/index');
 
 /**
+ * Standard CORS headers for API Gateway responses.
+ * Matches the pattern used by the Read Lambda's json-rpc-router.
+ *
+ * @type {Object.<string, string>}
+ */
+const CORS_HEADERS = {
+	'Access-Control-Allow-Origin': '*',
+	'Access-Control-Allow-Methods': 'POST, OPTIONS',
+	'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With'
+};
+
+/**
+ * Add CORS headers to an API Gateway proxy response.
+ *
+ * @param {Object} response - API Gateway proxy response
+ * @returns {Object} Response with CORS headers merged in
+ */
+function withCorsHeaders(response) {
+	return {
+		...response,
+		headers: {
+			...CORS_HEADERS,
+			...response.headers
+		}
+	};
+}
+
+/**
  * Determine whether the event is a Cognito Post-Confirmation trigger.
  *
  * @param {Object} event - Lambda event
@@ -76,25 +104,26 @@ async function handler(event, context) {
 	// >! API Gateway proxy event
 	if (isApiGatewayEvent(event)) {
 		try {
-			return await routeDispatcher.route(event);
+			const response = await routeDispatcher.route(event);
+			return withCorsHeaders(response);
 		} catch (error) {
 			// >! Log full error for debugging but return sanitized response to client
 			console.error('API Gateway handler error:', error);
-			return {
+			return withCorsHeaders({
 				statusCode: 500,
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ error: 'Internal server error' })
-			};
+			});
 		}
 	}
 
 	// >! Unrecognized event type
 	console.error('Unrecognized event type:', JSON.stringify(event));
-	return {
+	return withCorsHeaders({
 		statusCode: 400,
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({ error: 'Unrecognized event type' })
-	};
+	});
 }
 
 module.exports = { handler };
