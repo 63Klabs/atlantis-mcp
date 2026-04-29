@@ -1,7 +1,7 @@
 # TODO
 
 - [ ] Update Architecture
-- [ ] Fix Auth function
+- [ ] Fix Auth function - confirmation
 - [ ] Add additional debug logging to auth function
 - [ ] Add more logging and lambda console to stack outputs
 

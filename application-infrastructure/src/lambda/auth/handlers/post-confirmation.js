@@ -272,9 +272,9 @@ async function handler(event) {
 		]
 	}));
 
-	// >! Return raw key in response context for one-time display to user
-	event.response = event.response || {};
-	event.response.rawApiKey = rawKey;
+	// >! API key is stored in Cognito custom:api_key attribute
+	// >! The frontend retrieves it after sign-in — do not add custom
+	// >! properties to event.response as Cognito rejects unknown fields
 
 	return event;
 }

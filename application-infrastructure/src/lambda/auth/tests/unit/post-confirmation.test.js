@@ -141,8 +141,9 @@ describe('Post-Confirmation Handler', () => {
 		// Verify Cognito updated
 		expect(mockCognitoSend).toHaveBeenCalledTimes(1);
 
-		// Verify raw key returned in response
-		expect(result.response.rawApiKey).toBe(FIXED_RAW_KEY);
+		// Verify event returned without custom response properties
+		expect(result.response).toBeDefined();
+		expect(result.response).not.toHaveProperty('rawApiKey');
 	});
 
 	it('should auto-promote to private tier when domain is in AllowedPrivateDomains', async () => {
@@ -155,7 +156,6 @@ describe('Post-Confirmation Handler', () => {
 
 		const record = mockPutUserRecord.mock.calls[0][0];
 		expect(record.tier).toBe('private');
-		expect(result.response.rawApiKey).toBe(FIXED_RAW_KEY);
 	});
 
 	it('should reject registration when email domain is in BlockedEmailDomains', async () => {
@@ -190,7 +190,6 @@ describe('Post-Confirmation Handler', () => {
 		const result = await handler(event);
 
 		expect(mockPutUserRecord).toHaveBeenCalledTimes(1);
-		expect(result.response.rawApiKey).toBe(FIXED_RAW_KEY);
 	});
 
 	it('should reject registration when country is in BlockedCountries', async () => {
@@ -227,7 +226,6 @@ describe('Post-Confirmation Handler', () => {
 		const result = await handler(event);
 
 		expect(mockPutUserRecord).toHaveBeenCalledTimes(1);
-		expect(result.response.rawApiKey).toBe(FIXED_RAW_KEY);
 	});
 
 	it('should create DynamoDB record with correct format', async () => {
@@ -273,7 +271,7 @@ describe('Post-Confirmation Handler', () => {
 		});
 	});
 
-	it('should return raw API key in event.response.rawApiKey', async () => {
+	it('should not add custom properties to event.response (Cognito rejects unknown fields)', async () => {
 		setupSsmMock();
 		mockPutUserRecord.mockResolvedValue();
 		mockCognitoSend.mockResolvedValue({});
@@ -281,7 +279,10 @@ describe('Post-Confirmation Handler', () => {
 		const event = createEvent();
 		const result = await handler(event);
 
-		expect(result.response.rawApiKey).toBe(FIXED_RAW_KEY);
-		expect(result.response.rawApiKey).toMatch(/^atl_[0-9a-f]{32}$/);
+		// Cognito throws InvalidLambdaResponseException for unknown response fields
+		expect(result.response).not.toHaveProperty('rawApiKey');
+		// The returned object should be the original event
+		expect(result.triggerSource).toBe('PostConfirmation_ConfirmSignUp');
+		expect(result.userPoolId).toBe('us-east-1_TestPool');
 	});
 });
