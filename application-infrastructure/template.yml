@@ -836,6 +836,7 @@ Resources:
           USERS_TABLE: !Ref UsersTable
           PARAM_STORE_PATH: !Ref ParameterStoreHierarchy
           DEPLOY_ENVIRONMENT: !Ref DeployEnvironment
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPool
 
       Events:
         CognitoPostConfirmation:

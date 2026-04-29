@@ -354,7 +354,7 @@ footer {
 .auth-form .btn-secondary,
 .profile-section .btn-secondary,
 .btn-secondary {
-  background: linear-gradient(135deg, #6b6b80 0%, #555568 100%);
+  background: linear-gradient(135deg, #424286 0%, #24244e 100%);
   box-shadow: 0 2px 6px rgba(107, 107, 128, 0.25);
 }
 
