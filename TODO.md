@@ -1,7 +1,8 @@
 # TODO
 
 - [ ] Update Architecture
-- [ ] Fix Auth function - confirmation
+- [ ] Update user documentation to include auth info
+- [ ] Update account profile timeout, with auto page refresh and aria notification
 - [ ] Add additional debug logging to auth function
 - [ ] Add more logging and lambda console to stack outputs
 
@@ -10,4 +11,4 @@
 
 - [ ] Subscriptions
 - [ ] Show stats including ip history on user profile
-- [ ] Refactor documentation indexer to use CacheData, and XRay
+- [ ] Refactor documentation indexer and auth to use CacheData, and XRay
