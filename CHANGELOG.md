@@ -7,7 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [v0.0.3] (unreleased)
 
-TODO
+### Added
+- Authentication: Now users can register for free to increase their hourly rate limit.
+  - Registration mechanism with email loop verification
+  - User profile with API key generation for MCP auth
+  - Promotion code redemption (for admins to grant temporary paid access)
+  - Subscription to Paid tier coming later.
+- Uses Amazon Cognito for authentication
 
 ## [v0.0.2] (2026-04-09)
 
