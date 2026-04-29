@@ -279,60 +279,93 @@ footer {
 
 .auth-form input[type="email"],
 .auth-form input[type="password"],
-.auth-form input[type="text"] {
+.auth-form input[type="text"],
+.profile-section input[type="text"] {
   width: 100%;
-  padding: 0.6rem 0.75rem;
-  border: 1px solid #d0d0d8;
-  border-radius: 6px;
-  font-size: 0.95rem;
+  padding: 0.75rem 1rem;
+  border: 2px solid #e0e0e8;
+  border-radius: 8px;
+  font-size: 1rem;
   font-family: inherit;
   color: #1a1a2e;
-  background: #f8f9fa;
-  transition: border-color 0.15s;
+  background: #fff;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 
-.auth-form input:focus {
+.auth-form input:focus,
+.profile-section input:focus {
   outline: none;
   border-color: #4a6cf7;
   box-shadow: 0 0 0 3px rgba(74, 108, 247, 0.15);
 }
 
-.auth-form .btn {
+.auth-form .btn,
+.profile-section .btn,
+.btn {
   display: inline-block;
-  padding: 0.65rem 1.5rem;
-  background: #4a6cf7;
+  padding: 0.7rem 1.75rem;
+  background: linear-gradient(135deg, #4a6cf7 0%, #3a5ce5 100%);
   color: #fff;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   font-size: 0.95rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: all 0.2s ease;
   font-family: inherit;
+  box-shadow: 0 2px 6px rgba(74, 108, 247, 0.25);
+  letter-spacing: 0.01em;
 }
 
 .auth-form .btn:hover,
-.auth-form .btn:focus {
-  background: #3a5ce5;
+.profile-section .btn:hover,
+.btn:hover,
+.auth-form .btn:focus,
+.profile-section .btn:focus,
+.btn:focus {
+  background: linear-gradient(135deg, #3a5ce5 0%, #2e4fd4 100%);
+  box-shadow: 0 4px 12px rgba(74, 108, 247, 0.35);
+  transform: translateY(-1px);
 }
 
-.auth-form .btn:focus-visible {
+.auth-form .btn:focus-visible,
+.profile-section .btn:focus-visible,
+.btn:focus-visible {
   outline: 2px solid #4a6cf7;
   outline-offset: 2px;
 }
 
-.auth-form .btn:disabled {
-  background: #a0a0b8;
-  cursor: not-allowed;
+.auth-form .btn:active,
+.profile-section .btn:active,
+.btn:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 4px rgba(74, 108, 247, 0.2);
 }
 
-.auth-form .btn-secondary {
-  background: #6b6b80;
+.auth-form .btn:disabled,
+.profile-section .btn:disabled,
+.btn:disabled {
+  background: #a0a0b8;
+  box-shadow: none;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.auth-form .btn-secondary,
+.profile-section .btn-secondary,
+.btn-secondary {
+  background: linear-gradient(135deg, #6b6b80 0%, #555568 100%);
+  box-shadow: 0 2px 6px rgba(107, 107, 128, 0.25);
 }
 
 .auth-form .btn-secondary:hover,
-.auth-form .btn-secondary:focus {
-  background: #555568;
+.profile-section .btn-secondary:hover,
+.btn-secondary:hover,
+.auth-form .btn-secondary:focus,
+.profile-section .btn-secondary:focus,
+.btn-secondary:focus {
+  background: linear-gradient(135deg, #555568 0%, #444458 100%);
+  box-shadow: 0 4px 12px rgba(107, 107, 128, 0.35);
 }
 
 .auth-form .form-footer {
@@ -500,6 +533,8 @@ footer {
 
 .inline-form .btn {
   flex-shrink: 0;
+  align-self: flex-end;
+  margin-bottom: 1px;
 }
 
 /* Manage Account link in footer */
@@ -507,19 +542,22 @@ footer {
 footer .manage-account-link {
   display: inline-block;
   margin-bottom: 0.75rem;
-  padding: 0.5rem 1.25rem;
-  background: #4a6cf7;
+  padding: 0.7rem 1.75rem;
+  background: linear-gradient(135deg, #4a6cf7 0%, #3a5ce5 100%);
   color: #fff;
-  border-radius: 6px;
+  border-radius: 8px;
   text-decoration: none;
   font-size: 0.85rem;
   font-weight: 600;
-  transition: background 0.15s;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 6px rgba(74, 108, 247, 0.25);
 }
 
 footer .manage-account-link:hover,
 footer .manage-account-link:focus {
-  background: #3a5ce5;
+  background: linear-gradient(135deg, #3a5ce5 0%, #2e4fd4 100%);
+  box-shadow: 0 4px 12px rgba(74, 108, 247, 0.35);
+  transform: translateY(-1px);
 }
 
 footer .manage-account-link:focus-visible {

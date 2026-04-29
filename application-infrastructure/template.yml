@@ -666,23 +666,6 @@ Resources:
             Method: post
             RestApiId: !Ref WebApi
 
-  # -- Write Lambda Function (Phase 2 - Placeholder) --
-  # Uncomment and configure in Phase 2 for write operations
-  # WriteLambdaFunction:
-  #   Type: AWS::Serverless::Function
-  #   Properties:
-  #     FunctionName: !Sub '${Prefix}-${ProjectId}-${StageId}-WriteFunction'
-  #     Description: "MCP Server Write Operations - Repository creation, template modification"
-  #     CodeUri: src/lambda/write/
-  #     Handler: index.handler
-  #     Runtime: nodejs24.x
-  #     Architectures:
-  #       - !Ref FunctionArchitecture
-  #     Timeout: !Ref FunctionTimeOutInSeconds
-  #     MemorySize: !Ref FunctionMaxMemoryInMB
-  #     Role: !GetAtt WriteLambdaExecutionRole.Arn
-  #     # ... additional configuration for write operations
-
   # -- DynamoDB Sessions Table for Rate Limiting --
   # Stores per-client rate limit counters with atomic updates and TTL cleanup
 

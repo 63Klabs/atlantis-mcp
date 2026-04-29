@@ -69,7 +69,7 @@
         <form id="voucher-form" class="inline-form" novalidate>
           <div class="form-group">
             <label for="voucher-code">Enter code</label>
-            <input type="text" id="voucher-code" name="code" required aria-required="true" placeholder="e.g. SUMMER2025">
+            <input type="text" id="voucher-code" name="code" required aria-required="true" placeholder="e.g. EXAMPLE2025">
           </div>
           <button type="submit" class="btn" id="voucher-btn">Redeem</button>
         </form>
@@ -96,6 +96,14 @@
 
 <script>
   document.getElementById('copyright-year').textContent = new Date().getFullYear();
+</script>
+<script>
+  (function() {
+    var voucherInput = document.getElementById('voucher-code');
+    if (voucherInput) {
+      voucherInput.placeholder = 'e.g. EXAMPLE' + new Date().getFullYear();
+    }
+  })();
 </script>
 <script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6/dist/amazon-cognito-identity.min.js"></script>
 <script>
