@@ -1,5 +1,5 @@
 // Bugfix: 0-0-1-auth-lambda-missing-cognito-env-var
-// Property 1: Bug Condition - Auth Lambda Missing COGNITO_USER_POOL_ID
+// Property 1: SSM-Based Approach - Auth Lambda Uses SSM Instead of Env Var for Cognito User Pool ID
 // Property 2: Preservation - Existing Environment Variables and Resources Unchanged
 'use strict';
 
@@ -47,22 +47,24 @@ function loadTemplate() {
 // Parse the template once before all tests
 const template = loadTemplate();
 
-describe('Property 1: Bug Condition - Auth Lambda Missing COGNITO_USER_POOL_ID', () => {
+describe('Property 1: SSM-Based Approach - Auth Lambda Uses SSM Instead of Env Var', () => {
 
 	/**
-	 * **Validates: Requirements 1.1, 1.2, 1.3, 2.1, 2.2, 2.3**
+	 * **Validates: Requirements 3.6**
 	 *
-	 * The AuthLambdaFunction environment variables MUST contain
-	 * COGNITO_USER_POOL_ID so that validateJwt() can construct the
-	 * JWKS URL and verify tokens at runtime.
+	 * The AuthLambdaFunction environment variables MUST NOT contain
+	 * COGNITO_USER_POOL_ID. Adding !Ref CognitoUserPool to the Auth
+	 * Lambda's env vars would create a circular dependency because the
+	 * Auth Lambda already references CognitoUserPool via the
+	 * CognitoPostConfirmation event trigger.
 	 */
-	it('AuthLambdaFunction environment variables contain COGNITO_USER_POOL_ID', () => {
+	it('Auth Lambda does NOT have COGNITO_USER_POOL_ID in its environment variables', () => {
 		fc.assert(
 			fc.property(
 				fc.constant(template),
 				(tmpl) => {
 					const authEnvVars = tmpl.Resources.AuthLambdaFunction.Properties.Environment.Variables;
-					expect(authEnvVars).toHaveProperty('COGNITO_USER_POOL_ID');
+					expect(authEnvVars).not.toHaveProperty('COGNITO_USER_POOL_ID');
 				}
 			),
 			{ numRuns: 1 }
@@ -72,18 +74,20 @@ describe('Property 1: Bug Condition - Auth Lambda Missing COGNITO_USER_POOL_ID',
 	/**
 	 * **Validates: Requirements 2.1, 2.2, 2.3**
 	 *
-	 * The COGNITO_USER_POOL_ID value MUST reference the CognitoUserPool
-	 * resource via !Ref so the Lambda receives the actual User Pool ID
-	 * at deploy time.
+	 * The CognitoUserPoolIdParameter SSM resource MUST exist in the
+	 * template and its Value MUST reference CognitoUserPool via !Ref.
+	 * This SSM parameter is how the Auth Lambda retrieves the User Pool
+	 * ID at runtime without creating a circular dependency.
 	 */
-	it('COGNITO_USER_POOL_ID references CognitoUserPool via !Ref', () => {
+	it('CognitoUserPoolIdParameter SSM resource exists and stores !Ref CognitoUserPool', () => {
 		fc.assert(
 			fc.property(
 				fc.constant(template),
 				(tmpl) => {
-					const authEnvVars = tmpl.Resources.AuthLambdaFunction.Properties.Environment.Variables;
-					const cognitoRef = authEnvVars.COGNITO_USER_POOL_ID;
-					expect(cognitoRef).toEqual({ Ref: 'CognitoUserPool' });
+					const ssmResource = tmpl.Resources.CognitoUserPoolIdParameter;
+					expect(ssmResource).toBeDefined();
+					expect(ssmResource.Type).toBe('AWS::SSM::Parameter');
+					expect(ssmResource.Properties.Value).toEqual({ Ref: 'CognitoUserPool' });
 				}
 			),
 			{ numRuns: 1 }
@@ -91,20 +95,19 @@ describe('Property 1: Bug Condition - Auth Lambda Missing COGNITO_USER_POOL_ID',
 	});
 
 	/**
-	 * **Validates: Requirements 1.1, 1.2, 1.3** (confirms asymmetry)
+	 * **Validates: Requirements 2.1, 2.2, 2.3**
 	 *
-	 * The ReadLambdaFunction already has COGNITO_USER_POOL_ID configured
-	 * correctly. This test confirms the asymmetry: the Read Lambda works
-	 * while the Auth Lambda is missing the variable.
+	 * The Auth Lambda MUST have PARAM_STORE_PATH in its environment
+	 * variables. This is needed for the SSM-based retrieval of the
+	 * Cognito User Pool ID at runtime.
 	 */
-	it('ReadLambdaFunction already has COGNITO_USER_POOL_ID referencing CognitoUserPool', () => {
+	it('Auth Lambda has PARAM_STORE_PATH env var for SSM retrieval', () => {
 		fc.assert(
 			fc.property(
 				fc.constant(template),
 				(tmpl) => {
-					const readEnvVars = tmpl.Resources.ReadLambdaFunction.Properties.Environment.Variables;
-					expect(readEnvVars).toHaveProperty('COGNITO_USER_POOL_ID');
-					expect(readEnvVars.COGNITO_USER_POOL_ID).toEqual({ Ref: 'CognitoUserPool' });
+					const authEnvVars = tmpl.Resources.AuthLambdaFunction.Properties.Environment.Variables;
+					expect(authEnvVars).toHaveProperty('PARAM_STORE_PATH');
 				}
 			),
 			{ numRuns: 1 }

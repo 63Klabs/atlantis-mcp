@@ -34,34 +34,46 @@
   - Mark task complete when tests are written, run, and passing on unfixed code
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
 
-- [x] 3. Fix Auth Lambda missing COGNITO_USER_POOL_ID environment variable
+- [x] 3. Update property tests for SSM-based approach
+  - **REVISED APPROACH**: The original env var approach (`!Ref CognitoUserPool`) creates a circular dependency. The fix uses SSM Parameter Store instead.
+  - Update `application-infrastructure/src/lambda/auth/tests/property/cognito-env-var.property.test.js`
+  - Replace Property 1 bug condition tests: instead of checking for `COGNITO_USER_POOL_ID` in Auth Lambda env vars, verify that Auth Lambda does NOT have `COGNITO_USER_POOL_ID` in its env vars (this prevents the circular dependency)
+  - Add new property test: verify `CognitoUserPoolIdParameter` SSM resource exists in the template and stores `!Ref CognitoUserPool`
+  - Add new property test: verify Auth Lambda has `PARAM_STORE_PATH` env var (needed for SSM retrieval at runtime)
+  - Keep existing preservation tests unchanged (Auth Lambda env vars, Read Lambda env vars, Auth Lambda events)
+  - Run all property tests and verify they pass
+  - _Requirements: 2.1, 2.2, 2.3, 3.1, 3.2, 3.3, 3.4, 3.5, 3.6_
 
-  - [x] 3.1 Implement the fix
-    - Add `COGNITO_USER_POOL_ID: !Ref CognitoUserPool` to `AuthLambdaFunction.Properties.Environment.Variables` in `application-infrastructure/template.yml`
-    - Place it after the existing `DEPLOY_ENVIRONMENT` variable, matching the pattern used by the Read Lambda
-    - This is a single-line addition — no other files or resources are modified
-    - _Bug_Condition: isBugCondition(template) where 'COGNITO_USER_POOL_ID' NOT IN AuthLambdaFunction.Properties.Environment.Variables_
-    - _Expected_Behavior: AuthLambdaFunction.Properties.Environment.Variables contains COGNITO_USER_POOL_ID referencing CognitoUserPool_
-    - _Preservation: Auth Lambda retains USERS_TABLE, PARAM_STORE_PATH, DEPLOY_ENVIRONMENT; Read Lambda retains COGNITO_USER_POOL_ID; Auth Lambda retains CognitoPostConfirmation, KeyRegenerate, VoucherRedeem events_
-    - _Requirements: 1.1, 1.2, 1.3, 2.1, 2.2, 2.3, 3.1, 3.2, 3.3, 3.4, 3.5_
+- [x] 4. Implement SSM-based User Pool ID retrieval in jwt-validator.js
+  - Modify `application-infrastructure/src/lambda/auth/utils/jwt-validator.js`
+  - Add SSM client import (`@aws-sdk/client-ssm` — already a devDependency)
+  - Add module-level SSM cache for the User Pool ID (5-minute TTL, matching `key-regenerate.js` pattern)
+  - Modify `validateJwt()`: check `process.env.COGNITO_USER_POOL_ID` first; if undefined, retrieve from SSM at `{PARAM_STORE_PATH}app-stack/Mcp_CognitoUserPoolId`
+  - Make `validateJwt()` remain async (it already is)
+  - Export the SSM retrieval function via TestHarness for testing
+  - _Requirements: 2.1, 2.2, 2.3_
 
-  - [x] 3.2 Verify bug condition exploration test now passes
-    - **Property 1: Expected Behavior** - Auth Lambda Has COGNITO_USER_POOL_ID
-    - **IMPORTANT**: Re-run the SAME test from task 1 - do NOT write a new test
-    - The test from task 1 encodes the expected behavior (Auth Lambda has COGNITO_USER_POOL_ID referencing CognitoUserPool)
-    - When this test passes, it confirms the expected behavior is satisfied
-    - Run bug condition exploration test from step 1
-    - **EXPECTED OUTCOME**: Test PASSES (confirms bug is fixed)
-    - _Requirements: 2.1, 2.2, 2.3_
+- [x] 5. Update key-regenerate.js to use SSM for User Pool ID
+  - Modify `application-infrastructure/src/lambda/auth/handlers/key-regenerate.js`
+  - Replace `const userPoolId = process.env.COGNITO_USER_POOL_ID` with `const userPoolId = await getCachedSsmParam('app-stack/Mcp_CognitoUserPoolId')`
+  - The `getCachedSsmParam` function already exists in this file and handles caching
+  - _Requirements: 2.4_
 
-  - [x] 3.3 Verify preservation tests still pass
-    - **Property 2: Preservation** - Existing Environment Variables and Resources Unchanged
-    - **IMPORTANT**: Re-run the SAME tests from task 2 - do NOT write new tests
-    - Run preservation property tests from step 2
-    - **EXPECTED OUTCOME**: Tests PASS (confirms no regressions)
-    - Confirm all preservation tests still pass after fix (no regressions to existing env vars, Read Lambda config, or Auth Lambda event sources)
+- [x] 6. Update voucher-redeem.js to use SSM for User Pool ID
+  - Modify `application-infrastructure/src/lambda/auth/handlers/voucher-redeem.js`
+  - Add SSM client import and `getCachedSsmParam` function (same pattern as `key-regenerate.js`)
+  - Replace `const userPoolId = process.env.COGNITO_USER_POOL_ID` with `const userPoolId = await getCachedSsmParam('app-stack/Mcp_CognitoUserPoolId')`
+  - _Requirements: 2.5_
 
-- [x] 4. Checkpoint - Ensure all tests pass
-  - Run the full property test suite for the auth lambda: `npx jest --config application-infrastructure/src/jest.config.js -- application-infrastructure/src/lambda/auth/tests/property/cognito-env-var.property.test.js`
-  - Run existing auth lambda unit tests to confirm no regressions: `npx jest --config application-infrastructure/src/jest.config.js -- application-infrastructure/src/lambda/auth/tests/unit/`
+- [x] 7. Update unit tests for the SSM-based approach
+  - Update `application-infrastructure/src/lambda/auth/tests/unit/jwt-validator.test.js` to test SSM fallback behavior
+  - Update `application-infrastructure/src/lambda/auth/tests/unit/key-regenerate.test.js` to mock SSM for User Pool ID retrieval
+  - Update `application-infrastructure/src/lambda/auth/tests/unit/voucher-redeem.test.js` to mock SSM for User Pool ID retrieval
+  - Ensure tests cover: SSM retrieval when env var is undefined, env var takes precedence when set, SSM caching works
+  - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5_
+
+- [x] 8. Checkpoint - Ensure all tests pass
+  - Run the full property test suite: `npx jest --config application-infrastructure/src/jest.config.js -- application-infrastructure/src/lambda/auth/tests/property/cognito-env-var.property.test.js`
+  - Run all auth lambda unit tests: `npx jest --config application-infrastructure/src/jest.config.js -- application-infrastructure/src/lambda/auth/tests/unit/`
+  - Run all auth lambda property tests: `npx jest --config application-infrastructure/src/jest.config.js -- application-infrastructure/src/lambda/auth/tests/property/`
   - Ensure all tests pass, ask the user if questions arise.

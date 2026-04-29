@@ -11,11 +11,49 @@
 
 'use strict';
 
+const { SSMClient, GetParameterCommand } = require('@aws-sdk/client-ssm');
 const { CognitoIdentityProviderClient, AdminUpdateUserAttributesCommand } = require('@aws-sdk/client-cognito-identity-provider');
 const { validateJwt } = require('../utils/jwt-validator');
 const { queryByEmail, getVoucher, incrementVoucherUses, updateUserTier } = require('../utils/dynamo-client');
 
+const ssmClient = new SSMClient({});
 const cognitoClient = new CognitoIdentityProviderClient({});
+
+/* ------------------------------------------------------------------ */
+/*  SSM Parameter Cache                                               */
+/* ------------------------------------------------------------------ */
+
+/** @type {Object.<string, {value: string, time: number}>} */
+const ssmCache = {};
+
+/** SSM cache TTL in milliseconds (5 minutes) */
+const SSM_CACHE_TTL = 5 * 60 * 1000;
+
+/**
+ * Retrieve an SSM parameter with module-level caching.
+ *
+ * @param {string} paramName - Parameter name (appended to PARAM_STORE_PATH)
+ * @returns {Promise<string>} Parameter value
+ * @example
+ * const userPoolId = await getCachedSsmParam('app-stack/Mcp_CognitoUserPoolId');
+ */
+async function getCachedSsmParam(paramName) {
+	const now = Date.now();
+	const cached = ssmCache[paramName];
+	if (cached && (now - cached.time) < SSM_CACHE_TTL) {
+		return cached.value;
+	}
+
+	const fullPath = process.env.PARAM_STORE_PATH + paramName;
+	const result = await ssmClient.send(new GetParameterCommand({
+		Name: fullPath,
+		WithDecryption: true
+	}));
+
+	const value = result.Parameter.Value;
+	ssmCache[paramName] = { value, time: now };
+	return value;
+}
 
 /* ------------------------------------------------------------------ */
 /*  Voucher Validation Helpers                                        */
@@ -130,7 +168,7 @@ async function handler(event) {
 
 		const email = payload.email;
 		const cognitoSub = payload.sub;
-		const userPoolId = process.env.COGNITO_USER_POOL_ID;
+		const userPoolId = await getCachedSsmParam('app-stack/Mcp_CognitoUserPoolId');
 
 		// >! Look up user record by email using GSI
 		const existingRecords = await queryByEmail(email);
@@ -201,16 +239,19 @@ class TestHarness {
 	 * Get access to internal functions for testing purposes.
 	 * WARNING: This method is for testing only and should never be used in production.
 	 *
-	 * @returns {{validateVoucher: Function}} Object containing internal functions
+	 * @returns {{validateVoucher: Function, getCachedSsmParam: Function, ssmCache: Object, SSM_CACHE_TTL: number}} Object containing internal functions
 	 * @private
 	 * @example
 	 * // In tests only — DO NOT use in production
 	 * const { TestHarness } = require('../handlers/voucher-redeem');
-	 * const { validateVoucher } = TestHarness.getInternals();
+	 * const { validateVoucher, getCachedSsmParam } = TestHarness.getInternals();
 	 */
 	static getInternals() {
 		return {
-			validateVoucher
+			validateVoucher,
+			getCachedSsmParam,
+			ssmCache,
+			SSM_CACHE_TTL
 		};
 	}
 }

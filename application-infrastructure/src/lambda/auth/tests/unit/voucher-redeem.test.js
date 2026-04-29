@@ -10,6 +10,15 @@ jest.mock('@aws-sdk/client-cognito-identity-provider', () => {
 	};
 });
 
+// Mock @aws-sdk/client-ssm for User Pool ID retrieval
+const mockSsmSend = jest.fn();
+jest.mock('@aws-sdk/client-ssm', () => {
+	return {
+		SSMClient: jest.fn().mockImplementation(() => ({ send: mockSsmSend })),
+		GetParameterCommand: jest.fn().mockImplementation((params) => params)
+	};
+});
+
 // Mock ../utils/dynamo-client
 const mockQueryByEmail = jest.fn();
 const mockGetVoucher = jest.fn();
@@ -28,7 +37,7 @@ jest.mock('../../utils/jwt-validator', () => ({
 	validateJwt: mockValidateJwt
 }));
 
-const { handler } = require('../../handlers/voucher-redeem');
+const { handler, TestHarness } = require('../../handlers/voucher-redeem');
 const { AdminUpdateUserAttributesCommand } = require('@aws-sdk/client-cognito-identity-provider');
 
 /* ------------------------------------------------------------------ */
@@ -83,9 +92,24 @@ describe('Voucher Redemption Handler', () => {
 	beforeEach(() => {
 		process.env = {
 			...originalEnv,
-			COGNITO_USER_POOL_ID: 'us-east-1_TestPool'
+			PARAM_STORE_PATH: '/test/path/'
 		};
+
+		// >! Clear SSM cache between tests to avoid stale parameter values
+		const { ssmCache } = TestHarness.getInternals();
+		for (const key of Object.keys(ssmCache)) {
+			delete ssmCache[key];
+		}
+
 		jest.clearAllMocks();
+
+		// Mock SSM to return the User Pool ID
+		mockSsmSend.mockImplementation((cmd) => {
+			if (cmd.Name && cmd.Name.endsWith('Mcp_CognitoUserPoolId')) {
+				return Promise.resolve({ Parameter: { Value: 'us-east-1_TestPool' } });
+			}
+			return Promise.reject(new Error(`Unexpected SSM param: ${cmd.Name}`));
+		});
 	});
 
 	afterEach(() => {

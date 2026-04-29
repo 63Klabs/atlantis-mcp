@@ -99,7 +99,7 @@ async function handler(event) {
 
 		const email = payload.email;
 		const cognitoSub = payload.sub;
-		const userPoolId = process.env.COGNITO_USER_POOL_ID;
+		const userPoolId = await getCachedSsmParam('app-stack/Mcp_CognitoUserPoolId');
 
 		// >! Look up existing user record by email using GSI
 		const existingRecords = await queryByEmail(email);

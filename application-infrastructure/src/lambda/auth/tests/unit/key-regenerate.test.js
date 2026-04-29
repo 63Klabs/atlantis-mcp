@@ -72,12 +72,15 @@ function createEvent(overrides = {}) {
 }
 
 /**
- * Configure mockSsmSend to return the hash salt.
+ * Configure mockSsmSend to return the hash salt and User Pool ID.
  */
 function setupSsmMock() {
 	mockSsmSend.mockImplementation((cmd) => {
 		if (cmd.Name && cmd.Name.endsWith('Mcp_ApiKeyHashSalt')) {
 			return Promise.resolve({ Parameter: { Value: FIXED_SALT } });
+		}
+		if (cmd.Name && cmd.Name.endsWith('Mcp_CognitoUserPoolId')) {
+			return Promise.resolve({ Parameter: { Value: 'us-east-1_TestPool' } });
 		}
 		return Promise.reject(new Error(`Unexpected SSM param: ${cmd.Name}`));
 	});
@@ -94,8 +97,7 @@ describe('Key Regeneration Handler', () => {
 		process.env = {
 			...originalEnv,
 			PARAM_STORE_PATH: '/test/path/',
-			USERS_TABLE: 'test-Users',
-			COGNITO_USER_POOL_ID: 'us-east-1_TestPool'
+			USERS_TABLE: 'test-Users'
 		};
 
 		// >! Clear SSM cache between tests to avoid stale parameter values

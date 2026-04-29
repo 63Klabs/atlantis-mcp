@@ -15,6 +15,9 @@
 
 const crypto = require('crypto');
 const https = require('https');
+const { SSMClient, GetParameterCommand } = require('@aws-sdk/client-ssm');
+
+const ssmClient = new SSMClient({});
 
 /** @type {Object|null} Cached JWKS keys, keyed by kid */
 let jwksCache = null;
@@ -24,6 +27,15 @@ let jwksCacheTime = 0;
 
 /** JWKS cache TTL in milliseconds (1 hour) */
 const JWKS_CACHE_TTL = 60 * 60 * 1000;
+
+/** @type {string|null} Cached User Pool ID from SSM */
+let cachedUserPoolId = null;
+
+/** @type {number} Timestamp when User Pool ID cache was last refreshed */
+let userPoolIdCacheTime = 0;
+
+/** User Pool ID cache TTL in milliseconds (5 minutes) */
+const USER_POOL_ID_CACHE_TTL = 5 * 60 * 1000;
 
 /**
  * Fetch JWKS from the Cognito endpoint.
@@ -72,6 +84,54 @@ async function getJwks(userPoolId) {
 	jwksCache = await fetchJwks(userPoolId);
 	jwksCacheTime = now;
 	return jwksCache;
+}
+
+/**
+ * Retrieve the Cognito User Pool ID, checking the environment variable
+ * first (Read Lambda path), then falling back to SSM Parameter Store
+ * with module-level caching (Auth Lambda path).
+ *
+ * @private
+ * @returns {Promise<string>} Cognito User Pool ID
+ * @throws {Object} Error with statusCode 401 if SSM retrieval fails
+ */
+async function getUserPoolId() {
+	// >! Check environment variable first (Read Lambda has this set)
+	const envPoolId = process.env.COGNITO_USER_POOL_ID;
+	if (envPoolId) {
+		return envPoolId;
+	}
+
+	// >! Check cache for SSM-retrieved value
+	const now = Date.now();
+	if (cachedUserPoolId && (now - userPoolIdCacheTime) < USER_POOL_ID_CACHE_TTL) {
+		return cachedUserPoolId;
+	}
+
+	// >! Retrieve from SSM Parameter Store
+	try {
+		const fullPath = process.env.PARAM_STORE_PATH + 'app-stack/Mcp_CognitoUserPoolId';
+		const result = await ssmClient.send(new GetParameterCommand({
+			Name: fullPath,
+			WithDecryption: true
+		}));
+
+		cachedUserPoolId = result.Parameter.Value;
+		userPoolIdCacheTime = now;
+		return cachedUserPoolId;
+	} catch (err) {
+		throw { statusCode: 401, message: 'Authentication not configured' };
+	}
+}
+
+/**
+ * Clear the cached User Pool ID. Useful for testing.
+ *
+ * @private
+ */
+function clearUserPoolIdCache() {
+	cachedUserPoolId = null;
+	userPoolIdCacheTime = 0;
 }
 
 /**
@@ -207,10 +267,7 @@ function extractBearerToken(authHeader) {
  * }
  */
 async function validateJwt(event) {
-	const userPoolId = process.env.COGNITO_USER_POOL_ID;
-	if (!userPoolId) {
-		throw { statusCode: 401, message: 'Authentication not configured' };
-	}
+	const userPoolId = await getUserPoolId();
 
 	const authHeader = event.headers?.Authorization || event.headers?.authorization;
 	const token = extractBearerToken(authHeader);
@@ -304,7 +361,7 @@ class TestHarness {
 	 * Get access to internal functions for testing purposes.
 	 * WARNING: This method is for testing only and should never be used in production.
 	 *
-	 * @returns {{fetchJwks: Function, getJwks: Function, base64urlDecode: Function, jwkToPem: Function, extractBearerToken: Function, clearJwksCache: Function}} Object containing internal functions
+	 * @returns {{fetchJwks: Function, getJwks: Function, base64urlDecode: Function, jwkToPem: Function, extractBearerToken: Function, clearJwksCache: Function, getUserPoolId: Function, clearUserPoolIdCache: Function, cachedUserPoolId: string|null, userPoolIdCacheTime: number, USER_POOL_ID_CACHE_TTL: number}} Object containing internal functions
 	 * @private
 	 */
 	static getInternals() {
@@ -314,7 +371,12 @@ class TestHarness {
 			base64urlDecode,
 			jwkToPem,
 			extractBearerToken,
-			clearJwksCache
+			clearJwksCache,
+			getUserPoolId,
+			clearUserPoolIdCache,
+			get cachedUserPoolId() { return cachedUserPoolId; },
+			get userPoolIdCacheTime() { return userPoolIdCacheTime; },
+			USER_POOL_ID_CACHE_TTL
 		};
 	}
 }

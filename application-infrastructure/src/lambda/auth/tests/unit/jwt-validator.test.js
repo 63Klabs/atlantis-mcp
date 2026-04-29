@@ -93,8 +93,17 @@ jest.mock('https', () => {
 	};
 });
 
+// Mock @aws-sdk/client-ssm for SSM fallback tests
+const mockSsmSend = jest.fn();
+jest.mock('@aws-sdk/client-ssm', () => {
+	return {
+		SSMClient: jest.fn().mockImplementation(() => ({ send: mockSsmSend })),
+		GetParameterCommand: jest.fn().mockImplementation((params) => params)
+	};
+});
+
 const { validateJwt, TestHarness } = require('../../utils/jwt-validator');
-const { clearJwksCache } = TestHarness.getInternals();
+const { clearJwksCache, clearUserPoolIdCache } = TestHarness.getInternals();
 
 describe('JWT Validator', () => {
 	const originalEnv = process.env;
@@ -102,6 +111,7 @@ describe('JWT Validator', () => {
 	beforeEach(() => {
 		process.env = { ...originalEnv, COGNITO_USER_POOL_ID: TEST_USER_POOL_ID };
 		clearJwksCache();
+		clearUserPoolIdCache();
 
 		// Mock https.get to return test JWKS
 		https.get.mockImplementation((url, callback) => {
@@ -119,6 +129,8 @@ describe('JWT Validator', () => {
 			callback(res);
 			return { on: jest.fn() };
 		});
+
+		jest.clearAllMocks();
 	});
 
 	afterEach(() => {
@@ -224,8 +236,10 @@ describe('JWT Validator', () => {
 		);
 	});
 
-	it('should reject when COGNITO_USER_POOL_ID is not set', async () => {
+	it('should reject when COGNITO_USER_POOL_ID is not set and SSM fails', async () => {
 		delete process.env.COGNITO_USER_POOL_ID;
+		delete process.env.PARAM_STORE_PATH;
+		mockSsmSend.mockRejectedValue(new Error('SSM parameter not found'));
 		const token = createTestJwt();
 		const event = { headers: { Authorization: `Bearer ${token}` } };
 
@@ -267,5 +281,59 @@ describe('JWT Validator', () => {
 
 		// https.get should only be called once (JWKS cached after first call)
 		expect(https.get).toHaveBeenCalledTimes(1);
+	});
+
+	describe('SSM fallback for User Pool ID', () => {
+		beforeEach(() => {
+			// Remove env var so SSM fallback is triggered
+			delete process.env.COGNITO_USER_POOL_ID;
+			process.env.PARAM_STORE_PATH = '/test/path/';
+			clearUserPoolIdCache();
+
+			// Mock SSM to return the test User Pool ID
+			mockSsmSend.mockResolvedValue({
+				Parameter: { Value: TEST_USER_POOL_ID }
+			});
+		});
+
+		it('should retrieve User Pool ID from SSM when env var is not set', async () => {
+			const token = createTestJwt();
+			const event = { headers: { Authorization: `Bearer ${token}` } };
+
+			const payload = await validateJwt(event);
+
+			expect(payload.sub).toBe('test-user-sub-123');
+			expect(payload.email).toBe('test@example.com');
+			expect(mockSsmSend).toHaveBeenCalledTimes(1);
+			expect(mockSsmSend).toHaveBeenCalledWith(
+				expect.objectContaining({
+					Name: '/test/path/app-stack/Mcp_CognitoUserPoolId',
+					WithDecryption: true
+				})
+			);
+		});
+
+		it('should cache SSM User Pool ID and not refetch on second call', async () => {
+			const token1 = createTestJwt();
+			const token2 = createTestJwt({}, { sub: 'second-user' });
+
+			await validateJwt({ headers: { Authorization: `Bearer ${token1}` } });
+			await validateJwt({ headers: { Authorization: `Bearer ${token2}` } });
+
+			// SSM should only be called once (cached after first call)
+			expect(mockSsmSend).toHaveBeenCalledTimes(1);
+		});
+
+		it('should prefer env var over SSM when both are available', async () => {
+			process.env.COGNITO_USER_POOL_ID = TEST_USER_POOL_ID;
+			const token = createTestJwt();
+			const event = { headers: { Authorization: `Bearer ${token}` } };
+
+			const payload = await validateJwt(event);
+
+			expect(payload.sub).toBe('test-user-sub-123');
+			// SSM should not be called when env var is set
+			expect(mockSsmSend).not.toHaveBeenCalled();
+		});
 	});
 });
