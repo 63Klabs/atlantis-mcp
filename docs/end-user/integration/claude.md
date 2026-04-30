@@ -71,6 +71,26 @@ Can you list available Atlantis templates?
 
 Claude should respond with a list of templates from the MCP server.
 
+## Adding Your API Key
+
+[Register for a free account](https://mcp.atlantis.63klabs.net/register/) to get an API key with higher [rate limits](https://mcp.atlantis.63klabs.net/docs/rate-limits/). After registration, copy your unique API key and add it to the configuration:
+
+```json
+{
+  "mcpServers": {
+    "atlantis": {
+      "url": "https://mcp.atlantis.63klabs.net/mcp/v1",
+      "headers": {
+        "x-api-key": "atl_your_api_key_here"
+      },
+      "description": "Atlantis Templates and Scripts Platform MCP Server"
+    }
+  }
+}
+```
+
+If you need to regenerate your key, visit your [profile page](https://mcp.atlantis.63klabs.net/profile/).
+
 ## Next Steps
 
 - [MCP Tools Reference](../tools/README.md) - Detailed tool documentation

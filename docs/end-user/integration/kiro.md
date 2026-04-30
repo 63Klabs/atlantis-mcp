@@ -47,6 +47,27 @@ In Kiro chat, ask:
 Show me available Atlantis templates
 ```
 
+## Adding Your API Key
+
+[Register for a free account](https://mcp.atlantis.63klabs.net/register/) to get an API key with higher [rate limits](https://mcp.atlantis.63klabs.net/docs/rate-limits/). After registration, copy your unique API key and add it to the configuration:
+
+```json
+{
+  "mcpServers": {
+    "atlantis": {
+      "url": "https://mcp.atlantis.63klabs.net/mcp/v1",
+      "headers": {
+        "x-api-key": "atl_your_api_key_here"
+      },
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
+```
+
+If you need to regenerate your key, visit your [profile page](https://mcp.atlantis.63klabs.net/profile/).
+
 ### Custom MCP Configuration File for Workspace
 
 Edit `.kiro/settings/mcp.json` in your workspace:
@@ -56,6 +77,9 @@ Edit `.kiro/settings/mcp.json` in your workspace:
   "mcpServers": {
     "atlantis": {
       "url": "https://mcp.atlantis.63klabs.net/mcp/v1",
+      "headers": {
+        "x-api-key": "atl_your_api_key_here"
+      },
       "disabled": false,
       "autoApprove": []
     }

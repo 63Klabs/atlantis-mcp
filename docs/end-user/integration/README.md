@@ -18,6 +18,27 @@ Before setting up any integration, ensure:
 2. You have the server URL (e.g., `https://mcp.atlantis.63klabs.net/mcp/v1`)
 3. Your AI assistant supports MCP or custom API actions
 
+## API Key Authentication
+
+The Atlantis MCP Server works without authentication at the public tier. Registering for an account and adding your API key to your MCP configuration unlocks higher rate limits and additional capabilities.
+
+| Tier | How to access |
+|------|---------------|
+| Public | No API key needed — connect and start using |
+| Registered | [Register for free](https://mcp.atlantis.63klabs.net/register/) and add your API key |
+| Paid / Private | Contact us or redeem a promotion code on your [profile page](https://mcp.atlantis.63klabs.net/profile/) |
+
+See the [rate limits page](https://mcp.atlantis.63klabs.net/docs/rate-limits/) for the full breakdown of request limits per tier.
+
+### Getting your API key
+
+1. [Register an account](https://mcp.atlantis.63klabs.net/register/)
+2. After registration you will receive a unique API key — copy it immediately (it is shown only once)
+3. If you lose your key, visit your [profile page](https://mcp.atlantis.63klabs.net/profile/) and regenerate it
+4. Add the key to your AI assistant's MCP configuration (see the individual integration guides below)
+
+Each integration guide includes the specific configuration for adding your API key.
+
 ---
 
 ## Related Documentation

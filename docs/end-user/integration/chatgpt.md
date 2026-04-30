@@ -81,6 +81,18 @@ Show me available CloudFormation templates
    - "Anyone with a link" for team sharing
    - "Public" for organization-wide access
 
+## Adding Your API Key
+
+[Register for a free account](https://mcp.atlantis.63klabs.net/register/) to get an API key with higher [rate limits](https://mcp.atlantis.63klabs.net/docs/rate-limits/). After registration, copy your unique API key and configure it in the Custom GPT:
+
+1. Open your Custom GPT for editing
+2. Go to "Configure" → "Actions"
+3. Under "Authentication", select "API Key"
+4. Set the header name to `x-api-key`
+5. Paste your API key as the value
+
+If you need to regenerate your key, visit your [profile page](https://mcp.atlantis.63klabs.net/profile/).
+
 ## Limitations
 
 - ChatGPT Plus/Enterprise required for Custom GPTs

@@ -104,6 +104,58 @@ Create or edit `.idea/amazonq.xml`:
 
 Follow same steps as VS Code above.
 
+## Adding Your API Key
+
+[Register for a free account](https://mcp.atlantis.63klabs.net/register/) to get an API key with higher [rate limits](https://mcp.atlantis.63klabs.net/docs/rate-limits/). After registration, copy your unique API key and add it to the configuration.
+
+### VS Code / Global Config
+
+Add the `headers` field to your `.amazonq/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "atlantis": {
+      "url": "https://mcp.atlantis.63klabs.net/mcp/v1",
+      "headers": {
+        "x-api-key": "atl_your_api_key_here"
+      },
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
+```
+
+### JetBrains
+
+Add the API key header to your `.idea/amazonq.xml`:
+
+```xml
+<component name="AmazonQSettings">
+  <option name="mcpServers">
+    <map>
+      <entry key="atlantis">
+        <value>
+          <McpServer>
+            <option name="url" value="https://mcp.atlantis.63klabs.net/mcp/v1" />
+            <option name="name" value="Atlantis Platform" />
+            <option name="enabled" value="true" />
+            <option name="headers">
+              <map>
+                <entry key="x-api-key" value="atl_your_api_key_here" />
+              </map>
+            </option>
+          </McpServer>
+        </value>
+      </entry>
+    </map>
+  </option>
+</component>
+```
+
+If you need to regenerate your key, visit your [profile page](https://mcp.atlantis.63klabs.net/profile/).
+
 ## Next Steps
 
 - [MCP Tools Reference](../tools/README.md)
