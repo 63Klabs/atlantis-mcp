@@ -753,6 +753,8 @@ Resources:
       TimeToLiveSpecification:
         AttributeName: ttl
         Enabled: true
+      StreamSpecification:
+        StreamViewType: OLD_IMAGE
       Tags:
         - Key: Environment
           Value: !Ref StageId
@@ -956,6 +958,103 @@ Resources:
       FunctionName: !Ref AuthLambdaFunction
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebApi}/*"
+
+  # -- Cleanup Lambda Function --
+  # Triggered by DynamoDB Streams on Users table to remove orphaned Cognito accounts on TTL deletions
+
+  CleanupFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${Prefix}-${ProjectId}-${StageId}-CleanupFunction'
+      Description: "Cleanup Lambda - Removes orphaned Cognito accounts on DynamoDB TTL deletions"
+      CodeUri: src/lambda/cleanup/
+      Handler: index.handler
+      Runtime: nodejs24.x
+      Architectures:
+        - !Ref FunctionArchitecture
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt CleanupExecutionRole.Arn
+
+      Environment:
+        Variables:
+          PARAM_STORE_PATH: !Ref ParameterStoreHierarchy
+          DEPLOY_ENVIRONMENT: !Ref DeployEnvironment
+
+      Events:
+        UsersTableStream:
+          Type: DynamoDB
+          Properties:
+            Stream: !GetAtt UsersTable.StreamArn
+            StartingPosition: LATEST
+            BatchSize: 10
+            MaximumBatchingWindowInSeconds: 30
+            MaximumRetryAttempts: 3
+            FunctionResponseTypes:
+              - ReportBatchItemFailures
+
+  # -- Cleanup Lambda Log Group --
+
+  CleanupLambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: !If [IsProduction, Retain, Delete]
+    UpdateReplacePolicy: Retain
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${Prefix}-${ProjectId}-${StageId}-CleanupFunction'
+      RetentionInDays: !If [ IsProduction, !Ref LogRetentionInDaysForPROD, !Ref LogRetentionInDaysForDEVTEST]
+
+  # -- Cleanup Lambda Execution Role --
+  # Least-privilege: DynamoDB Streams read on UsersTable, Cognito AdminDeleteUser, SSM GetParameter, CloudWatch Logs
+
+  CleanupExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${Prefix}-${ProjectId}-${StageId}-CleanupExecution"
+      Description: "IAM Role for Cleanup Lambda with DynamoDB Streams, Cognito, SSM, and CloudWatch Logs permissions"
+      Path: !Ref RolePath
+      PermissionsBoundary: !If [HasPermissionsBoundaryArn, !Ref PermissionsBoundaryArn, !Ref 'AWS::NoValue']
+
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: [lambda.amazonaws.com]
+          Action: sts:AssumeRole
+
+      Policies:
+      - PolicyName: CleanupLambdaResourceAccessPolicies
+        PolicyDocument:
+          Statement:
+
+          - Sid: DynamoDbStreamsRead
+            Action:
+            - dynamodb:GetRecords
+            - dynamodb:GetShardIterator
+            - dynamodb:DescribeStream
+            - dynamodb:ListStreams
+            Effect: Allow
+            Resource: !GetAtt UsersTable.StreamArn
+
+          - Sid: CognitoAdminDeleteUser
+            Action:
+            - cognito-idp:AdminDeleteUser
+            Effect: Allow
+            Resource: !GetAtt CognitoUserPool.Arn
+
+          - Sid: SsmGetCognitoUserPoolId
+            Action:
+            - ssm:GetParameter
+            Effect: Allow
+            Resource:
+            - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${ParameterStoreHierarchy}app-stack/Mcp_CognitoUserPoolId"
+
+          - Sid: LambdaAccessToWriteLogs
+            Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            Effect: Allow
+            Resource: !GetAtt CleanupLambdaLogGroup.Arn
 
   # -- Doc Indexer Lambda Function --
   # Scheduled Lambda that builds the persistent DynamoDB documentation index
