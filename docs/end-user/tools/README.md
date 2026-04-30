@@ -399,12 +399,10 @@ Common error codes:
 
 ## Rate Limiting
 
-All tools are subject to rate limiting:
+All tools are subject to rate limiting. Limits vary by tier — see the [rate limits page](https://mcp.atlantis.63klabs.net/docs/rate-limits/) for the full breakdown.
 
-- Default: 50 requests per hour per IP
 - Rate limit headers included in all responses
 - HTTP 429 returned when exceeded
-- Rate limit resets on the hour (midnight UTC if every 24 hours)
 
 ---
 

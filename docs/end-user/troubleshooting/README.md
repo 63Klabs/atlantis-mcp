@@ -81,18 +81,15 @@ curl -X POST https://mcp.atlantis.63klabs.net/mcp/v1 \
 
 **Understanding Rate Limits:**
 
-Default limits (public instance):
-- 50 requests per hour per IP address
-- Resets every hour on the hour
-- Applies to all tools
+Rate limits vary by tier. See the [rate limits page](https://mcp.atlantis.63klabs.net/docs/rate-limits/) for the full breakdown of request limits per tier.
 
 **Check Rate Limit Status:**
 
 Response headers show current status:
 ```
-X-RateLimit-Limit: 50
-X-RateLimit-Remaining: 45
-X-RateLimit-Reset: 1706284800
+X-RateLimit-Limit: <your-tier-limit>
+X-RateLimit-Remaining: <requests-remaining>
+X-RateLimit-Reset: <unix-timestamp>
 ```
 
 **Solutions:**
@@ -584,9 +581,9 @@ curl -i -X POST https://mcp.atlantis.63klabs.net/mcp/v1
 curl -i -X POST https://mcp.atlantis.63klabs.net/mcp/v1
 
 # Look for headers:
-# X-RateLimit-Limit: 50
-# X-RateLimit-Remaining: 45
-# X-RateLimit-Reset: 1706284800
+# X-RateLimit-Limit: <your-tier-limit>
+# X-RateLimit-Remaining: <requests-remaining>
+# X-RateLimit-Reset: <unix-timestamp>
 ```
 
 ---
@@ -608,11 +605,11 @@ curl -i -X POST https://mcp.atlantis.63klabs.net/mcp/v1
 
 **Q: Why am I getting rate limited?**
 
-A: Public instance has 50 requests/hour limit. Self-host for higher limits or wait for reset.
+A: You've exceeded the request limit for your current tier. Check the [rate limits page](https://mcp.atlantis.63klabs.net/docs/rate-limits/) for details, or wait for your window to reset.
 
 **Q: Can I increase rate limits?**
 
-A: In the future you will be able to register for a public or paid account, or self-host with custom limits.
+A: Yes. [Register for a free account](https://mcp.atlantis.63klabs.net/register/) to unlock higher limits, or contact us about paid and private tiers. You can also self-host with custom limits.
 
 **Q: Why don't I see my template?**
 
