@@ -834,8 +834,19 @@ Resources:
       Environment:
         Variables:
           USERS_TABLE: !Ref UsersTable
+          SESSIONS_TABLE: !Ref DynamoDbSessions
           PARAM_STORE_PATH: !Ref ParameterStoreHierarchy
           DEPLOY_ENVIRONMENT: !Ref DeployEnvironment
+
+          # Rate limit configuration (must match Read Lambda settings)
+          MCP_PUBLIC_RATE_LIMIT: 50
+          MCP_PUBLIC_RATE_TIME_RANGE_MINUTES: 60
+          MCP_REGISTERED_RATE_LIMIT: 100
+          MCP_REGISTERED_RATE_TIME_RANGE_MINUTES: 60
+          MCP_PAID_RATE_LIMIT: 3000
+          MCP_PAID_RATE_TIME_RANGE_MINUTES: 1440
+          MCP_PRIVATE_RATE_LIMIT: 6000
+          MCP_PRIVATE_RATE_TIME_RANGE_MINUTES: 1440
 
       Events:
         CognitoPostConfirmation:
@@ -854,6 +865,12 @@ Resources:
           Properties:
             Path: /auth/voucher/redeem
             Method: post
+            RestApiId: !Ref WebApi
+        GetProfile:
+          Type: Api
+          Properties:
+            Path: /auth/profile
+            Method: get
             RestApiId: !Ref WebApi
 
   # -- Auth Lambda Log Group --
@@ -915,6 +932,13 @@ Resources:
             Resource:
             - !GetAtt UsersTable.Arn
             - !Sub "${UsersTable.Arn}/index/*"
+
+          - Sid: SessionsTableReadAccess
+            Action:
+            - dynamodb:GetItem
+            Effect: Allow
+            Resource:
+            - !GetAtt DynamoDbSessions.Arn
 
           - Sid: CognitoAdminUpdateUserAttributes
             Action:

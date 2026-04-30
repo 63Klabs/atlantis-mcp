@@ -154,6 +154,27 @@ async function updateUserTier(pk, tier, tierExpiresAt, ttl) {
 	return result.Attributes;
 }
 
+/**
+ * Retrieve a session record from the Sessions Table.
+ *
+ * Uses a separate table name parameter rather than the module-level USERS_TABLE,
+ * since session records are stored in the Sessions Table (from SESSIONS_TABLE env var).
+ *
+ * @param {string} tableName - Sessions table name (from process.env.SESSIONS_TABLE)
+ * @param {string} pk - Session partition key (SHA-256 hash of cognitoSub + windowStart + sessionSalt)
+ * @returns {Promise<Object|null>} Session record or null if not found
+ * @example
+ * const session = await getSessionRecord(process.env.SESSIONS_TABLE, 'a1b2c3d4...');
+ * // session: { pk: 'a1b2c3d4...', remaining: 42, limit: 100, ttl: 1735689900 }
+ */
+async function getSessionRecord(tableName, pk) {
+	const result = await docClient.send(new GetCommand({
+		TableName: tableName,
+		Key: { pk }
+	}));
+	return result.Item || null;
+}
+
 /* ------------------------------------------------------------------ */
 /*  TestHarness (for testing private internals)                       */
 /* ------------------------------------------------------------------ */
@@ -187,5 +208,6 @@ module.exports = {
 	getVoucher,
 	incrementVoucherUses,
 	updateUserTier,
+	getSessionRecord,
 	TestHarness
 };

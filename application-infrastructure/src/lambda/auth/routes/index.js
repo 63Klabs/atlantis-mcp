@@ -3,6 +3,7 @@
  *
  * Routes API Gateway proxy events to the appropriate handler based on
  * HTTP method and path:
+ * - GET  /auth/profile        → handlers/profile.js
  * - POST /auth/key/regenerate → handlers/key-regenerate.js
  * - POST /auth/voucher/redeem → handlers/voucher-redeem.js
  * - All other paths → 404 Not Found
@@ -14,6 +15,17 @@
 
 const keyRegenerateHandler = require('../handlers/key-regenerate');
 const voucherRedeemHandler = require('../handlers/voucher-redeem');
+const profileHandler = require('../handlers/profile');
+
+/**
+ * Route map for GET method endpoints.
+ * Keys are normalized paths (lowercase, no trailing slash).
+ *
+ * @type {Object.<string, {handler: Function}>}
+ */
+const GET_ROUTES = {
+	'/auth/profile': { handler: profileHandler.handler }
+};
 
 /**
  * Route map for POST method endpoints.
@@ -47,16 +59,25 @@ function normalizePath(path) {
 /**
  * Route an API Gateway proxy event to the matching handler.
  *
- * Only POST requests are supported. Returns 404 for unknown paths
- * and 405 for non-POST methods on known paths.
+ * Supports GET and POST requests. Returns 404 for unknown paths
+ * or unsupported methods.
  *
  * @async
  * @param {Object} event - API Gateway proxy event
- * @param {string} event.httpMethod - HTTP method (e.g. 'POST')
- * @param {string} event.path - Request path (e.g. '/auth/key/regenerate')
+ * @param {string} event.httpMethod - HTTP method (e.g. 'GET', 'POST')
+ * @param {string} event.path - Request path (e.g. '/auth/profile')
  * @param {Object} event.headers - Request headers
  * @param {string} [event.body] - Request body (JSON string)
  * @returns {Promise<{statusCode: number, headers: Object, body: string}>} API Gateway proxy response
+ * @example
+ * // Route a profile request
+ * const response = await route({
+ *   httpMethod: 'GET',
+ *   path: '/auth/profile',
+ *   headers: { Authorization: 'Bearer <jwt>' }
+ * });
+ * // response: { statusCode: 200, headers: {...}, body: '{"email":"...","tier":"..."}' }
+ *
  * @example
  * // Route a key regeneration request
  * const response = await route({
@@ -78,7 +99,15 @@ async function route(event) {
 	const method = (event.httpMethod || '').toUpperCase();
 	const path = normalizePath(event.path || '');
 
-	// >! Only POST routes are defined for auth endpoints
+	// >! Route GET requests to GET_ROUTES
+	if (method === 'GET') {
+		const matched = GET_ROUTES[path];
+		if (matched) {
+			return matched.handler(event);
+		}
+	}
+
+	// >! Route POST requests to POST_ROUTES
 	if (method === 'POST') {
 		const matched = POST_ROUTES[path];
 		if (matched) {
@@ -109,16 +138,17 @@ class TestHarness {
 	 * Get access to internal functions for testing purposes.
 	 * WARNING: This method is for testing only and should never be used in production.
 	 *
-	 * @returns {{normalizePath: Function, POST_ROUTES: Object}} Object containing internal functions
+	 * @returns {{normalizePath: Function, GET_ROUTES: Object, POST_ROUTES: Object}} Object containing internal functions
 	 * @private
 	 * @example
 	 * // In tests only — DO NOT use in production
 	 * const { TestHarness } = require('../routes/index');
-	 * const { normalizePath } = TestHarness.getInternals();
+	 * const { normalizePath, GET_ROUTES } = TestHarness.getInternals();
 	 */
 	static getInternals() {
 		return {
 			normalizePath,
+			GET_ROUTES,
 			POST_ROUTES
 		};
 	}

@@ -86,6 +86,49 @@ paths:
         uri:
           Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AuthLambdaFunction.Arn}/invocations
 
+  /auth/profile:
+    get:
+      summary: "Get user profile"
+      description: "Retrieve consolidated profile data for the authenticated user including email, tier, tier expiration, and real-time rate limit statistics. Requires a valid Cognito JWT in the Authorization header."
+      parameters:
+        - name: Authorization
+          in: header
+          required: true
+          description: "Cognito JWT bearer token"
+          schema:
+            type: string
+            example: "Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
+      responses:
+        '200':
+          description: "Success - profile data returned"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileResponse'
+        '401':
+          description: "Unauthorized - invalid or missing JWT"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthError'
+        '404':
+          description: "User not found - no user record for the authenticated email"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthError'
+        '500':
+          description: "Internal server error"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthError'
+      x-amazon-apigateway-integration:
+        httpMethod: post
+        type: aws_proxy
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AuthLambdaFunction.Arn}/invocations
+
   /auth/voucher/redeem:
     post:
       summary: "Redeem a voucher code"
@@ -260,3 +303,69 @@ components:
           type: string
           description: "ISO 8601 timestamp when the tier expires (null if no expiration)"
           example: "2025-12-31T00:00:00Z"
+
+    # Auth Error Response Schema
+    AuthError:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: "Human-readable error message"
+          example: "Unauthorized"
+
+    # Profile Response Schema
+    ProfileResponse:
+      type: object
+      required:
+        - email
+        - tier
+        - createdAt
+        - rateLimits
+      properties:
+        email:
+          type: string
+          description: "Server-confirmed email from the Users Table"
+          example: "user@example.com"
+        tier:
+          type: string
+          description: "Effective tier accounting for expiration"
+          enum:
+            - registered
+            - paid
+            - private
+          example: "registered"
+        tierExpiresAt:
+          type: string
+          nullable: true
+          description: "ISO 8601 timestamp when the tier expires, or null if permanent"
+          example: "2025-12-31T00:00:00.000Z"
+        createdAt:
+          type: string
+          description: "ISO 8601 timestamp when the account was created"
+          example: "2025-01-15T10:30:00.000Z"
+        rateLimits:
+          type: object
+          required:
+            - limit
+            - remaining
+            - windowResetAt
+            - windowMinutes
+          properties:
+            limit:
+              type: number
+              description: "Maximum requests per window for the effective tier"
+              example: 100
+            remaining:
+              type: number
+              description: "Requests remaining in the current window"
+              example: 42
+            windowResetAt:
+              type: number
+              description: "Unix epoch seconds when the current window resets"
+              example: 1735689600
+            windowMinutes:
+              type: number
+              description: "Window duration in minutes"
+              example: 60

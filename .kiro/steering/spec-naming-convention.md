@@ -13,27 +13,30 @@ When creating new specification directories in `.kiro/specs/`, you MUST follow t
 ```
 
 Where:
-- `{version}` is the version from `package.json` with dots replaced by hyphens (e.g., `1.3.6` becomes `1-3-6`)
+- `{version}` is the `(unreleased)` version from `CHANGELOG.md` without the leading v and dots replaced with dashes
 - `{feature-name}` is a kebab-case description of the feature
 
 ## Examples
 
-For package.json version `1.3.6`:
-- `.kiro/specs/1-3-6-in-memory-cache/`
-- `.kiro/specs/1-3-6-documentation-enhancement/`
-- `.kiro/specs/1-3-6-reduce-json-stringify/`
+For CHANGELOG.md version `v0-9-8 (unreleased)`:
+- `.kiro/specs/0-9-8-in-memory-cache/`
+- `.kiro/specs/0-9-8-documentation-enhancement/`
+- `.kiro/specs/0-9-8-reduce-json-stringify/`
 
 ## Process
 
-1. Read the current version from `package.json`
-2. Convert the version to the hyphenated format (replace `.` with `-`)
+1. Read the most recent version from `CHANGELOG.md`
+2. If the version is marked as `(unreleased)` then it is the version we will work with
+3. If the latest version has a date following `(YYYY-MM-DD)` then it is released and the developer hasn't yet updated.
+   1. Add a new version header to CHANGELOG.md in the `vX.X.X (unreleased)` format. Use the previous version and increment patch by 1
+2. For spec naming, convert the version to the hyphenated format (replace `.` with `-`)
 3. Append the feature name in kebab-case
 4. Create the directory: `.kiro/specs/{version}-{feature-name}/`
 
 ## Important Notes
 
-- The version in `package.json` will have already been updated for the next release
-- Always use the CURRENT version from `package.json`, not a future or past version
+- The version in `CHANGELOG.md` SHOULD have already been updated for the next release, but is not guaranteed. Only use version followed by `(unreleased)` or create the next version.
+- Always use the CURRENT, UNRELASED version from `CHANGELOG.md`, not a future or past version
 - Feature names should be descriptive but concise
 - Use kebab-case (lowercase with hyphens) for feature names
 - Do NOT create spec directories without the version prefix

@@ -22,11 +22,28 @@
 
     <!-- Loading state -->
     <div id="loading" class="auth-form" aria-live="polite">
-      <p>Loading your profile…</p>
+      <div class="loading-spinner" role="status">
+        <span class="spinner" aria-hidden="true"></span>
+        <p>Loading your profile…</p>
+      </div>
     </div>
+
+    <!-- Profile error banner (shown on non-401 API errors) -->
+    <div id="profile-error" class="alert alert-error" role="alert" aria-live="polite"></div>
 
     <!-- Profile content (hidden until authenticated) -->
     <div id="profile-content" class="hidden">
+
+      <!-- Email display -->
+      <section class="profile-section" aria-labelledby="email-heading">
+        <h2 id="email-heading">Account</h2>
+        <dl class="profile-info">
+          <dt>Email</dt>
+          <dd id="user-email" aria-label="Account email address">—</dd>
+          <dt id="created-label" class="hidden">Member since</dt>
+          <dd id="account-created" class="hidden">—</dd>
+        </dl>
+      </section>
 
       <!-- Tier info -->
       <section class="profile-section" aria-labelledby="tier-heading">
@@ -38,6 +55,10 @@
           <dd id="rate-limit">—</dd>
           <dt>Window</dt>
           <dd id="rate-window">—</dd>
+          <dt id="remaining-label" class="hidden">Remaining requests</dt>
+          <dd id="remaining-requests" class="hidden">—</dd>
+          <dt id="reset-label" class="hidden">Window resets at</dt>
+          <dd id="window-reset" class="hidden">—</dd>
           <dt id="expiry-label" class="hidden">Tier expires</dt>
           <dd id="tier-expiry" class="hidden">—</dd>
         </dl>
@@ -126,6 +147,7 @@
 
   var loadingEl = document.getElementById('loading');
   var profileContent = document.getElementById('profile-content');
+  var profileErrorEl = document.getElementById('profile-error');
 
   function getJwt(cognitoUser) {
     return new Promise(function(resolve, reject) {
@@ -147,19 +169,94 @@
     return m + ' min';
   }
 
-  function displayTierInfo(tier, expiresAt) {
+  /**
+   * Display tier information from the profile endpoint response.
+   * Falls back to static RATE_LIMITS config when rateLimits data is not available.
+   *
+   * @param {Object} data - Profile response or fallback data
+   * @param {string} data.tier - Effective tier name
+   * @param {string|null} [data.tierExpiresAt] - ISO 8601 expiration or null
+   * @param {Object} [data.rateLimits] - Rate limit data from profile endpoint
+   */
+  function displayTierInfo(data) {
+    var tier = data.tier || 'registered';
     var tierName = tier.charAt(0).toUpperCase() + tier.slice(1);
     document.getElementById('current-tier').textContent = tierName;
 
-    var rl = RATE_LIMITS[tier] || RATE_LIMITS.registered;
-    document.getElementById('rate-limit').textContent = rl.limit + ' requests';
-    document.getElementById('rate-window').textContent = 'per ' + formatWindow(rl.window);
+    if (data.rateLimits) {
+      document.getElementById('rate-limit').textContent = data.rateLimits.limit + ' requests';
+      document.getElementById('rate-window').textContent = 'per ' + formatWindow(data.rateLimits.windowMinutes);
 
-    if (expiresAt) {
-      var d = new Date(expiresAt);
+      // Display remaining requests (e.g., "42 of 100 remaining")
+      var remainingEl = document.getElementById('remaining-requests');
+      var remainingLabel = document.getElementById('remaining-label');
+      remainingEl.textContent = data.rateLimits.remaining + ' of ' + data.rateLimits.limit + ' remaining';
+      remainingEl.classList.remove('hidden');
+      remainingLabel.classList.remove('hidden');
+
+      // Display window reset time as human-readable local date/time
+      if (data.rateLimits.windowResetAt) {
+        var resetDate = new Date(data.rateLimits.windowResetAt * 1000);
+        var resetEl = document.getElementById('window-reset');
+        var resetLabel = document.getElementById('reset-label');
+        resetEl.textContent = resetDate.toLocaleString();
+        resetEl.classList.remove('hidden');
+        resetLabel.classList.remove('hidden');
+      }
+    } else {
+      // Fallback to static rate limit config from settings
+      var rl = RATE_LIMITS[tier] || RATE_LIMITS.registered;
+      document.getElementById('rate-limit').textContent = rl.limit + ' requests';
+      document.getElementById('rate-window').textContent = 'per ' + formatWindow(rl.window);
+    }
+
+    if (data.tierExpiresAt) {
+      var d = new Date(data.tierExpiresAt);
       document.getElementById('tier-expiry').textContent = d.toLocaleDateString();
       document.getElementById('tier-expiry').classList.remove('hidden');
       document.getElementById('expiry-label').classList.remove('hidden');
+    }
+  }
+
+  /**
+   * Display the user's email address in the account section.
+   *
+   * @param {string} email - User email address
+   */
+  function displayEmail(email) {
+    if (email) {
+      document.getElementById('user-email').textContent = email;
+    }
+  }
+
+  /**
+   * Display the account creation date.
+   *
+   * @param {string} createdAt - ISO 8601 creation date
+   */
+  function displayCreatedAt(createdAt) {
+    if (createdAt) {
+      var d = new Date(createdAt);
+      document.getElementById('account-created').textContent = d.toLocaleDateString();
+      document.getElementById('account-created').classList.remove('hidden');
+      document.getElementById('created-label').classList.remove('hidden');
+    }
+  }
+
+  /**
+   * Parse JWT claims from a Cognito ID token for fallback display.
+   *
+   * @param {string} jwt - JWT token string
+   * @returns {Object} Decoded payload claims
+   */
+  function parseJwtClaims(jwt) {
+    try {
+      var parts = jwt.split('.');
+      if (parts.length !== 3) return {};
+      var payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+      return payload;
+    } catch (e) {
+      return {};
     }
   }
 
@@ -188,23 +285,60 @@
       return;
     }
 
-    // Read user attributes for tier info
-    cognitoUser.getUserAttributes(function(attrErr, attributes) {
+    var jwt = session.getIdToken().getJwtToken();
+
+    // Fetch profile data from the profile endpoint
+    fetch(API_BASE_URL + '/auth/profile', {
+      method: 'GET',
+      headers: {
+        'Authorization': 'Bearer ' + jwt
+      }
+    })
+    .then(function(resp) {
+      if (resp.status === 401) {
+        window.location.href = '/login/';
+        return null;
+      }
+      return resp.json().then(function(data) { return { ok: resp.ok, status: resp.status, data: data }; });
+    })
+    .then(function(result) {
+      if (!result) return; // Redirected on 401
+
       loadingEl.classList.add('hidden');
       profileContent.classList.remove('hidden');
 
-      var tier = 'registered';
-      var tierExpiresAt = null;
+      if (result.ok) {
+        // Populate all fields from the single profile endpoint response
+        displayEmail(result.data.email);
+        displayCreatedAt(result.data.createdAt);
+        displayTierInfo(result.data);
+      } else {
+        // Non-401 error: show error message and fall back to JWT claims
+        profileErrorEl.textContent = 'Could not load full profile data. Showing limited information.';
+        profileErrorEl.classList.add('visible');
 
-      if (!attrErr && attributes) {
-        for (var i = 0; i < attributes.length; i++) {
-          if (attributes[i].getName() === 'custom:tier') {
-            tier = attributes[i].getValue() || 'registered';
-          }
-        }
+        var claims = parseJwtClaims(jwt);
+        displayEmail(claims.email || null);
+        displayTierInfo({
+          tier: claims['custom:tier'] || 'registered',
+          tierExpiresAt: null
+        });
       }
+    })
+    .catch(function() {
+      // Network error: show error and fall back to JWT claims
+      loadingEl.classList.add('hidden');
+      profileContent.classList.remove('hidden');
 
-      displayTierInfo(tier, tierExpiresAt);
+      profileErrorEl.textContent = 'Could not load profile data. Showing limited information.';
+      profileErrorEl.classList.add('visible');
+
+      var claims = parseJwtClaims(jwt);
+      displayEmail(claims.email || null);
+      displayTierInfo({
+        tier: claims['custom:tier'] || 'registered',
+        tierExpiresAt: null
+      });
     });
   });
 
@@ -303,7 +437,7 @@
         msg += '.';
         showError('voucher-success', msg);
         document.getElementById('voucher-success').classList.remove('alert-error');
-        displayTierInfo(result.data.tier, result.data.tierExpiresAt);
+        displayTierInfo({ tier: result.data.tier, tierExpiresAt: result.data.tierExpiresAt });
         document.getElementById('voucher-code').value = '';
       } else {
         showError('voucher-error', result.data.error || 'Failed to redeem code.');
