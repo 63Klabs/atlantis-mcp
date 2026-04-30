@@ -44,19 +44,6 @@ Open the configuration file and add the Atlantis MCP Server:
 }
 ```
 
-**For self-hosted instances:**
-
-```json
-{
-  "mcpServers": {
-    "atlantis": {
-      "url": "https://{api-gateway-url}/{api_base}/mcp/v1",
-      "description": "Self-hosted Atlantis MCP Server"
-    }
-  }
-}
-```
-
 ### 3. Restart Claude Desktop
 
 Close and reopen Claude Desktop to load the new configuration.

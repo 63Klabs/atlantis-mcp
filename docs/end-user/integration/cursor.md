@@ -37,21 +37,6 @@ Click "Edit in settings.json" and add:
 }
 ```
 
-**For self-hosted:**
-
-```json
-{
-  "mcp.servers": {
-    "atlantis": {
-      "url": "https://{api-gateway-url}/{api_base}/mcp/v1",
-      "name": "Atlantis Platform (Self-Hosted)",
-      "description": "Self-hosted Atlantis MCP Server",
-      "enabled": true
-    }
-  }
-}
-```
-
 ### 4. Reload Cursor
 
 - Press `Cmd+Shift+P` (Mac) or `Ctrl+Shift+P` (Windows/Linux)
