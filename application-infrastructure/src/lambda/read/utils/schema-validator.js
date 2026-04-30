@@ -56,6 +56,7 @@ const schemas = {
       templateName: {
         type: 'string',
         minLength: 1,
+        pattern: '^[^/\\\\]+$',
         description: 'Name of the template to retrieve'
       },
       category: {
@@ -103,6 +104,7 @@ const schemas = {
       templateName: {
         type: 'string',
         minLength: 1,
+        pattern: '^[^/\\\\]+$',
         description: 'Name of the template'
       },
       category: {
@@ -279,6 +281,7 @@ const schemas = {
       templateName: {
         type: 'string',
         minLength: 1,
+        pattern: '^[^/\\\\]+$',
         description: 'Name of the template to check'
       },
       currentVersion: {
@@ -331,6 +334,7 @@ const schemas = {
       templateName: {
         type: 'string',
         minLength: 1,
+        pattern: '^[^/\\\\]+$',
         description: 'Name of the template to retrieve'
       },
       category: {

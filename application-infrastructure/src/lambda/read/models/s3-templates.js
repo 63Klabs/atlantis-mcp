@@ -167,6 +167,73 @@ function buildTemplateKey(namespace, basePath, category, templateName, extension
 }
 
 /**
+ * Find the S3 key for a module template in any subdirectory.
+ *
+ * Issues a ListObjectsV2Command with prefix `{namespace}/{basePath}/modules/`
+ * and filters results for objects whose filename matches
+ * `{templateName}.yml` or `{templateName}.yaml`. Returns the first match
+ * with the extracted subcategory (.yml is preferred over .yaml).
+ *
+ * @param {string} bucket - S3 bucket name
+ * @param {string} namespace - Namespace prefix
+ * @param {string} basePath - Base path (e.g., 'templates/v2')
+ * @param {string} templateName - Template name without extension
+ * @returns {Promise<{key: string, subcategory: string, extension: string}|null>}
+ *   The discovered key info, or null if not found
+ * @example
+ * const result = await findModuleTemplateKey('my-bucket', '63klabs', 'templates/v2', 'module-vpc-endpoints');
+ * // result: { key: '63klabs/templates/v2/modules/vpc/module-vpc-endpoints.yml', subcategory: 'vpc', extension: '.yml' }
+ */
+async function findModuleTemplateKey(bucket, namespace, basePath, templateName) {
+  const prefix = `${namespace}/${basePath}/modules/`;
+
+  try {
+    const command = new ListObjectsV2Command({
+      Bucket: bucket,
+      Prefix: prefix
+    });
+
+    const response = await AWS.s3.client.send(command);
+    const contents = response.Contents || [];
+
+    // >! Filter for objects whose filename matches the template name with .yml or .yaml
+    const ymlMatch = [];
+    const yamlMatch = [];
+
+    for (const obj of contents) {
+      const keyParts = obj.Key.split('/');
+      const fileName = keyParts[keyParts.length - 1];
+
+      if (fileName === `${templateName}.yml`) {
+        const subcategory = keyParts[keyParts.length - 2];
+        ymlMatch.push({ key: obj.Key, subcategory, extension: '.yml' });
+      } else if (fileName === `${templateName}.yaml`) {
+        const subcategory = keyParts[keyParts.length - 2];
+        yamlMatch.push({ key: obj.Key, subcategory, extension: '.yaml' });
+      }
+    }
+
+    // >! Prefer .yml over .yaml
+    if (ymlMatch.length > 0) {
+      return ymlMatch[0];
+    }
+    if (yamlMatch.length > 0) {
+      return yamlMatch[0];
+    }
+
+    return null;
+  } catch (error) {
+    ErrorHandler.logS3Error({
+      operation: 'ListObjectsV2',
+      bucket,
+      key: prefix,
+      error
+    });
+    return null;
+  }
+}
+
+/**
  * Filter template by category
  *
  * @param {Object} template - Template metadata
@@ -231,6 +298,9 @@ function filterByVersionId(template, versionId) {
 /**
  * Deduplicate templates across buckets (first occurrence wins)
  *
+ * Uses `category/subcategory/name` as the dedup key so that templates
+ * with the same name in different subcategories are treated as distinct.
+ *
  * @param {Array<Object>} templates - Array of template metadata
  * @returns {Array<Object>} Deduplicated templates
  */
@@ -239,7 +309,7 @@ function deduplicateTemplates(templates) {
   const deduplicated = [];
 
   for (const template of templates) {
-    const key = `${template.category}/${template.name}`;
+    const key = `${template.category}/${template.subcategory || ''}/${template.name}`;
     if (!seen.has(key)) {
       seen.add(key);
       deduplicated.push(template);
@@ -252,22 +322,63 @@ function deduplicateTemplates(templates) {
 /**
  * Parse template metadata from S3 object
  *
- * @param {Object} s3Object - S3 object metadata
+ * Detects nesting depth by finding the `templates/v2` segment in the key.
+ * For keys with 2 segments after the base path (category/file), extracts
+ * category using flat behavior. For keys with 3 segments
+ * (category/subcategory/file), extracts both category and subcategory.
+ *
+ * @param {Object} s3Object - S3 object metadata with Key property
  * @param {string} bucketName - S3 bucket name
  * @param {string} namespace - Namespace
- * @returns {Object} Template metadata
+ * @returns {Object} Template metadata including:
+ *   - name {string} - Template name without extension
+ *   - category {string} - Template category (e.g., "modules")
+ *   - subcategory {string|null} - Subcategory for nested templates, null for flat
+ *   - namespace {string}
+ *   - bucket {string}
+ *   - s3Path {string}
+ *   - key {string}
+ *   - lastModified {Date}
+ *   - size {number}
  */
 function parseTemplateMetadata(s3Object, bucketName, namespace) {
-  // Extract category and name from key
-  // Format: {namespace}/templates/v2/{category}/{templateName}.yml
   const keyParts = s3Object.Key.split('/');
-  const category = keyParts[keyParts.length - 2];
   const fileName = keyParts[keyParts.length - 1];
   const name = fileName.replace(/\.(yml|yaml)$/, '');
+
+  // Find the base path offset by locating 'templates' and 'v2' segments
+  let baseOffset = -1;
+  for (let i = 0; i < keyParts.length - 1; i++) {
+    if (keyParts[i] === 'templates' && keyParts[i + 1] === 'v2') {
+      baseOffset = i;
+      break;
+    }
+  }
+
+  let category;
+  let subcategory = null;
+
+  if (baseOffset >= 0) {
+    // Count segments after 'templates/v2': 2 = flat, 3 = nested
+    const segmentsAfterBase = keyParts.length - (baseOffset + 2);
+
+    if (segmentsAfterBase === 3) {
+      // Nested: {namespace}/templates/v2/{category}/{subcategory}/{file}
+      category = keyParts[baseOffset + 2];
+      subcategory = keyParts[baseOffset + 3];
+    } else {
+      // Flat: {namespace}/templates/v2/{category}/{file}
+      category = keyParts[baseOffset + 2];
+    }
+  } else {
+    // Fallback: use second-to-last segment as category (original behavior)
+    category = keyParts[keyParts.length - 2];
+  }
 
   return {
     name,
     category,
+    subcategory,
     namespace,
     bucket: bucketName,
     s3Path: `s3://${bucketName}/${s3Object.Key}`,
@@ -423,10 +534,23 @@ async function get(connection, options = {}) {
 
       // >! Search namespaces in priority order
       for (const namespace of namespaces) {
-        // >! Try .yml first, then .yaml
-        for (const extension of ['.yml', '.yaml']) {
-          const key = buildTemplateKey(namespace, basePath, category, templateName, extension);
+        // >! For modules category, use findModuleTemplateKey() to discover the key
+        // >! For flat categories, iterate over extensions and use buildTemplateKey()
+        const keysToTry = [];
 
+        if (category === 'modules') {
+          const found = await findModuleTemplateKey(bucket, namespace, basePath, templateName);
+          if (found) {
+            keysToTry.push({ key: found.key, subcategory: found.subcategory });
+          }
+        } else {
+          // >! Try .yml first, then .yaml for flat categories
+          for (const extension of ['.yml', '.yaml']) {
+            keysToTry.push({ key: buildTemplateKey(namespace, basePath, category, templateName, extension), subcategory: null });
+          }
+        }
+
+        for (const { key, subcategory } of keysToTry) {
           try {
             // >! When both version and versionId provided, we need to check if ANY version matches EITHER criterion
             // >! This requires listing versions and checking each one
@@ -459,7 +583,7 @@ async function get(connection, options = {}) {
 
                     if (versionMatches || versionIdMatches) {
                       // Found a match! Return this template
-                      return {
+                      const result = {
                         name: templateName,
                         version: parsed.version,
                         versionId: v.VersionId,
@@ -475,6 +599,11 @@ async function get(connection, options = {}) {
                         size: response.ContentLength,
                         metadata: parsed.Metadata
                       };
+                      // >! Include subcategory in metadata for modules
+                      if (subcategory) {
+                        result.subcategory = subcategory;
+                      }
+                      return result;
                     }
                   } catch (versionError) {
                     DebugAndLog.warn(`Failed to check version ${v.VersionId}: ${versionError.message}`);
@@ -483,7 +612,7 @@ async function get(connection, options = {}) {
                 }
               }
 
-              // No version matched either criterion, try next extension/namespace/bucket
+              // No version matched either criterion, try next key/namespace/bucket
               continue;
             }
 
@@ -509,7 +638,7 @@ async function get(connection, options = {}) {
               continue; // Try next namespace/bucket
             }
 
-            return {
+            const result = {
               name: templateName,
               version: parsed.version,
               versionId: response.VersionId,
@@ -525,9 +654,14 @@ async function get(connection, options = {}) {
               size: response.ContentLength,
               metadata: parsed.Metadata
             };
+            // >! Include subcategory in metadata for modules
+            if (subcategory) {
+              result.subcategory = subcategory;
+            }
+            return result;
           } catch (error) {
             if (error.name === 'NoSuchKey') {
-              continue; // Try next extension/namespace/bucket
+              continue; // Try next key/namespace/bucket
             }
             // >! Brown-out support: try next bucket on failure
             ErrorHandler.logS3Error({
@@ -585,10 +719,23 @@ async function listVersions(connection, options = {}) {
         : await getIndexedNamespaces(bucket);
 
       for (const namespace of namespaces) {
-        // Try .yml first, then .yaml
-        for (const extension of ['.yml', '.yaml']) {
-          const key = buildTemplateKey(namespace, basePath, category, templateName, extension);
+        // >! For modules category, use findModuleTemplateKey() to discover the key
+        // >! For flat categories, iterate over extensions and use buildTemplateKey()
+        const keysToTry = [];
 
+        if (category === 'modules') {
+          const found = await findModuleTemplateKey(bucket, namespace, basePath, templateName);
+          if (found) {
+            keysToTry.push(found.key);
+          }
+        } else {
+          // Try .yml first, then .yaml
+          for (const extension of ['.yml', '.yaml']) {
+            keysToTry.push(buildTemplateKey(namespace, basePath, category, templateName, extension));
+          }
+        }
+
+        for (const key of keysToTry) {
           try {
             const command = new ListObjectVersionsCommand({
               Bucket: bucket,
@@ -685,6 +832,7 @@ module.exports = {
   parseHumanReadableVersion,
   parseCloudFormationTemplate,
   buildTemplateKey,
+  findModuleTemplateKey,
   filterByCategory,
   filterByVersion,
   filterByVersionId,

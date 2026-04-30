@@ -41,15 +41,29 @@ The format looks like this:
 }
 ```
 
-**For self-hosted instances**, replace the URL with your deployment:
+### Auto-Approve Tools
+
+Configure which tools run without confirmation:
 
 ```json
 {
   "mcpServers": {
     "atlantis": {
-      "url": "https://{api-gateway-url}/{api_base}/mcp/v1",
+      "url": "https://mcp.atlantis.63klabs.net/mcp/v1",
       "disabled": false,
-      "autoApprove": []
+      "autoApprove": [
+        "validate_naming",
+        "list_categories",
+        "list_templates",
+        "get_template",
+        "list_template_versions",
+        "list_tools",
+        "list_starters",
+        "get_starter_info",
+        "search_documentation",
+        "check_template_updates",
+        "get_template_chunk"
+      ]
     }
   }
 }

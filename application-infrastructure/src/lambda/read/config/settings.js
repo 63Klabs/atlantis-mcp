@@ -102,7 +102,7 @@ const settings = {
       },
       {
         name: 'list_templates',
-        description: 'List all Pipeline, Storage, Network, and Service Role CloudFormation templates available for deployment via Atlantis scripts. Returns template metadata including name, category, description, namespace, and S3 location. Use list_template_versions to get version information for a specific template.',
+        description: 'List all CloudFormation templates available for deployment via Atlantis scripts, filtered by category, version, or S3 bucket. Categories include: **storage**, **network**, **pipeline**, **service-role**, and **modules**. The modules category organizes templates into subcategories (nested subdirectories). Returns template metadata such as name, category, description, namespace, and S3 location. Returns an empty array if no templates match the specified filters. Use the `category` parameter to narrow results when you know the resource type you need. To get version information for a specific template, use `list_template_versions`.',
         inputSchema: {
           type: 'object',
           properties: {

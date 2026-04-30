@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [v0.0.3] (unreleased)
 
 ### Added
+- **Modules Nested Directory Support** [Spec: 0-0-3-modules-nested-directory-support](../.kiro/specs/0-0-3-modules-nested-directory-support/)
+  - Template discovery now supports nested subdirectories under the `modules` category (`modules/{subcategory}/{templateName}.yml`)
+  - Metadata parser extracts subcategory from nested paths while preserving backward compatibility for flat categories
+  - `get_template` and `list_template_versions` search subdirectories for module templates via prefix-based lookup
+  - `list_categories` returns a `subcategories` array for the modules category listing discovered subcategory names
+  - Deduplication logic distinguishes templates with the same name in different subcategories
+  - CloudFormation indexer extracts subcategory from file paths and includes subcategory-derived tokens in search keywords
+  - Schema validation rejects template names containing path separators (`/`, `\`) to prevent path traversal
 - Authentication: Now users can register for free to increase their hourly rate limit.
   - Registration mechanism with email loop verification
   - User profile with API key generation for MCP auth

@@ -93,12 +93,25 @@ Configure which tools run without confirmation:
 
 ```json
 {
-  "autoApprove": [
-    "list_templates",
-    "list_categories",
-    "search_documentation",
-    "validate_naming"
-  ]
+  "mcpServers": {
+    "atlantis": {
+      "url": "https://mcp.atlantis.63klabs.net/mcp/v1",
+      "disabled": false,
+      "autoApprove": [
+        "validate_naming",
+        "list_categories",
+        "list_templates",
+        "get_template",
+        "list_template_versions",
+        "list_tools",
+        "list_starters",
+        "get_starter_info",
+        "search_documentation",
+        "check_template_updates",
+        "get_template_chunk"
+      ]
+    }
+  }
 }
 ```
 

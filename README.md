@@ -13,6 +13,7 @@ The Atlantis MCP (Model Context Protocol) Server provides AI-assisted developmen
 - **Multi-Source Support**: Aggregate data from multiple S3 buckets and GitHub organizations
 - **Intelligent Caching**: Fast responses with multi-tier caching strategy
 - **Rate Limiting**: Public access with configurable rate limits
+- **Authenticated Access**: Users can self-register to obtain an API Key providing higher usage limits
 
 ## Quick Start
 

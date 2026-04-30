@@ -138,10 +138,39 @@ function buildContent(paramName, paramDef) {
 }
 
 /**
+ * Pattern to detect nested module template paths.
+ * Matches file paths like `templates/v2/modules/{subcategory}/{templateName}.yml`.
+ * @type {RegExp}
+ */
+const NESTED_MODULE_PATTERN = /templates\/v2\/modules\/([^/]+)\/[^/]+\.ya?ml$/;
+
+/**
+ * Extract the subcategory from a file path if it matches the nested
+ * module template pattern `templates/v2/modules/{subcategory}/{templateName}.yml`.
+ *
+ * @param {string} filePath - File path within the repository
+ * @returns {string|null} Subcategory name or null if not a nested module path
+ * @example
+ * extractSubcategory('templates/v2/modules/vpc/module-vpc-endpoints.yml');
+ * // 'vpc'
+ * extractSubcategory('template.yml');
+ * // null
+ */
+function extractSubcategory(filePath) {
+	const match = filePath.match(NESTED_MODULE_PATTERN);
+	return match ? match[1] : null;
+}
+
+/**
  * Extract indexed entries from a CloudFormation YAML template file.
  * Each parameter in the `Parameters` section produces one entry with
  * a content path, title, excerpt, full content, type metadata, and
  * extracted keywords.
+ *
+ * When the file path contains a subcategory segment (e.g.,
+ * `templates/v2/modules/{subcategory}/{templateName}.yml`), the
+ * contentPath includes the subcategory and subcategory-derived tokens
+ * are added to the keywords array.
  *
  * Content type is "template-pattern" with subType "parameter".
  *
@@ -150,15 +179,15 @@ function buildContent(paramName, paramDef) {
  * @param {{org: string, repo: string}} context - Repository context
  * @returns {Array<{contentPath: string, title: string, excerpt: string, content: string, type: string, subType: string, keywords: Array<string>}>} Extracted entries
  * @example
- * const entries = extract('Parameters:\n  Prefix:\n    Type: String\n    Description: Stack prefix', 'template.yml', { org: '63klabs', repo: 'starter-app' });
+ * const entries = extract('Parameters:\n  Prefix:\n    Type: String\n    Description: Stack prefix', 'templates/v2/modules/vpc/module-vpc.yml', { org: '63klabs', repo: 'starter-app' });
  * // [{
- * //   contentPath: '63klabs/starter-app/template.yml/Parameters/Prefix',
+ * //   contentPath: '63klabs/starter-app/templates/v2/modules/vpc/module-vpc.yml/Parameters/Prefix',
  * //   title: 'Prefix',
  * //   excerpt: 'Parameter: Prefix\nType: String\nDescription: Stack prefix',
  * //   content: 'Parameter: Prefix\nType: String\nDescription: Stack prefix',
  * //   type: 'template-pattern',
  * //   subType: 'parameter',
- * //   keywords: ['prefix', 'stack']
+ * //   keywords: ['prefix', 'stack', 'vpc']
  * // }]
  */
 function extract(content, filePath, context) {
@@ -174,6 +203,14 @@ function extract(content, filePath, context) {
 
 	const parameters = template.Parameters;
 	const entries = [];
+
+	// Detect subcategory from file path for nested module templates
+	const subcategory = extractSubcategory(filePath);
+
+	// Extract subcategory-derived keyword tokens (split on hyphens)
+	const subcategoryKeywords = subcategory
+		? extractKeywords(subcategory.replace(/-/g, ' '))
+		: [];
 
 	for (const [paramName, paramDef] of Object.entries(parameters)) {
 		if (!paramDef || typeof paramDef !== 'object') {
@@ -194,7 +231,8 @@ function extract(content, filePath, context) {
 			? extractKeywords(String(paramDef.Description))
 			: [];
 
-		const keywords = [...new Set([...nameKeywords, ...descKeywords])];
+		// Merge parameter keywords with subcategory-derived keywords
+		const keywords = [...new Set([...nameKeywords, ...descKeywords, ...subcategoryKeywords])];
 
 		if (keywords.length === 0) {
 			keywords.push(paramName.toLowerCase());
@@ -217,6 +255,7 @@ function extract(content, filePath, context) {
 module.exports = {
 	extract,
 	extractKeywords,
+	extractSubcategory,
 	parseTemplate,
 	buildContent,
 	CFN_SCHEMA

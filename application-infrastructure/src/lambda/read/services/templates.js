@@ -338,27 +338,70 @@ async function listCategories() {
       try {
         // Get templates for this category (will use cache if available)
         const result = await list({ category: category.name });
+        const templates = result.templates || [];
 
-        return {
+        const categoryInfo = {
           name: category.name,
           description: category.description,
-          templateCount: result.templates ? result.templates.length : 0
+          templateCount: templates.length
         };
+
+        // >! For the "modules" category, extract unique subcategory values
+        if (category.name === 'modules') {
+          categoryInfo.subcategories = extractSubcategories(templates);
+        }
+
+        return categoryInfo;
       } catch (error) {
         DebugAndLog.warn(`${logName}: Failed to get template count for category ${category.name}`, {
           error: error.message
         });
 
-        return {
+        const categoryInfo = {
           name: category.name,
           description: category.description,
           templateCount: 0
         };
+
+        // >! Include empty subcategories array for modules even on error
+        if (category.name === 'modules') {
+          categoryInfo.subcategories = [];
+        }
+
+        return categoryInfo;
       }
     })
   );
 
   return categoriesWithCounts;
+}
+
+/**
+ * Extract unique subcategory names from a list of template metadata objects.
+ *
+ * Filters for templates that have a non-null subcategory value and returns
+ * the unique set of subcategory names sorted alphabetically.
+ *
+ * @param {Array<Object>} templates - Array of template metadata objects
+ * @returns {Array<string>} Sorted array of unique subcategory names
+ *
+ * @example
+ * const templates = [
+ *   { name: 'module-vpc-endpoints', category: 'modules', subcategory: 'vpc' },
+ *   { name: 'module-iam-roles', category: 'modules', subcategory: 'iam' },
+ *   { name: 'module-vpc-flow-logs', category: 'modules', subcategory: 'vpc' }
+ * ];
+ * const subcategories = extractSubcategories(templates);
+ * // Returns: ['iam', 'vpc']
+ */
+function extractSubcategories(templates) {
+  const subcategorySet = new Set();
+  for (const template of templates) {
+    if (template.subcategory) {
+      subcategorySet.add(template.subcategory);
+    }
+  }
+  return Array.from(subcategorySet).sort();
 }
 
 /**
@@ -541,5 +584,7 @@ module.exports = {
   get,
   listVersions,
   listCategories,
-  checkUpdates
+  checkUpdates,
+  // Export for testing
+  extractSubcategories
 };
