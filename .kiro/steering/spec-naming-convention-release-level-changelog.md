@@ -36,7 +36,18 @@ For CHANGELOG.md version `v0-9-8 (unreleased)`:
 ## Important Notes
 
 - The version in `CHANGELOG.md` SHOULD have already been updated for the next release, but is not guaranteed. Only use version followed by `(unreleased)` or create the next version.
-- Always use the CURRENT, UNRELASED version from `CHANGELOG.md`, not a future or past version
+- Always use the CURRENT, UNRELEASED version from `CHANGELOG.md`, not a future or past version
 - Feature names should be descriptive but concise
 - Use kebab-case (lowercase with hyphens) for feature names
 - Do NOT create spec directories without the version prefix
+
+## Spec Document Names
+
+Inside each spec directory, use these standard filenames:
+- `requirements.md` — Requirements document
+- `design.md` — Design document
+- `tasks.md` — Implementation task list
+
+## Changelog Reference
+
+#[[file:CHANGELOG.md]]
