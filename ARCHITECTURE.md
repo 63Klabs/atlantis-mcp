@@ -523,8 +523,8 @@ Production environments use CodeDeploy gradual deployment (`Linear10PercentEvery
 
 ### Observability
 
-- **X-Ray Tracing** — Enabled for API Gateway and Lambda functions in non-DEV environments
-- **Lambda Insights** — CloudWatch Lambda Insights layer on Read Lambda and Doc Indexer
+- **X-Ray Tracing** — Enabled for API Gateway and Lambda functions environments
+- **Lambda Insights** — CloudWatch Lambda Insights layer enabled on all Lambda functions environments
 - **Structured Logging** — JSON-formatted logs with level, event, and context fields
 - **API Gateway Logging** — Access logs (JSON format) and execution logs (optional, admin-enabled)
 
