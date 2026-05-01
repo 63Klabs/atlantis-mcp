@@ -553,3 +553,161 @@ S3 buckets include AccountId and Region (and optionally, an Organization Prefix)
 - **Pandoc** — Markdown to HTML conversion for documentation
 - **Redoc** — OpenAPI spec to HTML documentation (CDN, no CLI install)
 - **Python 3** — Build scripts for SSM parameter creation and template configuration
+
+## Operating Cost Estimate
+
+This section estimates the monthly operating cost of the full Atlantis MCP Server application stack. All resources use serverless, pay-per-use pricing with no fixed infrastructure costs. The application can sit completely idle at zero cost.
+
+Prices are for **us-east-1** (N. Virginia). Other regions may vary by up to 25%. Estimates exclude data transfer out, which is negligible for API-only workloads.
+
+### Service Pricing Reference
+
+| Service | Pricing (us-east-1) | Free Tier |
+|---------|---------------------|-----------|
+| API Gateway (REST) | $3.50 / 1M requests | 1M requests/month (12 months) |
+| Lambda requests | $0.20 / 1M requests | 1M requests/month (always free) |
+| Lambda compute (ARM) | $0.0000133334 / GB-second | 400K GB-seconds/month (always free) |
+| DynamoDB on-demand reads | $0.25 / 1M read request units | 25 RRU/month (always free) |
+| DynamoDB on-demand writes | $1.25 / 1M write request units | 25 WRU/month (always free) |
+| DynamoDB storage | $0.25 / GB-month | 25 GB (always free) |
+| DynamoDB Streams (Lambda trigger) | **Free** | GetRecords invoked by Lambda are not charged |
+| SSM Parameter Store (standard) | **Free** | No charge for standard parameters or API calls |
+| Cognito User Pool | **Free** up to 50,000 MAUs | 50K MAUs (always free, Lite plan) |
+| CloudWatch Logs ingestion | $0.50 / GB | 5 GB/month (always free) |
+| CloudWatch Logs storage | $0.03 / GB-month | 5 GB (always free) |
+| CloudWatch Alarms | $0.10 / standard alarm | 10 alarms (always free) |
+| EventBridge scheduled rules | **Free** | All default bus rules are free |
+| X-Ray traces | $5.00 / 1M traces recorded | 100K traces/month (always free) |
+| S3 storage (static site) | $0.023 / GB-month | 5 GB (12 months) |
+
+Sources: [API Gateway](https://aws.amazon.com/api-gateway/pricing/), [Lambda](https://aws.amazon.com/lambda/pricing/), [DynamoDB](https://aws.amazon.com/dynamodb/pricing/), [SSM](https://aws.amazon.com/systems-manager/pricing/), [Cognito](https://aws.amazon.com/cognito/pricing/), [CloudWatch](https://aws.amazon.com/cloudwatch/pricing/)
+
+### Application Resources Inventory
+
+| Resource | Type | Billing Model |
+|----------|------|---------------|
+| WebApi | API Gateway REST API | Per request |
+| ReadLambdaFunction | Lambda (1024 MB, ARM, 10s timeout) | Per request + duration |
+| AuthLambdaFunction | Lambda (512 MB, ARM, 10s timeout) | Per request + duration |
+| CleanupFunction | Lambda (256 MB, ARM, 30s timeout) | Per request + duration |
+| DocIndexerFunction | Lambda (1024 MB, ARM, 900s timeout) | Per request + duration |
+| UsersTable | DynamoDB (on-demand, GSI, TTL, Streams) | Per read/write |
+| DynamoDbSessions | DynamoDB (on-demand, TTL) | Per read/write |
+| DocIndexTable | DynamoDB (on-demand, TTL) | Per read/write |
+| Cache-Data table + S3 | DynamoDB + S3 (cross-stack) | Per read/write + storage |
+| CognitoUserPool | Cognito User Pool | Per MAU |
+| SSM Parameters (~8) | SSM Parameter Store (standard) | Free |
+| CloudWatch Log Groups (5) | CloudWatch Logs | Per GB ingested |
+| CloudWatch Alarms (4) | CloudWatch Alarms (PROD only) | Per alarm |
+| EventBridge Rule (1) | EventBridge scheduled rule | Free |
+| S3 Static Site | S3 + CloudFront (separate stack) | Storage + transfer |
+
+### Scenario 1: Minimal Use — Test Instance at Rest
+
+A test environment with no traffic. The Doc Indexer runs weekly. No users are registered. This represents the baseline cost of having the stack deployed.
+
+**Assumptions:**
+- 0 API requests
+- Doc Indexer runs 4 times/month (weekly), ~60 seconds each at 1024 MB
+- 0 registered users (no Cognito MAUs)
+- DynamoDB tables exist but have no traffic
+- No CloudWatch Alarms (TEST environment)
+- Minimal log output (~1 KB per indexer run)
+
+| Component | Calculation | Cost |
+|-----------|-------------|------|
+| API Gateway | 0 requests | $0.00 |
+| Lambda — Read, Auth, Cleanup | 0 invocations | $0.00 |
+| Lambda — Doc Indexer | 4 invocations × 60s × 1 GB = 240 GB-seconds | $0.00 (free tier) |
+| DynamoDB — all tables | ~4 writes + ~4 reads (indexer) | $0.00 (free tier) |
+| DynamoDB storage | < 1 MB across all tables | $0.00 (free tier) |
+| Cognito | 0 MAUs | $0.00 |
+| SSM Parameter Store | Standard params, ~4 reads | $0.00 |
+| CloudWatch Logs | < 10 KB total | $0.00 (free tier) |
+| CloudWatch Alarms | Not created in TEST | $0.00 |
+| EventBridge rule | 1 scheduled rule | $0.00 |
+| S3 static site | < 10 MB | $0.00 (free tier) |
+| **Total** | | **$0.00 / month** |
+
+The entire application stack costs nothing at rest. Every service is either always-free or within the free tier.
+
+### Scenario 2: Production — 1,000,000 MCP Requests per Month
+
+A production environment serving 1M MCP tool calls per month from AI assistants, plus authentication traffic and background indexing.
+
+**Assumptions:**
+- 1,000,000 POST /mcp/v1 requests (Read Lambda)
+- 10,000 auth requests (key regeneration, profile, voucher — Auth Lambda)
+- Doc Indexer runs daily (30 invocations/month), ~120 seconds each
+- 500 registered users, 100 monthly active (Cognito MAUs)
+- ~100 TTL-expired user records/month (Cleanup Lambda)
+- Average Read Lambda duration: 500 ms at 1024 MB
+- Average Auth Lambda duration: 200 ms at 512 MB
+- Average log output: ~2 KB per Read Lambda invocation, ~1 KB per Auth invocation
+- DynamoDB: each MCP request does ~2 reads (auth lookup + cache check) and ~1 write (session counter); cache misses trigger additional reads/writes
+- 50% cache hit rate — 500K requests served from cache, 500K trigger origin fetches with cache writes
+
+| Component | Calculation | Monthly Cost |
+|-----------|-------------|-------------|
+| **API Gateway** | 1,010,000 requests × $3.50/1M | $3.54 |
+| **Lambda — Read** | 1M invocations × $0.20/1M | $0.20 |
+| | 1M × 0.5s × 1 GB = 500K GB-sec × $0.0000133334 | $6.67 |
+| **Lambda — Auth** | 10K invocations | $0.00 |
+| | 10K × 0.2s × 0.5 GB = 1K GB-sec | $0.01 |
+| **Lambda — Cleanup** | ~10 invocations (batches of 10) | $0.00 |
+| **Lambda — Doc Indexer** | 30 × 120s × 1 GB = 3,600 GB-sec | $0.05 |
+| **DynamoDB reads** | ~3M RRUs (auth + cache + sessions + doc search) | $0.75 |
+| **DynamoDB writes** | ~1.5M WRUs (sessions + cache writes + indexer) | $1.88 |
+| **DynamoDB storage** | ~2 GB across all tables (cache, users, sessions, index) | $0.50 |
+| **Cognito** | 100 MAUs (under 50K free tier) | $0.00 |
+| **SSM Parameter Store** | Standard params, cached reads | $0.00 |
+| **CloudWatch Logs** | ~2 GB ingestion (Read Lambda dominant) | $1.00 |
+| | ~2 GB storage (90-day retention) | $0.06 |
+| **CloudWatch Alarms** | 4 standard alarms × $0.10 | $0.40 |
+| **X-Ray** | ~1M traces (under free tier + sampling) | $0.00 |
+| **EventBridge** | 1 scheduled rule | $0.00 |
+| **S3 static site** | ~50 MB storage | $0.00 |
+| **Total (before free tier)** | | **~$15.06 / month** |
+
+### Free Tier Impact
+
+The always-free tier significantly reduces costs, especially for Lambda and DynamoDB:
+
+| Free Tier Credit | Savings |
+|-----------------|---------|
+| Lambda: 1M requests free | −$0.20 |
+| Lambda: 400K GB-seconds free | −$5.33 |
+| DynamoDB: 25 RRU + 25 WRU capacity (always free) | −$0.50 (est.) |
+| DynamoDB: 25 GB storage free | −$0.50 |
+| CloudWatch Logs: 5 GB ingestion free | −$1.00 |
+| CloudWatch: 10 alarms free | −$0.40 |
+| **Total free tier savings** | **−$7.93** |
+
+### Cost Summary
+
+| Scenario | Monthly Cost | Annual Cost |
+|----------|-------------|-------------|
+| Test instance at rest | $0.00 | $0.00 |
+| 1M requests (with always-free tier) | ~$7.13 | ~$85.56 |
+| 1M requests (no free tier) | ~$15.06 | ~$180.72 |
+
+### Cost Breakdown by Service (1M Requests, Before Free Tier)
+
+```
+API Gateway     ████████████████████████  $3.54  (23%)
+Lambda compute  ████████████████████████████████████████████  $6.93  (46%)
+DynamoDB        █████████████████████  $3.13  (21%)
+CloudWatch Logs ███████  $1.06  (7%)
+CloudWatch Alarms ██  $0.40  (3%)
+```
+
+Lambda compute is the largest cost driver, followed by API Gateway and DynamoDB. The serverless architecture means costs scale linearly with traffic and drop to zero when idle.
+
+### Cost Optimization Notes
+
+- **API Gateway** is the single most expensive per-request component at $3.50/1M. Migrating to an HTTP API ($1.00/1M) would cut this cost by 71%, but HTTP APIs lack some REST API features used by this application (request validation, OpenAPI integration).
+- **Lambda ARM (Graviton)** is already selected, saving 20% over x86 compute pricing.
+- **DynamoDB on-demand** is cost-effective for unpredictable traffic. For sustained high-volume workloads, provisioned capacity with auto-scaling could reduce DynamoDB costs by 5–7x.
+- **Cache-Data layer** reduces origin fetches to S3 and GitHub, keeping Lambda duration and DynamoDB reads lower than they would be without caching.
+- **CloudWatch Logs** costs can be reduced by lowering log verbosity in production (already configured: INFO level in PROD vs DEBUG in TEST).
+- **Cognito** is effectively free for this application's scale. The 50,000 MAU free tier far exceeds expected usage.

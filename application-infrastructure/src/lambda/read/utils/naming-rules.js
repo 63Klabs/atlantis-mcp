@@ -359,7 +359,7 @@ function validateApplicationResource(name, options = {}) {
     const pascalWarnings = checkPascalCase(components.resourceSuffix);
     suggestions.push(...pascalWarnings);
 
-    const rules = AWS_NAMING_RULES[resourceType];
+    const rules = Object.hasOwn(AWS_NAMING_RULES, resourceType) ? AWS_NAMING_RULES[resourceType] : undefined;
     if (rules) {
       if (name.length < rules.minLength) {
         errors.push(`Resource name is too short (minimum ${rules.minLength} characters for ${resourceType})`);

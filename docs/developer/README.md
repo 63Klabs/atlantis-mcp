@@ -9,3 +9,7 @@ Core Documents:
 - [CHANGELOG document](../../CHANGELOG.md)
 - [SECURITY document](../../SECURITY.md)
 - [CONTRIBUTING](../../CONTRIBUTING.md)
+
+Guides:
+
+- [Testing guide](testing.md) - Running, writing, and debugging tests
