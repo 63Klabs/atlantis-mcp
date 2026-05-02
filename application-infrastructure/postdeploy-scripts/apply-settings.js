@@ -92,7 +92,7 @@ function replaceTokens(content, settings) {
  */
 function replaceApiGatewayUrl(content, restApiId, region, apiStageName, domain) {
   const apiGatewayUrl = `https://${restApiId}.execute-api.${region}.amazonaws.com/${apiStageName}`;
-  const domainUrl = `https://${domain}`;
+  const domainUrl = `https://${domain}/mcp`;
   let count = 0;
   let result = content;
 
