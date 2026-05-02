@@ -1072,7 +1072,7 @@ def main():
     """
     parser = argparse.ArgumentParser(
         description='Generate sidecar metadata for Atlantis app starters',
-        epilog='For more information, see the Atlantis Platform documentation.',
+        epilog='For more information, see the 63Klabs Atlantis DevOps Platform documentation.',
     )
     parser.add_argument(
         '--repo-path',

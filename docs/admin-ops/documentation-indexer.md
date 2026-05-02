@@ -204,5 +204,5 @@ A CloudWatch Alarm monitors the indexer for errors (Sum > 1 over a 900-second pe
 
 ## Related documentation
 
-- [Atlantis Platform](https://github.com/63klabs/atlantis)
+- [Atlantis DevOps Platform](https://github.com/63klabs/atlantis)
 - [GitHub Personal Access Tokens](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens)

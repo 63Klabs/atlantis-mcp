@@ -91,7 +91,7 @@ function formatListTemplates(data, metadata) {
   const { templates = [], errors = [], partialData = false } = data;
 
   return {
-    description: 'CloudFormation templates available in the Atlantis platform. Use get_template to retrieve full template content and parameters.',
+    description: 'CloudFormation templates available in the 63Klabs Atlantis DevOps Platform. Use get_template to retrieve full template content and parameters.',
     templates: templates.map(template => ({
       name: template.name,
       version: template.version || 'unknown',
@@ -213,7 +213,7 @@ function formatListCategories(data, metadata) {
   const { categories = [] } = data;
 
   return {
-    description: 'Template categories in the Atlantis platform. Each category represents a different type of infrastructure component.',
+    description: 'Template categories in the 63Klabs Atlantis DevOps Platform. Each category represents a different type of infrastructure component.',
     categories: categories.map(cat => ({
       name: cat.name,
       description: cat.description,
@@ -249,7 +249,7 @@ function formatListStarters(data, metadata) {
   const { starters = [], errors = [], partialData = false } = data;
 
   return {
-    description: 'Starter code repositories for bootstrapping serverless applications with Atlantis platform integration.',
+    description: 'Starter code repositories for bootstrapping serverless applications with 63Klabs Atlantis DevOps Platform integration.',
     starters: starters.map(starter => ({
       name: starter.name,
       description: starter.description,
@@ -270,7 +270,7 @@ function formatListStarters(data, metadata) {
         'Clone repository from GitHub URL to get started',
         'Review prerequisites before using starter'
       ],
-      integration: 'Starters include Atlantis platform integration and follow naming conventions'
+      integration: 'Starters include 63Klabs Atlantis DevOps Platform integration and follow naming conventions'
     },
     metadata: {
       ...metadata,

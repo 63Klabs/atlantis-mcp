@@ -1,6 +1,6 @@
 # Deployment Guide
 
-This application is **Ready-to-Deploy-and-Run** with the [63Klabs Atlantis Templates and Scripts Platform for Serverless Deployments on AWS](https://github.com/63Klabs/atlantis)
+This application is **Ready-to-Deploy-and-Run** with the [63Klabs Atlantis DevOps Templates and Scripts Platform for Serverless Deployments on AWS](https://github.com/63Klabs/atlantis)
 
 - Use the Atlantis scripts from your organizations central SAM Config infrastructure repository to manage your application's repository and deployment.
 - Add a pipeline to each branch in your repository you want to deploy from (`test`, `beta`, `main`)

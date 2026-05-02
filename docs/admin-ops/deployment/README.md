@@ -19,34 +19,34 @@ Before deploying the Atlantis MCP Server, ensure you have:
 
 ## Deployment Architecture
 
-The Atlantis MCP Server follows the Atlantis platform deployment pattern:
+The Atlantis MCP Server follows the 63Klabs Atlantis DevOps Platform deployment pattern:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    GitHub Repository                         │
-│              atlantis-mcp-server-phase-1                     │
+│                    GitHub Repository                        │
+│              atlantis-mcp-server-phase-1                    │
 └──────────────────────┬──────────────────────────────────────┘
                        │
                        │ Push to branch
                        ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                   AWS CodePipeline                           │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐   │
-│  │  Source  │→ │  Build   │→ │  Deploy  │→ │  Test    │   │
-│  │ (GitHub) │  │(CodeBuild)│  │(CloudFrm)│  │(Optional)│   │
-│  └──────────┘  └──────────┘  └──────────┘  └──────────┘   │
+│                   AWS CodePipeline                          │
+│  ┌──────────┐  ┌───────────┐  ┌──────────┐  ┌──────────┐    │
+│  │  Source  │→ │  Build    │→ │  Deploy  │→ │  Test    │    │
+│  │ (GitHub) │  │(CodeBuild)│  │(CloudFrm)│  │(Optional)│    │
+│  └──────────┘  └───────────┘  └──────────┘  └──────────┘    │
 └─────────────────────────────────────────────────────────────┘
                        │
                        │ Deploys
                        ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                  Deployed Resources                          │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
-│  │ API Gateway  │→ │Read Lambda   │→ │  DynamoDB    │     │
-│  │(Rate Limit)  │  │(Node.js 24.x)│  │(Cache Table) │     │
-│  └──────────────┘  └──────────────┘  └──────────────┘     │
-│                           │                                  │
-│                           ▼                                  │
+│                  Deployed Resources                         │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐       │
+│  │ API Gateway  │→ │Read Lambda   │→ │  DynamoDB    │       │
+│  │(Rate Limit)  │  │(Node.js 24.x)│  │(Cache Table) │       │
+│  └──────────────┘  └──────────────┘  └──────────────┘       │
+│                           │                                 │
+│                           ▼                                 │
 │                    ┌──────────────┐                         │
 │                    │  S3 Buckets  │                         │
 │                    │(Templates &  │                         │

@@ -19,7 +19,7 @@ This guide explains how to integrate the Atlantis MCP Server with ChatGPT, enabl
 
 ### 2. Configure GPT Details
 
-**Name:** Atlantis Platform Assistant
+**Name:** Atlantis
 
 **Description:** AI assistant for discovering and using Atlantis CloudFormation templates, starter code, and documentation.
 
@@ -110,4 +110,4 @@ If you need to regenerate your key, visit your [profile page](https://mcp.atlant
 
 - Documentation: [Full Docs](../README.md)
 - [Atlantis MCP Server: GitHub](https://github.com/63klabs/atlantis-mcp/) ([Issues](https://github.com/63klabs/atlantis-mcp/issues))
-- [Atlantis Platform Documentation](https://github.com/63Klabs/atlantis)
+- [63Klabs Atlantis DevOps Platform Documentation](https://github.com/63Klabs/atlantis)

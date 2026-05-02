@@ -29,7 +29,7 @@ Click "Edit in settings.json" and add:
   "mcp.servers": {
     "atlantis": {
       "url": "https://mcp.atlantis.63klabs.net/mcp/v1",
-      "name": "Atlantis Platform",
+      "name": "Atlantis",
       "description": "CloudFormation templates, starters, and documentation",
       "enabled": true
     }
@@ -63,7 +63,7 @@ Open Cursor AI chat and ask:
       "headers": {
         "x-api-key": "atl_your_api_key_here"
       },
-      "name": "Atlantis Platform",
+      "name": "Atlantis",
       "description": "CloudFormation templates, starters, and documentation",
       "enabled": true
     }
@@ -83,4 +83,4 @@ If you need to regenerate your key, visit your [profile page](https://mcp.atlant
 
 - Cursor Documentation: [cursor.sh/docs](https://cursor.sh/docs)
 - [Atlantis MCP Server: GitHub](https://github.com/63klabs/atlantis-mcp/) ([Issues](https://github.com/63klabs/atlantis-mcp/issues))
-- [Atlantis Platform Documentation](https://github.com/63Klabs/atlantis)
+- [63Klabs Atlantis DevOps Platform Documentation](https://github.com/63Klabs/atlantis)

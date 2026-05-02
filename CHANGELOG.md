@@ -70,6 +70,7 @@ Example:
 ### Version Links
 
 [Unreleased]: https://github.com/63klabs/atlantis-mcp/
-[v0.0.3]: https://github.com/63klabs/atlantis-mcp/releases/tag/v0.0.2
+[v0.0.4]: https://github.com/63klabs/atlantis-mcp/releases/tag/v0.0.4
+[v0.0.3]: https://github.com/63klabs/atlantis-mcp/releases/tag/v0.0.3
 [v0.0.2]: https://github.com/63klabs/atlantis-mcp/releases/tag/v0.0.2
 [v0.0.1]: https://github.com/63klabs/atlantis-mcp/releases/tag/v0.0.1

@@ -125,4 +125,4 @@ Configure which tools run without confirmation:
 
 - Kiro Documentation: [kiro.ai/docs](https://kiro.ai/docs)
 - [Atlantis MCP Server: GitHub](https://github.com/63klabs/atlantis-mcp/) ([Issues](https://github.com/63klabs/atlantis-mcp/issues))
-- [Atlantis Platform Documentation](https://github.com/63Klabs/atlantis)
+- [63Klabs Atlantis DevOps Platform Documentation](https://github.com/63Klabs/atlantis)

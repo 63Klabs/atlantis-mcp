@@ -104,7 +104,7 @@ Create or edit `.idea/amazonq.xml`:
         <value>
           <McpServer>
             <option name="url" value="https://mcp.atlantis.63klabs.net/mcp/v1" />
-            <option name="name" value="Atlantis Platform" />
+            <option name="name" value="Atlantis" />
             <option name="enabled" value="true" />
           </McpServer>
         </value>
@@ -153,7 +153,7 @@ Add the API key header to your `.idea/amazonq.xml`:
         <value>
           <McpServer>
             <option name="url" value="https://mcp.atlantis.63klabs.net/mcp/v1" />
-            <option name="name" value="Atlantis Platform" />
+            <option name="name" value="Atlantis" />
             <option name="enabled" value="true" />
             <option name="headers">
               <map>
@@ -180,4 +180,4 @@ If you need to regenerate your key, visit your [profile page](https://mcp.atlant
 
 - Amazon Q Documentation: [aws.amazon.com/q/developer](https://aws.amazon.com/q/developer/)
 - [Atlantis MCP Server: GitHub](https://github.com/63klabs/atlantis-mcp/) ([Issues](https://github.com/63klabs/atlantis-mcp/issues))
-- [Atlantis Platform Documentation](https://github.com/63Klabs/atlantis)
+- [Atlantis DevOps Platform Documentation](https://github.com/63Klabs/atlantis)

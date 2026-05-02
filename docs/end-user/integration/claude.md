@@ -88,4 +88,4 @@ If you need to regenerate your key, visit your [profile page](https://mcp.atlant
 
 - [Claude Desktop Documentation](https://claude.ai/docs)
 - [Atlantis MCP Server: GitHub](https://github.com/63klabs/atlantis-mcp/) ([Issues](https://github.com/63klabs/atlantis-mcp/issues))
-- [Atlantis Platform Documentation](https://github.com/63Klabs/atlantis)
+- [63Klabs Atlantis DevOps Platform Documentation](https://github.com/63Klabs/atlantis)
