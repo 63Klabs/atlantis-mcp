@@ -84,15 +84,15 @@ function replaceTokens(content, settings) {
  *
  * @example
  * const result = replaceApiGatewayUrl(
- *   'url: https://abc123.execute-api.us-east-1.amazonaws.com/prod/v1',
- *   'abc123', 'us-east-1', 'prod', 'mcp.atlantis.63klabs.net'
+ *   'my string content containing url: https://abc123.execute-api.us-east-1.amazonaws.com/atlantis-mcp-prod/mcp/v1',
+ *   'abc123', 'us-east-1', 'atlantis-mcp-prod', 'mcp.atlantis.63klabs.net'
  * );
- * // result.content === 'url: https://mcp.atlantis.63klabs.net/v1'
+ * // result.content === 'my string content containing url: https://mcp.atlantis.63klabs.net/mcp/v1'
  * // result.count   === 1
  */
 function replaceApiGatewayUrl(content, restApiId, region, apiStageName, domain) {
   const apiGatewayUrl = `https://${restApiId}.execute-api.${region}.amazonaws.com/${apiStageName}`;
-  const domainUrl = `https://${domain}/mcp`;
+  const domainUrl = `https://${domain}`;
   let count = 0;
   let result = content;
 
@@ -218,7 +218,7 @@ if (require.main === module) {
 
   // ---- Inject API base URL for auth pages ----
   if (flags['rest-api-id'] && flags['region'] && flags['api-stage-name']) {
-    settings.apiBaseUrl = `https://${flags['rest-api-id']}.execute-api.${flags['region']}.amazonaws.com/${flags['api-stage-name']}`;
+    settings.apiBaseUrl = `https://${flags['rest-api-id']}.execute-api.${flags['region']}.amazonaws.com/${flags['api-stage-name']}/mcp`;
   }
 
   console.log(`Resolved ${Object.keys(settings).length} setting(s) for stage "${stageId}"`);
