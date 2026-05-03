@@ -841,6 +841,9 @@ Resources:
           - !FindInMap [LambdaInsightsArm, !Ref 'AWS::Region', ExtArn]
           - !FindInMap [LambdaInsightsX86, !Ref 'AWS::Region', ExtArn]
 
+        # Lambda SSM Parameters and Secrets Extension Layer - Using Public SSM Parameter from AWS - Use mapping if not available in your region
+        - '{{resolve:ssm:/aws/service/aws-parameters-and-secrets-lambda-extension/arm64/latest}}' #arm64 - There is also an x86 version available too
+
       Environment:
         Variables:
           USERS_TABLE: !Ref UsersTable

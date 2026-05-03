@@ -518,6 +518,12 @@ Common environment variables used by cache-data:
 | `CACHE_TABLE` | DynamoDB table name for cache storage |
 | `CACHE_BUCKET` | S3 bucket name for large cached objects |
 
+## Lambda Layers
+
+For Cache-Data to function with Lambda Insights and SSM Parameters, the following layers must be used.
+
+
+
 ## Rules for AI Code Generation
 
 When generating or modifying code in this project for Lambda functions behind API Gateway:
