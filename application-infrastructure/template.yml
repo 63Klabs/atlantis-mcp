@@ -878,19 +878,19 @@ Resources:
         KeyRegenerate:
           Type: Api
           Properties:
-            Path: /auth/key/regenerate
+            Path: /mcp/auth/key/regenerate
             Method: post
             RestApiId: !Ref WebApi
         VoucherRedeem:
           Type: Api
           Properties:
-            Path: /auth/voucher/redeem
+            Path: /mcp/auth/voucher/redeem
             Method: post
             RestApiId: !Ref WebApi
         GetProfile:
           Type: Api
           Properties:
-            Path: /auth/profile
+            Path: /mcp/auth/profile
             Method: get
             RestApiId: !Ref WebApi
 

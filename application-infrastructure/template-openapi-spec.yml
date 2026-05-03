@@ -51,7 +51,7 @@ paths:
         uri:
           Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ReadLambdaFunction.Arn}/invocations
 
-  /auth/key/regenerate:
+  /mcp/auth/key/regenerate:
     post:
       summary: "Regenerate API key"
       description: "Regenerate the authenticated user's API key. Requires a valid Cognito JWT in the Authorization header. Returns the new raw API key once."
@@ -86,7 +86,7 @@ paths:
         uri:
           Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AuthLambdaFunction.Arn}/invocations
 
-  /auth/profile:
+  /mcp/auth/profile:
     get:
       summary: "Get user profile"
       description: "Retrieve consolidated profile data for the authenticated user including email, tier, tier expiration, and real-time rate limit statistics. Requires a valid Cognito JWT in the Authorization header."
@@ -129,7 +129,7 @@ paths:
         uri:
           Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AuthLambdaFunction.Arn}/invocations
 
-  /auth/voucher/redeem:
+  /mcp/auth/voucher/redeem:
     post:
       summary: "Redeem a voucher code"
       description: "Redeem a promotion voucher code to upgrade the authenticated user's tier. Requires a valid Cognito JWT in the Authorization header."
