@@ -39,6 +39,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Migrated JWT validator to accept User Pool ID as parameter
   - Endpoint paths now include `/mcp` prefix (e.g., `/auth/profile` → `/mcp/auth/profile`)
 
+### Fixed
+- **Auth Lambda: jwt-validator.js** - Fixed 401 Unauthorized on all auth endpoints after login [Spec: 0-0-3-auth-profile-401-after-login](../.kiro/specs/0-0-3-auth-profile-401-after-login/)
+  - validateJwt() now checks both props.headers and props.headerParameters for the Authorization header, resolving mismatch with clientRequest.getProps() output structure
+
 ## [v0.0.2] (2026-04-09)
 
 ### Changed

@@ -224,26 +224,39 @@ function extractBearerToken(authHeader) {
  * Verifies the token signature against the Cognito JWKS endpoint,
  * checks expiration, issuer, and token_use claims.
  *
+ * The Authorization header is extracted from `props.headers` first
+ * (raw API Gateway event, read Lambda path) and falls back to
+ * `props.headerParameters` (clientRequest.getProps() output, auth
+ * Lambda path). This supports both invocation patterns.
+ *
  * @param {Object} props - Request properties (API Gateway event or clientRequest.getProps())
- * @param {Object} props.headers - Request headers
- * @param {string} props.headers.Authorization - Bearer JWT token
+ * @param {Object} [props.headers] - Raw request headers (read Lambda path)
+ * @param {string} [props.headers.Authorization] - Bearer JWT token (PascalCase)
+ * @param {string} [props.headers.authorization] - Bearer JWT token (lowercase)
+ * @param {Object} [props.headerParameters] - Processed request headers from clientRequest.getProps() (auth Lambda path)
+ * @param {string} [props.headerParameters.Authorization] - Bearer JWT token (PascalCase)
+ * @param {string} [props.headerParameters.authorization] - Bearer JWT token (lowercase, camelCase conversion by ClientRequest)
  * @param {string} [userPoolId] - Optional Cognito User Pool ID. When provided
  *   (auth Lambda path), uses this value directly. When omitted (read Lambda path),
  *   falls back to `process.env.COGNITO_USER_POOL_ID`.
  * @returns {Promise<Object>} Decoded token payload
  * @throws {Object} Error with statusCode 401 and message
  * @example
- * // Auth Lambda path — pass User Pool ID from CachedSsmParameter
+ * // Auth Lambda path — props from clientRequest.getProps() with headerParameters
  * const payload = await validateJwt(props, await Config.settings().cognito.userPoolId.getValue());
+ * // props = { headerParameters: { authorization: 'Bearer eyJ...' }, method: 'GET', ... }
  *
  * @example
- * // Read Lambda path — uses process.env.COGNITO_USER_POOL_ID fallback
+ * // Read Lambda path — raw API Gateway event with headers
  * const payload = await validateJwt(event);
+ * // event = { headers: { Authorization: 'Bearer eyJ...' }, ... }
  */
 async function validateJwt(props, userPoolId) {
 	const resolvedPoolId = resolveUserPoolId(userPoolId);
 
-	const authHeader = props.headers?.Authorization || props.headers?.authorization;
+	// >! Check both headers (read Lambda path) and headerParameters (auth Lambda path via clientRequest.getProps())
+	const authHeader = props.headers?.Authorization || props.headers?.authorization
+		|| props.headerParameters?.Authorization || props.headerParameters?.authorization;
 	const token = extractBearerToken(authHeader);
 	if (!token) {
 		throw { statusCode: 401, message: 'Missing or invalid Authorization header' };

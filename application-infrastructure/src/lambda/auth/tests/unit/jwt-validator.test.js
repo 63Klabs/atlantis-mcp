@@ -323,4 +323,76 @@ describe('JWT Validator', () => {
 			);
 		});
 	});
+
+	describe('with Authorization in headerParameters', () => {
+		it('should validate JWT from headerParameters.authorization (camelCase)', async () => {
+			const token = createTestJwt();
+			const props = { headerParameters: { authorization: `Bearer ${token}` } };
+
+			const payload = await validateJwt(props, TEST_USER_POOL_ID);
+
+			expect(payload.sub).toBe('test-user-sub-123');
+			expect(payload.email).toBe('test@example.com');
+			expect(payload.token_use).toBe('id');
+		});
+
+		it('should validate JWT from headerParameters.Authorization (PascalCase)', async () => {
+			const token = createTestJwt();
+			const props = { headerParameters: { Authorization: `Bearer ${token}` } };
+
+			const payload = await validateJwt(props, TEST_USER_POOL_ID);
+
+			expect(payload.sub).toBe('test-user-sub-123');
+			expect(payload.email).toBe('test@example.com');
+		});
+
+		it('should prefer headers over headerParameters when both are present', async () => {
+			const headersToken = createTestJwt({}, { sub: 'headers-user', email: 'headers@example.com' });
+			const headerParamsToken = createTestJwt({}, { sub: 'params-user', email: 'params@example.com' });
+			const props = {
+				headers: { Authorization: `Bearer ${headersToken}` },
+				headerParameters: { authorization: `Bearer ${headerParamsToken}` }
+			};
+
+			const payload = await validateJwt(props, TEST_USER_POOL_ID);
+
+			expect(payload.sub).toBe('headers-user');
+			expect(payload.email).toBe('headers@example.com');
+		});
+
+		it('should reject when headerParameters is present but has no authorization key', async () => {
+			const props = { headerParameters: {} };
+
+			await expect(validateJwt(props, TEST_USER_POOL_ID)).rejects.toEqual(
+				expect.objectContaining({ statusCode: 401, message: 'Missing or invalid Authorization header' })
+			);
+		});
+
+		it('should reject non-Bearer value in headerParameters', async () => {
+			const props = { headerParameters: { authorization: 'Basic abc123' } };
+
+			await expect(validateJwt(props, TEST_USER_POOL_ID)).rejects.toEqual(
+				expect.objectContaining({ statusCode: 401, message: 'Missing or invalid Authorization header' })
+			);
+		});
+
+		it('should reject expired JWT from headerParameters', async () => {
+			const now = Math.floor(Date.now() / 1000);
+			const token = createTestJwt({}, { exp: now - 3600 });
+			const props = { headerParameters: { authorization: `Bearer ${token}` } };
+
+			await expect(validateJwt(props, TEST_USER_POOL_ID)).rejects.toEqual(
+				expect.objectContaining({ statusCode: 401, message: 'Token expired' })
+			);
+		});
+
+		it('should reject wrong issuer JWT from headerParameters', async () => {
+			const token = createTestJwt({}, { iss: 'https://evil.example.com' });
+			const props = { headerParameters: { authorization: `Bearer ${token}` } };
+
+			await expect(validateJwt(props, TEST_USER_POOL_ID)).rejects.toEqual(
+				expect.objectContaining({ statusCode: 401, message: 'Invalid token issuer' })
+			);
+		});
+	});
 });
