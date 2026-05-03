@@ -8,6 +8,10 @@
  * Uses Node.js built-in `crypto` and `https` modules — no external
  * JWT libraries required.
  *
+ * The User Pool ID can be passed as a parameter (auth Lambda path via
+ * CachedSsmParameter) or falls back to `process.env.COGNITO_USER_POOL_ID`
+ * (read Lambda path).
+ *
  * @module utils/jwt-validator
  */
 
@@ -15,9 +19,6 @@
 
 const crypto = require('crypto');
 const https = require('https');
-const { SSMClient, GetParameterCommand } = require('@aws-sdk/client-ssm');
-
-const ssmClient = new SSMClient({});
 
 /** @type {Object|null} Cached JWKS keys, keyed by kid */
 let jwksCache = null;
@@ -27,15 +28,6 @@ let jwksCacheTime = 0;
 
 /** JWKS cache TTL in milliseconds (1 hour) */
 const JWKS_CACHE_TTL = 60 * 60 * 1000;
-
-/** @type {string|null} Cached User Pool ID from SSM */
-let cachedUserPoolId = null;
-
-/** @type {number} Timestamp when User Pool ID cache was last refreshed */
-let userPoolIdCacheTime = 0;
-
-/** User Pool ID cache TTL in milliseconds (5 minutes) */
-const USER_POOL_ID_CACHE_TTL = 5 * 60 * 1000;
 
 /**
  * Fetch JWKS from the Cognito endpoint.
@@ -87,51 +79,30 @@ async function getJwks(userPoolId) {
 }
 
 /**
- * Retrieve the Cognito User Pool ID, checking the environment variable
- * first (Read Lambda path), then falling back to SSM Parameter Store
- * with module-level caching (Auth Lambda path).
+ * Resolve the User Pool ID from the provided parameter or environment variable.
+ *
+ * When called from the auth Lambda, controllers pass the User Pool ID
+ * from `Config.settings().cognito.userPoolId.getValue()`. When called
+ * from the read Lambda, the `userPoolId` parameter is omitted and the
+ * function falls back to `process.env.COGNITO_USER_POOL_ID`.
  *
  * @private
- * @returns {Promise<string>} Cognito User Pool ID
- * @throws {Object} Error with statusCode 401 if SSM retrieval fails
+ * @param {string} [userPoolId] - Optional User Pool ID passed by caller
+ * @returns {string} Resolved User Pool ID
+ * @throws {Object} Error with statusCode 401 if no User Pool ID is available
  */
-async function getUserPoolId() {
-	// >! Check environment variable first (Read Lambda has this set)
+function resolveUserPoolId(userPoolId) {
+	if (userPoolId) {
+		return userPoolId;
+	}
+
+	// >! Fallback to environment variable (read Lambda path)
 	const envPoolId = process.env.COGNITO_USER_POOL_ID;
 	if (envPoolId) {
 		return envPoolId;
 	}
 
-	// >! Check cache for SSM-retrieved value
-	const now = Date.now();
-	if (cachedUserPoolId && (now - userPoolIdCacheTime) < USER_POOL_ID_CACHE_TTL) {
-		return cachedUserPoolId;
-	}
-
-	// >! Retrieve from SSM Parameter Store
-	try {
-		const fullPath = process.env.PARAM_STORE_PATH + 'app-stack/Mcp_CognitoUserPoolId';
-		const result = await ssmClient.send(new GetParameterCommand({
-			Name: fullPath,
-			WithDecryption: true
-		}));
-
-		cachedUserPoolId = result.Parameter.Value;
-		userPoolIdCacheTime = now;
-		return cachedUserPoolId;
-	} catch (err) {
-		throw { statusCode: 401, message: 'Authentication not configured' };
-	}
-}
-
-/**
- * Clear the cached User Pool ID. Useful for testing.
- *
- * @private
- */
-function clearUserPoolIdCache() {
-	cachedUserPoolId = null;
-	userPoolIdCacheTime = 0;
+	throw { statusCode: 401, message: 'Authentication not configured' };
 }
 
 /**
@@ -253,23 +224,26 @@ function extractBearerToken(authHeader) {
  * Verifies the token signature against the Cognito JWKS endpoint,
  * checks expiration, issuer, and token_use claims.
  *
- * @param {Object} event - API Gateway event
- * @param {Object} event.headers - Request headers
- * @param {string} event.headers.Authorization - Bearer JWT token
+ * @param {Object} props - Request properties (API Gateway event or clientRequest.getProps())
+ * @param {Object} props.headers - Request headers
+ * @param {string} props.headers.Authorization - Bearer JWT token
+ * @param {string} [userPoolId] - Optional Cognito User Pool ID. When provided
+ *   (auth Lambda path), uses this value directly. When omitted (read Lambda path),
+ *   falls back to `process.env.COGNITO_USER_POOL_ID`.
  * @returns {Promise<Object>} Decoded token payload
  * @throws {Object} Error with statusCode 401 and message
  * @example
- * try {
- *   const payload = await validateJwt(event);
- *   // payload: { sub: 'abc-123', email: 'user@example.com', ... }
- * } catch (err) {
- *   // err: { statusCode: 401, message: 'Unauthorized' }
- * }
+ * // Auth Lambda path — pass User Pool ID from CachedSsmParameter
+ * const payload = await validateJwt(props, await Config.settings().cognito.userPoolId.getValue());
+ *
+ * @example
+ * // Read Lambda path — uses process.env.COGNITO_USER_POOL_ID fallback
+ * const payload = await validateJwt(event);
  */
-async function validateJwt(event) {
-	const userPoolId = await getUserPoolId();
+async function validateJwt(props, userPoolId) {
+	const resolvedPoolId = resolveUserPoolId(userPoolId);
 
-	const authHeader = event.headers?.Authorization || event.headers?.authorization;
+	const authHeader = props.headers?.Authorization || props.headers?.authorization;
 	const token = extractBearerToken(authHeader);
 	if (!token) {
 		throw { statusCode: 401, message: 'Missing or invalid Authorization header' };
@@ -296,7 +270,7 @@ async function validateJwt(event) {
 	}
 
 	// Fetch JWKS and find matching key
-	const jwks = await getJwks(userPoolId);
+	const jwks = await getJwks(resolvedPoolId);
 	const jwk = jwks[header.kid];
 	if (!jwk) {
 		throw { statusCode: 401, message: 'Token signed with unknown key' };
@@ -322,8 +296,8 @@ async function validateJwt(event) {
 	}
 
 	// Verify issuer
-	const region = userPoolId.split('_')[0];
-	const expectedIssuer = `https://cognito-idp.${region}.amazonaws.com/${userPoolId}`;
+	const region = resolvedPoolId.split('_')[0];
+	const expectedIssuer = `https://cognito-idp.${region}.amazonaws.com/${resolvedPoolId}`;
 	if (payload.iss !== expectedIssuer) {
 		throw { statusCode: 401, message: 'Invalid token issuer' };
 	}
@@ -361,7 +335,7 @@ class TestHarness {
 	 * Get access to internal functions for testing purposes.
 	 * WARNING: This method is for testing only and should never be used in production.
 	 *
-	 * @returns {{fetchJwks: Function, getJwks: Function, base64urlDecode: Function, jwkToPem: Function, extractBearerToken: Function, clearJwksCache: Function, getUserPoolId: Function, clearUserPoolIdCache: Function, cachedUserPoolId: string|null, userPoolIdCacheTime: number, USER_POOL_ID_CACHE_TTL: number}} Object containing internal functions
+	 * @returns {{fetchJwks: Function, getJwks: Function, base64urlDecode: Function, jwkToPem: Function, extractBearerToken: Function, clearJwksCache: Function, resolveUserPoolId: Function}} Object containing internal functions
 	 * @private
 	 */
 	static getInternals() {
@@ -372,11 +346,7 @@ class TestHarness {
 			jwkToPem,
 			extractBearerToken,
 			clearJwksCache,
-			getUserPoolId,
-			clearUserPoolIdCache,
-			get cachedUserPoolId() { return cachedUserPoolId; },
-			get userPoolIdCacheTime() { return userPoolIdCacheTime; },
-			USER_POOL_ID_CACHE_TTL
+			resolveUserPoolId
 		};
 	}
 }

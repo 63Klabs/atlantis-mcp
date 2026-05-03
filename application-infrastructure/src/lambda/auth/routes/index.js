@@ -1,127 +1,72 @@
 /**
- * Auth Lambda Route Dispatcher
+ * Auth Lambda Route Dispatcher (cache-data MVC pattern)
  *
- * Routes API Gateway proxy events to the appropriate handler based on
- * HTTP method and path:
- * - GET  /auth/profile        → handlers/profile.js
- * - POST /auth/key/regenerate → handlers/key-regenerate.js
- * - POST /auth/voucher/redeem → handlers/voucher-redeem.js
- * - All other paths → 404 Not Found
+ * Reads `clientRequest.getProps()` to obtain HTTP method and path,
+ * then dispatches to the appropriate controller using `path.endsWith()`
+ * matching for CloudFront compatibility:
+ *
+ * - GET  + path ends with `mcp/auth/profile`        → ProfileController
+ * - POST + path ends with `mcp/auth/key/regenerate`  → KeyRegenerateController
+ * - POST + path ends with `mcp/auth/voucher/redeem`  → VoucherRedeemController
+ * - No match → 404 Not found
+ *
+ * Controllers are lazy-loaded via `require()` inside the route handler
+ * to avoid pulling in service dependencies at module-load time.
  *
  * @module routes
  */
 
 'use strict';
 
-const keyRegenerateHandler = require('../handlers/key-regenerate');
-const voucherRedeemHandler = require('../handlers/voucher-redeem');
-const profileHandler = require('../handlers/profile');
+const { tools: { DebugAndLog } } = require('@63klabs/cache-data');
 
 /**
- * Route map for GET method endpoints.
- * Keys are normalized paths (lowercase, no trailing slash).
+ * Process an incoming request by dispatching to the matching controller.
  *
- * @type {Object.<string, {handler: Function}>}
- */
-const GET_ROUTES = {
-	'/auth/profile': { handler: profileHandler.handler }
-};
-
-/**
- * Route map for POST method endpoints.
- * Keys are normalized paths (lowercase, no trailing slash).
- *
- * @type {Object.<string, {handler: Function}>}
- */
-const POST_ROUTES = {
-	'/auth/key/regenerate': { handler: keyRegenerateHandler.handler },
-	'/auth/voucher/redeem': { handler: voucherRedeemHandler.handler }
-};
-
-/**
- * Normalize a request path for consistent route matching.
- * Converts to lowercase and strips trailing slash (except root).
- *
- * @param {string} path - Raw request path
- * @returns {string} Normalized path
- * @example
- * normalizePath('/Auth/Key/Regenerate/'); // '/auth/key/regenerate'
- * normalizePath('/auth/voucher/redeem');  // '/auth/voucher/redeem'
- */
-function normalizePath(path) {
-	let normalized = path.toLowerCase();
-	if (normalized.length > 1 && normalized.endsWith('/')) {
-		normalized = normalized.slice(0, -1);
-	}
-	return normalized;
-}
-
-/**
- * Route an API Gateway proxy event to the matching handler.
- *
- * Supports GET and POST requests. Returns 404 for unknown paths
- * or unsupported methods.
+ * Uses `path.endsWith()` rather than exact matching so that both
+ * CloudFront-proxied paths (which may have a leading prefix) and
+ * direct API Gateway paths resolve correctly.
  *
  * @async
- * @param {Object} event - API Gateway proxy event
- * @param {string} event.httpMethod - HTTP method (e.g. 'GET', 'POST')
- * @param {string} event.path - Request path (e.g. '/auth/profile')
- * @param {Object} event.headers - Request headers
- * @param {string} [event.body] - Request body (JSON string)
- * @returns {Promise<{statusCode: number, headers: Object, body: string}>} API Gateway proxy response
+ * @param {Object} clientRequest - ClientRequest instance from cache-data
+ * @param {Object} response - Response instance from cache-data
+ * @returns {Promise<void>}
  * @example
- * // Route a profile request
- * const response = await route({
- *   httpMethod: 'GET',
- *   path: '/auth/profile',
- *   headers: { Authorization: 'Bearer <jwt>' }
- * });
- * // response: { statusCode: 200, headers: {...}, body: '{"email":"...","tier":"..."}' }
- *
- * @example
- * // Route a key regeneration request
- * const response = await route({
- *   httpMethod: 'POST',
- *   path: '/auth/key/regenerate',
- *   headers: { Authorization: 'Bearer <jwt>' }
- * });
- * // response: { statusCode: 200, headers: {...}, body: '{"apiKey":"atl_..."}' }
- *
- * @example
- * // Unknown path returns 404
- * const response = await route({
- *   httpMethod: 'POST',
- *   path: '/auth/unknown'
- * });
- * // response: { statusCode: 404, headers: {...}, body: '{"error":"Not found"}' }
+ * // Called from the handler entry point
+ * const Routes = require('./routes');
+ * await Routes.process(clientRequest, response);
  */
-async function route(event) {
-	const method = (event.httpMethod || '').toUpperCase();
-	const path = normalizePath(event.path || '');
+const process = async (clientRequest, response) => {
+	const props = clientRequest.getProps();
+	const method = (props.method || '').toUpperCase();
+	const path = props.path || '';
 
-	// >! Route GET requests to GET_ROUTES
-	if (method === 'GET') {
-		const matched = GET_ROUTES[path];
-		if (matched) {
-			return matched.handler(event);
-		}
+	// >! Route: GET mcp/auth/profile
+	if (method === 'GET' && path.endsWith('mcp/auth/profile')) {
+		const ProfileController = require('../controllers/profile');
+		await ProfileController.get(props, response);
+		return;
 	}
 
-	// >! Route POST requests to POST_ROUTES
-	if (method === 'POST') {
-		const matched = POST_ROUTES[path];
-		if (matched) {
-			return matched.handler(event);
-		}
+	// >! Route: POST mcp/auth/key/regenerate
+	if (method === 'POST' && path.endsWith('mcp/auth/key/regenerate')) {
+		const KeyRegenerateController = require('../controllers/key-regenerate');
+		await KeyRegenerateController.post(props, response);
+		return;
 	}
 
-	// >! Return 404 for unknown paths
-	return {
-		statusCode: 404,
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ error: 'Not found' })
-	};
-}
+	// >! Route: POST mcp/auth/voucher/redeem
+	if (method === 'POST' && path.endsWith('mcp/auth/voucher/redeem')) {
+		const VoucherRedeemController = require('../controllers/voucher-redeem');
+		await VoucherRedeemController.post(props, response);
+		return;
+	}
+
+	// >! No matching route — return 404
+	DebugAndLog.warn('No matching route', { method, path });
+	response.setStatusCode(404);
+	response.setBody({ error: 'Not found' });
+};
 
 /* ------------------------------------------------------------------ */
 /*  TestHarness (for testing private internals)                       */
@@ -138,23 +83,21 @@ class TestHarness {
 	 * Get access to internal functions for testing purposes.
 	 * WARNING: This method is for testing only and should never be used in production.
 	 *
-	 * @returns {{normalizePath: Function, GET_ROUTES: Object, POST_ROUTES: Object}} Object containing internal functions
+	 * @returns {{process: Function}} Object containing internal functions
 	 * @private
 	 * @example
 	 * // In tests only — DO NOT use in production
 	 * const { TestHarness } = require('../routes/index');
-	 * const { normalizePath, GET_ROUTES } = TestHarness.getInternals();
+	 * const { process } = TestHarness.getInternals();
 	 */
 	static getInternals() {
 		return {
-			normalizePath,
-			GET_ROUTES,
-			POST_ROUTES
+			process
 		};
 	}
 }
 
 module.exports = {
-	route,
+	process,
 	TestHarness
 };

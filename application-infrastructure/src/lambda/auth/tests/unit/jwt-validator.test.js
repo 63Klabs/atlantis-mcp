@@ -1,4 +1,5 @@
-// Feature: 0-0-3-add-authentication, Unit tests for JWT validator
+// Feature: 0-0-3-update-auth-function-to-use-cache-data, Unit tests for JWT validator
+// Tests the parameter-based User Pool ID approach and env var fallback
 'use strict';
 
 const crypto = require('crypto');
@@ -93,25 +94,15 @@ jest.mock('https', () => {
 	};
 });
 
-// Mock @aws-sdk/client-ssm for SSM fallback tests
-const mockSsmSend = jest.fn();
-jest.mock('@aws-sdk/client-ssm', () => {
-	return {
-		SSMClient: jest.fn().mockImplementation(() => ({ send: mockSsmSend })),
-		GetParameterCommand: jest.fn().mockImplementation((params) => params)
-	};
-});
-
 const { validateJwt, TestHarness } = require('../../utils/jwt-validator');
-const { clearJwksCache, clearUserPoolIdCache } = TestHarness.getInternals();
+const { clearJwksCache, resolveUserPoolId } = TestHarness.getInternals();
 
 describe('JWT Validator', () => {
 	const originalEnv = process.env;
 
 	beforeEach(() => {
-		process.env = { ...originalEnv, COGNITO_USER_POOL_ID: TEST_USER_POOL_ID };
+		process.env = { ...originalEnv };
 		clearJwksCache();
-		clearUserPoolIdCache();
 
 		// Mock https.get to return test JWKS
 		https.get.mockImplementation((url, callback) => {
@@ -138,202 +129,198 @@ describe('JWT Validator', () => {
 		jest.restoreAllMocks();
 	});
 
-	it('should validate a correctly signed JWT', async () => {
-		const token = createTestJwt();
-		const event = { headers: { Authorization: `Bearer ${token}` } };
-
-		const payload = await validateJwt(event);
-
-		expect(payload.sub).toBe('test-user-sub-123');
-		expect(payload.email).toBe('test@example.com');
-		expect(payload.token_use).toBe('id');
-	});
-
-	it('should accept access tokens', async () => {
-		const token = createTestJwt({}, { token_use: 'access' });
-		const event = { headers: { Authorization: `Bearer ${token}` } };
-
-		const payload = await validateJwt(event);
-
-		expect(payload.token_use).toBe('access');
-	});
-
-	it('should accept lowercase authorization header', async () => {
-		const token = createTestJwt();
-		const event = { headers: { authorization: `Bearer ${token}` } };
-
-		const payload = await validateJwt(event);
-
-		expect(payload.sub).toBe('test-user-sub-123');
-	});
-
-	it('should reject expired tokens', async () => {
-		const now = Math.floor(Date.now() / 1000);
-		const token = createTestJwt({}, { exp: now - 3600 });
-		const event = { headers: { Authorization: `Bearer ${token}` } };
-
-		await expect(validateJwt(event)).rejects.toEqual(
-			expect.objectContaining({ statusCode: 401, message: 'Token expired' })
-		);
-	});
-
-	it('should reject tokens with wrong issuer', async () => {
-		const token = createTestJwt({}, { iss: 'https://evil.example.com' });
-		const event = { headers: { Authorization: `Bearer ${token}` } };
-
-		await expect(validateJwt(event)).rejects.toEqual(
-			expect.objectContaining({ statusCode: 401, message: 'Invalid token issuer' })
-		);
-	});
-
-	it('should reject tokens with invalid token_use', async () => {
-		const token = createTestJwt({}, { token_use: 'refresh' });
-		const event = { headers: { Authorization: `Bearer ${token}` } };
-
-		await expect(validateJwt(event)).rejects.toEqual(
-			expect.objectContaining({ statusCode: 401, message: 'Invalid token use' })
-		);
-	});
-
-	it('should reject missing Authorization header', async () => {
-		const event = { headers: {} };
-
-		await expect(validateJwt(event)).rejects.toEqual(
-			expect.objectContaining({ statusCode: 401, message: 'Missing or invalid Authorization header' })
-		);
-	});
-
-	it('should reject non-Bearer Authorization header', async () => {
-		const event = { headers: { Authorization: 'Basic abc123' } };
-
-		await expect(validateJwt(event)).rejects.toEqual(
-			expect.objectContaining({ statusCode: 401, message: 'Missing or invalid Authorization header' })
-		);
-	});
-
-	it('should reject malformed tokens (not 3 parts)', async () => {
-		const event = { headers: { Authorization: 'Bearer not.a.valid.jwt.token' } };
-
-		await expect(validateJwt(event)).rejects.toEqual(
-			expect.objectContaining({ statusCode: 401, message: 'Malformed token' })
-		);
-	});
-
-	it('should reject malformed tokens (invalid base64)', async () => {
-		const event = { headers: { Authorization: 'Bearer !!!.!!!.!!!' } };
-
-		await expect(validateJwt(event)).rejects.toEqual(
-			expect.objectContaining({ statusCode: 401, message: 'Malformed token' })
-		);
-	});
-
-	it('should reject tokens signed with unknown kid', async () => {
-		const token = createTestJwt({ kid: 'unknown-kid' });
-		const event = { headers: { Authorization: `Bearer ${token}` } };
-
-		await expect(validateJwt(event)).rejects.toEqual(
-			expect.objectContaining({ statusCode: 401, message: 'Token signed with unknown key' })
-		);
-	});
-
-	it('should reject when COGNITO_USER_POOL_ID is not set and SSM fails', async () => {
-		delete process.env.COGNITO_USER_POOL_ID;
-		delete process.env.PARAM_STORE_PATH;
-		mockSsmSend.mockRejectedValue(new Error('SSM parameter not found'));
-		const token = createTestJwt();
-		const event = { headers: { Authorization: `Bearer ${token}` } };
-
-		await expect(validateJwt(event)).rejects.toEqual(
-			expect.objectContaining({ statusCode: 401, message: 'Authentication not configured' })
-		);
-	});
-
-	it('should reject tokens with missing kid in header', async () => {
-		// Build a token manually without kid
-		const header = { alg: 'RS256', typ: 'JWT' };
-		const now = Math.floor(Date.now() / 1000);
-		const payload = {
-			sub: 'test', iss: TEST_ISSUER, token_use: 'id',
-			iat: now - 60, exp: now + 3600
-		};
-		const headerB64 = base64urlEncode(JSON.stringify(header));
-		const payloadB64 = base64urlEncode(JSON.stringify(payload));
-		const sig = crypto.createSign('RSA-SHA256')
-			.update(`${headerB64}.${payloadB64}`)
-			.sign(privateKey);
-		const token = `${headerB64}.${payloadB64}.${base64urlEncode(sig)}`;
-		const event = { headers: { Authorization: `Bearer ${token}` } };
-
-		await expect(validateJwt(event)).rejects.toEqual(
-			expect.objectContaining({ statusCode: 401, message: 'Token missing key ID' })
-		);
-	});
-
-	it('should cache JWKS and not refetch within TTL', async () => {
-		// Clear call count from previous tests
-		https.get.mockClear();
-
-		const token1 = createTestJwt();
-		const token2 = createTestJwt({}, { sub: 'second-user' });
-
-		await validateJwt({ headers: { Authorization: `Bearer ${token1}` } });
-		await validateJwt({ headers: { Authorization: `Bearer ${token2}` } });
-
-		// https.get should only be called once (JWKS cached after first call)
-		expect(https.get).toHaveBeenCalledTimes(1);
-	});
-
-	describe('SSM fallback for User Pool ID', () => {
-		beforeEach(() => {
-			// Remove env var so SSM fallback is triggered
-			delete process.env.COGNITO_USER_POOL_ID;
-			process.env.PARAM_STORE_PATH = '/test/path/';
-			clearUserPoolIdCache();
-
-			// Mock SSM to return the test User Pool ID
-			mockSsmSend.mockResolvedValue({
-				Parameter: { Value: TEST_USER_POOL_ID }
-			});
-		});
-
-		it('should retrieve User Pool ID from SSM when env var is not set', async () => {
+	describe('with User Pool ID passed as parameter', () => {
+		it('should validate a correctly signed JWT', async () => {
 			const token = createTestJwt();
-			const event = { headers: { Authorization: `Bearer ${token}` } };
+			const props = { headers: { Authorization: `Bearer ${token}` } };
 
-			const payload = await validateJwt(event);
+			const payload = await validateJwt(props, TEST_USER_POOL_ID);
 
 			expect(payload.sub).toBe('test-user-sub-123');
 			expect(payload.email).toBe('test@example.com');
-			expect(mockSsmSend).toHaveBeenCalledTimes(1);
-			expect(mockSsmSend).toHaveBeenCalledWith(
-				expect.objectContaining({
-					Name: '/test/path/app-stack/Mcp_CognitoUserPoolId',
-					WithDecryption: true
-				})
+			expect(payload.token_use).toBe('id');
+		});
+
+		it('should accept access tokens', async () => {
+			const token = createTestJwt({}, { token_use: 'access' });
+			const props = { headers: { Authorization: `Bearer ${token}` } };
+
+			const payload = await validateJwt(props, TEST_USER_POOL_ID);
+
+			expect(payload.token_use).toBe('access');
+		});
+
+		it('should accept lowercase authorization header', async () => {
+			const token = createTestJwt();
+			const props = { headers: { authorization: `Bearer ${token}` } };
+
+			const payload = await validateJwt(props, TEST_USER_POOL_ID);
+
+			expect(payload.sub).toBe('test-user-sub-123');
+		});
+
+		it('should reject expired tokens', async () => {
+			const now = Math.floor(Date.now() / 1000);
+			const token = createTestJwt({}, { exp: now - 3600 });
+			const props = { headers: { Authorization: `Bearer ${token}` } };
+
+			await expect(validateJwt(props, TEST_USER_POOL_ID)).rejects.toEqual(
+				expect.objectContaining({ statusCode: 401, message: 'Token expired' })
 			);
 		});
 
-		it('should cache SSM User Pool ID and not refetch on second call', async () => {
+		it('should reject tokens with wrong issuer', async () => {
+			const token = createTestJwt({}, { iss: 'https://evil.example.com' });
+			const props = { headers: { Authorization: `Bearer ${token}` } };
+
+			await expect(validateJwt(props, TEST_USER_POOL_ID)).rejects.toEqual(
+				expect.objectContaining({ statusCode: 401, message: 'Invalid token issuer' })
+			);
+		});
+
+		it('should reject tokens with invalid token_use', async () => {
+			const token = createTestJwt({}, { token_use: 'refresh' });
+			const props = { headers: { Authorization: `Bearer ${token}` } };
+
+			await expect(validateJwt(props, TEST_USER_POOL_ID)).rejects.toEqual(
+				expect.objectContaining({ statusCode: 401, message: 'Invalid token use' })
+			);
+		});
+
+		it('should reject missing Authorization header', async () => {
+			const props = { headers: {} };
+
+			await expect(validateJwt(props, TEST_USER_POOL_ID)).rejects.toEqual(
+				expect.objectContaining({ statusCode: 401, message: 'Missing or invalid Authorization header' })
+			);
+		});
+
+		it('should reject non-Bearer Authorization header', async () => {
+			const props = { headers: { Authorization: 'Basic abc123' } };
+
+			await expect(validateJwt(props, TEST_USER_POOL_ID)).rejects.toEqual(
+				expect.objectContaining({ statusCode: 401, message: 'Missing or invalid Authorization header' })
+			);
+		});
+
+		it('should reject malformed tokens (not 3 parts)', async () => {
+			const props = { headers: { Authorization: 'Bearer not.a.valid.jwt.token' } };
+
+			await expect(validateJwt(props, TEST_USER_POOL_ID)).rejects.toEqual(
+				expect.objectContaining({ statusCode: 401, message: 'Malformed token' })
+			);
+		});
+
+		it('should reject malformed tokens (invalid base64)', async () => {
+			const props = { headers: { Authorization: 'Bearer !!!.!!!.!!!' } };
+
+			await expect(validateJwt(props, TEST_USER_POOL_ID)).rejects.toEqual(
+				expect.objectContaining({ statusCode: 401, message: 'Malformed token' })
+			);
+		});
+
+		it('should reject tokens signed with unknown kid', async () => {
+			const token = createTestJwt({ kid: 'unknown-kid' });
+			const props = { headers: { Authorization: `Bearer ${token}` } };
+
+			await expect(validateJwt(props, TEST_USER_POOL_ID)).rejects.toEqual(
+				expect.objectContaining({ statusCode: 401, message: 'Token signed with unknown key' })
+			);
+		});
+
+		it('should reject tokens with missing kid in header', async () => {
+			// Build a token manually without kid
+			const header = { alg: 'RS256', typ: 'JWT' };
+			const now = Math.floor(Date.now() / 1000);
+			const payload = {
+				sub: 'test', iss: TEST_ISSUER, token_use: 'id',
+				iat: now - 60, exp: now + 3600
+			};
+			const headerB64 = base64urlEncode(JSON.stringify(header));
+			const payloadB64 = base64urlEncode(JSON.stringify(payload));
+			const sig = crypto.createSign('RSA-SHA256')
+				.update(`${headerB64}.${payloadB64}`)
+				.sign(privateKey);
+			const token = `${headerB64}.${payloadB64}.${base64urlEncode(sig)}`;
+			const props = { headers: { Authorization: `Bearer ${token}` } };
+
+			await expect(validateJwt(props, TEST_USER_POOL_ID)).rejects.toEqual(
+				expect.objectContaining({ statusCode: 401, message: 'Token missing key ID' })
+			);
+		});
+
+		it('should cache JWKS and not refetch within TTL', async () => {
+			// Clear call count from previous tests
+			https.get.mockClear();
+
 			const token1 = createTestJwt();
 			const token2 = createTestJwt({}, { sub: 'second-user' });
 
-			await validateJwt({ headers: { Authorization: `Bearer ${token1}` } });
-			await validateJwt({ headers: { Authorization: `Bearer ${token2}` } });
+			await validateJwt({ headers: { Authorization: `Bearer ${token1}` } }, TEST_USER_POOL_ID);
+			await validateJwt({ headers: { Authorization: `Bearer ${token2}` } }, TEST_USER_POOL_ID);
 
-			// SSM should only be called once (cached after first call)
-			expect(mockSsmSend).toHaveBeenCalledTimes(1);
+			// https.get should only be called once (JWKS cached after first call)
+			expect(https.get).toHaveBeenCalledTimes(1);
 		});
+	});
 
-		it('should prefer env var over SSM when both are available', async () => {
+	describe('User Pool ID fallback behavior', () => {
+		it('should use env var when no userPoolId parameter is provided', async () => {
 			process.env.COGNITO_USER_POOL_ID = TEST_USER_POOL_ID;
 			const token = createTestJwt();
-			const event = { headers: { Authorization: `Bearer ${token}` } };
+			const props = { headers: { Authorization: `Bearer ${token}` } };
 
-			const payload = await validateJwt(event);
+			const payload = await validateJwt(props);
 
 			expect(payload.sub).toBe('test-user-sub-123');
-			// SSM should not be called when env var is set
-			expect(mockSsmSend).not.toHaveBeenCalled();
+			expect(payload.email).toBe('test@example.com');
+		});
+
+		it('should prefer explicit parameter over env var', async () => {
+			process.env.COGNITO_USER_POOL_ID = 'us-east-1_WrongPool';
+			const token = createTestJwt();
+			const props = { headers: { Authorization: `Bearer ${token}` } };
+
+			// Pass the correct pool ID as parameter — should succeed
+			const payload = await validateJwt(props, TEST_USER_POOL_ID);
+
+			expect(payload.sub).toBe('test-user-sub-123');
+		});
+
+		it('should throw 401 when no userPoolId param and no env var', async () => {
+			delete process.env.COGNITO_USER_POOL_ID;
+			const token = createTestJwt();
+			const props = { headers: { Authorization: `Bearer ${token}` } };
+
+			await expect(validateJwt(props)).rejects.toEqual(
+				expect.objectContaining({ statusCode: 401, message: 'Authentication not configured' })
+			);
+		});
+	});
+
+	describe('resolveUserPoolId', () => {
+		it('should return the parameter when provided', () => {
+			const result = resolveUserPoolId('us-east-1_MyPool');
+			expect(result).toBe('us-east-1_MyPool');
+		});
+
+		it('should return env var when parameter is undefined', () => {
+			process.env.COGNITO_USER_POOL_ID = 'us-east-1_EnvPool';
+			const result = resolveUserPoolId(undefined);
+			expect(result).toBe('us-east-1_EnvPool');
+		});
+
+		it('should return env var when parameter is null', () => {
+			process.env.COGNITO_USER_POOL_ID = 'us-east-1_EnvPool';
+			const result = resolveUserPoolId(null);
+			expect(result).toBe('us-east-1_EnvPool');
+		});
+
+		it('should throw when no parameter and no env var', () => {
+			delete process.env.COGNITO_USER_POOL_ID;
+			expect(() => resolveUserPoolId(undefined)).toThrow(
+				expect.objectContaining({ statusCode: 401, message: 'Authentication not configured' })
+			);
 		});
 	});
 });

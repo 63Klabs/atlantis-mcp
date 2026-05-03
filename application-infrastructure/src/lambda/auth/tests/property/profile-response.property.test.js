@@ -5,62 +5,77 @@ const fc = require('fast-check');
 
 /* ------------------------------------------------------------------ */
 /*  Mock Setup                                                        */
-/*  All external dependencies are mocked before requiring the handler */
+/*  All external dependencies are mocked before requiring the service */
 /* ------------------------------------------------------------------ */
 
-// >! Mock JWT validator — returns controlled payload for each test run
-jest.mock('../../utils/jwt-validator', () => ({
-	validateJwt: jest.fn()
+// >! Mock DynamoDB SDK to prevent real AWS calls
+jest.mock('@aws-sdk/client-dynamodb', () => ({
+	DynamoDBClient: jest.fn().mockImplementation(() => ({}))
+}));
+jest.mock('@aws-sdk/lib-dynamodb', () => ({
+	DynamoDBDocumentClient: { from: jest.fn().mockReturnValue({
+		send: jest.fn()
+	}) },
+	GetCommand: jest.fn(),
+	PutCommand: jest.fn(),
+	DeleteCommand: jest.fn(),
+	QueryCommand: jest.fn(),
+	UpdateCommand: jest.fn()
 }));
 
-// >! Mock DynamoDB client — controls user record and session record responses
-jest.mock('../../utils/dynamo-client', () => ({
-	queryByEmail: jest.fn(),
-	getSessionRecord: jest.fn()
+// >! Mock cache-data to prevent real AWS calls
+jest.mock('@63klabs/cache-data', () => ({
+	tools: {
+		DebugAndLog: {
+			error: jest.fn(),
+			warn: jest.fn(),
+			debug: jest.fn(),
+			log: jest.fn(),
+			info: jest.fn()
+		},
+		CachedSsmParameter: jest.fn().mockImplementation(() => ({
+			getValue: jest.fn().mockResolvedValue('test-value')
+		}))
+	}
 }));
 
-// >! Mock SSM client — prevents real AWS calls
-jest.mock('@aws-sdk/client-ssm', () => ({
-	SSMClient: jest.fn().mockImplementation(() => ({
-		send: jest.fn().mockResolvedValue({
-			Parameter: { Value: 'test-session-salt' }
-		})
-	})),
-	GetParameterCommand: jest.fn()
+// >! Mock Config to provide controlled settings
+const mockSessionHashSaltGetValue = jest.fn().mockResolvedValue('test-session-salt');
+jest.mock('../../config', () => ({
+	Config: {
+		settings: jest.fn().mockReturnValue({
+			usersTable: 'test-Users',
+			sessionsTable: 'test-Sessions',
+			cognito: { userPoolId: { getValue: jest.fn().mockResolvedValue('us-east-1_TestPool') } },
+			ssm: {
+				apiKeyHashSalt: { getValue: jest.fn().mockResolvedValue('test-salt') },
+				sessionHashSalt: { getValue: mockSessionHashSaltGetValue }
+			},
+			rateLimits: {
+				public: { limitPerWindow: 50, windowInMinutes: 60 },
+				registered: { limitPerWindow: 100, windowInMinutes: 60 },
+				paid: { limitPerWindow: 3000, windowInMinutes: 1440 },
+				private: { limitPerWindow: 6000, windowInMinutes: 1440 }
+			}
+		}),
+		promise: jest.fn().mockResolvedValue(undefined),
+		prime: jest.fn().mockResolvedValue(undefined)
+	}
 }));
 
-const { validateJwt } = require('../../utils/jwt-validator');
-const { queryByEmail, getSessionRecord } = require('../../utils/dynamo-client');
-const { handler } = require('../../handlers/profile');
+// >! Mock User DAO — controls user record and session record responses
+const mockQueryByEmail = jest.fn();
+const mockGetSessionRecord = jest.fn();
+jest.mock('../../models/user', () => ({
+	queryByEmail: mockQueryByEmail,
+	getSessionRecord: mockGetSessionRecord,
+	getUserByKeyHash: jest.fn(),
+	putUserRecord: jest.fn(),
+	deleteUserRecord: jest.fn(),
+	updateUserTier: jest.fn()
+}));
 
-/* ------------------------------------------------------------------ */
-/*  Environment Variables                                             */
-/* ------------------------------------------------------------------ */
-
-const RATE_LIMIT_ENV = {
-	MCP_PUBLIC_RATE_LIMIT: '50',
-	MCP_PUBLIC_RATE_TIME_RANGE_MINUTES: '60',
-	MCP_REGISTERED_RATE_LIMIT: '100',
-	MCP_REGISTERED_RATE_TIME_RANGE_MINUTES: '60',
-	MCP_PAID_RATE_LIMIT: '3000',
-	MCP_PAID_RATE_TIME_RANGE_MINUTES: '1440',
-	MCP_PRIVATE_RATE_LIMIT: '6000',
-	MCP_PRIVATE_RATE_TIME_RANGE_MINUTES: '1440',
-	SESSIONS_TABLE: 'test-sessions-table',
-	PARAM_STORE_PATH: '/test/path/'
-};
-
-let savedEnv;
-
-beforeEach(() => {
-	savedEnv = { ...process.env };
-	Object.assign(process.env, RATE_LIMIT_ENV);
-	jest.clearAllMocks();
-});
-
-afterEach(() => {
-	process.env = savedEnv;
-});
+const { getProfile, computeEffectiveTier } = require('../../services/profile');
 
 /* ------------------------------------------------------------------ */
 /*  Arbitraries                                                       */
@@ -125,31 +140,11 @@ const sessionStateArb = fc.oneof(
  * @param {Object|null} sessionState - Generated session state or null
  */
 function configureMocks(userRecord, sessionState) {
-	validateJwt.mockReset();
-	queryByEmail.mockReset();
-	getSessionRecord.mockReset();
+	mockQueryByEmail.mockReset();
+	mockGetSessionRecord.mockReset();
 
-	validateJwt.mockResolvedValue({
-		sub: userRecord.cognitoSub,
-		email: userRecord.email
-	});
-	queryByEmail.mockResolvedValue([userRecord]);
-	getSessionRecord.mockResolvedValue(sessionState);
-}
-
-/**
- * Build a minimal API Gateway proxy event for GET /auth/profile.
- *
- * @returns {Object} API Gateway proxy event
- */
-function buildEvent() {
-	return {
-		httpMethod: 'GET',
-		path: '/auth/profile',
-		headers: {
-			Authorization: 'Bearer test-jwt-token'
-		}
-	};
+	mockQueryByEmail.mockResolvedValue([userRecord]);
+	mockGetSessionRecord.mockResolvedValue(sessionState);
 }
 
 /* ------------------------------------------------------------------ */
@@ -169,14 +164,7 @@ describe('Property 4: Profile response completeness', () => {
 				async (userRecord, sessionState) => {
 					configureMocks(userRecord, sessionState);
 
-					const response = await handler(buildEvent());
-
-					// >! Verify HTTP 200 success
-					expect(response.statusCode).toBe(200);
-					expect(response.headers).toBeDefined();
-					expect(response.body).toBeDefined();
-
-					const body = JSON.parse(response.body);
+					const body = await getProfile(userRecord.email, userRecord.cognitoSub);
 
 					// >! Verify all required top-level fields exist with correct types
 					expect(typeof body.email).toBe('string');
@@ -205,8 +193,7 @@ describe('Property 4: Profile response completeness', () => {
 				async (userRecord, sessionState) => {
 					configureMocks(userRecord, sessionState);
 
-					const response = await handler(buildEvent());
-					const body = JSON.parse(response.body);
+					const body = await getProfile(userRecord.email, userRecord.cognitoSub);
 
 					expect(body.email).toBe(userRecord.email);
 				}
@@ -222,8 +209,7 @@ describe('Property 4: Profile response completeness', () => {
 				async (userRecord) => {
 					configureMocks(userRecord, null);
 
-					const response = await handler(buildEvent());
-					const body = JSON.parse(response.body);
+					const body = await getProfile(userRecord.email, userRecord.cognitoSub);
 
 					// >! remaining should equal the tier's limitPerWindow
 					expect(body.rateLimits.remaining).toBe(body.rateLimits.limit);
@@ -246,8 +232,7 @@ describe('Property 4: Profile response completeness', () => {
 				async (userRecord, sessionRecord) => {
 					configureMocks(userRecord, sessionRecord);
 
-					const response = await handler(buildEvent());
-					const body = JSON.parse(response.body);
+					const body = await getProfile(userRecord.email, userRecord.cognitoSub);
 
 					// >! remaining should match the session record's remaining value
 					expect(body.rateLimits.remaining).toBe(sessionRecord.remaining);

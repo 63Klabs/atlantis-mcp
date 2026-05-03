@@ -6,18 +6,55 @@ jest.mock('@aws-sdk/client-cognito-identity-provider', () => ({
 	CognitoIdentityProviderClient: jest.fn(),
 	AdminUpdateUserAttributesCommand: jest.fn()
 }));
-jest.mock('../../utils/jwt-validator', () => ({ validateJwt: jest.fn() }));
-jest.mock('../../utils/dynamo-client', () => ({
-	queryByEmail: jest.fn(),
-	getVoucher: jest.fn(),
-	incrementVoucherUses: jest.fn(),
-	updateUserTier: jest.fn()
+jest.mock('@aws-sdk/client-dynamodb', () => ({
+	DynamoDBClient: jest.fn().mockImplementation(() => ({}))
+}));
+jest.mock('@aws-sdk/lib-dynamodb', () => ({
+	DynamoDBDocumentClient: { from: jest.fn().mockReturnValue({}) },
+	GetCommand: jest.fn(),
+	PutCommand: jest.fn(),
+	DeleteCommand: jest.fn(),
+	QueryCommand: jest.fn(),
+	UpdateCommand: jest.fn()
+}));
+jest.mock('@63klabs/cache-data', () => ({
+	tools: {
+		DebugAndLog: {
+			error: jest.fn(),
+			warn: jest.fn(),
+			debug: jest.fn(),
+			log: jest.fn(),
+			info: jest.fn()
+		},
+		CachedSsmParameter: jest.fn().mockImplementation(() => ({
+			getValue: jest.fn().mockResolvedValue('test-value')
+		}))
+	}
+}));
+jest.mock('../../config', () => ({
+	Config: {
+		settings: jest.fn().mockReturnValue({
+			usersTable: 'test-Users',
+			sessionsTable: 'test-Sessions',
+			cognito: { userPoolId: { getValue: jest.fn().mockResolvedValue('us-east-1_TestPool') } },
+			ssm: {
+				apiKeyHashSalt: { getValue: jest.fn().mockResolvedValue('test-salt') },
+				sessionHashSalt: { getValue: jest.fn().mockResolvedValue('test-session-salt') }
+			},
+			rateLimits: {
+				public: { limitPerWindow: 50, windowInMinutes: 60 },
+				registered: { limitPerWindow: 100, windowInMinutes: 60 },
+				paid: { limitPerWindow: 3000, windowInMinutes: 1440 },
+				private: { limitPerWindow: 6000, windowInMinutes: 1440 }
+			}
+		}),
+		promise: jest.fn().mockResolvedValue(undefined),
+		prime: jest.fn().mockResolvedValue(undefined)
+	}
 }));
 
 const fc = require('fast-check');
-const { TestHarness } = require('../../handlers/voucher-redeem');
-
-const { validateVoucher } = TestHarness.getInternals();
+const { validateVoucher } = require('../../services/voucher-redeem');
 
 /* ------------------------------------------------------------------ */
 /*  Arbitraries                                                       */
@@ -57,7 +94,7 @@ describe('Property 11: Invalid voucher rejection', () => {
 					const result = validateVoucher(null, code);
 					expect(result).not.toBeNull();
 					expect(result.statusCode).toBe(400);
-					expect(typeof result.error).toBe('string');
+					expect(typeof result.message).toBe('string');
 				}
 			),
 			{ numRuns: 100 }
@@ -83,7 +120,7 @@ describe('Property 11: Invalid voucher rejection', () => {
 					const result = validateVoucher(voucher, 'TEST');
 					expect(result).not.toBeNull();
 					expect(result.statusCode).toBe(400);
-					expect(result.error.toLowerCase()).toContain('expired');
+					expect(result.message.toLowerCase()).toContain('expired');
 				}
 			),
 			{ numRuns: 100 }
@@ -109,7 +146,7 @@ describe('Property 11: Invalid voucher rejection', () => {
 					const result = validateVoucher(voucher, 'TEST');
 					expect(result).not.toBeNull();
 					expect(result.statusCode).toBe(400);
-					expect(result.error.toLowerCase()).toContain('fully redeemed');
+					expect(result.message.toLowerCase()).toContain('fully redeemed');
 				}
 			),
 			{ numRuns: 100 }

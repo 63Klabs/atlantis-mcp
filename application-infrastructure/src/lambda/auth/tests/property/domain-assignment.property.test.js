@@ -10,7 +10,7 @@ jest.mock('@aws-sdk/client-cognito-identity-provider', () => ({
 	CognitoIdentityProviderClient: jest.fn(),
 	AdminUpdateUserAttributesCommand: jest.fn()
 }));
-jest.mock('../../utils/dynamo-client', () => ({
+jest.mock('../../models/user', () => ({
 	putUserRecord: jest.fn()
 }));
 

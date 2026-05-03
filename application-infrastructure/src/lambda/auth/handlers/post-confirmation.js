@@ -17,7 +17,7 @@
 const { SSMClient, GetParameterCommand } = require('@aws-sdk/client-ssm');
 const { CognitoIdentityProviderClient, AdminUpdateUserAttributesCommand } = require('@aws-sdk/client-cognito-identity-provider');
 const { generateApiKey, hashApiKey } = require('../utils/api-key');
-const { putUserRecord } = require('../utils/dynamo-client');
+const { putUserRecord } = require('../models/user');
 
 const ssmClient = new SSMClient({});
 const cognitoClient = new CognitoIdentityProviderClient({});

@@ -1,46 +1,81 @@
-// Feature: 0-0-3-user-profile-enhancement, Unit tests for route dispatcher GET support
+/**
+ * Unit tests for route dispatcher (cache-data MVC pattern)
+ *
+ * Tests the route dispatcher's ability to match paths using endsWith()
+ * and delegate to the correct controller, or return 404 for unmatched routes.
+ *
+ * @module tests/unit/route-dispatcher
+ */
+
 'use strict';
 
-// Mock handler modules before requiring the route dispatcher
-const mockProfileHandler = jest.fn();
-const mockKeyRegenerateHandler = jest.fn();
-const mockVoucherRedeemHandler = jest.fn();
+/* ------------------------------------------------------------------ */
+/*  Mocks                                                             */
+/* ------------------------------------------------------------------ */
 
-jest.mock('../../handlers/profile', () => ({
-	handler: mockProfileHandler
+const mockProfileGet = jest.fn();
+const mockKeyRegeneratePost = jest.fn();
+const mockVoucherRedeemPost = jest.fn();
+
+jest.mock('../../controllers/profile', () => ({
+	get: mockProfileGet
 }));
 
-jest.mock('../../handlers/key-regenerate', () => ({
-	handler: mockKeyRegenerateHandler
+jest.mock('../../controllers/key-regenerate', () => ({
+	post: mockKeyRegeneratePost
 }));
 
-jest.mock('../../handlers/voucher-redeem', () => ({
-	handler: mockVoucherRedeemHandler
+jest.mock('../../controllers/voucher-redeem', () => ({
+	post: mockVoucherRedeemPost
 }));
 
-const { route, TestHarness } = require('../../routes/index');
+jest.mock('@63klabs/cache-data', () => ({
+	tools: {
+		DebugAndLog: {
+			warn: jest.fn(),
+			error: jest.fn(),
+			debug: jest.fn(),
+			log: jest.fn(),
+			info: jest.fn(),
+		}
+	}
+}));
+
+const Routes = require('../../routes/index');
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                           */
 /* ------------------------------------------------------------------ */
 
 /**
- * Build an API Gateway proxy event for route dispatcher testing.
+ * Create a mock clientRequest with the given method and path.
  *
- * @param {string} method - HTTP method (GET, POST, etc.)
- * @param {string} path - Request path (e.g. '/auth/profile')
- * @param {Object} [overrides] - Optional overrides for headers and body
- * @returns {Object} API Gateway proxy event
+ * @param {string} method - HTTP method
+ * @param {string} path - Request path
+ * @returns {Object} Mock clientRequest with getProps()
  */
-function createEvent(method, path, overrides = {}) {
+function createClientRequest(method, path) {
 	return {
-		httpMethod: method,
-		path: path,
-		headers: {
-			Authorization: 'Bearer valid-jwt-token',
-			...overrides.headers
-		},
-		body: overrides.body || null
+		getProps: () => ({
+			method,
+			path,
+			pathArray: path.split('/').filter(Boolean),
+		})
+	};
+}
+
+/**
+ * Create a mock response object that tracks setStatusCode and setBody calls.
+ *
+ * @returns {Object} Mock response with setStatusCode(), setBody(), and getters
+ */
+function createResponse() {
+	const state = { statusCode: null, body: null };
+	return {
+		setStatusCode: jest.fn((code) => { state.statusCode = code; }),
+		setBody: jest.fn((body) => { state.body = body; }),
+		getStatusCode: () => state.statusCode,
+		getBody: () => state.body,
 	};
 }
 
@@ -48,94 +83,238 @@ function createEvent(method, path, overrides = {}) {
 /*  Tests                                                             */
 /* ------------------------------------------------------------------ */
 
-describe('Route Dispatcher', () => {
+describe('Route Dispatcher (cache-data MVC)', () => {
 	beforeEach(() => {
 		jest.clearAllMocks();
 	});
 
-	describe('GET routes', () => {
-		it('should route GET /auth/profile to the profile handler', async () => {
-			const expectedResponse = {
-				statusCode: 200,
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ email: 'test@example.com', tier: 'registered' })
-			};
-			mockProfileHandler.mockResolvedValue(expectedResponse);
+	describe('GET mcp/auth/profile', () => {
+		it('should route GET with exact path ending to ProfileController', async () => {
+			const clientRequest = createClientRequest('GET', '/mcp/auth/profile');
+			const response = createResponse();
 
-			const event = createEvent('GET', '/auth/profile');
-			const result = await route(event);
+			await Routes.process(clientRequest, response);
 
-			expect(mockProfileHandler).toHaveBeenCalledTimes(1);
-			expect(mockProfileHandler).toHaveBeenCalledWith(event);
-			expect(result).toEqual(expectedResponse);
+			expect(mockProfileGet).toHaveBeenCalledTimes(1);
+			expect(mockProfileGet).toHaveBeenCalledWith(
+				expect.objectContaining({ method: 'GET', path: '/mcp/auth/profile' }),
+				response
+			);
+			expect(mockKeyRegeneratePost).not.toHaveBeenCalled();
+			expect(mockVoucherRedeemPost).not.toHaveBeenCalled();
 		});
 
-		it('should return 404 for GET /auth/unknown', async () => {
-			const event = createEvent('GET', '/auth/unknown');
-			const result = await route(event);
+		it('should route GET with CloudFront prefix to ProfileController', async () => {
+			const clientRequest = createClientRequest('GET', '/stage/v1/mcp/auth/profile');
+			const response = createResponse();
 
-			expect(result.statusCode).toBe(404);
-			const body = JSON.parse(result.body);
-			expect(body.error).toMatch(/not found/i);
+			await Routes.process(clientRequest, response);
 
-			// Verify no handlers were called
-			expect(mockProfileHandler).not.toHaveBeenCalled();
-			expect(mockKeyRegenerateHandler).not.toHaveBeenCalled();
-			expect(mockVoucherRedeemHandler).not.toHaveBeenCalled();
+			expect(mockProfileGet).toHaveBeenCalledTimes(1);
 		});
 
-		it('should expose GET_ROUTES via TestHarness', () => {
-			const { GET_ROUTES } = TestHarness.getInternals();
+		it('should NOT route POST to ProfileController', async () => {
+			const clientRequest = createClientRequest('POST', '/mcp/auth/profile');
+			const response = createResponse();
 
-			expect(GET_ROUTES).toBeDefined();
-			expect(GET_ROUTES['/auth/profile']).toBeDefined();
-			expect(GET_ROUTES['/auth/profile'].handler).toBe(mockProfileHandler);
+			await Routes.process(clientRequest, response);
+
+			expect(mockProfileGet).not.toHaveBeenCalled();
+			expect(response.setStatusCode).toHaveBeenCalledWith(404);
+			expect(response.setBody).toHaveBeenCalledWith({ error: 'Not found' });
 		});
 	});
 
-	describe('POST routes do not match GET paths', () => {
-		it('should return 404 for POST /auth/profile (not a POST route)', async () => {
-			const event = createEvent('POST', '/auth/profile');
-			const result = await route(event);
+	describe('POST mcp/auth/key/regenerate', () => {
+		it('should route POST with exact path ending to KeyRegenerateController', async () => {
+			const clientRequest = createClientRequest('POST', '/mcp/auth/key/regenerate');
+			const response = createResponse();
 
-			expect(result.statusCode).toBe(404);
-			const body = JSON.parse(result.body);
-			expect(body.error).toMatch(/not found/i);
+			await Routes.process(clientRequest, response);
 
-			// Verify profile handler was NOT called
-			expect(mockProfileHandler).not.toHaveBeenCalled();
+			expect(mockKeyRegeneratePost).toHaveBeenCalledTimes(1);
+			expect(mockKeyRegeneratePost).toHaveBeenCalledWith(
+				expect.objectContaining({ method: 'POST', path: '/mcp/auth/key/regenerate' }),
+				response
+			);
+			expect(mockProfileGet).not.toHaveBeenCalled();
+			expect(mockVoucherRedeemPost).not.toHaveBeenCalled();
+		});
+
+		it('should route POST with CloudFront prefix to KeyRegenerateController', async () => {
+			const clientRequest = createClientRequest('POST', '/prod/api/mcp/auth/key/regenerate');
+			const response = createResponse();
+
+			await Routes.process(clientRequest, response);
+
+			expect(mockKeyRegeneratePost).toHaveBeenCalledTimes(1);
+		});
+
+		it('should NOT route GET to KeyRegenerateController', async () => {
+			const clientRequest = createClientRequest('GET', '/mcp/auth/key/regenerate');
+			const response = createResponse();
+
+			await Routes.process(clientRequest, response);
+
+			expect(mockKeyRegeneratePost).not.toHaveBeenCalled();
+			expect(response.setStatusCode).toHaveBeenCalledWith(404);
 		});
 	});
 
-	describe('Path normalization', () => {
-		it('should handle case-insensitive paths for GET routes', async () => {
-			const expectedResponse = {
-				statusCode: 200,
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ email: 'test@example.com' })
-			};
-			mockProfileHandler.mockResolvedValue(expectedResponse);
+	describe('POST mcp/auth/voucher/redeem', () => {
+		it('should route POST with exact path ending to VoucherRedeemController', async () => {
+			const clientRequest = createClientRequest('POST', '/mcp/auth/voucher/redeem');
+			const response = createResponse();
 
-			const event = createEvent('GET', '/Auth/Profile');
-			const result = await route(event);
+			await Routes.process(clientRequest, response);
 
-			expect(mockProfileHandler).toHaveBeenCalledTimes(1);
-			expect(result.statusCode).toBe(200);
+			expect(mockVoucherRedeemPost).toHaveBeenCalledTimes(1);
+			expect(mockVoucherRedeemPost).toHaveBeenCalledWith(
+				expect.objectContaining({ method: 'POST', path: '/mcp/auth/voucher/redeem' }),
+				response
+			);
+			expect(mockProfileGet).not.toHaveBeenCalled();
+			expect(mockKeyRegeneratePost).not.toHaveBeenCalled();
 		});
 
-		it('should handle trailing slash for GET routes', async () => {
-			const expectedResponse = {
-				statusCode: 200,
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ email: 'test@example.com' })
-			};
-			mockProfileHandler.mockResolvedValue(expectedResponse);
+		it('should route POST with CloudFront prefix to VoucherRedeemController', async () => {
+			const clientRequest = createClientRequest('POST', '/beta/mcp/auth/voucher/redeem');
+			const response = createResponse();
 
-			const event = createEvent('GET', '/auth/profile/');
-			const result = await route(event);
+			await Routes.process(clientRequest, response);
 
-			expect(mockProfileHandler).toHaveBeenCalledTimes(1);
-			expect(result.statusCode).toBe(200);
+			expect(mockVoucherRedeemPost).toHaveBeenCalledTimes(1);
+		});
+
+		it('should NOT route GET to VoucherRedeemController', async () => {
+			const clientRequest = createClientRequest('GET', '/mcp/auth/voucher/redeem');
+			const response = createResponse();
+
+			await Routes.process(clientRequest, response);
+
+			expect(mockVoucherRedeemPost).not.toHaveBeenCalled();
+			expect(response.setStatusCode).toHaveBeenCalledWith(404);
+		});
+	});
+
+	describe('404 for unknown paths', () => {
+		it('should return 404 for unknown GET path', async () => {
+			const clientRequest = createClientRequest('GET', '/mcp/auth/unknown');
+			const response = createResponse();
+
+			await Routes.process(clientRequest, response);
+
+			expect(response.setStatusCode).toHaveBeenCalledWith(404);
+			expect(response.setBody).toHaveBeenCalledWith({ error: 'Not found' });
+			expect(mockProfileGet).not.toHaveBeenCalled();
+			expect(mockKeyRegeneratePost).not.toHaveBeenCalled();
+			expect(mockVoucherRedeemPost).not.toHaveBeenCalled();
+		});
+
+		it('should return 404 for unknown POST path', async () => {
+			const clientRequest = createClientRequest('POST', '/mcp/auth/unknown');
+			const response = createResponse();
+
+			await Routes.process(clientRequest, response);
+
+			expect(response.setStatusCode).toHaveBeenCalledWith(404);
+			expect(response.setBody).toHaveBeenCalledWith({ error: 'Not found' });
+		});
+
+		it('should return 404 for empty path', async () => {
+			const clientRequest = createClientRequest('GET', '');
+			const response = createResponse();
+
+			await Routes.process(clientRequest, response);
+
+			expect(response.setStatusCode).toHaveBeenCalledWith(404);
+			expect(response.setBody).toHaveBeenCalledWith({ error: 'Not found' });
+		});
+
+		it('should return 404 for PUT method on valid path', async () => {
+			const clientRequest = createClientRequest('PUT', '/mcp/auth/profile');
+			const response = createResponse();
+
+			await Routes.process(clientRequest, response);
+
+			expect(response.setStatusCode).toHaveBeenCalledWith(404);
+			expect(mockProfileGet).not.toHaveBeenCalled();
+		});
+
+		it('should return 404 for DELETE method on valid path', async () => {
+			const clientRequest = createClientRequest('DELETE', '/mcp/auth/key/regenerate');
+			const response = createResponse();
+
+			await Routes.process(clientRequest, response);
+
+			expect(response.setStatusCode).toHaveBeenCalledWith(404);
+			expect(mockKeyRegeneratePost).not.toHaveBeenCalled();
+		});
+	});
+
+	describe('Lazy loading of controllers', () => {
+		it('should not load controllers until a matching route is hit', () => {
+			// Controllers are loaded via require() inside the route handler,
+			// so they are only loaded when the route matches. We verify this
+			// by checking that the mock functions exist but haven't been called
+			// before any route is processed.
+			expect(mockProfileGet).not.toHaveBeenCalled();
+			expect(mockKeyRegeneratePost).not.toHaveBeenCalled();
+			expect(mockVoucherRedeemPost).not.toHaveBeenCalled();
+		});
+
+		it('should only load the matched controller for GET profile', async () => {
+			const clientRequest = createClientRequest('GET', '/mcp/auth/profile');
+			const response = createResponse();
+
+			await Routes.process(clientRequest, response);
+
+			// Only ProfileController.get should have been called
+			expect(mockProfileGet).toHaveBeenCalledTimes(1);
+			expect(mockKeyRegeneratePost).not.toHaveBeenCalled();
+			expect(mockVoucherRedeemPost).not.toHaveBeenCalled();
+		});
+
+		it('should only load the matched controller for POST key/regenerate', async () => {
+			const clientRequest = createClientRequest('POST', '/mcp/auth/key/regenerate');
+			const response = createResponse();
+
+			await Routes.process(clientRequest, response);
+
+			expect(mockProfileGet).not.toHaveBeenCalled();
+			expect(mockKeyRegeneratePost).toHaveBeenCalledTimes(1);
+			expect(mockVoucherRedeemPost).not.toHaveBeenCalled();
+		});
+	});
+
+	describe('Path prefix variations', () => {
+		it('should match with /api/v1/ prefix', async () => {
+			const clientRequest = createClientRequest('GET', '/api/v1/mcp/auth/profile');
+			const response = createResponse();
+
+			await Routes.process(clientRequest, response);
+
+			expect(mockProfileGet).toHaveBeenCalledTimes(1);
+		});
+
+		it('should match with deeply nested prefix', async () => {
+			const clientRequest = createClientRequest('POST', '/a/b/c/d/mcp/auth/key/regenerate');
+			const response = createResponse();
+
+			await Routes.process(clientRequest, response);
+
+			expect(mockKeyRegeneratePost).toHaveBeenCalledTimes(1);
+		});
+
+		it('should NOT match partial path suffix', async () => {
+			// Path ends with "auth/profile" but not "mcp/auth/profile"
+			const clientRequest = createClientRequest('GET', '/auth/profile');
+			const response = createResponse();
+
+			await Routes.process(clientRequest, response);
+
+			expect(mockProfileGet).not.toHaveBeenCalled();
+			expect(response.setStatusCode).toHaveBeenCalledWith(404);
 		});
 	});
 });

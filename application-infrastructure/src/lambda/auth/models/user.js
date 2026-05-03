@@ -1,21 +1,25 @@
 /**
- * DynamoDB Client Utility for Auth Lambda
+ * User Data Access Object (DAO) for Auth Lambda
  *
- * Provides functions for reading and writing user and voucher records
- * in the Users table. Uses AWS SDK v3 DynamoDB DocumentClient.
+ * Provides DynamoDB operations for user records in the Users table
+ * and session records in the Sessions table. Extracted from
+ * utils/dynamo-client.js as part of the cache-data MVC migration.
  *
- * @module utils/dynamo-client
+ * Table names are retrieved from Config.settings() rather than
+ * direct process.env access, following the cache-data pattern.
+ *
+ * @module models/user
  */
 
 'use strict';
 
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const { DynamoDBDocumentClient, GetCommand, PutCommand, DeleteCommand, QueryCommand, UpdateCommand } = require('@aws-sdk/lib-dynamodb');
+const { tools: { DebugAndLog } } = require('@63klabs/cache-data');
+const { Config } = require('../config');
 
 const client = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(client);
-
-const TABLE_NAME = process.env.USERS_TABLE;
 
 /**
  * Retrieve a user record by API key hash.
@@ -27,11 +31,16 @@ const TABLE_NAME = process.env.USERS_TABLE;
  * // user: { pk: 'KEY#3f2a...', email: 'user@example.com', tier: 'registered', ... }
  */
 async function getUserByKeyHash(hash) {
-	const result = await docClient.send(new GetCommand({
-		TableName: TABLE_NAME,
-		Key: { pk: `KEY#${hash}` }
-	}));
-	return result.Item || null;
+	try {
+		const result = await docClient.send(new GetCommand({
+			TableName: Config.settings().usersTable,
+			Key: { pk: `KEY#${hash}` }
+		}));
+		return result.Item || null;
+	} catch (error) {
+		DebugAndLog.error(`getUserByKeyHash error: ${error.message}`, error.stack);
+		throw error;
+	}
 }
 
 /**
@@ -50,10 +59,15 @@ async function getUserByKeyHash(hash) {
  * });
  */
 async function putUserRecord(record) {
-	await docClient.send(new PutCommand({
-		TableName: TABLE_NAME,
-		Item: record
-	}));
+	try {
+		await docClient.send(new PutCommand({
+			TableName: Config.settings().usersTable,
+			Item: record
+		}));
+	} catch (error) {
+		DebugAndLog.error(`putUserRecord error: ${error.message}`, error.stack);
+		throw error;
+	}
 }
 
 /**
@@ -65,10 +79,15 @@ async function putUserRecord(record) {
  * await deleteUserRecord('KEY#3f2a...');
  */
 async function deleteUserRecord(pk) {
-	await docClient.send(new DeleteCommand({
-		TableName: TABLE_NAME,
-		Key: { pk }
-	}));
+	try {
+		await docClient.send(new DeleteCommand({
+			TableName: Config.settings().usersTable,
+			Key: { pk }
+		}));
+	} catch (error) {
+		DebugAndLog.error(`deleteUserRecord error: ${error.message}`, error.stack);
+		throw error;
+	}
 }
 
 /**
@@ -81,50 +100,18 @@ async function deleteUserRecord(pk) {
  * // users: [{ pk: 'KEY#3f2a...', email: 'user@example.com', ... }]
  */
 async function queryByEmail(email) {
-	const result = await docClient.send(new QueryCommand({
-		TableName: TABLE_NAME,
-		IndexName: 'email-index',
-		KeyConditionExpression: 'email = :email',
-		ExpressionAttributeValues: { ':email': email }
-	}));
-	return result.Items || [];
-}
-
-/**
- * Retrieve a voucher record by code.
- *
- * @param {string} code - Voucher code
- * @returns {Promise<Object|null>} Voucher record or null if not found
- * @example
- * const voucher = await getVoucher('SUMMER2025');
- * // voucher: { pk: 'VOUCHER#SUMMER2025', targetTier: 'paid', ... }
- */
-async function getVoucher(code) {
-	const result = await docClient.send(new GetCommand({
-		TableName: TABLE_NAME,
-		Key: { pk: `VOUCHER#${code}` }
-	}));
-	return result.Item || null;
-}
-
-/**
- * Atomically increment the currentUses counter on a voucher record.
- *
- * @param {string} code - Voucher code
- * @returns {Promise<Object>} Updated voucher attributes
- * @example
- * const updated = await incrementVoucherUses('SUMMER2025');
- * // updated: { currentUses: 5, ... }
- */
-async function incrementVoucherUses(code) {
-	const result = await docClient.send(new UpdateCommand({
-		TableName: TABLE_NAME,
-		Key: { pk: `VOUCHER#${code}` },
-		UpdateExpression: 'SET currentUses = currentUses + :inc',
-		ExpressionAttributeValues: { ':inc': 1 },
-		ReturnValues: 'ALL_NEW'
-	}));
-	return result.Attributes;
+	try {
+		const result = await docClient.send(new QueryCommand({
+			TableName: Config.settings().usersTable,
+			IndexName: 'email-index',
+			KeyConditionExpression: 'email = :email',
+			ExpressionAttributeValues: { ':email': email }
+		}));
+		return result.Items || [];
+	} catch (error) {
+		DebugAndLog.error(`queryByEmail error: ${error.message}`, error.stack);
+		throw error;
+	}
 }
 
 /**
@@ -139,40 +126,46 @@ async function incrementVoucherUses(code) {
  * const updated = await updateUserTier('KEY#3f2a...', 'paid', '2025-12-31T00:00:00Z', 1735689600);
  */
 async function updateUserTier(pk, tier, tierExpiresAt, ttl) {
-	const result = await docClient.send(new UpdateCommand({
-		TableName: TABLE_NAME,
-		Key: { pk },
-		UpdateExpression: 'SET tier = :tier, tierExpiresAt = :exp, #ttl = :ttl',
-		ExpressionAttributeNames: { '#ttl': 'ttl' },
-		ExpressionAttributeValues: {
-			':tier': tier,
-			':exp': tierExpiresAt,
-			':ttl': ttl
-		},
-		ReturnValues: 'ALL_NEW'
-	}));
-	return result.Attributes;
+	try {
+		const result = await docClient.send(new UpdateCommand({
+			TableName: Config.settings().usersTable,
+			Key: { pk },
+			UpdateExpression: 'SET tier = :tier, tierExpiresAt = :exp, #ttl = :ttl',
+			ExpressionAttributeNames: { '#ttl': 'ttl' },
+			ExpressionAttributeValues: {
+				':tier': tier,
+				':exp': tierExpiresAt,
+				':ttl': ttl
+			},
+			ReturnValues: 'ALL_NEW'
+		}));
+		return result.Attributes;
+	} catch (error) {
+		DebugAndLog.error(`updateUserTier error: ${error.message}`, error.stack);
+		throw error;
+	}
 }
 
 /**
  * Retrieve a session record from the Sessions Table.
  *
- * Uses a separate table name parameter rather than the module-level USERS_TABLE,
- * since session records are stored in the Sessions Table (from SESSIONS_TABLE env var).
- *
- * @param {string} tableName - Sessions table name (from process.env.SESSIONS_TABLE)
  * @param {string} pk - Session partition key (SHA-256 hash of cognitoSub + windowStart + sessionSalt)
  * @returns {Promise<Object|null>} Session record or null if not found
  * @example
- * const session = await getSessionRecord(process.env.SESSIONS_TABLE, 'a1b2c3d4...');
+ * const session = await getSessionRecord('a1b2c3d4...');
  * // session: { pk: 'a1b2c3d4...', remaining: 42, limit: 100, ttl: 1735689900 }
  */
-async function getSessionRecord(tableName, pk) {
-	const result = await docClient.send(new GetCommand({
-		TableName: tableName,
-		Key: { pk }
-	}));
-	return result.Item || null;
+async function getSessionRecord(pk) {
+	try {
+		const result = await docClient.send(new GetCommand({
+			TableName: Config.settings().sessionsTable,
+			Key: { pk }
+		}));
+		return result.Item || null;
+	} catch (error) {
+		DebugAndLog.error(`getSessionRecord error: ${error.message}`, error.stack);
+		throw error;
+	}
 }
 
 /* ------------------------------------------------------------------ */
@@ -205,8 +198,6 @@ module.exports = {
 	putUserRecord,
 	deleteUserRecord,
 	queryByEmail,
-	getVoucher,
-	incrementVoucherUses,
 	updateUserTier,
 	getSessionRecord,
 	TestHarness

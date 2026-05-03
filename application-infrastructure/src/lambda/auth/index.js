@@ -1,77 +1,37 @@
 /**
- * Auth Lambda Entry Point
+ * Auth Lambda Entry Point (cache-data MVC pattern)
  *
- * Routes incoming events to the appropriate handler based on event type:
- * - Cognito Post-Confirmation triggers → handlers/post-confirmation.js
- * - API Gateway proxy events → routes/index.js
+ * Thin handler that detects the event type and branches:
+ * - Cognito PostConfirmation_ConfirmSignUp → delegates directly to
+ *   handlers/post-confirmation.js without cache-data classes
+ * - API Gateway proxy → Config.promise/prime, ClientRequest/Response,
+ *   Routes.process, response.finalize()
+ * - Unrecognized event → 400 error via response.finalize()
  *
- * Error handling logs full details for debugging but returns sanitized
- * responses to clients. Cognito trigger errors are re-thrown to reject
- * the confirmation. API Gateway errors return structured HTTP responses.
+ * Config.init() is called outside the handler for cold start optimization.
+ * A Timer tracks cold start duration and logs it once via DebugAndLog.
  *
  * @module lambda/auth
  */
 
 'use strict';
 
+const { tools: { DebugAndLog, ClientRequest, Response, Timer } } = require('@63klabs/cache-data');
+const { Config } = require('./config');
+const Routes = require('./routes');
 const postConfirmationHandler = require('./handlers/post-confirmation');
-const routeDispatcher = require('./routes/index');
 
-/**
- * Standard CORS headers for API Gateway responses.
- * Matches the pattern used by the Read Lambda's json-rpc-router.
- *
- * @type {Object.<string, string>}
- */
-const CORS_HEADERS = {
-	'Access-Control-Allow-Origin': '*',
-	'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-	'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With'
-};
-
-/**
- * Add CORS headers to an API Gateway proxy response.
- *
- * @param {Object} response - API Gateway proxy response
- * @returns {Object} Response with CORS headers merged in
- */
-function withCorsHeaders(response) {
-	return {
-		...response,
-		headers: {
-			...CORS_HEADERS,
-			...response.headers
-		}
-	};
-}
-
-/**
- * Determine whether the event is a Cognito Post-Confirmation trigger.
- *
- * @param {Object} event - Lambda event
- * @returns {boolean} True if event is a Cognito PostConfirmation_ConfirmSignUp trigger
- */
-function isCognitoPostConfirmation(event) {
-	return event.triggerSource === 'PostConfirmation_ConfirmSignUp';
-}
-
-/**
- * Determine whether the event is an API Gateway proxy request.
- *
- * @param {Object} event - Lambda event
- * @returns {boolean} True if event is an API Gateway proxy event
- */
-function isApiGatewayEvent(event) {
-	return !!(event.httpMethod && event.path);
-}
+// >! Cold start: init outside handler, runs once per container
+const coldStartInitTimer = new Timer('coldStartTimer', true);
+Config.init();
 
 /**
  * Lambda handler for Auth operations.
  *
  * Detects the event type and delegates to the appropriate handler:
  * - Cognito PostConfirmation_ConfirmSignUp → post-confirmation handler
- * - API Gateway proxy (httpMethod + path) → route dispatcher
- * - Unrecognized events → error response
+ * - API Gateway proxy (httpMethod + path) → cache-data MVC pattern
+ * - Unrecognized events → 400 error response
  *
  * @async
  * @param {Object} event - Lambda event (Cognito trigger or API Gateway proxy)
@@ -81,49 +41,77 @@ function isApiGatewayEvent(event) {
  * @example
  * // Cognito trigger invocation
  * const result = await handler(cognitoEvent, context);
- * // Returns modified Cognito event with response.rawApiKey
  *
  * @example
  * // API Gateway invocation
  * const result = await handler(apiGatewayEvent, context);
- * // Returns { statusCode: 200, headers: {...}, body: '...' }
+ * // Returns finalized response with CORS headers
  */
 async function handler(event, context) {
-	// >! Cognito Post-Confirmation trigger
-	if (isCognitoPostConfirmation(event)) {
+	// >! Cognito PostConfirmation trigger — no cache-data classes
+	if (event.triggerSource === 'PostConfirmation_ConfirmSignUp') {
 		try {
 			return await postConfirmationHandler.handler(event);
 		} catch (error) {
-			// >! Log full error for debugging
 			console.error('Post-Confirmation trigger error:', error);
 			// >! Re-throw to reject the Cognito confirmation
 			throw error;
 		}
 	}
 
-	// >! API Gateway proxy event
-	if (isApiGatewayEvent(event)) {
-		try {
-			const response = await routeDispatcher.route(event);
-			return withCorsHeaders(response);
-		} catch (error) {
-			// >! Log full error for debugging but return sanitized response to client
-			console.error('API Gateway handler error:', error);
-			return withCorsHeaders({
-				statusCode: 500,
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ error: 'Internal server error' })
-			});
-		}
-	}
+	// >! API Gateway path — full MVC pattern
+	let clientRequest = null;
+	let response = null;
 
-	// >! Unrecognized event type
-	console.error('Unrecognized event type:', JSON.stringify(event));
-	return withCorsHeaders({
-		statusCode: 400,
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ error: 'Unrecognized event type' })
-	});
+	try {
+		await Config.promise();
+		await Config.prime();
+		if (coldStartInitTimer.isRunning()) {
+			DebugAndLog.log(coldStartInitTimer.stop(), 'COLDSTART');
+		}
+
+		// >! Detect API Gateway event by presence of httpMethod and path
+		if (event.httpMethod && event.path) {
+			clientRequest = new ClientRequest(event, context);
+			response = new Response(clientRequest);
+
+			await Routes.process(clientRequest, response);
+			return response.finalize();
+		}
+
+		// >! Unrecognized event type — return 400
+		DebugAndLog.warn('Unrecognized event type', JSON.stringify(event));
+		response = new Response(new ClientRequest(event, context));
+		response.setStatusCode(400);
+		response.setBody({ error: 'Unrecognized event type' });
+		return response.finalize();
+	} catch (error) {
+		DebugAndLog.error(`Unhandled error: ${error.message}`, error.stack);
+
+		if (!response) {
+			// >! Error occurred before Response creation — create standalone
+			try {
+				response = new Response(new ClientRequest(event, context));
+			} catch (innerError) {
+				// >! If ClientRequest also fails, create minimal response
+				return {
+					statusCode: 500,
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						error: 'Internal server error',
+						requestId: (event.requestContext && event.requestContext.requestId) || (context && context.awsRequestId) || 'unknown'
+					})
+				};
+			}
+		}
+
+		response.setStatusCode(500);
+		response.setBody({
+			error: 'Internal server error',
+			requestId: (event.requestContext && event.requestContext.requestId) || (context && context.awsRequestId) || 'unknown'
+		});
+		return response.finalize();
+	}
 }
 
 module.exports = { handler };
