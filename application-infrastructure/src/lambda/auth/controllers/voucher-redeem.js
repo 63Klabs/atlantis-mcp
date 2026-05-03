@@ -41,7 +41,8 @@ class VoucherRedeemController {
 	 *
 	 * @async
 	 * @param {Object} props - Parsed request properties from clientRequest.getProps()
-	 * @param {string|Object} [props.body] - Request body (may be JSON string or parsed object)
+	 * @param {string|null} [props.bodyPayload] - Raw request body from clientRequest.getProps() (JSON string or null)
+	 * @param {string|Object} [props.body] - Request body from raw API Gateway event (fallback)
 	 * @param {Object} response - Response object with setStatusCode() and setBody() methods
 	 * @returns {Promise<void>}
 	 * @example
@@ -60,11 +61,13 @@ class VoucherRedeemController {
 			const jwtPayload = await validateJwt(props, userPoolId);
 
 			// >! Parse voucher code from request body
+			// >! Check both bodyPayload (clientRequest.getProps() output) and body (raw event)
 			let voucherCode;
 			try {
-				const body = typeof props.body === 'string'
-					? JSON.parse(props.body || '{}')
-					: (props.body || {});
+				const rawBody = props.bodyPayload || props.body;
+				const body = typeof rawBody === 'string'
+					? JSON.parse(rawBody || '{}')
+					: (rawBody || {});
 				voucherCode = body.code;
 			} catch (parseError) {
 				response.setStatusCode(400);

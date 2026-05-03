@@ -289,4 +289,83 @@ describe('VoucherRedeemController', () => {
 			expect(DebugAndLog.error).toHaveBeenCalled();
 		});
 	});
+
+	describe('with bodyPayload (clientRequest.getProps() structure)', () => {
+
+		it('should parse voucher code from bodyPayload string', async () => {
+			const serviceResult = {
+				tier: 'paid',
+				tierExpiresAt: '2025-07-15T10:30:00.000Z',
+				message: 'Voucher redeemed successfully'
+			};
+
+			mockValidateJwt.mockResolvedValue({
+				email: 'test@example.com',
+				sub: 'test-sub-123'
+			});
+			mockRedeemVoucher.mockResolvedValue(serviceResult);
+
+			const props = {
+				method: 'POST',
+				path: 'mcp/auth/voucher/redeem',
+				headerParameters: { authorization: 'Bearer test-jwt-token' },
+				bodyPayload: JSON.stringify({ code: 'EARLY2026' })
+			};
+			const response = createMockResponse();
+
+			await VoucherRedeemController.post(props, response);
+
+			expect(response.setStatusCode).toHaveBeenCalledWith(200);
+			expect(mockRedeemVoucher).toHaveBeenCalledWith(
+				'EARLY2026',
+				'test@example.com',
+				'test-sub-123'
+			);
+		});
+
+		it('should prefer bodyPayload over body when both are present', async () => {
+			mockValidateJwt.mockResolvedValue({
+				email: 'test@example.com',
+				sub: 'test-sub-123'
+			});
+			mockRedeemVoucher.mockResolvedValue({ tier: 'paid', message: 'OK' });
+
+			const props = {
+				method: 'POST',
+				path: 'mcp/auth/voucher/redeem',
+				headerParameters: { authorization: 'Bearer test-jwt-token' },
+				bodyPayload: JSON.stringify({ code: 'PAYLOAD_CODE' }),
+				body: JSON.stringify({ code: 'BODY_CODE' })
+			};
+			const response = createMockResponse();
+
+			await VoucherRedeemController.post(props, response);
+
+			expect(mockRedeemVoucher).toHaveBeenCalledWith(
+				'PAYLOAD_CODE',
+				'test@example.com',
+				'test-sub-123'
+			);
+		});
+
+		it('should return 400 when bodyPayload is null and body is undefined', async () => {
+			mockValidateJwt.mockResolvedValue({
+				email: 'test@example.com',
+				sub: 'test-sub-123'
+			});
+
+			const props = {
+				method: 'POST',
+				path: 'mcp/auth/voucher/redeem',
+				headerParameters: { authorization: 'Bearer test-jwt-token' },
+				bodyPayload: null
+			};
+			const response = createMockResponse();
+
+			await VoucherRedeemController.post(props, response);
+
+			expect(response.setStatusCode).toHaveBeenCalledWith(400);
+			expect(response.setBody).toHaveBeenCalledWith({ error: 'Voucher code is required' });
+		});
+	});
 });
