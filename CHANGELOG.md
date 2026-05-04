@@ -5,7 +5,7 @@ All notable changes to the Atlantis MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [v0.0.4] (unreleased)
+## [v0.0.4] (2026-05-04)
 
 ### Security
 - **Key Hashing Upgrade** [Spec: 0-0-4-key-hashing-for-auth](../.kiro/specs/0-0-4-key-hashing-for-auth/) — Replaced HMAC-SHA256 with scrypt (N=16384, r=8, p=1) for API key hashing in auth and read lambdas, resolving GitHub security code scanning alerts #5, #6, #7, #8 (CWE-916)
