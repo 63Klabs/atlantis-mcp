@@ -1,0 +1,111 @@
+# Implementation Plan
+
+- [x] 1. Write bug condition exploration test
+  - **Property 1: Bug Condition** - HMAC-SHA256 Usage Detected in hashApiKey
+  - **CRITICAL**: This test MUST FAIL on unfixed code — failure confirms the bug exists
+  - **DO NOT attempt to fix the test or the code when it fails**
+  - **NOTE**: This test encodes the expected behavior — it will validate the fix when it passes after implementation
+  - **GOAL**: Surface counterexamples that demonstrate the bug exists (hashApiKey uses HMAC-SHA256 instead of scrypt)
+  - **Scoped PBT Approach**: For any `(rawKey, salt)` pair, assert that `hashApiKey(rawKey, salt)` output differs from `crypto.createHmac('sha256', salt).update(rawKey).digest('hex')` — this will FAIL on unfixed code because they currently produce the same output
+  - Create test file: `application-infrastructure/src/lambda/auth/tests/property/key-hashing-bugfix.property.test.js`
+  - Import `hashApiKey` from `../../utils/api-key` and `crypto` from Node.js built-in
+  - Use `fast-check` to generate random `(rawKey, salt)` pairs with `fc.string({ minLength: 1, maxLength: 100 })`
+  - For each pair, compute `hmacResult = crypto.createHmac('sha256', salt).update(rawKey).digest('hex')`
+  - Assert `hashApiKey(rawKey, salt) !== hmacResult` (expected behavior: scrypt output differs from HMAC)
+  - Also assert `hashApiKey(rawKey, salt)` matches `/^[0-9a-f]{64}$/` (64-char lowercase hex)
+  - Also assert `hashApiKey(rawKey, salt)` is deterministic (same inputs produce same output)
+  - Run test on UNFIXED code with `npx jest --no-cache application-infrastructure/src/lambda/auth/tests/property/key-hashing-bugfix.property.test.js`
+  - **EXPECTED OUTCOME**: Test FAILS (hashApiKey output equals HMAC-SHA256 output — confirms the bug exists)
+  - Document counterexamples found (e.g., "hashApiKey('atl_test', 'salt') === crypto.createHmac('sha256', 'salt').update('atl_test').digest('hex')")
+  - Mark task complete when test is written, run, and failure is documented
+  - _Requirements: 1.1, 1.2, 1.4, 2.1_
+
+- [x] 2. Write preservation property tests (BEFORE implementing fix)
+  - **Property 2: Preservation** - Authentication Flow Unchanged for Non-Hashing Paths
+  - **IMPORTANT**: Follow observation-first methodology
+  - Create test file: `application-infrastructure/src/lambda/read/tests/property/auth-resolver-preservation.property.test.js`
+  - Mock `@63klabs/cache-data` module before requiring `auth-resolver` (follow existing pattern in `auth-resolver.property.test.js`)
+  - **Preservation Test A — No-key requests return public tier**:
+    - Observe: `resolveAuth({ headers: {}, requestContext: { identity: { sourceIp: '10.0.0.1' } } })` returns `{ tier: 'public', isAuthenticated: false, identity: '10.0.0.1', degraded: false }`
+    - Use `fc.ipV4()` to generate random IPs
+    - Assert: for all events with no API key header, result has `tier === 'public'`, `isAuthenticated === false`, `identity === sourceIp`, `degraded === false`
+  - **Preservation Test B — Tier computation unchanged**:
+    - Observe: `computeEffectiveTier('paid', null)` returns `'paid'`; `computeEffectiveTier('paid', pastEpoch)` returns `'registered'`
+    - Use `fc.constantFrom('registered', 'paid', 'private')` for tiers and `fc.integer()` for expiration
+    - Assert: `tierExpiresAt` null/undefined → stored tier; future → stored tier; past → `'registered'`
+  - **Preservation Test C — Key generation format unchanged**:
+    - Observe: `generateApiKey()` returns string matching `/^atl_[0-9a-f]{32}$/`
+    - Use `fc.constant(null)` to drive repeated generation
+    - Assert: every generated key matches format, has length 36, and keys are unique
+  - Verify all preservation tests pass on UNFIXED code with `npx jest --no-cache application-infrastructure/src/lambda/read/tests/property/auth-resolver-preservation.property.test.js`
+  - **EXPECTED OUTCOME**: Tests PASS (confirms baseline behavior to preserve)
+  - Mark task complete when tests are written, run, and passing on unfixed code
+  - _Requirements: 3.1, 3.2, 3.3, 3.8, 3.9_
+
+- [x] 3. Fix: Replace HMAC-SHA256 with scrypt in hashApiKey and auth-resolver
+  - [x] 3.1 Update `hashApiKey()` in `application-infrastructure/src/lambda/auth/utils/api-key.js`
+    - Replace `crypto.createHmac('sha256', salt).update(rawKey).digest('hex')` with `crypto.scryptSync(rawKey, salt, 32, { N: 16384, r: 8, p: 1 }).toString('hex')`
+    - Update module-level JSDoc: change "HMAC-SHA256 hashes" to "scrypt hashes"
+    - Update function JSDoc: change `@returns` description from "64-character lowercase hex HMAC-SHA256 digest" to "64-character lowercase hex scrypt-derived key"
+    - Update inline comment from `// >! HMAC-SHA256 with SSM salt prevents rainbow table attacks` to `// >! scrypt with SSM salt provides brute-force resistance via key stretching`
+    - _Bug_Condition: isBugCondition(codeLocation) where codeLocation.expression MATCHES /crypto\.createHmac\(['"]sha256['"]/_ 
+    - _Expected_Behavior: hashApiKey uses crypto.scryptSync() producing deterministic 64-char hex output_
+    - _Preservation: generateApiKey() format unchanged, hash output still 64-char hex compatible with KEY# format_
+    - _Requirements: 2.1, 2.4, 2.5, 2.6, 3.6, 3.7_
+  - [x] 3.2 Update inline hashing in `application-infrastructure/src/lambda/read/utils/auth-resolver.js`
+    - Replace `crypto.createHmac('sha256', salt).update(rawKey).digest('hex')` (~line 285) with `crypto.scryptSync(rawKey, salt, 32, { N: 16384, r: 8, p: 1 }).toString('hex')`
+    - Update module-level JSDoc: change "HMAC-SHA256 key hashing" to "scrypt key hashing"
+    - Update `resolveAuth()` JSDoc step 4: change "Hash key with HMAC-SHA256" to "Hash key with scrypt"
+    - Update inline comment from `// >! HMAC-SHA256 hash the raw key with the salt` to `// >! scrypt hash the raw key with the salt (matches hashApiKey in auth lambda)`
+    - Update `apiKeyHashSalt` JSDoc: change "HMAC-SHA256 hash salt" to "scrypt hash salt"
+    - _Bug_Condition: isBugCondition(codeLocation) where codeLocation.expression MATCHES /crypto\.createHmac\(['"]sha256['"]/_ 
+    - _Expected_Behavior: resolveAuth uses crypto.scryptSync() with identical parameters to hashApiKey_
+    - _Preservation: All non-hashing code paths unchanged (extractApiKey, computeEffectiveTier, refreshTtl, extractSourceIp)_
+    - _Requirements: 2.2, 2.4, 2.5, 2.6, 3.1, 3.2, 3.3, 3.4, 3.5_
+  - [x] 3.3 Update Property 4 test in `application-infrastructure/src/lambda/read/tests/property/auth-resolver.property.test.js`
+    - In the second `it` block of Property 4 ("same key from either header produces the same HMAC-SHA256 hash"):
+      - Replace `crypto.createHmac('sha256', salt).update(fromBearer).digest('hex')` with `crypto.scryptSync(fromBearer, salt, 32, { N: 16384, r: 8, p: 1 }).toString('hex')`
+      - Replace `crypto.createHmac('sha256', salt).update(fromApiKey).digest('hex')` with `crypto.scryptSync(fromApiKey, salt, 32, { N: 16384, r: 8, p: 1 }).toString('hex')`
+    - Update test description from "same HMAC-SHA256 hash" to "same scrypt hash"
+    - _Bug_Condition: isBugCondition(codeLocation) where codeLocation.expression MATCHES /crypto\.createHmac\(['"]sha256['"]/_ 
+    - _Expected_Behavior: Test uses scrypt instead of HMAC-SHA256, resolving GitHub alerts #6 and #7_
+    - _Requirements: 2.3_
+  - [x] 3.4 Update existing test descriptions in `application-infrastructure/src/lambda/auth/tests/property/api-key.property.test.js`
+    - Change describe block name from `'Property 2: HMAC-SHA256 hash determinism'` to `'Property 2: scrypt hash determinism'`
+    - No logic changes needed — tests call `hashApiKey()` which will use the new implementation
+    - _Requirements: 2.1_
+  - [x] 3.5 Update JSDoc references in consumer files (no code logic changes)
+    - In `application-infrastructure/src/lambda/auth/services/key-regenerate.js`: update JSDoc comment "Generate new API key and compute HMAC-SHA256 hash" to "Generate new API key and compute scrypt hash" (line ~27 in function doc and line ~62 inline comment)
+    - In `application-infrastructure/src/lambda/auth/handlers/post-confirmation.js`: update JSDoc comment "Generate API key, compute HMAC-SHA256 hash" to "Generate API key, compute scrypt hash" (line ~83 in function doc and line ~175 inline comment)
+    - _Requirements: 2.1_
+  - [x] 3.6 Verify bug condition exploration test now passes
+    - **Property 1: Expected Behavior** - scrypt Replaces HMAC-SHA256
+    - **IMPORTANT**: Re-run the SAME test from task 1 — do NOT write a new test
+    - The test from task 1 encodes the expected behavior (hashApiKey output differs from HMAC-SHA256)
+    - When this test passes, it confirms the expected behavior is satisfied
+    - Run: `npx jest --no-cache application-infrastructure/src/lambda/auth/tests/property/key-hashing-bugfix.property.test.js`
+    - **EXPECTED OUTCOME**: Test PASSES (confirms bug is fixed — hashApiKey now uses scrypt, not HMAC-SHA256)
+    - _Requirements: 2.1, 2.5, 2.6_
+  - [x] 3.7 Verify preservation tests still pass
+    - **Property 2: Preservation** - Authentication Flow Unchanged
+    - **IMPORTANT**: Re-run the SAME tests from task 2 — do NOT write new tests
+    - Run: `npx jest --no-cache application-infrastructure/src/lambda/read/tests/property/auth-resolver-preservation.property.test.js`
+    - **EXPECTED OUTCOME**: Tests PASS (confirms no regressions in non-hashing code paths)
+    - Confirm all preservation tests still pass after fix
+
+- [x] 4. Run all existing tests to verify no regressions
+  - Run auth lambda tests: `npx jest --no-cache` from `application-infrastructure/src/lambda/auth/` (uses jest.config.js in `application-infrastructure/src/`)
+  - Run read lambda tests: `npx jest --no-cache` from `application-infrastructure/src/lambda/read/` (uses jest.config.js in `application-infrastructure/src/`)
+  - Verify all existing property tests pass (api-key, auth-resolver, cognito-env-var, domain-assignment, effective-tier, etc.)
+  - Verify all existing unit tests pass
+  - If any test fails, investigate and fix before proceeding
+  - Ensure all tests pass, ask the user if questions arise
+
+- [x] 5. Update CHANGELOG.md
+  - Add entry under `## [v0.0.4] (unreleased)` section
+  - Add under `### Security` category:
+    - `**Key Hashing Upgrade** [Spec: 0-0-4-key-hashing-for-auth](../.kiro/specs/0-0-4-key-hashing-for-auth/) — Replaced HMAC-SHA256 with scrypt (N=16384, r=8, p=1) for API key hashing in auth and read lambdas, resolving GitHub security code scanning alerts #5, #6, #7, #8 (CWE-916)`
+  - Add under `### Breaking Changes` category:
+    - `**API Key Hashing Algorithm Change** — Existing API key hashes in DynamoDB are invalidated by the switch from HMAC-SHA256 to scrypt. Pre-production: test users must regenerate their API keys. No migration script needed.`
+  - Do NOT modify any existing changelog text
+  - _Requirements: All_

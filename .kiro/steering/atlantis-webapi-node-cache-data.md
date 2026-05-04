@@ -17,6 +17,7 @@ Every API Gateway-triggered Lambda in this project MUST:
 - Enable AWS X-Ray tracing (cache-data instruments subsegments automatically)
 - Enable Lambda Insights for enhanced monitoring
 - Use `@63klabs/cache-data` for routing, validation, logging, response generation, configuration, and AWS SDK access
+- Include the Lambda SSM Parameters and Secrets Extension Layer for use by Cache-Data
 
 ## Package Overview
 

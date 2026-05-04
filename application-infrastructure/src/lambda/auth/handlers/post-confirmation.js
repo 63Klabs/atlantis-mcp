@@ -174,7 +174,7 @@ function determineTier(domain, privateDomains) {
  * 2. Validate email domain against blocked and allowed lists
  * 3. Validate country from CloudFront-Viewer-Country header
  * 4. Determine tier (private or registered) based on domain
- * 5. Generate API key, compute HMAC-SHA256 hash
+ * 5. Generate API key, compute scrypt hash
  * 6. Store user record in DynamoDB Users table
  * 7. Update Cognito custom:api_key and custom:tier attributes
  * 8. Return raw API key in event.response for client display
@@ -243,7 +243,7 @@ async function handler(event) {
 	// >! Determine tier based on private domain match
 	const { tier, tierExpiresAt } = determineTier(domain, privateDomains);
 
-	// >! Generate API key and compute HMAC-SHA256 hash
+	// >! Generate API key and compute scrypt hash
 	const rawKey = generateApiKey();
 	const keyHash = hashApiKey(rawKey, salt);
 

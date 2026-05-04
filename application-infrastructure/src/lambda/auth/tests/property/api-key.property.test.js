@@ -48,7 +48,7 @@ describe('Property 1: API key generation format', () => {
 	});
 });
 
-describe('Property 2: HMAC-SHA256 hash determinism', () => {
+describe('Property 2: scrypt hash determinism', () => {
 
 	it('same key + same salt produces identical hash', () => {
 		fc.assert(

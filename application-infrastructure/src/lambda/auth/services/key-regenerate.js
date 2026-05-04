@@ -26,7 +26,7 @@ const { generateApiKey, hashApiKey } = require('../utils/api-key');
  * Workflow:
  * 1. Look up existing user record by email (GSI query)
  * 2. Retrieve API key hash salt from CachedSsmParameter
- * 3. Generate new API key and compute HMAC-SHA256 hash
+ * 3. Generate new API key and compute scrypt hash
  * 4. Delete old key record from Users table
  * 5. Create new key record preserving email, tier, cognitoSub, tierExpiresAt
  * 6. Update Cognito custom:api_key with new hash
@@ -58,7 +58,7 @@ async function regenerateKey(email, cognitoSub) {
 	// >! Retrieve hash salt from CachedSsmParameter
 	const salt = await Config.settings().ssm.apiKeyHashSalt.getValue();
 
-	// >! Generate new API key and compute HMAC-SHA256 hash
+	// >! Generate new API key and compute scrypt hash
 	const rawKey = generateApiKey();
 	const newKeyHash = hashApiKey(rawKey, salt);
 

@@ -2,7 +2,7 @@
  * API Key Generation and Hashing Utility
  *
  * Provides functions for generating static API keys and computing
- * HMAC-SHA256 hashes for secure storage. Uses Node.js built-in
+ * scrypt hashes for secure storage. Uses Node.js built-in
  * `crypto` module only — no external dependencies.
  *
  * @module utils/api-key
@@ -30,7 +30,7 @@ function generateApiKey() {
 }
 
 /**
- * Compute the HMAC-SHA256 hash of an API key using the provided salt.
+ * Compute the scrypt hash of an API key using the provided salt.
  *
  * The hash is deterministic: same key + same salt always produces the
  * same 64-character hex digest. The raw key is never stored — only
@@ -38,15 +38,15 @@ function generateApiKey() {
  *
  * @param {string} rawKey - The raw API key to hash
  * @param {string} salt - The HMAC key from `Mcp_ApiKeyHashSalt` SSM parameter
- * @returns {string} 64-character lowercase hex HMAC-SHA256 digest
+ * @returns {string} 64-character lowercase hex scrypt-derived key
  * @example
  * const { hashApiKey } = require('./utils/api-key');
  * const hash = hashApiKey('atl_a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6', 'my-salt');
  * // hash: '3f2a...' (64 hex chars)
  */
 function hashApiKey(rawKey, salt) {
-	// >! HMAC-SHA256 with SSM salt prevents rainbow table attacks
-	return crypto.createHmac('sha256', salt).update(rawKey).digest('hex');
+	// >! scrypt with SSM salt provides brute-force resistance via key stretching
+	return crypto.scryptSync(rawKey, salt, 32, { N: 16384, r: 8, p: 1 }).toString('hex');
 }
 
 /* ------------------------------------------------------------------ */

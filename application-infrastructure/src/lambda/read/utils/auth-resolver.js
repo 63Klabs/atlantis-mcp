@@ -2,7 +2,7 @@
  * Auth Resolver Utility
  *
  * Resolves API key authentication from incoming requests, performing
- * HMAC-SHA256 key hashing, DynamoDB user lookup, tier computation,
+ * scrypt key hashing, DynamoDB user lookup, tier computation,
  * and TTL refresh for free registered users.
  *
  * Supports two header formats:
@@ -35,7 +35,7 @@ const ONE_TWENTY_DAYS_SEC = 120 * 24 * 60 * 60;
 /* ------------------------------------------------------------------ */
 
 /**
- * Cached SSM parameter for the HMAC-SHA256 hash salt.
+ * Cached SSM parameter for the scrypt hash salt.
  *
  * Retrieved from `PARAM_STORE_PATH + 'Mcp_ApiKeyHashSalt'`.
  * Used to hash raw API keys before DynamoDB lookup.
@@ -203,7 +203,7 @@ function refreshTtl(pk, record, effectiveTier) {
  * 1. Extract API key from headers (Bearer or X-API-Key)
  * 2. No key → return public tier result
  * 3. Key present → retrieve hash salt from SSM
- * 4. Hash key with HMAC-SHA256 → DynamoDB GetItem on Users table
+ * 4. Hash key with scrypt → DynamoDB GetItem on Users table
  * 5. Key not found → return 401 error
  * 6. Key found → compute effective tier, trigger TTL refresh if needed
  * 7. Return authenticated result with tier and cognitoSub
@@ -281,8 +281,8 @@ async function resolveAuth(event) {
     };
   }
 
-  // >! HMAC-SHA256 hash the raw key with the salt
-  const keyHash = crypto.createHmac('sha256', salt).update(rawKey).digest('hex');
+  // >! scrypt hash the raw key with the salt (matches hashApiKey in auth lambda)
+  const keyHash = crypto.scryptSync(rawKey, salt, 32, { N: 16384, r: 8, p: 1 }).toString('hex');
   const pk = `KEY#${keyHash}`;
 
   // >! Look up user record in DynamoDB

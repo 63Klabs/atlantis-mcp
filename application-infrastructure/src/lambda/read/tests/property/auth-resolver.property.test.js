@@ -80,7 +80,7 @@ describe('Property 4: Header extraction consistency', () => {
 		);
 	});
 
-	it('same key from either header produces the same HMAC-SHA256 hash', () => {
+	it('same key from either header produces the same scrypt hash', () => {
 		const salt = 'test-property-salt-header-consistency';
 
 		fc.assert(
@@ -97,8 +97,8 @@ describe('Property 4: Header extraction consistency', () => {
 					const fromBearer = extractApiKey(bearerEvent);
 					const fromApiKey = extractApiKey(apiKeyEvent);
 
-					const hashBearer = crypto.createHmac('sha256', salt).update(fromBearer).digest('hex');
-					const hashApiKey = crypto.createHmac('sha256', salt).update(fromApiKey).digest('hex');
+					const hashBearer = crypto.scryptSync(fromBearer, salt, 32, { N: 16384, r: 8, p: 1 }).toString('hex');
+					const hashApiKey = crypto.scryptSync(fromApiKey, salt, 32, { N: 16384, r: 8, p: 1 }).toString('hex');
 
 					expect(hashBearer).toBe(hashApiKey);
 				}
