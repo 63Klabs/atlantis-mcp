@@ -5,7 +5,11 @@ All notable changes to the Atlantis MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [v0.0.3] (unreleased)
+## [v0.0.4] (unreleased)
+
+TODO
+
+## [v0.0.3] (2026-05-03)
 
 ### Added
 - **Modules Nested Directory Support** [Spec: 0-0-3-modules-nested-directory-support](../.kiro/specs/0-0-3-modules-nested-directory-support/)
@@ -23,25 +27,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Promotion code redemption (for admins to grant temporary paid access)
   - Subscription to Paid tier coming later.
   - Uses Amazon Cognito
-- **Cognito Orphan Cleanup** [Spec: 0-0-3-cognito-orphan-cleanup](../.kiro/specs/0-0-3-cognito-orphan-cleanup/)
-  - DynamoDB Streams enabled on Users table (OLD_IMAGE) to capture deleted record data
-  - New Cleanup Lambda triggered by TTL deletions to remove orphaned Cognito accounts
-  - Partial batch failure reporting for resilient processing of stream record batches
-  - Least-privilege IAM role scoped to DynamoDB Streams, Cognito, SSM, and CloudWatch Logs
-
-### Changed
-- **Auth Lambda: cache-data MVC Migration** [Spec: 0-0-3-update-auth-function-to-use-cache-data](.kiro/specs/0-0-3-update-auth-function-to-use-cache-data/)
-  - Refactored auth Lambda to use `@63klabs/cache-data` MVC architecture (Config, ClientRequest, Response, DebugAndLog, Timer, CachedSsmParameter)
-  - Reorganized code into config/, routes/, controllers/, services/, models/ directory structure
-  - Replaced manual CORS headers with `Response.finalize()`
-  - Replaced `console.log`/`console.error` with `DebugAndLog` in API Gateway code path
-  - Consolidated SSM caching with `CachedSsmParameter` (eliminated duplicated `getCachedSsmParam` functions)
-  - Migrated JWT validator to accept User Pool ID as parameter
-  - Endpoint paths now include `/mcp` prefix (e.g., `/auth/profile` → `/mcp/auth/profile`)
-
-### Fixed
-- **Auth Lambda: jwt-validator.js** - Fixed 401 Unauthorized on all auth endpoints after login [Spec: 0-0-3-auth-profile-401-after-login](../.kiro/specs/0-0-3-auth-profile-401-after-login/)
-  - validateJwt() now checks both props.headers and props.headerParameters for the Authorization header, resolving mismatch with clientRequest.getProps() output structure
 
 ## [v0.0.2] (2026-04-09)
 
@@ -84,6 +69,7 @@ Example:
 ### Version Links
 
 [Unreleased]: https://github.com/63klabs/atlantis-mcp/
+[v0.0.4]: https://github.com/63klabs/atlantis-mcp/releases/tag/v0.0.4
 [v0.0.3]: https://github.com/63klabs/atlantis-mcp/releases/tag/v0.0.3
 [v0.0.2]: https://github.com/63klabs/atlantis-mcp/releases/tag/v0.0.2
 [v0.0.1]: https://github.com/63klabs/atlantis-mcp/releases/tag/v0.0.1
