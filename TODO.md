@@ -1,12 +1,10 @@
 # TODO
 
-- [ ] Update Architecture
-- [ ] Update user documentation to include auth info
+- [ ] Consolidate the pricing table, currently in 3 or more spots (read settings, auth settings, static site) - how to incorporate SSM Parameter store
 - [ ] Update account profile timeout, with auto page refresh and aria notification
 - [ ] Add additional debug logging to auth function
-- [ ] Add more logging and lambda console to stack outputs
+- [ ] Add more Stack Outputs
 
-- [ ] Review openapi spec
 - [ ] Review all documentation
 
 - [ ] Subscriptions
