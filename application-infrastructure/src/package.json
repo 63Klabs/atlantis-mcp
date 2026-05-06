@@ -15,11 +15,12 @@
 		"test": "tests"
 	},
 	"scripts": {
-		"test": "jest",
-		"tests": "jest",
-		"test:performance": "jest tests/performance/",
-		"test:unit": "jest tests/unit/",
-		"test:integration": "jest tests/integration/",
+		"test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js",
+		"tests": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js",
+		"test:performance": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js tests/performance/",
+		"test:unit": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js tests/unit/",
+		"test:integration": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js tests/integration/",
+		"test:static": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --testPathPatterns=test/static --no-coverage",
 		"lint": "eslint .",
 		"lint:fix": "eslint . --fix"
 	},
@@ -35,6 +36,7 @@
 		"aws-sdk-client-mock": "^4.x",
 		"eslint": "^10.0.2",
 		"fast-check": "^4.5.3",
-		"jest": "^30.3.0"
+		"jest": "^30.3.0",
+		"jest-environment-jsdom": "^30.3.0"
 	}
 }

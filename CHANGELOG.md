@@ -5,6 +5,17 @@ All notable changes to the Atlantis MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.0.5 - unreleased
+
+### Added
+- **Account Validation Retry** [Spec: 0-0-5-add-account-validation-retry](../.kiro/specs/0-0-5-add-account-validation-retry/)
+  - Spam folder advisory displayed on the email verification step
+  - Resend verification code button with 30-second initial delay, 30-second cooldown, and max 3 attempts
+  - Re-registration handling for unverified accounts (UsernameExistsException triggers resend flow)
+  - Login page handling for unverified accounts (UserNotConfirmedException redirects to verification)
+  - Query parameter support (`?verify=<email>`) for cross-page verification flow
+  - Accessibility compliance: aria-live regions, aria-describedby associations, focus management with fallback
+
 ## [v0.0.4] (2026-05-04)
 
 ### Security

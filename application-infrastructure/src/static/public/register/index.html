@@ -27,12 +27,13 @@
       <form id="register-form" novalidate>
         <div class="form-group">
           <label for="email">Email address</label>
-          <input type="email" id="email" name="email" required autocomplete="email" aria-required="true">
+          <input type="email" id="email" name="email" required autocomplete="email"
+                 aria-required="true" aria-describedby="register-error">
         </div>
         <div class="form-group">
           <label for="password">Password</label>
           <input type="password" id="password" name="password" required autocomplete="new-password"
-                 aria-required="true" aria-describedby="password-hint" minlength="8">
+                 aria-required="true" aria-describedby="password-hint register-error" minlength="8">
           <small id="password-hint" style="color:#6b6b80;font-size:0.8rem;">
             Minimum 8 characters: uppercase, lowercase, number, and special character.
           </small>
@@ -53,14 +54,26 @@
         A verification code has been sent to your email. Enter it below to complete registration.
       </div>
 
+      <div id="spam-advisory" class="alert alert-info visible" role="note" aria-live="polite">
+        If you don't see the verification email in your inbox, please check your spam or junk folder.
+      </div>
+
       <form id="verify-form" novalidate>
         <div class="form-group">
           <label for="verification-code">Verification code</label>
           <input type="text" id="verification-code" name="code" required autocomplete="one-time-code"
-                 aria-required="true" inputmode="numeric" pattern="[0-9]*">
+                 aria-required="true" aria-describedby="verify-error" inputmode="numeric" pattern="[0-9]*">
         </div>
         <button type="submit" class="btn" id="verify-btn">Verify Email</button>
       </form>
+
+      <div id="resend-container" class="hidden">
+        <button type="button" id="resend-btn" class="btn btn-secondary"
+                aria-label="Resend verification code to your email">
+          Resend Code
+        </button>
+        <div id="resend-status" class="alert" role="status" aria-live="polite"></div>
+      </div>
     </div>
 
     <!-- Step 3: API key display -->
@@ -108,6 +121,14 @@
 
   var registeredEmail = '';
 
+  var resendState = {
+    count: 0,
+    maxResends: 3,
+    cooldownMs: 30000,
+    initialDelayMs: 30000,
+    timerId: null
+  };
+
   // DOM references
   var registerStep = document.getElementById('register-step');
   var verifyStep = document.getElementById('verify-step');
@@ -118,6 +139,7 @@
   var verifyError = document.getElementById('verify-error');
   var registerBtn = document.getElementById('register-btn');
   var verifyBtn = document.getElementById('verify-btn');
+  var resendContainer = document.getElementById('resend-container');
   var apiKeyValue = document.getElementById('api-key-value');
   var copyKeyBtn = document.getElementById('copy-key-btn');
 
@@ -130,6 +152,66 @@
     el.textContent = '';
     el.classList.remove('visible');
   }
+
+  function startResendTimer() {
+    if (resendState.timerId) {
+      clearTimeout(resendState.timerId);
+    }
+    resendState.timerId = setTimeout(function() {
+      resendContainer.classList.remove('hidden');
+      resendState.timerId = null;
+    }, resendState.initialDelayMs);
+  }
+
+  // Resend button click handler
+  var resendBtn = document.getElementById('resend-btn');
+  var resendStatus = document.getElementById('resend-status');
+
+  resendBtn.addEventListener('click', function() {
+    // Disable button during pending request
+    resendBtn.disabled = true;
+    resendStatus.textContent = '';
+    resendStatus.classList.remove('visible', 'alert-info', 'alert-error');
+
+    var userData = { Username: registeredEmail, Pool: userPool };
+    var cognitoUser = new AmazonCognitoIdentity.CognitoUser(userData);
+
+    cognitoUser.resendConfirmationCode(function(err, result) {
+      if (err) {
+        // On error: show error message, re-enable button
+        var msg = err.message || 'Failed to resend verification code.';
+        resendStatus.textContent = msg;
+        resendStatus.classList.add('visible', 'alert-error');
+        resendBtn.disabled = false;
+        return;
+      }
+
+      // On success: increment counter
+      resendState.count++;
+
+      // Check if max attempts reached
+      if (resendState.count >= resendState.maxResends) {
+        resendBtn.disabled = true;
+        resendStatus.textContent = 'Maximum resend attempts reached. Please check your email or try again later.';
+        resendStatus.classList.add('visible', 'alert-info');
+        return;
+      }
+
+      // Show confirmation message (visible 10+ seconds)
+      resendStatus.textContent = 'A new verification code has been sent.';
+      resendStatus.classList.add('visible', 'alert-info');
+
+      // Hide resend container for 30-second cooldown
+      resendContainer.classList.add('hidden');
+
+      // Show container again after cooldown
+      resendState.timerId = setTimeout(function() {
+        resendContainer.classList.remove('hidden');
+        resendBtn.disabled = false;
+        resendState.timerId = null;
+      }, resendState.cooldownMs);
+    });
+  });
 
   // Step 1: Register
   registerForm.addEventListener('submit', function(e) {
@@ -152,14 +234,53 @@
     ];
 
     userPool.signUp(email, password, attributeList, null, function(err, result) {
-      registerBtn.disabled = false;
-      registerBtn.textContent = 'Register';
-
       if (err) {
-        var msg = err.message || 'Registration failed.';
         if (err.code === 'UsernameExistsException') {
-          msg = 'An account with this email already exists.';
-        } else if (err.code === 'InvalidParameterException' && msg.toLowerCase().includes('password')) {
+          // Keep submit button disabled with loading indicator
+          registerBtn.disabled = true;
+          registerBtn.textContent = 'Verifying…';
+
+          // Create CognitoUser and attempt to resend confirmation code
+          var userData = { Username: email, Pool: userPool };
+          var cognitoUser = new AmazonCognitoIdentity.CognitoUser(userData);
+
+          cognitoUser.resendConfirmationCode(function(resendErr, resendResult) {
+            if (resendErr) {
+              // Heuristic check: is the account already verified?
+              var isAlreadyVerified = (
+                resendErr.code === 'InvalidParameterException' ||
+                (resendErr.message && resendErr.message.toLowerCase().includes('confirmed')) ||
+                (resendErr.message && resendErr.message.toLowerCase().includes('verified'))
+              );
+
+              if (isAlreadyVerified) {
+                showError(registerError, 'An account with this email already exists. Please log in.');
+              } else {
+                showError(registerError, 'Could not send verification code. Please try again.');
+              }
+
+              // Re-enable submit button
+              registerBtn.disabled = false;
+              registerBtn.textContent = 'Register';
+              return;
+            }
+
+            // Resend succeeded: store email, transition to verify step
+            registeredEmail = email;
+            registerStep.classList.add('hidden');
+            verifyStep.classList.remove('hidden');
+            document.getElementById('verification-code').focus();
+            startResendTimer();
+          });
+          return;
+        }
+
+        // Handle other registration errors
+        registerBtn.disabled = false;
+        registerBtn.textContent = 'Register';
+
+        var msg = err.message || 'Registration failed.';
+        if (err.code === 'InvalidParameterException' && msg.toLowerCase().includes('password')) {
           msg = 'Password must be at least 8 characters with uppercase, lowercase, number, and special character.';
         } else if (msg.toLowerCase().includes('blocked') || msg.toLowerCase().includes('not allowed')) {
           // Domain-based rejection messages from Pre-SignUp or Post-Confirmation triggers
@@ -169,10 +290,14 @@
         return;
       }
 
+      registerBtn.disabled = false;
+      registerBtn.textContent = 'Register';
+
       registeredEmail = email;
       registerStep.classList.add('hidden');
       verifyStep.classList.remove('hidden');
       document.getElementById('verification-code').focus();
+      startResendTimer();
     });
   });
 
@@ -270,6 +395,36 @@
       });
     }
   });
+
+  // Handle ?verify=<email> query parameter on page load
+  var params = new URLSearchParams(window.location.search);
+  var verifyEmail = params.get('verify');
+  if (verifyEmail) {
+    registeredEmail = verifyEmail;
+    registerStep.classList.add('hidden');
+    verifyStep.classList.remove('hidden');
+    startResendTimer();
+
+    // Focus verification code input within 500ms, with 2-second fallback
+    var focusAttemptTimer = setTimeout(function() {
+      var codeInput = document.getElementById('verification-code');
+      if (codeInput) {
+        codeInput.focus();
+      }
+    }, 500);
+
+    var focusFallbackTimer = setTimeout(function() {
+      var codeInput = document.getElementById('verification-code');
+      if (document.activeElement !== codeInput) {
+        var firstFocusable = document.querySelector(
+          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        );
+        if (firstFocusable) {
+          firstFocusable.focus();
+        }
+      }
+    }, 2000);
+  }
 })();
 </script>
 </body>

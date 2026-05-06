@@ -26,11 +26,13 @@
       <form id="login-form" novalidate>
         <div class="form-group">
           <label for="email">Email address</label>
-          <input type="email" id="email" name="email" required autocomplete="email" aria-required="true">
+          <input type="email" id="email" name="email" required autocomplete="email"
+                 aria-required="true" aria-describedby="login-error">
         </div>
         <div class="form-group">
           <label for="password">Password</label>
-          <input type="password" id="password" name="password" required autocomplete="current-password" aria-required="true">
+          <input type="password" id="password" name="password" required autocomplete="current-password"
+                 aria-required="true" aria-describedby="login-error">
         </div>
         <button type="submit" class="btn" id="login-btn">Log In</button>
       </form>
@@ -102,14 +104,50 @@
         window.location.href = '/profile/';
       },
       onFailure: function(err) {
+        if (err.code === 'UserNotConfirmedException') {
+          var emailInput = document.getElementById('email');
+          var passwordInput = document.getElementById('password');
+
+          // Disable all form controls
+          emailInput.disabled = true;
+          passwordInput.disabled = true;
+          loginBtn.disabled = true;
+          loginBtn.textContent = 'Logging in…';
+
+          // Create a CognitoUser and resend the confirmation code
+          var resendUserData = { Username: email, Pool: userPool };
+          var resendUser = new AmazonCognitoIdentity.CognitoUser(resendUserData);
+
+          resendUser.resendConfirmationCode(function(resendErr) {
+            if (resendErr) {
+              // Re-enable form controls on error
+              emailInput.disabled = false;
+              passwordInput.disabled = false;
+              loginBtn.disabled = false;
+              loginBtn.textContent = 'Log In';
+              showError('Could not send verification code. Please try again or contact support.');
+            } else {
+              // Show info message for 2 seconds then redirect
+              loginError.classList.remove('visible');
+              loginError.classList.remove('alert-error');
+              loginError.classList.add('alert-info');
+              loginError.classList.add('visible');
+              loginError.textContent = 'A new verification code has been sent. Redirecting to verification...';
+
+              setTimeout(function() {
+                window.location.href = '/register/?verify=' + encodeURIComponent(email);
+              }, 2000);
+            }
+          });
+          return;
+        }
+
         loginBtn.disabled = false;
         loginBtn.textContent = 'Log In';
 
         var msg = err.message || 'Login failed.';
         if (err.code === 'NotAuthorizedException') {
           msg = 'Incorrect email or password.';
-        } else if (err.code === 'UserNotConfirmedException') {
-          msg = 'Your email is not verified. Please check your inbox for a verification link or register again.';
         } else if (err.code === 'UserNotFoundException') {
           msg = 'Incorrect email or password.';
         }
