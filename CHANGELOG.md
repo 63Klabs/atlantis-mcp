@@ -5,7 +5,16 @@ All notable changes to the Atlantis MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## v0.0.5 (2026-05-06)
+## [v0.0.5] (2026-05-07)
+
+### Fixed
+- **CI/CD: Test suite OOM in CodeBuild** — Resolved JavaScript heap out-of-memory crash during `npm test` in constrained build environments
+  - Added `--max-old-space-size=1024` to test scripts in `package.json`
+  - Scoped `collectCoverageFrom` in `jest.config.js` to Lambda source directories only (was instrumenting all `node_modules`)
+  - Limited Jest workers to 2 in CI (`maxWorkers: 2` when `CI=true`)
+  - Reduced `numRuns` from 100 to 10 in `settings-property.test.js` (module-reloading property tests are expensive)
+  - Set `CI=true` in `buildspec.yml` before test execution
+- **Test: cleanup-filtering.property.test.js** — Replaced `fc.stringOf` (not available in fast-check v4) with `fc.stringMatching(/^[0-9]{10,20}$/)` to fix test suite load failure
 
 ### Added
 - **Account Validation Retry** [Spec: 0-0-5-add-account-validation-retry](../.kiro/specs/0-0-5-add-account-validation-retry/)
@@ -84,6 +93,7 @@ Example:
 ### Version Links
 
 [Unreleased]: https://github.com/63klabs/atlantis-mcp/
+[v0.0.5]: https://github.com/63klabs/atlantis-mcp/releases/tag/v0.0.5
 [v0.0.4]: https://github.com/63klabs/atlantis-mcp/releases/tag/v0.0.4
 [v0.0.3]: https://github.com/63klabs/atlantis-mcp/releases/tag/v0.0.3
 [v0.0.2]: https://github.com/63klabs/atlantis-mcp/releases/tag/v0.0.2
