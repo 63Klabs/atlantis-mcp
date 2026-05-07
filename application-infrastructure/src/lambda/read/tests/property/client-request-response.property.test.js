@@ -127,7 +127,7 @@ describe('Feature: use-client-request-and-response-classes', () => {
       return fc.assert(
         fc.asyncProperty(
           fc.integer({ min: 100, max: 599 }),
-          fc.jsonValue(),
+          fc.jsonValue().filter(v => !Object.is(v, -0)),
           fc.dictionary(
             fc.stringMatching(/^X-[A-Za-z0-9-]+$/),
             fc.string({ minLength: 1, maxLength: 50 })

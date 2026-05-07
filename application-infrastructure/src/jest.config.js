@@ -1,5 +1,6 @@
 module.exports = {
   testEnvironment: 'node',
+  setupFiles: ['./jest.setup.js'],
   testMatch: [
     '**/lambda/read/tests/**/*.test.js',
     '**/lambda/indexer/tests/**/*.test.js',
@@ -26,6 +27,7 @@ module.exports = {
     {
       displayName: 'lambda',
       testEnvironment: 'node',
+      setupFiles: ['./jest.setup.js'],
       testMatch: [
         '**/lambda/read/tests/**/*.test.js',
         '**/lambda/indexer/tests/**/*.test.js',
@@ -41,6 +43,7 @@ module.exports = {
     {
       displayName: 'static',
       testEnvironment: 'jsdom',
+      setupFiles: ['./jest.setup.js'],
       testMatch: [
         '**/test/static/**/*.jest.mjs'
       ],
