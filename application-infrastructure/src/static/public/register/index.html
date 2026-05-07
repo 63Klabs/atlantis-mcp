@@ -240,37 +240,47 @@
           registerBtn.disabled = true;
           registerBtn.textContent = 'Verifying…';
 
-          // Create CognitoUser and attempt to resend confirmation code
+          // Attempt authentication to determine if account is confirmed
           var userData = { Username: email, Pool: userPool };
           var cognitoUser = new AmazonCognitoIdentity.CognitoUser(userData);
+          var authDetails = new AmazonCognitoIdentity.AuthenticationDetails({
+            Username: email,
+            Password: password
+          });
 
-          cognitoUser.resendConfirmationCode(function(resendErr, resendResult) {
-            if (resendErr) {
-              // Heuristic check: is the account already verified?
-              var isAlreadyVerified = (
-                resendErr.code === 'InvalidParameterException' ||
-                (resendErr.message && resendErr.message.toLowerCase().includes('confirmed')) ||
-                (resendErr.message && resendErr.message.toLowerCase().includes('verified'))
-              );
-
-              if (isAlreadyVerified) {
-                showError(registerError, 'An account with this email already exists. Please log in.');
-              } else {
-                showError(registerError, 'Could not send verification code. Please try again.');
-              }
-
-              // Re-enable submit button
+          cognitoUser.authenticateUser(authDetails, {
+            onSuccess: function() {
+              // Account exists and is confirmed — tell user to log in
+              showError(registerError, 'An account with this email already exists. Please log in.');
               registerBtn.disabled = false;
               registerBtn.textContent = 'Register';
-              return;
-            }
+            },
+            onFailure: function(authErr) {
+              if (authErr.code === 'UserNotConfirmedException') {
+                // Account exists but is NOT confirmed — resend verification code
+                cognitoUser.resendConfirmationCode(function(resendErr) {
+                  if (resendErr) {
+                    showError(registerError, 'Could not send verification code. Please try again.');
+                    registerBtn.disabled = false;
+                    registerBtn.textContent = 'Register';
+                    return;
+                  }
 
-            // Resend succeeded: store email, transition to verify step
-            registeredEmail = email;
-            registerStep.classList.add('hidden');
-            verifyStep.classList.remove('hidden');
-            document.getElementById('verification-code').focus();
-            startResendTimer();
+                  // Resend succeeded: transition to verify step
+                  registeredEmail = email;
+                  registerStep.classList.add('hidden');
+                  verifyStep.classList.remove('hidden');
+                  document.getElementById('verification-code').focus();
+                  startResendTimer();
+                });
+              } else {
+                // NotAuthorizedException (wrong password) or other auth errors
+                // mean the account is confirmed — tell user to log in
+                showError(registerError, 'An account with this email already exists. Please log in.');
+                registerBtn.disabled = false;
+                registerBtn.textContent = 'Register';
+              }
+            }
           });
           return;
         }

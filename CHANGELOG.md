@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Account Validation Retry** [Spec: 0-0-5-add-account-validation-retry](../.kiro/specs/0-0-5-add-account-validation-retry/)
   - Spam folder advisory displayed on the email verification step
   - Resend verification code button with 30-second initial delay, 30-second cooldown, and max 3 attempts
-  - Re-registration handling for unverified accounts (UsernameExistsException triggers resend flow)
+  - Re-registration handling for unverified accounts (UsernameExistsException triggers authentication check to determine account state before resending)
   - Login page handling for unverified accounts (UserNotConfirmedException redirects to verification)
   - Query parameter support (`?verify=<email>`) for cross-page verification flow
   - Accessibility compliance: aria-live regions, aria-describedby associations, focus management with fallback

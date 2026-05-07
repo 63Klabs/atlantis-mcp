@@ -13,19 +13,24 @@ const HTML_PATH = resolve(
  * Validates: Requirements 3.1, 3.2, 3.3, 3.4, 3.5
  *
  * Tests for re-registration handling when a user attempts to register
- * with an email that already exists in Cognito (unverified account).
+ * with an email that already exists in Cognito.
+ *
+ * Flow: UsernameExistsException → authenticateUser to check account state
+ *   - UserNotConfirmedException → resendConfirmationCode → verify step
+ *   - onSuccess or NotAuthorizedException → "account exists, please log in"
  */
 describe('Registration Page - Re-registration of Unverified Accounts', () => {
   let mockSignUp;
   let mockResendConfirmationCode;
+  let mockAuthenticateUser;
   let mockCognitoUserConstructor;
 
   beforeEach(() => {
     jest.useFakeTimers();
 
     mockResendConfirmationCode = jest.fn();
+    mockAuthenticateUser = jest.fn();
     mockSignUp = jest.fn();
-
     mockCognitoUserConstructor = jest.fn();
 
     // Mock AmazonCognitoIdentity on window
@@ -36,10 +41,12 @@ describe('Registration Page - Re-registration of Unverified Accounts', () => {
       CognitoUser: jest.fn().mockImplementation((userData) => {
         mockCognitoUserConstructor(userData);
         return {
-          resendConfirmationCode: mockResendConfirmationCode
+          resendConfirmationCode: mockResendConfirmationCode,
+          authenticateUser: mockAuthenticateUser
         };
       }),
-      CognitoUserAttribute: jest.fn().mockImplementation((data) => data)
+      CognitoUserAttribute: jest.fn().mockImplementation((data) => data),
+      AuthenticationDetails: jest.fn().mockImplementation((data) => data)
     };
 
     // Load the HTML
@@ -54,7 +61,7 @@ describe('Registration Page - Re-registration of Unverified Accounts', () => {
 
     document.documentElement.innerHTML = processedHtml;
 
-    // Add copyright-year element if missing (referenced by first script block)
+    // Add copyright-year element if missing
     if (!document.getElementById('copyright-year')) {
       const span = document.createElement('span');
       span.id = 'copyright-year';
@@ -75,72 +82,78 @@ describe('Registration Page - Re-registration of Unverified Accounts', () => {
     delete window.AmazonCognitoIdentity;
   });
 
-  describe('Requirement 3.1: UsernameExistsException triggers resend flow', () => {
+  function submitRegistrationForm(email = 'test@example.com', password = 'Password1!') {
+    const emailInput = document.getElementById('email');
+    const passwordInput = document.getElementById('password');
+    const form = document.getElementById('register-form');
+
+    emailInput.value = email;
+    passwordInput.value = password;
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+  }
+
+  function getAuthCallbacks() {
+    const call = mockAuthenticateUser.mock.calls[0];
+    return call[1]; // second argument is the callbacks object
+  }
+
+  describe('Requirement 3.1: UsernameExistsException triggers authentication check', () => {
     it('should disable submit button and show loading state when UsernameExistsException occurs', () => {
-      // Arrange: signUp calls back with UsernameExistsException
       mockSignUp.mockImplementation((email, password, attrs, validation, callback) => {
         callback({ code: 'UsernameExistsException', message: 'User already exists' }, null);
       });
+      // authenticateUser does not call back yet (pending)
+      mockAuthenticateUser.mockImplementation(() => {});
 
-      // resendConfirmationCode does not call back yet (pending)
-      mockResendConfirmationCode.mockImplementation(() => {});
+      submitRegistrationForm();
 
-      const emailInput = document.getElementById('email');
-      const passwordInput = document.getElementById('password');
       const registerBtn = document.getElementById('register-btn');
-      const form = document.getElementById('register-form');
-
-      emailInput.value = 'test@example.com';
-      passwordInput.value = 'Password1!';
-
-      // Act
-      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-
-      // Assert: button stays disabled with "Verifying…" text
       expect(registerBtn.disabled).toBe(true);
       expect(registerBtn.textContent).toBe('Verifying…');
-      expect(mockResendConfirmationCode).toHaveBeenCalled();
     });
 
-    it('should call resendConfirmationCode with the submitted email', () => {
+    it('should call authenticateUser to check account state', () => {
       mockSignUp.mockImplementation((email, password, attrs, validation, callback) => {
         callback({ code: 'UsernameExistsException', message: 'User already exists' }, null);
       });
-      mockResendConfirmationCode.mockImplementation(() => {});
+      mockAuthenticateUser.mockImplementation(() => {});
 
-      const emailInput = document.getElementById('email');
-      const passwordInput = document.getElementById('password');
-      const form = document.getElementById('register-form');
+      submitRegistrationForm('user@domain.com', 'SecurePass1!');
 
-      emailInput.value = 'user@domain.com';
-      passwordInput.value = 'SecurePass1!';
-
-      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-
-      // Verify CognitoUser was constructed with the correct email
+      expect(mockAuthenticateUser).toHaveBeenCalled();
       expect(mockCognitoUserConstructor).toHaveBeenCalledWith(
         expect.objectContaining({ Username: 'user@domain.com' })
       );
     });
   });
 
-  describe('Requirement 3.2: Successful resend transitions to verify step', () => {
+  describe('Requirement 3.2: Unverified account transitions to verify step', () => {
+    it('should call resendConfirmationCode when authenticateUser returns UserNotConfirmedException', () => {
+      mockSignUp.mockImplementation((email, password, attrs, validation, callback) => {
+        callback({ code: 'UsernameExistsException', message: 'User already exists' }, null);
+      });
+      mockAuthenticateUser.mockImplementation((authDetails, callbacks) => {
+        callbacks.onFailure({ code: 'UserNotConfirmedException' });
+      });
+      mockResendConfirmationCode.mockImplementation(() => {});
+
+      submitRegistrationForm();
+
+      expect(mockResendConfirmationCode).toHaveBeenCalled();
+    });
+
     it('should hide register step and show verify step on successful resend', () => {
       mockSignUp.mockImplementation((email, password, attrs, validation, callback) => {
         callback({ code: 'UsernameExistsException', message: 'User already exists' }, null);
+      });
+      mockAuthenticateUser.mockImplementation((authDetails, callbacks) => {
+        callbacks.onFailure({ code: 'UserNotConfirmedException' });
       });
       mockResendConfirmationCode.mockImplementation((callback) => {
         callback(null, 'SUCCESS');
       });
 
-      const emailInput = document.getElementById('email');
-      const passwordInput = document.getElementById('password');
-      const form = document.getElementById('register-form');
-
-      emailInput.value = 'test@example.com';
-      passwordInput.value = 'Password1!';
-
-      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      submitRegistrationForm();
 
       const registerStep = document.getElementById('register-step');
       const verifyStep = document.getElementById('verify-step');
@@ -153,181 +166,117 @@ describe('Registration Page - Re-registration of Unverified Accounts', () => {
       mockSignUp.mockImplementation((email, password, attrs, validation, callback) => {
         callback({ code: 'UsernameExistsException', message: 'User already exists' }, null);
       });
+      mockAuthenticateUser.mockImplementation((authDetails, callbacks) => {
+        callbacks.onFailure({ code: 'UserNotConfirmedException' });
+      });
       mockResendConfirmationCode.mockImplementation((callback) => {
         callback(null, 'SUCCESS');
       });
 
-      const emailInput = document.getElementById('email');
-      const passwordInput = document.getElementById('password');
-      const form = document.getElementById('register-form');
       const codeInput = document.getElementById('verification-code');
-
-      // Spy on focus
       const focusSpy = jest.spyOn(codeInput, 'focus');
 
-      emailInput.value = 'test@example.com';
-      passwordInput.value = 'Password1!';
-
-      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      submitRegistrationForm();
 
       expect(focusSpy).toHaveBeenCalled();
     });
   });
 
-  describe('Requirement 3.3: Already-verified error shows account exists message', () => {
-    it('should show "account exists" message when resend fails with InvalidParameterException', () => {
+  describe('Requirement 3.3: Confirmed account shows "account exists" message', () => {
+    it('should show "account exists" message when authenticateUser succeeds (correct password)', () => {
       mockSignUp.mockImplementation((email, password, attrs, validation, callback) => {
         callback({ code: 'UsernameExistsException', message: 'User already exists' }, null);
       });
-      mockResendConfirmationCode.mockImplementation((callback) => {
-        callback({ code: 'InvalidParameterException', message: 'Cannot resend' }, null);
+      mockAuthenticateUser.mockImplementation((authDetails, callbacks) => {
+        callbacks.onSuccess({});
       });
 
-      const emailInput = document.getElementById('email');
-      const passwordInput = document.getElementById('password');
-      const form = document.getElementById('register-form');
-
-      emailInput.value = 'verified@example.com';
-      passwordInput.value = 'Password1!';
-
-      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      submitRegistrationForm('verified@example.com');
 
       const registerError = document.getElementById('register-error');
       expect(registerError.textContent).toBe('An account with this email already exists. Please log in.');
     });
 
-    it('should show "account exists" message when error message contains "confirmed"', () => {
+    it('should show "account exists" message when authenticateUser returns NotAuthorizedException (wrong password)', () => {
       mockSignUp.mockImplementation((email, password, attrs, validation, callback) => {
         callback({ code: 'UsernameExistsException', message: 'User already exists' }, null);
       });
-      mockResendConfirmationCode.mockImplementation((callback) => {
-        callback({ code: 'SomeError', message: 'User is already confirmed' }, null);
+      mockAuthenticateUser.mockImplementation((authDetails, callbacks) => {
+        callbacks.onFailure({ code: 'NotAuthorizedException', message: 'Incorrect username or password.' });
       });
 
-      const emailInput = document.getElementById('email');
-      const passwordInput = document.getElementById('password');
-      const form = document.getElementById('register-form');
-
-      emailInput.value = 'confirmed@example.com';
-      passwordInput.value = 'Password1!';
-
-      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      submitRegistrationForm('verified@example.com');
 
       const registerError = document.getElementById('register-error');
       expect(registerError.textContent).toBe('An account with this email already exists. Please log in.');
     });
 
-    it('should show "account exists" message when error message contains "verified"', () => {
+    it('should re-enable submit button with "Register" text on confirmed account', () => {
       mockSignUp.mockImplementation((email, password, attrs, validation, callback) => {
         callback({ code: 'UsernameExistsException', message: 'User already exists' }, null);
       });
-      mockResendConfirmationCode.mockImplementation((callback) => {
-        callback({ code: 'SomeError', message: 'Account already verified' }, null);
+      mockAuthenticateUser.mockImplementation((authDetails, callbacks) => {
+        callbacks.onFailure({ code: 'NotAuthorizedException', message: 'Incorrect username or password.' });
       });
 
-      const emailInput = document.getElementById('email');
-      const passwordInput = document.getElementById('password');
-      const form = document.getElementById('register-form');
+      submitRegistrationForm('verified@example.com');
 
-      emailInput.value = 'verified2@example.com';
-      passwordInput.value = 'Password1!';
-
-      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-
-      const registerError = document.getElementById('register-error');
-      expect(registerError.textContent).toBe('An account with this email already exists. Please log in.');
-    });
-
-    it('should re-enable submit button with "Register" text on already-verified error', () => {
-      mockSignUp.mockImplementation((email, password, attrs, validation, callback) => {
-        callback({ code: 'UsernameExistsException', message: 'User already exists' }, null);
-      });
-      mockResendConfirmationCode.mockImplementation((callback) => {
-        callback({ code: 'InvalidParameterException', message: 'Cannot resend' }, null);
-      });
-
-      const emailInput = document.getElementById('email');
-      const passwordInput = document.getElementById('password');
-      const form = document.getElementById('register-form');
       const registerBtn = document.getElementById('register-btn');
-
-      emailInput.value = 'verified@example.com';
-      passwordInput.value = 'Password1!';
-
-      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-
       expect(registerBtn.disabled).toBe(false);
       expect(registerBtn.textContent).toBe('Register');
     });
-  });
 
-  describe('Requirement 3.4: Other errors re-enable submit button with error message', () => {
-    it('should show error message and re-enable button on LimitExceededException', () => {
+    it('should not call resendConfirmationCode when account is confirmed', () => {
       mockSignUp.mockImplementation((email, password, attrs, validation, callback) => {
         callback({ code: 'UsernameExistsException', message: 'User already exists' }, null);
+      });
+      mockAuthenticateUser.mockImplementation((authDetails, callbacks) => {
+        callbacks.onFailure({ code: 'NotAuthorizedException', message: 'Incorrect username or password.' });
+      });
+
+      submitRegistrationForm();
+
+      expect(mockResendConfirmationCode).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Requirement 3.4: Resend errors re-enable submit button with error message', () => {
+    it('should show error message and re-enable button when resend fails', () => {
+      mockSignUp.mockImplementation((email, password, attrs, validation, callback) => {
+        callback({ code: 'UsernameExistsException', message: 'User already exists' }, null);
+      });
+      mockAuthenticateUser.mockImplementation((authDetails, callbacks) => {
+        callbacks.onFailure({ code: 'UserNotConfirmedException' });
       });
       mockResendConfirmationCode.mockImplementation((callback) => {
         callback({ code: 'LimitExceededException', message: 'Too many attempts' }, null);
       });
 
-      const emailInput = document.getElementById('email');
-      const passwordInput = document.getElementById('password');
-      const form = document.getElementById('register-form');
-      const registerBtn = document.getElementById('register-btn');
+      submitRegistrationForm('limited@example.com');
+
       const registerError = document.getElementById('register-error');
-
-      emailInput.value = 'limited@example.com';
-      passwordInput.value = 'Password1!';
-
-      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      const registerBtn = document.getElementById('register-btn');
 
       expect(registerError.textContent).toBe('Could not send verification code. Please try again.');
       expect(registerBtn.disabled).toBe(false);
       expect(registerBtn.textContent).toBe('Register');
     });
 
-    it('should show error message and re-enable button on network error', () => {
+    it('should show error message and re-enable button on network error during resend', () => {
       mockSignUp.mockImplementation((email, password, attrs, validation, callback) => {
         callback({ code: 'UsernameExistsException', message: 'User already exists' }, null);
+      });
+      mockAuthenticateUser.mockImplementation((authDetails, callbacks) => {
+        callbacks.onFailure({ code: 'UserNotConfirmedException' });
       });
       mockResendConfirmationCode.mockImplementation((callback) => {
         callback({ code: 'NetworkError', message: 'Network failure' }, null);
       });
 
-      const emailInput = document.getElementById('email');
-      const passwordInput = document.getElementById('password');
-      const form = document.getElementById('register-form');
-      const registerBtn = document.getElementById('register-btn');
+      submitRegistrationForm('network@example.com');
+
       const registerError = document.getElementById('register-error');
-
-      emailInput.value = 'network@example.com';
-      passwordInput.value = 'Password1!';
-
-      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-
-      expect(registerError.textContent).toBe('Could not send verification code. Please try again.');
-      expect(registerBtn.disabled).toBe(false);
-      expect(registerBtn.textContent).toBe('Register');
-    });
-
-    it('should show error message and re-enable button on unexpected error', () => {
-      mockSignUp.mockImplementation((email, password, attrs, validation, callback) => {
-        callback({ code: 'UsernameExistsException', message: 'User already exists' }, null);
-      });
-      mockResendConfirmationCode.mockImplementation((callback) => {
-        callback({ code: 'InternalErrorException', message: 'Something went wrong' }, null);
-      });
-
-      const emailInput = document.getElementById('email');
-      const passwordInput = document.getElementById('password');
-      const form = document.getElementById('register-form');
       const registerBtn = document.getElementById('register-btn');
-      const registerError = document.getElementById('register-error');
-
-      emailInput.value = 'error@example.com';
-      passwordInput.value = 'Password1!';
-
-      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
 
       expect(registerError.textContent).toBe('Could not send verification code. Please try again.');
       expect(registerBtn.disabled).toBe(false);
@@ -340,24 +289,20 @@ describe('Registration Page - Re-registration of Unverified Accounts', () => {
       mockSignUp.mockImplementation((email, password, attrs, validation, callback) => {
         callback({ code: 'UsernameExistsException', message: 'User already exists' }, null);
       });
+      mockAuthenticateUser.mockImplementation((authDetails, callbacks) => {
+        callbacks.onFailure({ code: 'UserNotConfirmedException' });
+      });
       mockResendConfirmationCode.mockImplementation((callback) => {
         callback(null, 'SUCCESS');
       });
 
-      const emailInput = document.getElementById('email');
-      const passwordInput = document.getElementById('password');
-      const form = document.getElementById('register-form');
+      submitRegistrationForm('stored@example.com');
 
-      emailInput.value = 'stored@example.com';
-      passwordInput.value = 'Password1!';
-
-      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-
-      // Verify the verify step is shown (email stored internally for confirmation)
+      // Verify the verify step is shown
       const verifyStep = document.getElementById('verify-step');
       expect(verifyStep.classList.contains('hidden')).toBe(false);
 
-      // The CognitoUser was constructed with the correct email for resend
+      // The CognitoUser was constructed with the correct email
       expect(mockCognitoUserConstructor).toHaveBeenCalledWith(
         expect.objectContaining({ Username: 'stored@example.com' })
       );
