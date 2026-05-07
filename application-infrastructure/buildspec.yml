@@ -91,6 +91,7 @@ phases:
       - |
         if [ -f "package.json" ] && npm run | grep -q "test"; then
           echo "Running all tests with coverage"
+          export CI=true
           npm test
           
           # Check if coverage meets minimum thresholds

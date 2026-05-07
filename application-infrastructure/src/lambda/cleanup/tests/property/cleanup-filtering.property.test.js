@@ -26,7 +26,7 @@ const eventNameArb = fc.constantFrom('INSERT', 'MODIFY', 'REMOVE');
 const principalIdArb = fc.constantFrom('dynamodb.amazonaws.com', 'arn:aws:iam::123:role/AppRole', 'arn:aws:sts::123:assumed-role/Role');
 const pkPrefixArb = fc.constantFrom('KEY#', 'VOUCHER#', 'SESSION#', 'OTHER#');
 const cognitoSubArb = fc.option(fc.stringMatching(/^[a-f0-9-]{8,36}$/), { nil: undefined });
-const sequenceNumberArb = fc.stringOf(fc.constantFrom(...'0123456789'), { minLength: 10, maxLength: 20 });
+const sequenceNumberArb = fc.stringMatching(/^[0-9]{10,20}$/);
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                           */

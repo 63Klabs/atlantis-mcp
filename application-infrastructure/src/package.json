@@ -15,8 +15,8 @@
 		"test": "tests"
 	},
 	"scripts": {
-		"test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js",
-		"tests": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js",
+		"test": "node --max-old-space-size=1024 --experimental-vm-modules ./node_modules/jest/bin/jest.js",
+		"tests": "node --max-old-space-size=1024 --experimental-vm-modules ./node_modules/jest/bin/jest.js",
 		"test:performance": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js tests/performance/",
 		"test:unit": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js tests/unit/",
 		"test:integration": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js tests/integration/",

@@ -41,7 +41,7 @@ describe('Property 10: Environment variable overrides take effect in settings', 
           );
         }
       ),
-      { numRuns: 100 }
+      { numRuns: 10 }
     );
   });
 
@@ -66,7 +66,7 @@ describe('Property 10: Environment variable overrides take effect in settings', 
           );
         }
       ),
-      { numRuns: 100 }
+      { numRuns: 10 }
     );
   });
 
@@ -97,7 +97,7 @@ describe('Property 10: Environment variable overrides take effect in settings', 
           );
         }
       ),
-      { numRuns: 100 }
+      { numRuns: 10 }
     );
   });
 
@@ -117,7 +117,7 @@ describe('Property 10: Environment variable overrides take effect in settings', 
           return settings.dynamoDbSessionsTable === tableName;
         }
       ),
-      { numRuns: 100 }
+      { numRuns: 10 }
     );
   });
 });

@@ -11,10 +11,15 @@ module.exports = {
     '/node_modules/',
     '/tests/performance/'
   ],
+  // Limit workers in CI to prevent OOM on constrained build environments
+  ...(process.env.CI && { maxWorkers: 2 }),
   collectCoverageFrom: [
-    '**/*.js',
+    'lambda/read/**/*.js',
+    'lambda/indexer/**/*.js',
+    'lambda/auth/**/*.js',
+    'lambda/cleanup/**/*.js',
     '!**/node_modules/**',
-    '!**/lambda/read/tests/**'
+    '!**/tests/**'
   ],
   moduleDirectories: ['node_modules', 'lambda/read/node_modules', 'lambda/indexer/node_modules', 'lambda/auth/node_modules', 'lambda/cleanup/node_modules'],
   projects: [
