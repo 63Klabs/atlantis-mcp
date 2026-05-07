@@ -523,7 +523,8 @@
           cognitoUser.authenticateUser(authDetails, {
             onSuccess: function() {
               // Account exists and is confirmed — tell user to log in
-              showError(registerError, 'An account with this email already exists. Please log in.');
+              registerError.innerHTML = 'An account with this email already exists. Please <a href="/login/">log in</a>.';
+              registerError.classList.add('visible');
               registerBtn.disabled = false;
               registerBtn.textContent = 'Register';
             },
@@ -548,7 +549,8 @@
               } else {
                 // NotAuthorizedException (wrong password) or other auth errors
                 // mean the account is confirmed — tell user to log in
-                showError(registerError, 'An account with this email already exists. Please log in.');
+                registerError.innerHTML = 'An account with this email already exists. Please <a href="/login/">log in</a>.';
+                registerError.classList.add('visible');
                 registerBtn.disabled = false;
                 registerBtn.textContent = 'Register';
               }
