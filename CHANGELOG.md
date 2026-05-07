@@ -5,7 +5,7 @@ All notable changes to the Atlantis MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [v0.0.5] (2026-05-07)
+## [v0.0.5] (unreleased)
 
 ### Fixed
 - **CI/CD: Test suite OOM in CodeBuild** — Resolved JavaScript heap out-of-memory crash during `npm test` in constrained build environments
@@ -17,6 +17,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Test: cleanup-filtering.property.test.js** — Replaced `fc.stringOf` (not available in fast-check v4) with `fc.stringMatching(/^[0-9]{10,20}$/)` to fix test suite load failure
 
 ### Added
+- **Password Re-entry Confirmation Module** [Spec: 0-0-5-password-reentry-confirmation](../.kiro/specs/0-0-5-password-reentry-confirmation/)
+  - New module at `application-infrastructure/src/lambda/auth/utils/password-validator.js`
+  - Pure, stateless, zero-dependency CommonJS validation functions for password forms
+  - Exported functions: `validateMatch`, `validatePolicy`, `validateForm`, `getAriaAttributes`, `getAriaLiveRegion`, `isReadyForSubmission`, `getFirstErrorField`
+  - Exported constants: `FIELD_IDS` (DOM element ID constants), `POLICY_RULES` (Cognito policy rule constants)
+  - Exported utility: `TestHarness` (testing utility exposing internals)
+  - Cognito password policy enforcement (min/max length, uppercase, lowercase, number, symbol)
+  - WCAG 2.1 AA accessibility support via ARIA attribute generation and live region content
+  - Real-time form validation with mismatch suppression for empty confirm field
+  - Submission gating and focus management for error recovery
 - **Account Validation Retry** [Spec: 0-0-5-add-account-validation-retry](../.kiro/specs/0-0-5-add-account-validation-retry/)
   - Spam folder advisory displayed on the email verification step
   - Resend verification code button with 30-second initial delay, 30-second cooldown, and max 3 attempts
