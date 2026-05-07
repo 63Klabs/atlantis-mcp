@@ -147,9 +147,11 @@ describe('Registration Page - Spam Advisory and Resend Button', () => {
     it('should show resend container after 30 seconds when verify step is shown via registration', () => {
       // Trigger registration to show verify step and start timer
       const emailInput = document.getElementById('email');
-      const passwordInput = document.getElementById('password');
+      const passwordInput = document.getElementById('password-input');
+      const confirmPasswordInput = document.getElementById('confirm-password-input');
       emailInput.value = 'test@example.com';
       passwordInput.value = 'Password1!';
+      confirmPasswordInput.value = 'Password1!';
 
       // Mock successful signUp
       mocks.mockSignUp.mockImplementation((email, password, attrs, validation, callback) => {
@@ -182,7 +184,7 @@ describe('Registration Page - Spam Advisory and Resend Button', () => {
   describe('Resend Button Click Behavior (Requirements 2.2, 2.3, 2.4, 2.5)', () => {
     function setupVerifyStepWithResendVisible() {
       const emailInput = document.getElementById('email');
-      const passwordInput = document.getElementById('password');
+      const passwordInput = document.getElementById('password-input');
       emailInput.value = 'test@example.com';
       passwordInput.value = 'Password1!';
 
@@ -288,7 +290,7 @@ describe('Registration Page - Spam Advisory and Resend Button', () => {
   describe('Max Resend Attempts (Requirements 2.6, 2.8)', () => {
     function setupVerifyStepWithResendVisible() {
       const emailInput = document.getElementById('email');
-      const passwordInput = document.getElementById('password');
+      const passwordInput = document.getElementById('password-input');
       emailInput.value = 'test@example.com';
       passwordInput.value = 'Password1!';
 

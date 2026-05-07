@@ -84,11 +84,13 @@ describe('Registration Page - Re-registration of Unverified Accounts', () => {
 
   function submitRegistrationForm(email = 'test@example.com', password = 'Password1!') {
     const emailInput = document.getElementById('email');
-    const passwordInput = document.getElementById('password');
+    const passwordInput = document.getElementById('password-input');
+    const confirmPasswordInput = document.getElementById('confirm-password-input');
     const form = document.getElementById('register-form');
 
     emailInput.value = email;
     passwordInput.value = password;
+    confirmPasswordInput.value = password;
     form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
   }
 

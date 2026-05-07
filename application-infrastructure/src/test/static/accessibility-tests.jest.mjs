@@ -224,13 +224,13 @@ describe('Accessibility Compliance Tests', () => {
       expect(describedBy).toContain('register-error');
     });
 
-    it('register page: #password input has aria-describedby that includes "register-error"', () => {
+    it('register page: #password-input has aria-describedby that includes "password-requirements"', () => {
       loadPage(REGISTER_HTML_PATH);
-      const passwordInput = document.getElementById('password');
+      const passwordInput = document.getElementById('password-input');
       expect(passwordInput).not.toBeNull();
       const describedBy = passwordInput.getAttribute('aria-describedby');
       expect(describedBy).not.toBeNull();
-      expect(describedBy).toContain('register-error');
+      expect(describedBy).toContain('password-requirements');
     });
 
     it('register page: #verification-code input has aria-describedby that includes "verify-error"', () => {
