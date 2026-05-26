@@ -19,63 +19,32 @@ This guide explains how to integrate the Atlantis MCP Server with Amazon Q Devel
 2. Go to Extensions (Cmd+Shift+X or Ctrl+Shift+X)
 3. Search for "Amazon Q"
 4. Click "Install"
+5. Authenticate with Amazon Q
+6. Restart IDE
+
 
 #### 2. Configure MCP Integration
 
-To add the Atlantis MCP (Model Context Protocol) server to Amazon Q Developer, you configure it in a JSON file depending on your scope:
+To add the Atlantis MCP (Model Context Protocol) server to Amazon Q Developer, the easiest is to use the MCP Tools configuration (wrench icon in Q Chat window).
 
-- **Per-workspace**: Create .amazonq/mcp.json in your workspace root.
-- **Global (all projects)**: Create ~/.amazonq/mcp.json in your home directory.
+This will open "MCP Servers" configuration panel. Click on the plus `+` sign to add the new server with the following options:
 
-The format looks like this:
+- **Scope**:
+  - **Global (all projects)**: Used globally.
+  - **Per-workspace**: Only used in this workspace.
+- **Name**: `atlantis-mcp`
+- **Transport**: `http`
+- **URL**: `https://mcp.atlantis.63klabs.net/mcp/v1`
 
-```json
-{
-  "mcpServers": {
-    "atlantis": {
-      "url": "https://mcp.atlantis.63klabs.net/mcp/v1",
-      "disabled": false,
-      "autoApprove": []
-    }
-  }
-}
-```
+Then choose "Save"
 
 ### Auto-Approve Tools
 
-Configure which tools run without confirmation:
+Configure which tools run without confirmation.
 
-```json
-{
-  "mcpServers": {
-    "atlantis": {
-      "url": "https://mcp.atlantis.63klabs.net/mcp/v1",
-      "disabled": false,
-      "autoApprove": [
-        "validate_naming",
-        "list_categories",
-        "list_templates",
-        "get_template",
-        "list_template_versions",
-        "list_tools",
-        "list_starters",
-        "get_starter_info",
-        "search_documentation",
-        "check_template_updates",
-        "get_template_chunk"
-      ]
-    }
-  }
-}
-```
+After saving, from the "atlantis-mcp" list of tools, choose "Always Allow" for each tool you do not wish to give confirmation for.
 
-#### 3. Authenticate with Amazon Q
-
-1. Click Amazon Q icon in sidebar
-2. Sign in with AWS Builder ID or IAM Identity Center
-3. Grant necessary permissions
-
-#### 4. Verify Connection
+#### 3. Verify Connection
 
 In Amazon Q chat:
 
@@ -90,7 +59,9 @@ Show me available Atlantis templates
 1. Open Settings/Preferences
 2. Go to Plugins
 3. Search for "Amazon Q"
-4. Click "Install" and restart IDE
+4. Click "Install"
+5. Authenticate with Amazon Q
+6. Restart IDE
 
 #### 2. Configure MCP Integration
 
@@ -114,32 +85,13 @@ Create or edit `.idea/amazonq.xml`:
 </component>
 ```
 
-#### 3. Authenticate and Verify
-
-Follow same steps as VS Code above.
-
 ## Adding Your API Key
 
 [Register for a free account](https://mcp.atlantis.63klabs.net/register/) to get an API key with higher [rate limits](https://mcp.atlantis.63klabs.net/docs/rate-limits/). After registration, copy your unique API key and add it to the configuration.
 
-### VS Code / Global Config
-
-Add the `headers` field to your `.amazonq/mcp.json`:
-
-```json
-{
-  "mcpServers": {
-    "atlantis": {
-      "url": "https://mcp.atlantis.63klabs.net/mcp/v1",
-      "headers": {
-        "x-api-key": "atl_your_api_key_here"
-      },
-      "disabled": false,
-      "autoApprove": []
-    }
-  }
-}
-```
+1. Open Q Chat and go to the MCP Tools
+2. Select "atlantis-mcp" and "Edit"
+3. Add the header key `x-api-key` with your key as the value (ex `atl_your_api_key_here`)
 
 ### JetBrains
 
