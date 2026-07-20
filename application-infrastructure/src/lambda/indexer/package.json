@@ -16,7 +16,7 @@
   "author": "63Klabs",
   "license": "MIT",
   "dependencies": {
-    "adm-zip": "^0.5.16",
+    "adm-zip": "^0.6.0",
     "js-yaml": "^4.1.0"
   },
   "devDependencies": {
