@@ -582,7 +582,7 @@ Resources:
             - - !Ref ReadLambdaErrorsAlarm
             - - !Ref 'AWS::NoValue'
 
-      CodeUri: src/lambda/read/
+      CodeUri: src/lambda/read-function/
       Handler: index.handler
       Runtime: nodejs24.x
       Architectures:
@@ -824,7 +824,7 @@ Resources:
     Properties:
       FunctionName: !Sub '${Prefix}-${ProjectId}-${StageId}-AuthFunction'
       Description: "Auth operations - Key regeneration, voucher redemption, Cognito Post-Confirmation"
-      CodeUri: src/lambda/auth/
+      CodeUri: src/lambda/auth-function/
       Handler: index.handler
       Runtime: nodejs24.x
       Architectures:
@@ -986,7 +986,7 @@ Resources:
     Properties:
       FunctionName: !Sub '${Prefix}-${ProjectId}-${StageId}-CleanupFunction'
       Description: "Cleanup Lambda - Removes orphaned Cognito accounts on DynamoDB TTL deletions"
-      CodeUri: src/lambda/cleanup/
+      CodeUri: src/lambda/cleanup-function/
       Handler: index.handler
       Runtime: nodejs24.x
       Architectures:
@@ -1091,7 +1091,7 @@ Resources:
     Properties:
       FunctionName: !Sub '${Prefix}-${ProjectId}-${StageId}-DocIndexer'
       Description: "Documentation Indexer - Builds persistent DynamoDB index from GitHub repositories"
-      CodeUri: src/lambda/indexer/
+      CodeUri: src/lambda/doc-indexer/
       Handler: index.handler
       Runtime: nodejs24.x
       Architectures:

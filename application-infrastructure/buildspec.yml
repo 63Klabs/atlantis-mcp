@@ -51,106 +51,82 @@ phases:
 
   pre_build:
     commands:
-      
-      # Run tests from repository root before building Lambda packages
+
       - ls -l -a
-      - cd application-infrastructure
-      
-      # Run all tests (unit, integration, property) from src/ directory
-      - echo "Running application tests from src/ directory"
-      - cd src
-      
-      # Install test dependencies at src level (jest, fast-check, etc.)
+
+      # Application Environment: Build and test each Lambda function independently.
+      # src/lambda/ holds one directory per function (multi-src layout). Each function
+      # is fully self-contained with its own package.json, .nvmrc, and node_modules.
+      # The loop picks up new functions automatically - no buildspec changes needed
+      # when a function is added. The layers/ subdirectory is handled separately below.
+      - echo "--- Building Lambda Functions ---"
       - |
-        if [ -f "package.json" ]; then
-          echo "Installing test dependencies at src level"
-          npm install --include=dev
-        else
-          echo "No package.json found in src/, skipping tests"
-        fi
-      
-      # Install Lambda function dependencies needed by tests
-      # (node_modules are gitignored, so they must be installed in CI)
-      - |
-        echo "Installing Read Lambda dependencies for testing"
-        cd lambda/read
-        npm install --include=dev
-        cd ../..
-      - |
-        echo "Installing Indexer Lambda dependencies for testing"
-        cd lambda/indexer
-        npm install --include=dev
-        cd ../..
-      - |
-        echo "Installing Auth Lambda dependencies for testing"
-        cd lambda/auth
-        npm install --include=dev
-        cd ../..
-      
-      # Run all tests with coverage — fail the build if any test fails
-      - |
-        if [ -f "package.json" ] && npm run | grep -q "test"; then
-          echo "Running all tests with coverage"
-          export CI=true
-          npm test
-          
-          # Check if coverage meets minimum thresholds
-          if [ -f "coverage/coverage-summary.json" ]; then
-            echo "Code coverage report generated"
-            cat coverage/coverage-summary.json
+        for func_dir in application-infrastructure/src/lambda/*/; do
+          # Skip the layers directory (built separately)
+          if [ "$(basename "$func_dir")" = "layers" ]; then
+            continue
           fi
-        else
-          echo "No test script found, skipping tests"
+
+          echo "Processing function: $func_dir"
+          cd "$CODEBUILD_SRC_DIR/$func_dir"
+
+          # Install dev so we can run tests, but we will remove dev dependencies later
+          npm install --include=dev
+          # Run Test under test environment
+          NODE_ENV=test npm test
+
+          # Clean up test artifacts and reinstall only production dependencies to reduce Lambda package size
+          rm -rf __tests__ tests coverage node_modules
+          npm install --omit=dev
+
+          # FAIL the build if npm audit has vulnerabilities it can't fix
+          # Perform a fix to move us forward, then check to make sure there were no unresolved high fixes
+          # We are making an intentional choice here:
+          #     Make breaking changes in hopes to bring vulnerabilities to 0
+          #      vs deploying packages with vulnerabilities
+          npm audit fix --force --omit=dev
+          # Gate on production dependencies only. Dev dependencies (jest, babel, etc.)
+          # are removed above and never deployed, so their advisories must not fail the
+          # build. This matches the --omit=dev scope of the audit fix on the line above.
+          npm audit --omit=dev --audit-level=high
+
+          cd "$CODEBUILD_SRC_DIR"
+        done
+
+      # Build Lambda Layers (production dependencies only) if any exist
+      - echo "--- Building Lambda Layers ---"
+      - |
+        if [ -d "application-infrastructure/src/lambda/layers" ]; then
+          for layer_dir in application-infrastructure/src/lambda/layers/*/; do
+            if [ -d "$layer_dir" ]; then
+              echo "Processing layer: $layer_dir"
+              cd "$CODEBUILD_SRC_DIR/$layer_dir"
+
+              # Install dev so we can run tests, but we will remove dev dependencies later
+              npm install --include=dev
+              # Run Test under test environment
+              NODE_ENV=test npm test
+
+              # Clean up test artifacts and reinstall only production dependencies to reduce Lambda package size
+              rm -rf __tests__ tests coverage node_modules
+              npm install --omit=dev
+
+              # FAIL the build if npm audit has vulnerabilities it can't fix
+              # Perform a fix to move us forward, then check to make sure there were no unresolved high fixes
+              npm audit fix --force --omit=dev
+              # Gate on production dependencies only (dev deps are removed and never
+              # deployed); matches the --omit=dev scope of the audit fix above.
+              npm audit --omit=dev --audit-level=high
+
+              cd "$CODEBUILD_SRC_DIR"
+            fi
+          done
         fi
-      
-      # Go back to application-infrastructure directory
-      - cd ..
 
-      # Build Read Lambda function
-      - echo "Building Read Lambda function from src/lambda/read/"
-      - cd src/lambda/read
-
-      # Clean up any existing node_modules and install only production dependencies
-      - rm -rf node_modules
-      - npm install --omit=dev
-
-      # FAIL the build if npm audit has vulnerabilities it can't fix
-      # Perform a fix to move us forward, then check to make sure there were no unresolved high fixes
-      - npm audit fix --force --omit=dev
-      - npm audit --audit-level=high
-      
-      # Go back to application-infrastructure directory
-      - cd ../../..
-
-      # Build Indexer Lambda function
-      - echo "Building Indexer Lambda function from src/lambda/indexer/"
-      - cd src/lambda/indexer
-
-      # Clean up any existing node_modules and install only production dependencies
-      - rm -rf node_modules
-      - npm install --omit=dev
-
-      # FAIL the build if npm audit has vulnerabilities it can't fix
-      - npm audit fix --force --omit=dev
-      - npm audit --audit-level=high
-
-      # Go back to application-infrastructure directory
-      - cd ../../..
-
-      # Build Auth Lambda function
-      - echo "Building Auth Lambda function from src/lambda/auth/"
-      - cd src/lambda/auth
-
-      # Clean up any existing node_modules and install only production dependencies
-      - rm -rf node_modules
-      - npm install --omit=dev
-
-      # FAIL the build if npm audit has vulnerabilities it can't fix
-      - npm audit fix --force --omit=dev
-      - npm audit --audit-level=high
-
-      # Go back to application-infrastructure directory
-      - cd ../../..
+      # Continue with existing build-scripts (SSM, etc.) from application-infrastructure.
+      # The loop above ends at $CODEBUILD_SRC_DIR (repo root), so return to the
+      # application-infrastructure directory before running the build scripts.
+      - cd "$CODEBUILD_SRC_DIR/application-infrastructure"
 
       # Generate a random 256 bit key (hexidecimal) in SSM for cache data:
       - python3 ./build-scripts/generate-put-ssm.py ${PARAM_STORE_HIERARCHY}CacheData_SecureDataKey --generate 256
@@ -172,6 +148,10 @@ phases:
   build:
     commands:
 
+      # Each CodeBuild phase may reset the working directory to $CODEBUILD_SRC_DIR
+      # (repo root). Ensure the build scripts below run from application-infrastructure.
+      - cd "$CODEBUILD_SRC_DIR/application-infrastructure"
+
       # There is sometimes a bug that causes the alias to not be updated correctly (see comment in template.yml for AppFunction.Properties.AutoPublishCodeSha256)
       - python3 ./build-scripts/update_template_timestamp.py template.yml
 
@@ -188,54 +168,12 @@ phases:
 
   post_build:
     commands:
-      # Generate code coverage badge and summary
-      - |
-        if [ -f "src/coverage/coverage-summary.json" ]; then
-          echo "Generating code coverage summary"
-          python3 -c "
-        import json
-        import sys
-        
-        try:
-            with open('src/coverage/coverage-summary.json', 'r') as f:
-                coverage = json.load(f)
-            
-            total = coverage.get('total', {})
-            lines = total.get('lines', {}).get('pct', 0)
-            statements = total.get('statements', {}).get('pct', 0)
-            functions = total.get('functions', {}).get('pct', 0)
-            branches = total.get('branches', {}).get('pct', 0)
-            
-            print(f'Code Coverage Summary:')
-            print(f'  Lines: {lines}%')
-            print(f'  Statements: {statements}%')
-            print(f'  Functions: {functions}%')
-            print(f'  Branches: {branches}%')
-            
-            # Check minimum coverage thresholds (80%)
-            min_coverage = 80
-            if lines < min_coverage or statements < min_coverage:
-                print(f'WARNING: Code coverage below {min_coverage}% threshold')
-                # Uncomment to fail build on low coverage:
-                # sys.exit(1)
-        except Exception as e:
-            print(f'Error reading coverage report: {e}')
-        "
-        else
-          echo "No coverage report found"
-        fi
-      
       # Report build status
       - echo "Build completed successfully"
 
 artifacts:
   files:
     - 'application-infrastructure/**/*'
-  secondary-artifacts:
-    CoverageReport:
-      files:
-        - 'application-infrastructure/src/coverage/**/*'
-      name: coverage-report
 
 # add cache
 cache:

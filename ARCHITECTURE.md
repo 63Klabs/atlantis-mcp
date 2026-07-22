@@ -142,7 +142,7 @@ The primary request handler. Receives all MCP tool calls through `POST /mcp/v1` 
 **Internal structure (MVC-like):**
 
 ```
-src/lambda/read/
+src/lambda/read-function/
 ├── index.js              # Handler entry point
 ├── config/               # Settings, connections, tool descriptions, validations
 ├── routes/               # JSON-RPC method routing
@@ -224,7 +224,7 @@ Handles server-side authentication operations. Dual-purpose: responds to Cognito
 **Internal structure:**
 
 ```
-src/lambda/auth/
+src/lambda/auth-function/
 ├── index.js              # Handler entry point (event type detection + CORS)
 ├── handlers/
 │   ├── post-confirmation.js   # Cognito trigger: key generation, domain checks

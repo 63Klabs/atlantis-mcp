@@ -14,7 +14,7 @@ const { Readable } = require('stream');
 const s3Mock = mockClient(S3Client);
 
 // Import module under test
-const S3Templates = require('../../../src/lambda/read/models/s3-templates');
+const S3Templates = require('../../../src/lambda/read-function/models/s3-templates');
 
 describe('S3 Templates DAO - OR Condition', () => {
   beforeEach(() => {

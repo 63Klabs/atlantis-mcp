@@ -5,6 +5,20 @@ All notable changes to the Atlantis MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.0.6 (unreleased)
+
+### Changed
+- **Source Restructure: Single-Src to Multi-Src** [Spec: 0-0-6-update-to-multi-resource-spec](../.kiro/specs/0-0-6-update-to-multi-resource-spec/) — Reorganized `application-infrastructure/src/` into the Atlantis multi-resource layout so each deployable resource is fully self-contained
+  - Renamed Lambda function directories: `src/lambda/read/` → `read-function/`, `auth/` → `auth-function/`, `cleanup/` → `cleanup-function/`, `indexer/` → `doc-indexer/` (CloudFormation logical IDs and `FunctionName` values unchanged; only `CodeUri` paths updated, so functions are updated in place rather than replaced)
+  - Each Lambda function now owns its `.nvmrc`, `package.json` test/lint scripts, `jest.config.js`, `jest.setup.js`, and `eslint.config.js`; tests run per function
+  - Converted the static site into a self-contained resource: moved static tests into `src/static/tests/` and added `.nvmrc`, `package.json`, `jest.config.js`, and `jest.setup.js` (jsdom test environment)
+  - Rewrote `buildspec.yml` to iterate over `src/lambda/*/`, installing, testing, and auditing each function independently (new functions are picked up automatically); removed the central coverage-summary post-build step
+  - Added a `pre_build` static-site install/test/audit step to `buildspec-postdeploy.yml`
+  - Scoped the buildspec `npm audit` gate to production dependencies (`npm audit --omit=dev --audit-level=high`) in both buildspecs so advisories in dev-only test tooling (jest/babel toolchain), which is never deployed, do not fail the build; this matches the existing `--omit=dev` scope of the preceding `npm audit fix`
+
+### Removed
+- **Central `src/` root tooling** — Deleted the shared `src/package.json`, `src/package-lock.json`, `src/jest.config.js`, `src/jest.setup.js`, `src/eslint.config.js`, and `src/.nvmrc` now that each function and the static site are self-contained; the `src/` root contains only `lambda/` and `static/`
+
 ## [v0.0.5] (2026-05-07)
 
 ### Fixed

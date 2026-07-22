@@ -31,6 +31,25 @@ phases:
       - node --version
       - aws --version
 
+  pre_build:
+    commands:
+      # Static Site: install dependencies, run jsdom tests, and audit before
+      # the doc-generation build runs. The static site is a self-contained
+      # resource with its own package.json, .nvmrc, and node_modules.
+      - echo "--- Building and Testing Static Site ---"
+      - cd "$CODEBUILD_SRC_DIR/application-infrastructure/src/static"
+      # Install dev dependencies so we can run tests
+      - npm install --include=dev
+      # Run tests under the test environment
+      - NODE_ENV=test npm test
+      # >! FAIL the build if npm audit has vulnerabilities it can't fix.
+      # >! Fix first to move forward, then re-check for unresolved high findings.
+      - npm audit fix --force --omit=dev
+      # >! Gate on production dependencies only; dev deps are not deployed and their
+      # >! advisories must not fail the build. Matches the --omit=dev audit fix above.
+      - npm audit --omit=dev --audit-level=high
+      - cd "$CODEBUILD_SRC_DIR"
+
   build:
     commands:
       # >! Define PUBLIC_DOC_DIRS as a configurable variable controlling which doc directories are published.
