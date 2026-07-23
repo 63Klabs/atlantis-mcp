@@ -101,6 +101,23 @@ Metadata:
         Parameters:
           - DocIndexScheduleForDEVTEST
           - DocIndexScheduleForPROD
+      -
+        Label:
+          default: "Documentation AI (Semantic Search) Settings"
+        Parameters:
+          - EnableDocAi
+          - DocAiMinTier
+          - DocAiRetrievalMode
+          - DocAiVectorStore
+          - DocAiEmbeddingModel
+          - DocAiEmbeddingDimensions
+          - DocAiEmbeddingMaxInputTokens
+          - DocAiAssistModel
+          - DocAiAssistMaxCandidates
+          - DocAiTopK
+          - DocAiCandidateMultiplier
+          - DocAiS3VectorBucket
+          - DocAiS3VectorIndex
 
 # =============================================================================
 # PARAMETERS
@@ -407,6 +424,106 @@ Parameters:
     MaxValue: 86400
     ConstraintDescription: "Must be between 60 and 86400 seconds (1 minute to 24 hours)"
 
+  # ---------------------------------------------------------------------------
+  # Documentation AI (Semantic Search) Parameters
+  # Passed to BOTH the Read and Doc Indexer Lambdas as DOC_AI_* environment
+  # variables (see spec 0-0-6). The feature defaults OFF (EnableDocAi = "false")
+  # so deploying this template changes nothing until an operator explicitly
+  # enables it. This task adds Parameters, one Condition, and env-var wiring
+  # only; no AI resources (vector bucket, Bedrock permissions) are created yet.
+
+  EnableDocAi:
+    Type: String
+    Description: "Master toggle for Bedrock-assisted documentation semantic search (DOC_AI_ENABLED). When 'false' (default), search_documentation behaves exactly as the current keyword-only implementation and no AI code path runs."
+    Default: "false"
+    AllowedValues: ["true", "false"]
+
+  DocAiMinTier:
+    Type: String
+    Description: "Minimum access tier eligible for semantic search (DOC_AI_MIN_TIER). Requests below this tier use keyword search. Tier order: public < registered < paid < private."
+    Default: "paid"
+    AllowedValues: ["public", "registered", "paid", "private"]
+
+  DocAiRetrievalMode:
+    Type: String
+    Description: "Retrieval strategy for eligible requests (DOC_AI_RETRIEVAL_MODE). 'keyword' preserves current behavior; 'semantic' uses vector similarity; 'semantic-assisted' adds a light LLM re-rank/expansion."
+    Default: "semantic"
+    AllowedValues: ["keyword", "semantic", "semantic-assisted"]
+
+  DocAiVectorStore:
+    Type: String
+    Description: "Vector store backend used for semantic retrieval (DOC_AI_VECTOR_STORE). 'dynamodb' reuses the DocIndex table; 's3-vectors' uses an S3 Vectors bucket/index."
+    Default: "s3-vectors"
+    AllowedValues: ["dynamodb", "s3-vectors"]
+
+  DocAiEmbeddingModel:
+    Type: String
+    Description: "Bedrock embedding model ID used to embed queries and content (DOC_AI_EMBEDDING_MODEL). Public model identifier, not a secret."
+    Default: "amazon.titan-embed-text-v2:0"
+    AllowedPattern: "^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$"
+    ConstraintDescription: "Must be a Bedrock model identifier (letters, numbers, and . _ : - characters)."
+
+  DocAiEmbeddingDimensions:
+    Type: Number
+    Description: "Embedding vector dimensions (DOC_AI_EMBEDDING_DIMENSIONS). Titan Text Embeddings V2 supports 256, 512, or 1024."
+    Default: 1024
+    MinValue: 1
+    MaxValue: 4096
+    ConstraintDescription: "Must be between 1 and 4096."
+
+  DocAiEmbeddingMaxInputTokens:
+    Type: Number
+    Description: "Approximate token budget for embedding input; larger entries are truncated before embedding (DOC_AI_EMBEDDING_MAX_INPUT_TOKENS)."
+    Default: 8000
+    MinValue: 1
+    MaxValue: 8192
+    ConstraintDescription: "Must be between 1 and 8192 (Titan Text Embeddings V2 max input)."
+
+  DocAiAssistModel:
+    Type: String
+    Description: "Bedrock small model ID used only in 'semantic-assisted' mode for query expansion / re-ranking (DOC_AI_ASSIST_MODEL). Public model identifier, not a secret."
+    Default: "amazon.nova-micro-v1:0"
+    AllowedPattern: "^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$"
+    ConstraintDescription: "Must be a Bedrock model identifier (letters, numbers, and . _ : - characters)."
+
+  DocAiAssistMaxCandidates:
+    Type: Number
+    Description: "Maximum number of top candidates passed to the assist model for re-ranking (DOC_AI_ASSIST_MAX_CANDIDATES)."
+    Default: 25
+    MinValue: 1
+    MaxValue: 200
+    ConstraintDescription: "Must be between 1 and 200."
+
+  DocAiTopK:
+    Type: Number
+    Description: "Number of results returned from semantic retrieval (DOC_AI_TOP_K)."
+    Default: 10
+    MinValue: 1
+    MaxValue: 100
+    ConstraintDescription: "Must be between 1 and 100."
+
+  DocAiCandidateMultiplier:
+    Type: Number
+    Description: "Multiplier applied to Top K to determine how many candidate vectors to fetch before ranking/filtering (DOC_AI_CANDIDATE_MULTIPLIER)."
+    Default: 3
+    MinValue: 1
+    MaxValue: 20
+    ConstraintDescription: "Must be between 1 and 20."
+
+  DocAiS3VectorBucket:
+    Type: String
+    Description: "Name of the S3 Vectors bucket used when DocAiVectorStore is 's3-vectors' (DOC_AI_S3_VECTOR_BUCKET). Leave empty until the vector bucket is provisioned; semantic search falls back to keyword when unset."
+    Default: ""
+    AllowedPattern: "^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$|^$"
+    ConstraintDescription: "May be empty, or 3 to 63 characters: lower case alphanumeric and dashes, starting and ending with a letter or number."
+
+  DocAiS3VectorIndex:
+    Type: String
+    Description: "Name of the S3 Vectors index within the vector bucket (DOC_AI_S3_VECTOR_INDEX). Leave empty until the vector index is provisioned; semantic search falls back to keyword when unset."
+    Default: ""
+    AllowedPattern: "^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$|^$"
+    ConstraintDescription: "May be empty, or 3 to 63 characters: lower case alphanumeric, dashes, and periods, starting and ending with a letter or number."
+
 # =============================================================================
 # MAPPINGS
 # -----------------------------------------------------------------------------
@@ -462,6 +579,19 @@ Conditions:
   HasCacheDataS3BucketName: !Not [!Equals [!Ref CacheDataS3BucketName, ""]]
   HasCacheDataStorageStack: !Not [!And [!Condition HasCacheDataDynamoDbTableName, !Condition HasCacheDataS3BucketName]]
   HasReadLambdaManagedPolicies: !Not [!Equals [!Join ['', !Ref ReadLambdaExecRoleIncludeManagedPolicyArns], '']]
+  # Documentation AI (Semantic Search) master toggle. Gates ALL AI resources: the S3
+  # Vectors provisioner Lambda + role + log group and the vector index custom resource
+  # (task 4.3). Bedrock/S3 Vectors DATA-plane IAM for the read-function/doc-indexer is
+  # added in task 8.1. When "false" (default) no AI resources are created (Req 8.1).
+  EnableDocAiIsTrue: !Equals [!Ref EnableDocAi, "true"]
+
+  # S3 Vectors bucket/index name resolution. When an operator supplies an explicit name,
+  # use it; otherwise derive a canonical name from Prefix/ProjectId/StageId. These two
+  # Conditions back the identical !If/!Sub expressions used in three places (kept in sync):
+  # the vector index custom resource, the provisioner IAM policy ARNs, and the
+  # read-function/doc-indexer DOC_AI_S3_VECTOR_* env vars.
+  HasDocAiS3VectorBucketOverride: !Not [!Equals [!Ref DocAiS3VectorBucket, ""]]
+  HasDocAiS3VectorIndexOverride: !Not [!Equals [!Ref DocAiS3VectorIndex, ""]]
 
 # =============================================================================
 # GLOBALS
@@ -555,6 +685,40 @@ Resources:
       RetentionInDays: !If [ IsProduction, !Ref LogRetentionInDaysForPROD,  !Ref LogRetentionInDaysForDEVTEST]
 
   # ---------------------------------------------------------------------------
+  # Lambda Layers
+  # https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-resource-layerversion.html
+  #
+
+  # -- doc-ai-common Layer --
+  # Shared code (EmbeddingProvider, VectorStore, RetrievalStrategy) for the
+  # Bedrock-assisted documentation semantic search feature (spec 0-0-6).
+  # Attached to BOTH the read-function (query path) and doc-indexer (index path)
+  # so the shared abstractions live once instead of being duplicated per
+  # function (Req 8.5). The layer is only code -- it has no standing cost and no
+  # Bedrock/S3 permissions -- so it is attached UNCONDITIONALLY; the EnableDocAi
+  # Condition gates only the billable AI resources and IAM added in later tasks
+  # (4.3 / 8.1). At runtime the ContentUri contents under nodejs/ are extracted
+  # to /opt/nodejs/. First-party modules are added by tasks 2.2 (EmbeddingProvider),
+  # 3.x (VectorStore) and 6.x (RetrievalStrategy). The layer bundles no production
+  # npm dependencies; the AWS SDK v3 is provided by the Lambda runtime.
+  DocAiCommonLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: !Sub '${Prefix}-${ProjectId}-${StageId}-DocAiCommon'
+      Description: "Shared code for Bedrock-assisted documentation semantic search (read-function + doc-indexer)."
+      ContentUri: src/lambda/layers/doc-ai-common/
+      CompatibleRuntimes:
+        - nodejs24.x
+      # Pure-JavaScript layer (no native binaries), so it is compatible with both
+      # architectures; listing both avoids coupling to FunctionArchitecture.
+      CompatibleArchitectures:
+        - arm64
+        - x86_64
+      # Delete superseded versions on stack update so orphaned layer versions do
+      # not accumulate; both functions always !Ref the latest published version.
+      RetentionPolicy: Delete
+
+  # ---------------------------------------------------------------------------
   # Lambda Functions
   # https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-resource-function.html
   #
@@ -601,6 +765,9 @@ Resources:
         
         # Lambda SSM Parameters and Secrets Extension Layer - Using Public SSM Parameter from AWS - Use mapping if not available in your region
         - '{{resolve:ssm:/aws/service/aws-parameters-and-secrets-lambda-extension/arm64/latest}}' #arm64 - There is also an x86 version available too
+
+        # doc-ai-common shared-code layer (spec 0-0-6); code only, attached unconditionally
+        - !Ref DocAiCommonLayer
 
       Environment:
         Variables:
@@ -657,6 +824,29 @@ Resources:
 
           # Documentation Index Table
           DOC_INDEX_TABLE: !Ref DocIndexTable
+
+          # Documentation AI (Semantic Search) Settings
+          # Feature defaults OFF (DOC_AI_ENABLED = "false"); parsed defensively by
+          # read-function/config/settings.js. Numbers render as strings via !Ref,
+          # which the JS parsers handle.
+          DOC_AI_ENABLED: !Ref EnableDocAi
+          DOC_AI_MIN_TIER: !Ref DocAiMinTier
+          DOC_AI_RETRIEVAL_MODE: !Ref DocAiRetrievalMode
+          DOC_AI_VECTOR_STORE: !Ref DocAiVectorStore
+          DOC_AI_EMBEDDING_MODEL: !Ref DocAiEmbeddingModel
+          DOC_AI_EMBEDDING_DIMENSIONS: !Ref DocAiEmbeddingDimensions
+          DOC_AI_EMBEDDING_MAX_INPUT_TOKENS: !Ref DocAiEmbeddingMaxInputTokens
+          DOC_AI_ASSIST_MODEL: !Ref DocAiAssistModel
+          DOC_AI_ASSIST_MAX_CANDIDATES: !Ref DocAiAssistMaxCandidates
+          DOC_AI_TOP_K: !Ref DocAiTopK
+          DOC_AI_CANDIDATE_MULTIPLIER: !Ref DocAiCandidateMultiplier
+          # Resolved S3 Vectors bucket/index names. These use the SAME !If/!Sub
+          # expressions as the vector index custom resource and the provisioner IAM policy
+          # so the read path targets exactly the created bucket/index (task 4.3). When
+          # EnableDocAi is false the bucket/index are not created and these values are inert
+          # (the code path is gated off by DOC_AI_ENABLED = "false").
+          DOC_AI_S3_VECTOR_BUCKET: !If [HasDocAiS3VectorBucketOverride, !Ref DocAiS3VectorBucket, !Sub '${Prefix}-${ProjectId}-${StageId}-docvec']
+          DOC_AI_S3_VECTOR_INDEX: !If [HasDocAiS3VectorIndexOverride, !Ref DocAiS3VectorIndex, !Sub '${Prefix}-${ProjectId}-${StageId}-docidx']
 
       Events:
         McpV1Post:
@@ -1111,12 +1301,38 @@ Resources:
         # Lambda SSM Parameters and Secrets Extension Layer - Using Public SSM Parameter from AWS - Use mapping if not available in your region
         - '{{resolve:ssm:/aws/service/aws-parameters-and-secrets-lambda-extension/arm64/latest}}' #arm64 - There is also an x86 version available too
 
+        # doc-ai-common shared-code layer (spec 0-0-6); code only, attached unconditionally
+        - !Ref DocAiCommonLayer
+
       Environment:
         Variables:
           ATLANTIS_GITHUB_USER_ORGS: !Join [',', !Ref AtlantisGitHubUserOrgs]
           DOC_INDEX_TABLE: !Ref DocIndexTable
           PARAM_STORE_PATH: !Ref ParameterStoreHierarchy
           DEPLOY_ENVIRONMENT: !Ref DeployEnvironment
+
+          # Documentation AI (Semantic Search) Settings
+          # Feature defaults OFF (DOC_AI_ENABLED = "false"); parsed defensively by
+          # doc-indexer/lib/settings.js (loadDocAiSettings). The indexer consumes a
+          # subset (enabled, vector store, embedding model/dims/token budget, S3
+          # Vectors location); the full set is passed for config parity with the
+          # read-function. Numbers render as strings via !Ref, which the JS parsers handle.
+          DOC_AI_ENABLED: !Ref EnableDocAi
+          DOC_AI_MIN_TIER: !Ref DocAiMinTier
+          DOC_AI_RETRIEVAL_MODE: !Ref DocAiRetrievalMode
+          DOC_AI_VECTOR_STORE: !Ref DocAiVectorStore
+          DOC_AI_EMBEDDING_MODEL: !Ref DocAiEmbeddingModel
+          DOC_AI_EMBEDDING_DIMENSIONS: !Ref DocAiEmbeddingDimensions
+          DOC_AI_EMBEDDING_MAX_INPUT_TOKENS: !Ref DocAiEmbeddingMaxInputTokens
+          DOC_AI_ASSIST_MODEL: !Ref DocAiAssistModel
+          DOC_AI_ASSIST_MAX_CANDIDATES: !Ref DocAiAssistMaxCandidates
+          DOC_AI_TOP_K: !Ref DocAiTopK
+          DOC_AI_CANDIDATE_MULTIPLIER: !Ref DocAiCandidateMultiplier
+          # Resolved S3 Vectors bucket/index names. Identical !If/!Sub expressions to the
+          # read-function and the vector index custom resource so the indexer upserts to
+          # exactly the created bucket/index (task 4.3). Inert when EnableDocAi is false.
+          DOC_AI_S3_VECTOR_BUCKET: !If [HasDocAiS3VectorBucketOverride, !Ref DocAiS3VectorBucket, !Sub '${Prefix}-${ProjectId}-${StageId}-docvec']
+          DOC_AI_S3_VECTOR_INDEX: !If [HasDocAiS3VectorIndexOverride, !Ref DocAiS3VectorIndex, !Sub '${Prefix}-${ProjectId}-${StageId}-docidx']
 
   # -- Doc Indexer Lambda Log Group --
 
@@ -1200,6 +1416,251 @@ Resources:
       FunctionName: !GetAtt DocIndexerFunction.Arn
       Principal: events.amazonaws.com
       SourceArn: !GetAtt DocIndexerScheduleRule.Arn
+
+  # ---------------------------------------------------------------------------
+  # Documentation AI (Semantic Search) - S3 Vectors Provisioning
+  # spec 0-0-6, task 4.3
+  # ---------------------------------------------------------------------------
+  # S3 Vectors has no native CloudFormation resource type (task 4.1 spike), so a
+  # Lambda-backed custom resource owns the vector bucket + index create/update/delete
+  # lifecycle (which also provides the clean teardown AGENTS.md requires of SDK-driven
+  # infra). EVERYTHING in this section is gated by the EnableDocAiIsTrue Condition, so a
+  # default (disabled) deploy creates NO AI resources (Req 8.1).
+  #
+  # SCOPE NOTE: this section grants only the provisioner's CONTROL-plane permissions
+  # (create/delete vector bucket + index). The runtime DATA-plane permissions
+  # (s3vectors:PutVectors/QueryVectors/GetVectors/ListVectors/DeleteVectors) and
+  # bedrock:InvokeModel for the read-function and doc-indexer roles are owned by task 8.1.
+
+  # -- S3 Vectors Provisioner Log Group --
+  S3VectorsProvisionerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Condition: EnableDocAiIsTrue
+    DeletionPolicy: !If [IsProduction, Retain, Delete]
+    UpdateReplacePolicy: Retain
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${Prefix}-${ProjectId}-${StageId}-S3VectorsProvisioner'
+      RetentionInDays: !If [ IsProduction, !Ref LogRetentionInDaysForPROD, !Ref LogRetentionInDaysForDEVTEST]
+
+  # -- S3 Vectors Provisioner Execution Role --
+  # Least-privilege: CloudWatch Logs on its own log group, X-Ray write (Globals enables
+  # tracing for all functions), and s3vectors CONTROL-plane actions scoped to the specific
+  # vector bucket and the indexes within it. No data-plane actions are granted here.
+  S3VectorsProvisionerRole:
+    Type: AWS::IAM::Role
+    Condition: EnableDocAiIsTrue
+    Properties:
+      RoleName: !Sub "${Prefix}-${ProjectId}-${StageId}-S3VectorsProvisionerRole"
+      Description: "IAM Role for the S3 Vectors provisioner custom resource (control-plane create/delete only)"
+      Path: !Ref RolePath
+      PermissionsBoundary: !If [HasPermissionsBoundaryArn, !Ref PermissionsBoundaryArn, !Ref 'AWS::NoValue']
+
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: [lambda.amazonaws.com]
+          Action: sts:AssumeRole
+
+      ManagedPolicyArns:
+        # X-Ray write only (Globals sets Tracing: Active for every function). This is a
+        # narrowly-scoped AWS-managed policy already used by the other roles in this stack.
+        - 'arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess'
+
+      Policies:
+      - PolicyName: S3VectorsProvisionerResourceAccessPolicies
+        PolicyDocument:
+          Statement:
+
+          - Sid: LambdaAccessToWriteLogs
+            Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            Effect: Allow
+            Resource: !GetAtt S3VectorsProvisionerLogGroup.Arn
+
+          - Sid: S3VectorsBucketControlPlane
+            # Bucket-level create/delete/get scoped to the one resolved bucket ARN by name
+            # (CreateVectorBucket acts on a not-yet-existing bucket whose name is known).
+            Action:
+            - s3vectors:CreateVectorBucket
+            - s3vectors:DeleteVectorBucket
+            - s3vectors:GetVectorBucket
+            Effect: Allow
+            Resource:
+            - !Sub
+              - 'arn:aws:s3vectors:${AWS::Region}:${AWS::AccountId}:bucket/${VectorBucketName}'
+              - VectorBucketName: !If [HasDocAiS3VectorBucketOverride, !Ref DocAiS3VectorBucket, !Sub '${Prefix}-${ProjectId}-${StageId}-docvec']
+
+          - Sid: S3VectorsIndexControlPlane
+            # >! Index actions are scoped to indexes WITHIN the specific vector bucket only.
+            # >! index/* (rather than a fixed index name) is required so an index-name change
+            # >! or an in-place replacement can create/delete under the same bucket without a
+            # >! broader grant; this is still least-privilege at the bucket boundary.
+            Action:
+            - s3vectors:CreateIndex
+            - s3vectors:DeleteIndex
+            - s3vectors:GetIndex
+            Effect: Allow
+            Resource:
+            - !Sub
+              - 'arn:aws:s3vectors:${AWS::Region}:${AWS::AccountId}:bucket/${VectorBucketName}/index/*'
+              - VectorBucketName: !If [HasDocAiS3VectorBucketOverride, !Ref DocAiS3VectorBucket, !Sub '${Prefix}-${ProjectId}-${StageId}-docvec']
+
+  # -- S3 Vectors Provisioner Lambda Function --
+  # Small, dependency-light CloudFormation custom-resource handler. Bundles
+  # @aws-sdk/client-s3vectors (the one justified SDK bundling per tasks 4.1/4.2 - the
+  # client may not yet be in the nodejs24.x runtime). No Insights/SSM layers needed.
+  S3VectorsProvisionerFunction:
+    Type: AWS::Serverless::Function
+    Condition: EnableDocAiIsTrue
+    Properties:
+      FunctionName: !Sub '${Prefix}-${ProjectId}-${StageId}-S3VectorsProvisioner'
+      Description: "CloudFormation custom resource that provisions the S3 Vectors vector bucket + index (spec 0-0-6)"
+      CodeUri: src/lambda/s3-vectors-provisioner/
+      Handler: index.handler
+      Runtime: nodejs24.x
+      Architectures:
+        - !Ref FunctionArchitecture
+      Timeout: 300
+      MemorySize: 256
+      Role: !GetAtt S3VectorsProvisionerRole.Arn
+
+  # -- S3 Vectors Vector Bucket + Index (custom resource) --
+  # Provisioned by S3VectorsProvisionerFunction. VectorBucketName/IndexName MUST match the
+  # resolved expressions wired into the read-function/doc-indexer DOC_AI_S3_VECTOR_* env
+  # vars (kept identical). Dimension/DistanceMetric/NonFilterableMetadataKeys are IMMUTABLE
+  # in S3 Vectors; the provisioner replaces the index if they change. Filterable metadata
+  # used at query time is version/type/subType (see layer vector-store-s3.js), so the
+  # remaining metadata keys are declared non-filterable to save space. model/dims are
+  # stored (non-filterable) so the doc-indexer can reuse unchanged embeddings across index
+  # versions (Req 6.2), matching the DynamoDB store; non-filterable keys are still returned
+  # by GetVectors/QueryVectors. 6 keys is within the provisioner's max of 10.
+  DocAiVectorIndex:
+    Type: Custom::S3VectorIndex
+    Condition: EnableDocAiIsTrue
+    Properties:
+      ServiceToken: !GetAtt S3VectorsProvisionerFunction.Arn
+      VectorBucketName: !If [HasDocAiS3VectorBucketOverride, !Ref DocAiS3VectorBucket, !Sub '${Prefix}-${ProjectId}-${StageId}-docvec']
+      IndexName: !If [HasDocAiS3VectorIndexOverride, !Ref DocAiS3VectorIndex, !Sub '${Prefix}-${ProjectId}-${StageId}-docidx']
+      Dimension: !Ref DocAiEmbeddingDimensions
+      DistanceMetric: 'cosine'
+      NonFilterableMetadataKeys:
+        - hash
+        - repository
+        - owner
+        - embeddingInputHash
+        - model
+        - dims
+
+  # ---------------------------------------------------------------------------
+  # Documentation AI (Semantic Search) - Runtime DATA-plane IAM
+  # spec 0-0-6, task 8.1
+  # ---------------------------------------------------------------------------
+  # >! Least-privilege Bedrock + S3 Vectors DATA-plane permissions for the read-function
+  # >! and doc-indexer. Delivered as two SEPARATE AWS::IAM::Policy resources attached to the
+  # >! (always-created) execution roles, each gated by EnableDocAiIsTrue, so when the feature
+  # >! is disabled (the default) NO Bedrock or S3 Vectors permissions exist on either role
+  # >! (Req 8.1 - nothing granted when disabled). The provisioner section above owns only the
+  # >! CONTROL-plane (create/delete vector bucket + index); these policies own the runtime
+  # >! DATA-plane and bedrock:InvokeModel and never touch the DynamoDB statements (the
+  # >! 'dynamodb' vector store keeps working via the existing DocIndex table grants).
+  # >!
+  # >! Scoping rules applied to BOTH policies (least privilege, no wildcards):
+  # >!   - bedrock:InvokeModel is scoped to the SPECIFIC foundation-model ARN(s) built from
+  # >!     the DocAiEmbeddingModel / DocAiAssistModel parameters - never a model wildcard.
+  # >!     A foundation-model ARN carries NO account id (the '::' double colon is intentional).
+  # >!   - s3vectors actions are scoped to the SINGLE resolved index ARN
+  # >!     (bucket/<bucket>/index/<index>) - tighter than the provisioner's control-plane
+  # >!     'index/*'. The bucket/index name expressions are byte-identical to the
+  # >!     DocAiVectorIndex custom resource and the DOC_AI_S3_VECTOR_* env vars (kept in sync).
+  # >!   - Each role gets ONLY the s3vectors commands its own code path issues (verified in
+  # >!     layer nodejs/vector-store-s3.js): the read role gets Query only; the indexer gets
+  # >!     write/reuse/cleanup only. Neither gets the other's actions.
+  # >! Inference-profile caveat: these ARNs assume on-demand FOUNDATION models. If an operator
+  # >! points DocAiEmbeddingModel/DocAiAssistModel at a cross-region INFERENCE PROFILE id, the
+  # >! Resource must be broadened to the inference-profile ARN PLUS the underlying
+  # >! foundation-model ARNs it routes to (an inference profile invokes models across regions).
+
+  # -- Read Lambda DATA-plane policy (query embedding + assist re-rank + vector query) --
+  ReadDocAiPolicy:
+    Type: AWS::IAM::Policy
+    Condition: EnableDocAiIsTrue
+    Properties:
+      PolicyName: !Sub '${Prefix}-${ProjectId}-${StageId}-ReadDocAiAccess'
+      Roles:
+        - !Ref ReadLambdaExecutionRole
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+
+          - Sid: BedrockInvokeQueryEmbeddingAndAssistModels
+            # >! read-function embeds the query (embedding model) and, in semantic-assisted
+            # >! mode, re-ranks the top candidates (assist model), so InvokeModel is scoped to
+            # >! BOTH specific foundation-model ARNs and nothing else. No account id (double
+            # >! colon). See the inference-profile caveat in the section header above.
+            Effect: Allow
+            Action:
+            - bedrock:InvokeModel
+            Resource:
+            - !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/${DocAiEmbeddingModel}'
+            - !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/${DocAiAssistModel}'
+
+          - Sid: S3VectorsQueryDataPlane
+            # >! Query-only data-plane: the retrieval path calls VectorStore.query() which
+            # >! issues QueryVectors ONLY (layer vector-store-s3.js). No Put/Get/List/Delete
+            # >! for the read role. Scoped to the ONE resolved index ARN (not index/*).
+            Effect: Allow
+            Action:
+            - s3vectors:QueryVectors
+            Resource:
+            - !Sub
+              - 'arn:aws:s3vectors:${AWS::Region}:${AWS::AccountId}:bucket/${VectorBucketName}/index/${IndexName}'
+              - VectorBucketName: !If [HasDocAiS3VectorBucketOverride, !Ref DocAiS3VectorBucket, !Sub '${Prefix}-${ProjectId}-${StageId}-docvec']
+                IndexName: !If [HasDocAiS3VectorIndexOverride, !Ref DocAiS3VectorIndex, !Sub '${Prefix}-${ProjectId}-${StageId}-docidx']
+
+  # -- Doc Indexer DATA-plane policy (content embedding + vector upsert/reuse/cleanup) --
+  DocIndexerDocAiPolicy:
+    Type: AWS::IAM::Policy
+    Condition: EnableDocAiIsTrue
+    Properties:
+      PolicyName: !Sub '${Prefix}-${ProjectId}-${StageId}-DocIndexerDocAiAccess'
+      Roles:
+        - !Ref DocIndexerExecutionRole
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+
+          - Sid: BedrockInvokeContentEmbeddingModel
+            # >! doc-indexer embeds CONTENT with the embedding model only; it never invokes the
+            # >! assist model, so InvokeModel is scoped to the single embedding foundation-model
+            # >! ARN (no account id -> double colon; no model wildcard). See the inference-profile
+            # >! caveat in the section header above.
+            Effect: Allow
+            Action:
+            - bedrock:InvokeModel
+            Resource:
+            - !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/${DocAiEmbeddingModel}'
+
+          - Sid: S3VectorsWriteDataPlane
+            # >! Write/reuse/cleanup data-plane for the index path (verified in layer
+            # >! vector-store-s3.js): upsertVectors -> PutVectors; getVersionVectors (embedding
+            # >! reuse across index versions, Req 6.2) -> ListVectors + GetVectors; deleteVersion
+            # >! (superseded-version cleanup - S3 Vectors has no TTL) -> ListVectors +
+            # >! DeleteVectors. No QueryVectors (the indexer never queries). Scoped to the ONE
+            # >! resolved index ARN (not index/*).
+            Effect: Allow
+            Action:
+            - s3vectors:PutVectors
+            - s3vectors:GetVectors
+            - s3vectors:ListVectors
+            - s3vectors:DeleteVectors
+            Resource:
+            - !Sub
+              - 'arn:aws:s3vectors:${AWS::Region}:${AWS::AccountId}:bucket/${VectorBucketName}/index/${IndexName}'
+              - VectorBucketName: !If [HasDocAiS3VectorBucketOverride, !Ref DocAiS3VectorBucket, !Sub '${Prefix}-${ProjectId}-${StageId}-docvec']
+                IndexName: !If [HasDocAiS3VectorIndexOverride, !Ref DocAiS3VectorIndex, !Sub '${Prefix}-${ProjectId}-${StageId}-docidx']
 
   # -- Read Lambda Execution Role --
   # Minimal permissions: S3 GetObject/ListBucket/GetObjectVersion, DynamoDB read, SSM GetParameter
@@ -1333,6 +1794,88 @@ Resources:
     Properties: 
       LogGroupName: !Sub '/aws/lambda/${Prefix}-${ProjectId}-${StageId}-ReadFunction'
       RetentionInDays: !If [ IsProduction, !Ref LogRetentionInDaysForPROD,  !Ref LogRetentionInDaysForDEVTEST]
+
+  # ---------------------------------------------------------------------------
+  # Documentation AI (Semantic Search) usage/cost Metric Filters (spec 0-0-6, task 8.2)
+  #
+  # Surface Bedrock usage/cost signal for semantic-assisted mode so usage can be compared
+  # per store/mode (design "Cost Controls": "optional CloudWatch metric filters ... per
+  # store/mode"). They target the read-function log group because the query path emits the
+  # matched lines (SemanticAssistedRetrieval, task 7.2). Metric filters are free and
+  # low-risk, so they are gated ONLY on EnableDocAiIsTrue (NOT on PROD): when the feature is
+  # off no filters are created (Req 8.1).
+  #
+  # >! The read-function runs with AWS_LAMBDA_LOG_FORMAT=text, so each log event is a TEXT
+  # >! line (a fixed token/phrase plus embedded JSON), NOT a pure-JSON event. We therefore
+  # >! use count-based literal/quoted-substring patterns, NOT JSON selector patterns
+  # >! ($.totalTokens would never match). Numeric token values are intentionally NOT
+  # >! extracted here; the stable "DOC_AI_USAGE {json}" line still carries the raw counts for
+  # >! ad-hoc Logs Insights queries. Patterns are case-sensitive; phrases with
+  # >! non-alphanumeric characters are double-quoted, and space-separated terms are ANDed.
+  # >! VISIBILITY: the DOC_AI_USAGE line is emitted at the injected logger's INFO level
+  # >! (doc-ai-common retrieval-strategy #logUsage, task 7.2), and cache-data's DebugAndLog
+  # >! emits INFO when LOG_LEVEL=INFO (the PROD default for this function), so the DOC_AI_USAGE
+  # >! usage/per-store metrics DO populate in PROD (where cost tracking matters) as well as in
+  # >! DEV/TEST. The degrade line is WARN level and IS visible in PROD.
+  # >! WIRING: the read-function documentation service constructs the retrieval strategies and
+  # >! injects DebugAndLog into them (task 8.4), so these filters are active at runtime whenever
+  # >! the AI feature is enabled and a semantic-assisted search runs.
+
+  # COUNT of every successful semantic-assisted re-rank (usage/cost signal), any store.
+  # Matches the stable USAGE_LOG_PREFIX token emitted by task 7.2.
+  DocAiSemanticAssistedUsageMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Condition: EnableDocAiIsTrue
+    Properties:
+      LogGroupName: !Ref ReadLambdaLogGroup
+      FilterPattern: '"DOC_AI_USAGE"'
+      MetricTransformations:
+        - MetricNamespace: !Sub '${Prefix}-${ProjectId}/DocAi'
+          MetricName: SemanticAssistedUsageCount
+          MetricValue: '1'
+          DefaultValue: 0
+
+  # COUNT of semantic-assisted usage against the s3-vectors store (per-store comparison).
+  # ANDs the usage token with the literal JSON substring "store":"s3-vectors".
+  DocAiSemanticAssistedUsageS3VectorsMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Condition: EnableDocAiIsTrue
+    Properties:
+      LogGroupName: !Ref ReadLambdaLogGroup
+      FilterPattern: '"DOC_AI_USAGE" "\"store\":\"s3-vectors\""'
+      MetricTransformations:
+        - MetricNamespace: !Sub '${Prefix}-${ProjectId}/DocAi'
+          MetricName: SemanticAssistedUsageS3Vectors
+          MetricValue: '1'
+          DefaultValue: 0
+
+  # COUNT of semantic-assisted usage against the dynamodb store (per-store comparison).
+  # ANDs the usage token with the literal JSON substring "store":"dynamodb".
+  DocAiSemanticAssistedUsageDynamoDbMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Condition: EnableDocAiIsTrue
+    Properties:
+      LogGroupName: !Ref ReadLambdaLogGroup
+      FilterPattern: '"DOC_AI_USAGE" "\"store\":\"dynamodb\""'
+      MetricTransformations:
+        - MetricNamespace: !Sub '${Prefix}-${ProjectId}/DocAi'
+          MetricName: SemanticAssistedUsageDynamoDb
+          MetricValue: '1'
+          DefaultValue: 0
+
+  # COUNT of graceful-degrade events (assist re-rank failed -> fell back to plain semantic).
+  # Matches the stable fragment of task 7.2's WARN degrade line (visible even in PROD).
+  DocAiSemanticDegradeMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Condition: EnableDocAiIsTrue
+    Properties:
+      LogGroupName: !Ref ReadLambdaLogGroup
+      FilterPattern: '"assist re-rank failed"'
+      MetricTransformations:
+        - MetricNamespace: !Sub '${Prefix}-${ProjectId}/DocAi'
+          MetricName: SemanticDegradeCount
+          MetricValue: '1'
+          DefaultValue: 0
 
   # ---------------------------------------------------------------------------
   # CloudWatch Alarms and Dashboards

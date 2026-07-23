@@ -166,7 +166,10 @@ exports.handler = async (event, context) => {
 
     // >! Delegate request processing to routing layer
     // >! Routes.process() populates the shared Response instance (void return)
-    await Routes.process(clientRequest, response);
+    // >! Pass resolved authInfo downstream so tier-aware tools (e.g. documentation
+    // >! semantic search) can gate behavior on the caller's tier. Other tools ignore
+    // >! it. Only the tier is consumed downstream; identity/PII is never logged.
+    await Routes.process(clientRequest, response, authInfo);
 
     // >! Await DynamoDB update before returning to ensure state is persisted
     if (rateLimitCheck.dynamoPromise) { await rateLimitCheck.dynamoPromise; }

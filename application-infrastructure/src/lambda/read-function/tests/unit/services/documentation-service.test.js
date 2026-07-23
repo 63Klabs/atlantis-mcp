@@ -77,10 +77,20 @@ describe('Documentation Service', () => {
     Config.getConnCacheProfile.mockClear();
     Models.DocIndex.queryIndex.mockClear();
 
-    // Default mock implementations
+    // Default mock implementations. documentation.ai defaults to disabled so the service
+    // exercises the unchanged keyword path (backward-compat) in these existing tests.
     Config.settings.mockReturnValue({
       github: {
         userOrgs: ['63klabs', 'myorg', 'testorg']
+      },
+      docIndexTable: 'test-doc-index-table',
+      documentation: {
+        ai: {
+          enabled: false,
+          minTier: 'paid',
+          retrievalMode: 'semantic',
+          vectorStore: 's3-vectors'
+        }
       }
     });
   });
@@ -164,12 +174,13 @@ describe('Documentation Service', () => {
         type: 'code-example'
       });
 
-      // Assert
+      // Assert (docAiMode discriminator is added to the cache key; 'keyword' when disabled)
       expect(mockConnCache.conn.parameters).toEqual({
         query: 'Lambda',
         type: 'code-example',
         subType: undefined,
-        limit: 10
+        limit: 10,
+        docAiMode: 'keyword'
       });
     });
 
@@ -202,12 +213,13 @@ describe('Documentation Service', () => {
         subType: 'tutorial'
       });
 
-      // Assert
+      // Assert (docAiMode discriminator is added to the cache key; 'keyword' when disabled)
       expect(mockConnCache.conn.parameters).toEqual({
         query: 'getting started',
         type: 'documentation',
         subType: 'tutorial',
-        limit: 10
+        limit: 10,
+        docAiMode: 'keyword'
       });
     });
 

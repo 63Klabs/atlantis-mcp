@@ -328,6 +328,60 @@ async function queryIndex(options = {}) {
 }
 
 /**
+ * Fetch content metadata items for a set of content hashes at a specific index version.
+ *
+ * Reads each `pk=content:{hash}, sk=v:{version}:metadata` item using the same shared
+ * DynamoDB Document Client and `GetCommand` access pattern as {@link queryIndex}, and
+ * returns a `hash -> item` map. Hashes with no stored metadata are tolerated and simply
+ * omitted from the map, and a per-hash read error is logged and skipped, so a partial or
+ * superseded index can never fail the caller. Used by the semantic retrieval path (task
+ * 8.4) to enrich ranked vector hits with the SAME content metadata the keyword path
+ * returns, so both paths share one enrichment source.
+ *
+ * @param {string} tableName - DynamoDB table name.
+ * @param {string} version - Index version identifier whose metadata to read.
+ * @param {Array<string>} hashes - Content hashes to fetch metadata for.
+ * @returns {Promise<Object.<string, Object>>} Map of content hash to its metadata item
+ *   (hashes with no stored metadata are omitted).
+ * @example
+ * const byHash = await getContentMetadataByHashes('my-doc-index-table', '20250715T060000', ['abc123', 'def456']);
+ * // byHash.abc123 = { title, excerpt, path, type, subType, repository, ... }
+ */
+async function getContentMetadataByHashes(tableName, version, hashes) {
+	const map = {};
+
+	// >! Tolerate empty/invalid input and a missing version: return an empty map rather
+	// >! than issuing malformed reads, so a caller can pass ranked hits through unchanged.
+	if (!Array.isArray(hashes) || hashes.length === 0 || !version) {
+		return map;
+	}
+
+	const client = getDocClient();
+
+	for (const hash of hashes) {
+		try {
+			const metaResult = await client.send(new GetCommand({
+				TableName: tableName,
+				Key: {
+					pk: `content:${hash}`,
+					sk: `v:${version}:metadata`
+				}
+			}));
+
+			// >! Skip hashes with no stored metadata (e.g. superseded/partial index) so the
+			// >! returned map only contains fully-resolvable content.
+			if (metaResult.Item) {
+				map[hash] = metaResult.Item;
+			}
+		} catch (error) {
+			DebugAndLog.warn(`Failed to fetch content metadata for hash ${hash}: ${error.message}`);
+		}
+	}
+
+	return map;
+}
+
+/**
  * Test harness for accessing internal state for testing purposes.
  * WARNING: This class is for testing only and should NEVER be used in production code.
  *
@@ -349,6 +403,7 @@ module.exports = {
 	getActiveVersion,
 	getMainIndex,
 	queryIndex,
+	getContentMetadataByHashes,
 	setDocClient,
 	TestHarness
 };

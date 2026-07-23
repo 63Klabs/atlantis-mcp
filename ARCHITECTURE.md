@@ -426,6 +426,94 @@ Per-stage user pool managing registration, email verification, and authenticatio
 - Client: no secret (browser SDK), SRP auth + refresh token flows
 - Post-Confirmation trigger: Auth Lambda
 
+## Documentation Semantic Search (Bedrock-assisted)
+
+An optional enhancement to the `search_documentation` tool that augments the existing keyword search with Amazon Bedrock semantic retrieval, returning results ranked by meaning rather than exact keyword overlap. It **augments retrieval only** — it never composes answers or synthesizes prose, so it does not supplant the calling agent's reasoning.
+
+The feature **defaults OFF**. When disabled, `search_documentation` behaves byte-for-byte as the current keyword-only implementation: the shared layer is never loaded and no Bedrock or vector clients are constructed. When enabled, it is gated to the paid and private tiers by default (configurable), and the tool name and response contract are unchanged for all callers. Any failure on the semantic path transparently falls back to keyword search.
+
+Operator enablement (parameters, Bedrock model access, region prerequisites) is documented in [DEPLOYMENT.md](DEPLOYMENT.md#enabling-documentation-semantic-search); the retrieval internals and extension points are documented in the [developer guide](docs/developer/documentation-semantic-search.md).
+
+```mermaid
+flowchart TD
+    subgraph READ["read-function (query path)"]
+        H["Handler resolves authInfo.tier"] --> DS["Documentation service"]
+        DS --> SS{"selectStrategy<br/>enabled + tier + mode"}
+        SS -->|"disabled / keyword / below minTier"| KW["KeywordRetrieval"]
+        SS -->|"semantic"| SEM["SemanticRetrieval"]
+        SS -->|"semantic-assisted"| ASST["SemanticAssistedRetrieval"]
+        ASST --> SEM
+        ASST --> AP["AssistProvider<br/>Nova re-rank only"]
+        SEM --> EPQ["EmbeddingProvider<br/>embed query (cached)"]
+        SEM --> BR["buildResults<br/>enrich to keyword result shape"]
+    end
+
+    subgraph INDEX["doc-indexer (index path)"]
+        EX["Extract entries"] --> CH{"embeddingInputHash<br/>changed vs prior?"}
+        CH -->|"no"| RU["Reuse prior embedding"]
+        CH -->|"yes"| EMB["EmbeddingProvider<br/>embed content"]
+    end
+
+    subgraph LAYER["doc-ai-common Lambda Layer"]
+        VSF["createVectorStore factory"]
+    end
+
+    KW -->|"keyword query"| DDB[("DocIndex table")]
+    BR -->|"content metadata"| DDB
+    SEM -->|"vector query"| VSF
+    RU --> VSF
+    EMB --> VSF
+    VSF -->|"dynamodb"| DDB
+    VSF -->|"s3-vectors"| S3V[("S3 Vectors bucket + index")]
+    EPQ <--> BEDE[["Bedrock InvokeModel<br/>Titan embeddings"]]
+    EMB <--> BEDE
+    AP <--> BEDN[["Bedrock InvokeModel<br/>Nova assist"]]
+```
+
+### Shared Layer (doc-ai-common)
+
+Shared abstractions ship in a single Lambda Layer (`DocAiCommonLayer`, named `<Prefix>-<ProjectId>-<StageId>-DocAiCommon`) attached to **both** the Read Lambda (query path) and the Doc Indexer Lambda (index path), so the code lives once instead of being duplicated per function. The layer is code only — it has no standing cost and no IAM — so it is attached unconditionally; the `EnableDocAi` condition gates only the billable resources and permissions. At runtime its `nodejs/` contents are extracted to `/opt/nodejs/`. It bundles exactly one production dependency, `@aws-sdk/client-s3vectors` (the S3 Vectors client is too new to be guaranteed in the `nodejs24.x` runtime); every other AWS SDK v3 client is provided by the runtime.
+
+| Module (`nodejs/`) | Component(s) | Responsibility |
+|--------------------|--------------|----------------|
+| `embedding-provider.js` | `EmbeddingProvider` | Wraps Bedrock `InvokeModel` for Amazon Titan Text Embeddings V2 (`{ inputText, dimensions, normalize: true }`); input truncation to a token budget; lazy client; typed errors |
+| `vector-store.js` | `VectorStore`, `createVectorStore` | Storage-agnostic interface plus a registry-dispatched factory (the single extension point); typed errors |
+| `vector-store-dynamodb.js` | `DynamoDbVectorStore` | Stores vectors in the DocIndex table; in-Lambda cosine ranking; version manifest; metadata filters; warm in-memory cache; TTL cleanup |
+| `vector-store-s3.js` | `S3VectorStore` | Maps upsert/query onto the S3 Vectors data plane; metadata filter translation |
+| `retrieval-strategy.js` | `KeywordRetrieval`, `SemanticRetrieval`, `SemanticAssistedRetrieval`, `FallbackRetrieval`, `selectStrategy` | Retrieval strategy family, tier-gated selection, and the keyword-fallback wrapper |
+| `assist-provider.js` | `AssistProvider` | Wraps Bedrock `InvokeModel` for Amazon Nova Micro; re-rank only (returns an index ordering), never synthesizes prose; deterministic (`temperature: 0`) |
+
+### Query Path (Read Lambda)
+
+The caller's tier is threaded from authentication through to strategy selection: `Routes.process(clientRequest, response, authInfo)` → `json-rpc-router.handleJsonRpc(clientRequest, authInfo)` → `handleToolsCall` sets `props.authInfo` → the documentation controller reads `props.authInfo.tier` → the documentation service calls `selectStrategy({ config, tier, strategies })`. Only the documentation tool consumes the tier today; other tools ignore `props.authInfo`.
+
+`selectStrategy` chooses the semantic path only when the feature is enabled, the retrieval mode is not `keyword`, and the caller's tier rank is at or above `minTier`; otherwise it returns the keyword strategy unchanged. An unknown or missing tier ranks as `public` (fail-secure). When a semantic primary is chosen it is wrapped in a `FallbackRetrieval` so any semantic-path error is logged and degraded to keyword search.
+
+`SemanticRetrieval` embeds the query with `EmbeddingProvider` (caching the vector by normalized query, model, and dimensions to avoid repeat Bedrock calls), queries the active index version through the `VectorStore`, and maps the ranked hits back to the existing result shape via an injected `buildResults`. `buildResults` fetches the same content metadata the keyword path uses (`Models.DocIndex.getContentMetadataByHashes`, keyed by `content:{hash}`), so semantic and keyword results are indistinguishable in shape; the cosine `score` becomes `relevanceScore`. Results are cached through the existing `documentation-index` cache profile, with a cache-key discriminator (`mode|store|tier` when enabled, `keyword` when disabled) so a paid/private semantic hit is never served to a below-tier keyword caller.
+
+### Index Path (Doc Indexer)
+
+When the feature is enabled, after extraction the indexer computes an `embeddingInput` (title + excerpt + content, truncated) and an `embeddingInputHash` per entry. If a prior-version vector exists with the same `embeddingInputHash`, model, and dimensions, the embedding is reused (no Bedrock call); otherwise the entry is embedded via `EmbeddingProvider`. Vectors are upserted to the configured store, and the index version metadata records the embedding model and dimensions used. When the feature is disabled, the entire embedding phase is skipped and the indexer behaves exactly as it does today.
+
+### Configuration Axes and Layered Fallback
+
+Two configuration axes select behavior (both mirrored to the Read Lambda settings and the Doc Indexer settings loader so the two functions stay in lockstep):
+
+- **Retrieval mode** (`DOC_AI_RETRIEVAL_MODE`): `keyword` | `semantic` | `semantic-assisted`.
+- **Vector store** (`DOC_AI_VECTOR_STORE`): `dynamodb` | `s3-vectors`.
+
+Fallback is layered and never fails the request: a semantic error degrades to keyword search; an assist-model error in `semantic-assisted` mode degrades to plain semantic results. Settings validation warns and applies documented defaults rather than throwing.
+
+### Vector Stores and S3 Vectors Provisioning
+
+The `dynamodb` backend reuses the existing DocIndex table (vector items, a per-version manifest, in-Lambda cosine similarity). The `s3-vectors` backend uses an S3 Vectors vector bucket and index. S3 Vectors has no native CloudFormation resource type, so the vector bucket and index are provisioned by a Lambda-backed custom resource (`Custom::S3VectorIndex`, resource `DocAiVectorIndex`) whose handler (`S3VectorsProvisioner`) owns the full create/update/delete lifecycle. The index is created with the `cosine` distance metric and the configured dimension (both immutable — a change forces index replacement). All S3 Vectors infrastructure — the provisioner function, its role and log group, and the custom resource — is gated by the `EnableDocAiIsTrue` condition, so a default (disabled) deploy creates no AI resources.
+
+Runtime IAM is delivered as two condition-gated policies with no wildcards: `ReadDocAiPolicy` grants the Read Lambda `bedrock:InvokeModel` on the specific embedding and assist model ARNs plus `s3vectors:QueryVectors` on the one resolved index ARN; `DocIndexerDocAiPolicy` grants the Doc Indexer `bedrock:InvokeModel` on the embedding model ARN plus `s3vectors:PutVectors`/`GetVectors`/`ListVectors`/`DeleteVectors` on that index ARN. When the feature is disabled, neither policy exists.
+
+### Observability
+
+When enabled, CloudWatch metric filters on the Read Lambda log group publish usage/cost signal to the `<Prefix>-<ProjectId>/DocAi` namespace: `SemanticAssistedUsageCount` (all stores), `SemanticAssistedUsageS3Vectors` and `SemanticAssistedUsageDynamoDb` (per-store), and `SemanticDegradeCount` (assist re-rank fell back to plain semantic). The `DOC_AI_USAGE` usage line is emitted at INFO level (visible in production); the degrade line is WARN level. These filters are gated by `EnableDocAiIsTrue`, so nothing is created when the feature is off.
+
 ## Static Site
 
 The static documentation site is hosted on S3 and includes both generated API documentation and authentication pages.

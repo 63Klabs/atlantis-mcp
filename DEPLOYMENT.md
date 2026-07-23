@@ -167,3 +167,104 @@ To host documentation you will need to do the following:
 # - NETWORK:
 #   - Tag: AllowInvalidationEvents=true
 ```
+
+## Enabling Documentation Semantic Search
+
+The `search_documentation` tool can optionally use Amazon Bedrock semantic retrieval instead of (or in addition to) keyword matching. See the [architecture overview](ARCHITECTURE.md#documentation-semantic-search-bedrock-assisted) for how it works and the [developer guide](docs/developer/documentation-semantic-search.md) for internals.
+
+This feature **defaults OFF**. With `EnableDocAi=false` (the default), deploying this template changes nothing: `search_documentation` behaves exactly as the keyword-only implementation, no AI resources are created, and nothing is billed. When enabled it is gated to the paid and private tiers by default, and the tool's response shape is unchanged for all callers.
+
+Set these parameters through your organization's Atlantis SAM Config (`samconfig`) and pipeline configuration — not through manual console deploys — the same way you configure every other stack parameter in this guide.
+
+### Parameters
+
+| Parameter | Default | Meaning |
+|-----------|---------|---------|
+| `EnableDocAi` | `false` | Master toggle. When `false`, no AI resources or IAM are created and no AI code path runs. When `true`, provisions the vector bucket/index, the data-plane IAM policies, and the usage metric filters. |
+| `DocAiMinTier` | `paid` | Minimum access tier eligible for semantic search (`public` \| `registered` \| `paid` \| `private`). Requests below this tier use keyword search. |
+| `DocAiRetrievalMode` | `semantic` | Retrieval strategy for eligible requests: `keyword` (preserves current behavior), `semantic` (vector similarity), or `semantic-assisted` (adds a light LLM re-rank/expansion). |
+| `DocAiVectorStore` | `s3-vectors` | Vector store backend: `dynamodb` (reuses the DocIndex table) or `s3-vectors` (an S3 Vectors bucket/index). |
+| `DocAiEmbeddingModel` | `amazon.titan-embed-text-v2:0` | Bedrock embedding model ID used to embed queries and content. Public model identifier, not a secret. |
+| `DocAiEmbeddingDimensions` | `1024` | Embedding vector dimensions. Titan Text Embeddings V2 supports 256, 512, or 1024. Immutable for an existing S3 Vectors index — a change forces index replacement and a full re-index. |
+| `DocAiEmbeddingMaxInputTokens` | `8000` | Approximate token budget for embedding input; larger entries are truncated before embedding. |
+| `DocAiAssistModel` | `amazon.nova-micro-v1:0` | Bedrock small model ID used only in `semantic-assisted` mode for re-ranking. Public model identifier, not a secret. |
+| `DocAiAssistMaxCandidates` | `25` | Maximum number of top candidates passed to the assist model for re-ranking. |
+| `DocAiTopK` | `10` | Number of results returned from semantic retrieval. |
+| `DocAiCandidateMultiplier` | `3` | Multiplier applied to Top K to determine how many candidate vectors to fetch before ranking/filtering. |
+| `DocAiS3VectorBucket` | `""` (empty) | S3 Vectors bucket name when the store is `s3-vectors`. Leave empty to use the derived name `<Prefix>-<ProjectId>-<StageId>-docvec`. Semantic search falls back to keyword while unset/unprovisioned. |
+| `DocAiS3VectorIndex` | `""` (empty) | S3 Vectors index name within the vector bucket. Leave empty to use the derived name `<Prefix>-<ProjectId>-<StageId>-docidx`. Semantic search falls back to keyword while unset/unprovisioned. |
+
+### Prerequisite: Enable Bedrock model access
+
+Bedrock foundation models are opt-in per account and region. Before enabling the feature, an operator MUST request model access in the Amazon Bedrock console for the deployment region:
+
+- The **embedding model** (`DocAiEmbeddingModel`, Amazon Titan Text Embeddings V2 by default) — required for both `semantic` and `semantic-assisted` modes.
+- The **assist model** (`DocAiAssistModel`, Amazon Nova Micro by default) — required only for `semantic-assisted` mode.
+
+Without model access, `bedrock:InvokeModel` calls fail; the feature then degrades to keyword search (and, for `semantic-assisted`, to plain semantic).
+
+### Prerequisite: Confirm regional availability
+
+- **S3 Vectors** has limited regional availability. Before setting `DocAiVectorStore=s3-vectors`, confirm S3 Vectors is available in your deployment region. If it is not, set `DocAiVectorStore=dynamodb` (which reuses the DocIndex table and has no additional regional requirement).
+- **Bedrock model availability** likewise varies by region. Confirm both the embedding model and (for `semantic-assisted`) the assist model are available in the deployment region.
+
+### IAM
+
+When `EnableDocAi=true`, two least-privilege, condition-gated policies are attached to the existing execution roles (no wildcards):
+
+- The Read Lambda receives `bedrock:InvokeModel` scoped to the specific embedding and assist model ARNs, plus `s3vectors:QueryVectors` on the single resolved index ARN.
+- The Doc Indexer receives `bedrock:InvokeModel` scoped to the embedding model ARN, plus `s3vectors:PutVectors`/`GetVectors`/`ListVectors`/`DeleteVectors` on that index ARN.
+
+When `EnableDocAi=false`, neither policy exists, so no Bedrock or S3 Vectors permissions are granted.
+
+> **Note (inference profiles):** the Bedrock ARNs assume on-demand **foundation** models. If you point `DocAiEmbeddingModel` or `DocAiAssistModel` at a cross-region **inference-profile** model ID, the policy `Resource` must be broadened to the inference-profile ARN plus the underlying foundation-model ARNs it routes to.
+
+### Enablement steps
+
+1. Enable Bedrock model access and confirm regional availability (above).
+2. Set `EnableDocAi=true` in your pipeline/`samconfig` configuration and deploy. This provisions the S3 Vectors vector bucket and index (when the store is `s3-vectors`), attaches the data-plane IAM policies, and creates the usage metric filters.
+3. Let the Doc Indexer run (on its schedule, or trigger it) so embeddings are built into the active index version. Until vectors exist, semantic queries return empty and fall back to keyword search.
+4. Choose your `DocAiVectorStore`, `DocAiRetrievalMode`, and `DocAiMinTier` to match your cost/relevance goals.
+
+Nothing is created or billed while `EnableDocAi=false`.
+
+### Observability and cost
+
+When enabled, CloudWatch metric filters on the Read Lambda log group publish to the `<Prefix>-<ProjectId>/DocAi` namespace:
+
+| Metric | Meaning |
+|--------|---------|
+| `SemanticAssistedUsageCount` | Count of semantic-assisted re-ranks (usage/cost signal), any store |
+| `SemanticAssistedUsageS3Vectors` | Semantic-assisted usage against the `s3-vectors` store |
+| `SemanticAssistedUsageDynamoDb` | Semantic-assisted usage against the `dynamodb` store |
+| `SemanticDegradeCount` | Assist re-rank failed and fell back to plain semantic |
+
+The `DOC_AI_USAGE` usage line is logged at INFO level (visible in production, where the Read Lambda runs at INFO); the degrade line is WARN. The raw `DOC_AI_USAGE {json}` line also carries token counts for ad-hoc Logs Insights queries. These filters are gated by `EnableDocAi=true`, so nothing is created when the feature is off.
+
+### Gated integration smoke test
+
+A gated smoke test exercises the real Bedrock + S3 Vectors runtime path end to end. It is double-gated: it lives outside the default Jest test match and self-skips unless explicitly opted in, so it never runs in CI.
+
+To run it against a deployed TEST stack:
+
+1. Deploy a TEST stack with the feature enabled and the `s3-vectors` store so the vector bucket/index and IAM exist (`EnableDocAi=true`, `DocAiVectorStore=s3-vectors`).
+2. Confirm S3 Vectors is available in the deployment region (otherwise use the `dynamodb` store instead — this smoke test targets `s3-vectors`).
+3. Set the operator environment variables (values from the deployed stack), with AWS credentials for the test account available to the SDK:
+
+   ```bash
+   export DOC_AI_SMOKE_TEST=1
+   export AWS_REGION=us-east-1                    # or AWS_DEFAULT_REGION
+   export DOC_AI_S3_VECTOR_BUCKET=<vector-bucket-name>
+   export DOC_AI_S3_VECTOR_INDEX=<vector-index-name>
+   # Optional (defaults shown); DIMENSIONS must equal the index dimension:
+   export DOC_AI_EMBEDDING_MODEL=amazon.titan-embed-text-v2:0
+   export DOC_AI_EMBEDDING_DIMENSIONS=1024
+   ```
+
+4. Run the single gated command from the layer directory (`application-infrastructure/src/lambda/layers/doc-ai-common`):
+
+   ```bash
+   DOC_AI_SMOKE_TEST=1 npx jest --runInBand --testMatch "**/smoke/**/*.jest.js"
+   ```
+
+The test seeds an ephemeral index version and deletes it afterward, so it does not disturb real index versions.

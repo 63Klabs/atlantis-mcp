@@ -87,7 +87,9 @@ describe('/mcp/v1 Routing', () => {
 
       const result = await Routes.process(mockClientRequest, mockResponse);
 
-      expect(mockHandleJsonRpc).toHaveBeenCalledWith(mockClientRequest);
+      // >! authInfo is optional and forwarded as the 2nd arg; undefined here since
+      // >! Routes.process was called without it. handleJsonRpc applies a safe default.
+      expect(mockHandleJsonRpc).toHaveBeenCalledWith(mockClientRequest, undefined);
       expect(mockResponse.setStatusCode).toHaveBeenCalledWith(200);
       expect(mockResponse.setBody).toHaveBeenCalledWith(jsonRpcResult);
       expect(result).toBeUndefined();
@@ -122,7 +124,7 @@ describe('/mcp/v1 Routing', () => {
 
       const result = await Routes.process(mockClientRequest, mockResponse);
 
-      expect(mockHandleJsonRpc).toHaveBeenCalledWith(mockClientRequest);
+      expect(mockHandleJsonRpc).toHaveBeenCalledWith(mockClientRequest, undefined);
       expect(mockResponse.setStatusCode).toHaveBeenCalledWith(200);
       expect(result).toBeUndefined();
     });
@@ -133,7 +135,7 @@ describe('/mcp/v1 Routing', () => {
 
       await Routes.process(mockClientRequest, mockResponse);
 
-      expect(mockHandleJsonRpc).toHaveBeenCalledWith(mockClientRequest);
+      expect(mockHandleJsonRpc).toHaveBeenCalledWith(mockClientRequest, undefined);
     });
   });
 

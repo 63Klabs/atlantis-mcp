@@ -101,6 +101,10 @@ function extractId(rawId) {
  *
  * @async
  * @param {ClientRequest} clientRequest - ClientRequest object
+ * @param {Object} [authInfo] - Optional resolved auth context
+ *   (`{ tier, isAuthenticated, ... }`). Threaded to `tools/call` handlers so tier-aware
+ *   tools can gate behavior. When omitted, a safe public-tier context is used downstream.
+ *   Only the tier is consumed downstream; identity/PII is never logged.
  * @returns {Promise<Object>} API Gateway response with statusCode, headers, body
  *
  * @example
@@ -110,9 +114,9 @@ function extractId(rawId) {
  *     method: 'initialize',
  *     id: 'req-1'
  *   })
- * }, context);
+ * }, authInfo);
  */
-async function handleJsonRpc(clientRequest) {
+async function handleJsonRpc(clientRequest, authInfo) {
 
   const event = clientRequest.getEvent();
 
@@ -176,7 +180,7 @@ async function handleJsonRpc(clientRequest) {
       }
 
       case 'tools/call':
-        return await handleToolsCall(id, params, clientRequest);
+        return await handleToolsCall(id, params, clientRequest, authInfo);
 
       default:
         return buildResponse(200, MCPProtocol.jsonRpcError(
@@ -211,9 +215,13 @@ async function handleJsonRpc(clientRequest) {
  * @param {string} params.name - Tool name to invoke
  * @param {Object} [params.arguments] - Tool arguments
  * @param {ClientRequest} clientRequest - Object containing client request information
+ * @param {Object} [authInfo] - Optional resolved auth context
+ *   (`{ tier, isAuthenticated, ... }`). Added to the controller `props` generically for all
+ *   tools so tier-aware tools (e.g. documentation search) can read the caller's tier.
+ *   Tier-unaware controllers ignore it. Defaults to a public-tier context when omitted.
  * @returns {Promise<Object>} API Gateway response
  */
-async function handleToolsCall(id, params, clientRequest) {
+async function handleToolsCall(id, params, clientRequest, authInfo) {
   // >! Validate that params.name is present
   if (!params || typeof params.name !== 'string') {
     return buildResponse(200, MCPProtocol.jsonRpcError(
@@ -254,9 +262,16 @@ async function handleToolsCall(id, params, clientRequest) {
   // log the tool name
   clientRequest.addQueryLog(`t:${toolName}`);
 
+  // >! Default to a safe public-tier context so callers/tests that omit authInfo keep working.
+  // >! Only the tier is consumed downstream; identity/PII is never logged here.
+  const auth = authInfo || { tier: 'public', isAuthenticated: false };
+
   // >! Build props object matching the controller interface
-  // Controllers expect props.bodyParameters.input
+  // Controllers expect props.bodyParameters.input. props.authInfo is threaded generically
+  // for ALL tools so tier-aware tools (e.g. documentation search) can read the caller's
+  // tier; tier-unaware controllers simply ignore props.authInfo.
   const props = {
+    authInfo: auth,
     bodyParameters: {
       tool: toolName,
       input: toolArgs

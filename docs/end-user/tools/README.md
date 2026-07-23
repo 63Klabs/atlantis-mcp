@@ -297,6 +297,8 @@ Ask your AI: "Tell me about the atlantis-starter-02 repository"
 
 Search Atlantis documentation, tutorials, and code patterns by keyword. Returns results with title, excerpt, file path, GitHub URL, and result type. Requires the `query` parameter. Returns an empty array if no documents match the query. Optionally filter by `type` (guide, tutorial, reference, troubleshooting, template pattern, code example) or `ghusers` to narrow results to specific GitHub organizations.
 
+> **Tip:** On servers where it is enabled, eligible (paid/private) tiers receive results ranked by meaning rather than exact keywords — using the same tool and the same response shape. See [Semantic Documentation Search](semantic-search.md).
+
 ### Input Parameters
 
 | Parameter | Type | Required | Description |
@@ -408,6 +410,7 @@ All tools are subject to rate limiting. Limits vary by tier — see the [rate li
 
 ## Related Documentation
 
+- [Semantic Documentation Search](semantic-search.md) - Meaning-ranked `search_documentation` results for eligible tiers
 - [Integration Guides](../integration/README.md) - Set up your AI assistant
 - [Common Use Cases](../use-cases/README.md) - Practical examples
 - [Troubleshooting](../troubleshooting/README.md) - Common issues and solutions

@@ -278,15 +278,29 @@ async function writeMainIndex(tableName, version, indexEntries) {
 /**
  * Update the version pointer to point to the new active index version.
  *
+ * When `embeddingMeta` is provided (only after the index-time embedding phase actually
+ * wrote vectors for this version — spec 0-0-6), the pointer item additionally records
+ * `embeddingEnabled: true`, `embeddingModel`, and `embeddingDimensions`, so the query path
+ * can embed queries with the SAME model/dimensions the index was built with. When it is
+ * omitted (the default, and the AI-disabled path) the item keeps its original keyword-only
+ * shape, byte-for-byte unchanged.
+ *
  * @param {string} tableName - DynamoDB table name
  * @param {string} newVersion - New version identifier to activate
  * @param {string|null} previousVersion - Previous version identifier (for rollback reference)
+ * @param {{model: string, dimensions: number}} [embeddingMeta] - When present, records the embedding model/dimensions this version was built with on the pointer item.
  * @returns {Promise<void>}
  * @throws {Error} When a DynamoDB write fails
  * @example
+ * // Keyword-only (default): the pointer item has no embedding attributes.
  * await updateVersionPointer('my-table', '20250715T060000', '20250714T060000');
+ * @example
+ * // Semantic index built: record the embedding model/dimensions on the pointer.
+ * await updateVersionPointer('my-table', '20250715T060000', '20250714T060000', {
+ *   model: 'amazon.titan-embed-text-v2:0', dimensions: 1024
+ * });
  */
-async function updateVersionPointer(tableName, newVersion, previousVersion) {
+async function updateVersionPointer(tableName, newVersion, previousVersion, embeddingMeta) {
 	const client = getDocClient();
 
 	const item = {
@@ -296,6 +310,15 @@ async function updateVersionPointer(tableName, newVersion, previousVersion) {
 		previousVersion: previousVersion || null,
 		updatedAt: new Date().toISOString()
 	};
+
+	// >! Only augment the pointer when the caller passes embeddingMeta (i.e. vectors were
+	// >! actually written for this version). Omitted/undefined leaves the item byte-for-byte
+	// >! identical to the keyword-only behavior, preserving the disabled no-op guarantee.
+	if (embeddingMeta && typeof embeddingMeta === 'object') {
+		item.embeddingEnabled = true;
+		item.embeddingModel = embeddingMeta.model;
+		item.embeddingDimensions = embeddingMeta.dimensions;
+	}
 
 	await client.send(new PutCommand({ TableName: tableName, Item: item }));
 }

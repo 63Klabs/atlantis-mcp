@@ -272,9 +272,12 @@ describe('Read Lambda Handler', () => {
   describe('Request Processing', () => {
     test('should delegate to Routes.process() with new signature', async () => {
       await handler(mockEvent, mockContext);
+      // >! Handler now threads the resolved authInfo (from AuthResolver.resolveAuth)
+      // >! as the third argument so tier-aware tools can gate on the caller's tier.
       expect(Routes.process).toHaveBeenCalledWith(
         mockClientRequestInstance,
-        mockResponseInstance
+        mockResponseInstance,
+        expect.objectContaining({ tier: expect.any(String) })
       );
     });
 

@@ -13,3 +13,4 @@ Core Documents:
 Guides:
 
 - [Testing guide](testing.md) - Running, writing, and debugging tests
+- [Documentation semantic search](documentation-semantic-search.md) - Bedrock-assisted retrieval layer internals and how to extend it

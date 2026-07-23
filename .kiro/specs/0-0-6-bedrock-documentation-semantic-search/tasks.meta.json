@@ -1,0 +1,573 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 Add the `documentation.ai` settings block to `read-function/config/settings.js`": [
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784770855520
+      },
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784770869221
+      },
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784771176947
+      }
+    ],
+    "1.2 Mirror the AI settings needed by the indexer in the doc-indexer config.": [
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784770855658
+      },
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784771223163
+      },
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784771915051
+      }
+    ],
+    "1.3 Add `EnableDocAi` CloudFormation Condition and `DOC_AI_*` parameters to": [
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784770855777
+      },
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784771933166
+      },
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784772301792
+      }
+    ],
+    "1.4 Jest tests: parsing, defaults, invalid-value fallback; confirm keyword path": [
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784770855864
+      },
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784772353575
+      },
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784775816873
+      }
+    ],
+    "2.1 Create `src/lambda/layers/doc-ai-common/` with its own `package.json`/`.nvmrc`": [
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784770855951
+      },
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784775901536
+      },
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784776511631
+      }
+    ],
+    "2.2 Implement `EmbeddingProvider` (Titan v2 request shape, dimensions, input": [
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784770856060
+      },
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784776522105
+      },
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784776899304
+      }
+    ],
+    "2.3 Jest tests with mocked Bedrock client (request shape, dimensions, truncation,": [
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784770856157
+      },
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784776920628
+      },
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784777559485
+      }
+    ],
+    "3.1 Define the `VectorStore` interface and `createVectorStore` factory in the layer.": [
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784770856239
+      },
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784777589485
+      },
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784777993964
+      }
+    ],
+    "3.2 Implement `DynamoDbVectorStore` (vector items, version manifest, in-Lambda": [
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784770856323
+      },
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784778046984
+      },
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784778666957
+      }
+    ],
+    "3.3 Jest tests: mocked DynamoDB, cosine property test (fast-check), top-K ordering,": [
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784770856410
+      },
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784778682391
+      },
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784779429128
+      }
+    ],
+    "4.1 Spike: confirm CloudFormation support for S3 Vectors bucket/index; choose": [
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784770856492
+      },
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784779773150
+      },
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784779993533
+      }
+    ],
+    "4.2 Implement `S3VectorStore` (put/query mapping, metadata filter translation,": [
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784770856579
+      },
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784781133862
+      }
+    ],
+    "4.3 Add Condition-gated vector bucket/index infra following naming conventions.": [
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784770856665
+      },
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784781190238
+      },
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784783053884
+      }
+    ],
+    "4.4 Jest tests with mocked S3 Vectors client (mapping, filters, errors).": [
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784770856740
+      },
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784783068535
+      },
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784783596783
+      }
+    ],
+    "5.1 Compute `embeddingInput` + `embeddingInputHash` per entry; reuse prior-version": [
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784770856833
+      },
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784783753205
+      },
+      {
+        "executionId": "b71a2e6a-8837-47fd-821f-34c95225dbb8",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784812579101
+      },
+      {
+        "executionId": "b71a2e6a-8837-47fd-821f-34c95225dbb8",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784815267687
+      }
+    ],
+    "5.2 Upsert vectors to the configured store; record embedding model/dimensions in": [
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784770856915
+      },
+      {
+        "executionId": "b71a2e6a-8837-47fd-821f-34c95225dbb8",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784815319912
+      },
+      {
+        "executionId": "b71a2e6a-8837-47fd-821f-34c95225dbb8",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784818710307
+      }
+    ],
+    "5.3 Jest tests: incremental reuse, disabled no-op, version metadata, batch writes": [
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784770856989
+      },
+      {
+        "executionId": "b71a2e6a-8837-47fd-821f-34c95225dbb8",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784818757682
+      },
+      {
+        "executionId": "b71a2e6a-8837-47fd-821f-34c95225dbb8",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784819362100
+      }
+    ],
+    "6.1 Thread `authInfo` through `Routes.process` → `json-rpc-router` →": [
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784770857072
+      },
+      {
+        "executionId": "b71a2e6a-8837-47fd-821f-34c95225dbb8",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784819424335
+      },
+      {
+        "executionId": "b71a2e6a-8837-47fd-821f-34c95225dbb8",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784820726707
+      }
+    ],
+    "6.2 Implement `KeywordRetrieval` (wrap existing) and `SemanticRetrieval` (embed": [
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784770857148
+      },
+      {
+        "executionId": "b71a2e6a-8837-47fd-821f-34c95225dbb8",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784820797503
+      },
+      {
+        "executionId": "b71a2e6a-8837-47fd-821f-34c95225dbb8",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784821437644
+      }
+    ],
+    "6.3 Implement `selectStrategy` (enabled + tier ≥ minTier + mode) with keyword": [
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784770857227
+      },
+      {
+        "executionId": "b71a2e6a-8837-47fd-821f-34c95225dbb8",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784821498772
+      },
+      {
+        "executionId": "b71a2e6a-8837-47fd-821f-34c95225dbb8",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784821975147
+      }
+    ],
+    "6.4 Jest tests: tier gating matrix, disabled fallback, result-shape parity,": [
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784770857308
+      },
+      {
+        "executionId": "b71a2e6a-8837-47fd-821f-34c95225dbb8",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784822015590
+      },
+      {
+        "executionId": "b71a2e6a-8837-47fd-821f-34c95225dbb8",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784822744754
+      }
+    ],
+    "7.1 Implement `SemanticAssistedRetrieval` (LLM query expansion and/or re-rank of": [
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784770857383
+      },
+      {
+        "executionId": "b71a2e6a-8837-47fd-821f-34c95225dbb8",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784822896193
+      },
+      {
+        "executionId": "b71a2e6a-8837-47fd-821f-34c95225dbb8",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784823618447
+      }
+    ],
+    "7.2 Add usage/cost logging (strategy, store, token counts) and graceful fallback": [
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784770857464
+      },
+      {
+        "executionId": "b71a2e6a-8837-47fd-821f-34c95225dbb8",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784823661757
+      },
+      {
+        "executionId": "b71a2e6a-8837-47fd-821f-34c95225dbb8",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784825585303
+      }
+    ],
+    "7.3 Jest tests: deterministic reorder/expansion, no-prose guarantee, fallback,": [
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784770857561
+      },
+      {
+        "executionId": "b71a2e6a-8837-47fd-821f-34c95225dbb8",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784825597393
+      },
+      {
+        "executionId": "b71a2e6a-8837-47fd-821f-34c95225dbb8",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784826246910
+      }
+    ],
+    "8.1 Add Condition-gated, least-privilege `bedrock:InvokeModel` (specific model": [
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784770857641
+      },
+      {
+        "executionId": "b71a2e6a-8837-47fd-821f-34c95225dbb8",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784826348329
+      },
+      {
+        "executionId": "b71a2e6a-8837-47fd-821f-34c95225dbb8",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784827272824
+      }
+    ],
+    "8.2 Wire remaining env vars; add cost/usage CloudWatch logging/metric filters.": [
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784770857739
+      },
+      {
+        "executionId": "b71a2e6a-8837-47fd-821f-34c95225dbb8",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784827412120
+      },
+      {
+        "executionId": "b71a2e6a-8837-47fd-821f-34c95225dbb8",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784828608461
+      }
+    ],
+    "8.3 Validate the template; run a gated integration smoke test on a test stack.": [
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784770857822
+      },
+      {
+        "executionId": "b71a2e6a-8837-47fd-821f-34c95225dbb8",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784828677041
+      },
+      {
+        "executionId": "9101dcb7-07f7-4534-a6a4-5d662200efcd",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784839214208
+      }
+    ],
+    "9.1 Update ARCHITECTURE.md (components + diagram), DEPLOYMENT.md (parameters,": [
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784770857912
+      },
+      {
+        "executionId": "9101dcb7-07f7-4534-a6a4-5d662200efcd",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784844574306
+      },
+      {
+        "executionId": "748ee0a1-8e95-462b-ae29-f6326ed04810",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784850442435
+      }
+    ],
+    "9.2 Add CHANGELOG.md entries under `v0.0.6 (unreleased)` referencing this spec.": [
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784770857990
+      },
+      {
+        "executionId": "748ee0a1-8e95-462b-ae29-f6326ed04810",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784850451055
+      },
+      {
+        "executionId": "748ee0a1-8e95-462b-ae29-f6326ed04810",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784850698837
+      }
+    ],
+    "1. Configuration and feature-flag foundation": [
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784775817044
+      }
+    ],
+    "2. `doc-ai-common` Lambda Layer with EmbeddingProvider": [
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784777559616
+      }
+    ],
+    "3. VectorStore interface + DynamoDB implementation": [
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784779429217
+      }
+    ],
+    "4. S3 Vectors implementation (+ infra spike)": [
+      {
+        "executionId": "adda5111-bb0a-478d-a5a7-337d5caf426e",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784783596911
+      }
+    ],
+    "5. Indexer embedding generation (incremental)": [
+      {
+        "executionId": "b71a2e6a-8837-47fd-821f-34c95225dbb8",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784819362205
+      }
+    ],
+    "6. Retrieval strategies + tier threading (first end-to-end)": [
+      {
+        "executionId": "b71a2e6a-8837-47fd-821f-34c95225dbb8",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784822744871
+      }
+    ],
+    "7. Semantic-assisted mode behind the flag": [
+      {
+        "executionId": "b71a2e6a-8837-47fd-821f-34c95225dbb8",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784826247093
+      }
+    ],
+    "8. IAM, CloudFormation wiring, and end-to-end enablement": [
+      {
+        "executionId": "9101dcb7-07f7-4534-a6a4-5d662200efcd",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784839214336
+      }
+    ],
+    "8.4 Wire retrieval strategies into the read-function documentation service (selectStrategy + provider/store construction + DebugAndLog injection); keyword path unchanged when disabled/below-tier.": [
+      {
+        "executionId": "9101dcb7-07f7-4534-a6a4-5d662200efcd",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784843767936
+      },
+      {
+        "executionId": "9101dcb7-07f7-4534-a6a4-5d662200efcd",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784844543125
+      }
+    ],
+    "9. Documentation and changelog": [
+      {
+        "executionId": "748ee0a1-8e95-462b-ae29-f6326ed04810",
+        "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
+        "timestamp": 1784850698963
+      }
+    ]
+  }
+}

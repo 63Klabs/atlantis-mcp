@@ -94,11 +94,15 @@ describe('Documentation Controller', () => {
 
       // Assert
       expect(SchemaValidator.validate).toHaveBeenCalledWith('search_documentation', props.bodyParameters.input);
-      expect(Services.Documentation.search).toHaveBeenCalledWith({
-        query: 'S3 bucket configuration',
-        type: 'template pattern',
-        ghusers: ['63klabs']
-      });
+      // >! authInfo is now threaded through as an added field; assert the search params
+      // >! with objectContaining so the added authInfo does not break the assertion.
+      expect(Services.Documentation.search).toHaveBeenCalledWith(
+        expect.objectContaining({
+          query: 'S3 bucket configuration',
+          type: 'template pattern',
+          ghusers: ['63klabs']
+        })
+      );
       expect(MCPProtocol.successResponse).toHaveBeenCalledWith('search_documentation', mockResults);
       expect(result.success).toBe(true);
     });
@@ -120,11 +124,13 @@ describe('Documentation Controller', () => {
       const result = await DocumentationController.search(props);
 
       // Assert
-      expect(Services.Documentation.search).toHaveBeenCalledWith({
-        query: 'Lambda function',
-        type: undefined,
-        ghusers: undefined
-      });
+      expect(Services.Documentation.search).toHaveBeenCalledWith(
+        expect.objectContaining({
+          query: 'Lambda function',
+          type: undefined,
+          ghusers: undefined
+        })
+      );
       expect(result.success).toBe(true);
     });
 
@@ -297,11 +303,13 @@ describe('Documentation Controller', () => {
       await DocumentationController.search(props);
 
       // Assert
-      expect(Services.Documentation.search).toHaveBeenCalledWith({
-        query: 'CloudFormation',
-        type: 'code example',
-        ghusers: ['63klabs', 'myorg']
-      });
+      expect(Services.Documentation.search).toHaveBeenCalledWith(
+        expect.objectContaining({
+          query: 'CloudFormation',
+          type: 'code example',
+          ghusers: ['63klabs', 'myorg']
+        })
+      );
     });
 
     test('should log request and response details', async () => {

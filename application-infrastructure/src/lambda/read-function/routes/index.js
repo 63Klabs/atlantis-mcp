@@ -19,12 +19,15 @@ const { tools: { DebugAndLog } } = require('@63klabs/cache-data');
  *
  * @param {ClientRequest} clientRequest - Parsed request instance from @63klabs/cache-data
  * @param {Response} response - Response instance to populate
+ * @param {Object} [authInfo] - Resolved auth context from AuthResolver. Optional;
+ *   threaded to the JSON-RPC router so tier-aware tools can gate behavior. Shape:
+ *   `{ tier, identity, isAuthenticated, degraded?, ... }`. Callers may omit it.
  * @returns {Promise<void>}
  * @example
- * await Routes.process(clientRequest, response, event, context);
+ * await Routes.process(clientRequest, response, authInfo);
  * // response is now populated; caller calls response.finalize()
  */
-const process = async (clientRequest, response) => {
+const process = async (clientRequest, response, authInfo) => {
   const props = clientRequest.getProps();
   const path = props.path || '';
   const method = (props.method || '').toUpperCase();
@@ -38,7 +41,9 @@ const process = async (clientRequest, response) => {
   if (path.endsWith('mcp/v1') && method === 'POST') {
     // >! Delegate POST to JSON-RPC Router for full MCP protocol handling
     DebugAndLog.info('Routing mcp/v1 POST to JSON-RPC Router');
-    const jsonRpcResponse = await JsonRpcRouter.handleJsonRpc(clientRequest);
+    // >! Thread authInfo (optional) so the router can expose the caller's tier to
+    // >! tier-aware tools. Backward compatible: undefined authInfo is handled downstream.
+    const jsonRpcResponse = await JsonRpcRouter.handleJsonRpc(clientRequest, authInfo);
 
     response.setStatusCode(jsonRpcResponse.statusCode);
     response.setBody(JSON.parse(jsonRpcResponse.body));

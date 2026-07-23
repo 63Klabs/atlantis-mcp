@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## v0.0.6 (unreleased)
 
+### Added
+- **Bedrock-Assisted Documentation Semantic Search** [Spec: 0-0-6-bedrock-documentation-semantic-search](../.kiro/specs/0-0-6-bedrock-documentation-semantic-search/) — Optional Amazon Bedrock semantic retrieval for the `search_documentation` MCP tool. Defaults OFF (`EnableDocAi=false`); when disabled the tool behaves byte-for-byte as the existing keyword search and no AI resources are created or billed
+  - New `doc-ai-common` Lambda Layer shared by the read-function and doc-indexer: an EmbeddingProvider (Bedrock Titan Text Embeddings V2), a VectorStore abstraction with `dynamodb` and `s3-vectors` backends selected via a factory, tier-gated retrieval strategies (`keyword` / `semantic` / `semantic-assisted`) with automatic keyword fallback on any error, and an AssistProvider (Bedrock Nova Micro) that only re-ranks the top candidates and never synthesizes prose
+  - Tier gating (`public` < `registered` < `paid` < `private`, default minimum `paid`) with three retrieval modes selectable through configuration; below-tier and disabled requests use keyword search and the `search_documentation` response shape is unchanged for all callers
+  - S3 Vectors vector bucket and index provisioned by a Condition-gated CloudFormation custom resource (`Custom::S3VectorIndex`); nothing is created or billed while the feature is disabled
+  - Condition-gated least-privilege IAM — `bedrock:InvokeModel` scoped to the specific embedding and assist model ARNs, and `s3vectors` data-plane actions scoped to the single vector index — plus CloudWatch usage/cost metric filters under a dedicated `DocAi` metric namespace
+  - New `DocAi*` CloudFormation parameters and matching `DOC_AI_*` environment variables wired to both the read-function and doc-indexer
+  - Incremental index-time embedding reuse: content whose embedding input is unchanged (matching content hash, model, and dimensions) is carried forward instead of being re-embedded across index versions
+
 ### Changed
 - **Source Restructure: Single-Src to Multi-Src** [Spec: 0-0-6-update-to-multi-resource-spec](../.kiro/specs/0-0-6-update-to-multi-resource-spec/) — Reorganized `application-infrastructure/src/` into the Atlantis multi-resource layout so each deployable resource is fully self-contained
   - Renamed Lambda function directories: `src/lambda/read/` → `read-function/`, `auth/` → `auth-function/`, `cleanup/` → `cleanup-function/`, `indexer/` → `doc-indexer/` (CloudFormation logical IDs and `FunctionName` values unchanged; only `CodeUri` paths updated, so functions are updated in place rather than replaced)
@@ -18,6 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 - **Central `src/` root tooling** — Deleted the shared `src/package.json`, `src/package-lock.json`, `src/jest.config.js`, `src/jest.setup.js`, `src/eslint.config.js`, and `src/.nvmrc` now that each function and the static site are self-contained; the `src/` root contains only `lambda/` and `static/`
+
+### Dependencies
+- **`doc-ai-common` Lambda Layer** [Spec: 0-0-6-bedrock-documentation-semantic-search](../.kiro/specs/0-0-6-bedrock-documentation-semantic-search/) — Bundles `@aws-sdk/client-s3vectors` as its single production dependency for the `s3-vectors` path (that client is not yet guaranteed in the Lambda runtime); all other AWS SDK clients remain dev-only and are provided by the runtime
 
 ## [v0.0.5] (2026-05-07)
 

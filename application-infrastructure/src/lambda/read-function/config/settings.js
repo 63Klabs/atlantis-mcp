@@ -45,6 +45,103 @@ function parseTTL(envVar, defaultValue) {
 }
 
 /**
+ * Parse a boolean environment variable.
+ *
+ * Recognizes `true`, `1`, `yes`, and `on` (case-insensitive) as true, and
+ * `false`, `0`, `no`, and `off` as false. When the variable is unset, empty,
+ * or set to an unrecognized value, a warning is logged (only for unrecognized
+ * values) and the documented default is returned. This never throws so that
+ * settings load cannot fail on a malformed flag.
+ *
+ * @param {string} envVar - Environment variable name
+ * @param {boolean} [defaultValue=false] - Default value when unset or invalid
+ * @returns {boolean} Parsed boolean value
+ * @example
+ * // DOC_AI_ENABLED unset -> false (keyword-only behavior preserved)
+ * const enabled = parseBool('DOC_AI_ENABLED', false);
+ */
+function parseBool(envVar, defaultValue = false) {
+  const value = process.env[envVar];
+  if (value === undefined || value === null || value.trim() === '') {
+    return defaultValue;
+  }
+  const normalized = value.trim().toLowerCase();
+  if (['true', '1', 'yes', 'on'].includes(normalized)) {
+    return true;
+  }
+  if (['false', '0', 'no', 'off'].includes(normalized)) {
+    return false;
+  }
+  DebugAndLog.warn(`Invalid boolean value for ${envVar}: ${value}, using default: ${defaultValue}`);
+  return defaultValue;
+}
+
+/**
+ * Parse an enumerated string environment variable, validating it against a
+ * fixed set of allowed values.
+ *
+ * When the variable is unset or empty, `defaultValue` is returned. When it is
+ * set to one of `allowedValues`, that value is returned. When it is set to an
+ * unrecognized value, a warning is logged and `fallbackValue` is returned.
+ * `fallbackValue` defaults to `defaultValue`, but may differ where the spec
+ * requires an unset default that is distinct from the invalid-value fallback
+ * (for example, retrieval mode defaults to `semantic` when unset but falls
+ * back to `keyword` when misconfigured). This never throws.
+ *
+ * @param {string} envVar - Environment variable name
+ * @param {Array<string>} allowedValues - Recognized values
+ * @param {string} defaultValue - Value returned when the variable is unset/empty
+ * @param {string} [fallbackValue=defaultValue] - Value returned when set but invalid
+ * @returns {string} Validated setting value
+ * @example
+ * // Unset -> 'semantic'; invalid -> warn + 'keyword'; 'keyword' -> 'keyword'
+ * const mode = parseEnum('DOC_AI_RETRIEVAL_MODE', ['keyword', 'semantic', 'semantic-assisted'], 'semantic', 'keyword');
+ */
+function parseEnum(envVar, allowedValues, defaultValue, fallbackValue = defaultValue) {
+  const value = process.env[envVar];
+  if (value === undefined || value === null || value.trim() === '') {
+    return defaultValue;
+  }
+  const trimmed = value.trim();
+  if (allowedValues.includes(trimmed)) {
+    return trimmed;
+  }
+  DebugAndLog.warn(`Invalid value for ${envVar}: ${value} (expected one of: ${allowedValues.join(', ')}), using: ${fallbackValue}`);
+  return fallbackValue;
+}
+
+/**
+ * Parse an integer environment variable with inclusive range validation.
+ *
+ * When the variable is unset or empty, `defaultValue` is returned. When it
+ * parses to an integer within `[min, max]`, that value is returned. Otherwise
+ * (non-numeric or out of range) a warning is logged and `defaultValue` is
+ * returned. This never throws so that settings load cannot fail on a malformed
+ * numeric value.
+ *
+ * @param {string} envVar - Environment variable name
+ * @param {number} defaultValue - Default value when unset or invalid
+ * @param {Object} [options] - Validation options
+ * @param {number} [options.min=1] - Minimum allowed value (inclusive)
+ * @param {number} [options.max=Infinity] - Maximum allowed value (inclusive)
+ * @returns {number} Parsed integer value
+ * @example
+ * const topK = parseIntSetting('DOC_AI_TOP_K', 10, { min: 1 });
+ */
+function parseIntSetting(envVar, defaultValue, { min = 1, max = Infinity } = {}) {
+  const value = process.env[envVar];
+  if (value === undefined || value === null || value.trim() === '') {
+    return defaultValue;
+  }
+  const parsed = parseInt(value, 10);
+  if (isNaN(parsed) || parsed < min || parsed > max) {
+    DebugAndLog.warn(`Invalid value for ${envVar}: ${value} (expected integer in range [${min}, ${max}]), using default: ${defaultValue}`);
+    return defaultValue;
+  }
+  return parsed;
+}
+
+/**
  * Template categories supported by Atlantis platform
  * @constant
  */
@@ -70,6 +167,25 @@ const TEMPLATE_CATEGORIES = [
     description: 'Reusable CloudFormation definitions and nested stacks'
   }
 ];
+
+/**
+ * Access tiers in ascending order of privilege, used to validate
+ * `DOC_AI_MIN_TIER`. Ordering: public < registered < paid < private.
+ * @constant {Array<string>}
+ */
+const DOC_AI_TIERS = ['public', 'registered', 'paid', 'private'];
+
+/**
+ * Valid retrieval modes for `DOC_AI_RETRIEVAL_MODE`.
+ * @constant {Array<string>}
+ */
+const DOC_AI_RETRIEVAL_MODES = ['keyword', 'semantic', 'semantic-assisted'];
+
+/**
+ * Valid vector stores for `DOC_AI_VECTOR_STORE`.
+ * @constant {Array<string>}
+ */
+const DOC_AI_VECTOR_STORES = ['dynamodb', 's3-vectors'];
 
 /**
  * @typedef {Object} ToolDefinition
@@ -640,6 +756,118 @@ const settings = {
    */
   docIndexTable: process.env.DOC_INDEX_TABLE || '',
 
+  /**
+   * Documentation configuration.
+   *
+   * Currently holds the AI-assisted semantic search feature configuration for
+   * the `search_documentation` tool.
+   *
+   * @type {Object}
+   */
+  documentation: {
+    /**
+     * AI-assisted semantic search feature configuration.
+     *
+     * This feature augments the existing keyword search of `search_documentation`
+     * with Bedrock-powered semantic retrieval. It is DISABLED by default so that
+     * existing keyword-only behavior is byte-for-byte unchanged until an operator
+     * explicitly enables it. All values are parsed defensively: unrecognized or
+     * out-of-range values log a warning and fall back to the documented default
+     * rather than throwing during settings load.
+     *
+     * Environment variables:
+     * - `DOC_AI_ENABLED` (bool, default false) - master feature flag
+     * - `DOC_AI_MIN_TIER` (default `paid`) - minimum tier for semantic search
+     *   (public|registered|paid|private)
+     * - `DOC_AI_RETRIEVAL_MODE` (default `semantic`) - retrieval strategy
+     *   (keyword|semantic|semantic-assisted); invalid values fall back to `keyword`
+     * - `DOC_AI_VECTOR_STORE` (default `s3-vectors`) - vector store backend
+     *   (dynamodb|s3-vectors)
+     * - `DOC_AI_EMBEDDING_MODEL` (default `amazon.titan-embed-text-v2:0`)
+     * - `DOC_AI_EMBEDDING_DIMENSIONS` (int, default 1024)
+     * - `DOC_AI_EMBEDDING_MAX_INPUT_TOKENS` (int, default 8000)
+     * - `DOC_AI_ASSIST_MODEL` (default `amazon.nova-micro-v1:0`)
+     * - `DOC_AI_ASSIST_MAX_CANDIDATES` (int, default 25)
+     * - `DOC_AI_TOP_K` (int, default 10)
+     * - `DOC_AI_CANDIDATE_MULTIPLIER` (int, default 3)
+     * - `DOC_AI_S3_VECTOR_BUCKET` (default '')
+     * - `DOC_AI_S3_VECTOR_INDEX` (default '')
+     *
+     * @type {Object}
+     */
+    ai: {
+      /**
+       * Master feature flag. Defaults to false so the tool behaves exactly as
+       * the current keyword-only implementation until enabled.
+       * @type {boolean}
+       */
+      enabled: parseBool('DOC_AI_ENABLED', false),
+
+      /**
+       * Minimum access tier eligible for semantic search. Requests below this
+       * tier use keyword search. Invalid values fall back to `paid`.
+       * @type {string}
+       */
+      minTier: parseEnum('DOC_AI_MIN_TIER', DOC_AI_TIERS, 'paid'),
+
+      /**
+       * Retrieval strategy. Defaults to `semantic` when unset; unrecognized
+       * values fall back to the safe `keyword` behavior.
+       * @type {string}
+       */
+      retrievalMode: parseEnum('DOC_AI_RETRIEVAL_MODE', DOC_AI_RETRIEVAL_MODES, 'semantic', 'keyword'),
+
+      /**
+       * Vector store backend. Invalid values fall back to `s3-vectors`.
+       * @type {string}
+       */
+      vectorStore: parseEnum('DOC_AI_VECTOR_STORE', DOC_AI_VECTOR_STORES, 's3-vectors'),
+
+      /**
+       * Embedding model configuration used to embed queries and content.
+       * @type {{model: string, dimensions: number, maxInputTokens: number}}
+       */
+      embedding: {
+        model: process.env.DOC_AI_EMBEDDING_MODEL || 'amazon.titan-embed-text-v2:0',
+        dimensions: parseIntSetting('DOC_AI_EMBEDDING_DIMENSIONS', 1024, { min: 1 }),
+        maxInputTokens: parseIntSetting('DOC_AI_EMBEDDING_MAX_INPUT_TOKENS', 8000, { min: 1 })
+      },
+
+      /**
+       * Small-model assist configuration for `semantic-assisted` mode
+       * (query expansion / re-ranking only; never answer synthesis).
+       * @type {{model: string, maxCandidates: number}}
+       */
+      assist: {
+        model: process.env.DOC_AI_ASSIST_MODEL || 'amazon.nova-micro-v1:0',
+        maxCandidates: parseIntSetting('DOC_AI_ASSIST_MAX_CANDIDATES', 25, { min: 1 })
+      },
+
+      /**
+       * Number of top results returned from semantic retrieval.
+       * @type {number}
+       */
+      topK: parseIntSetting('DOC_AI_TOP_K', 10, { min: 1 }),
+
+      /**
+       * Multiplier applied to `topK` to determine how many candidate vectors to
+       * fetch before ranking/filtering.
+       * @type {number}
+       */
+      candidateMultiplier: parseIntSetting('DOC_AI_CANDIDATE_MULTIPLIER', 3, { min: 1 }),
+
+      /**
+       * S3 Vectors store location. Empty strings indicate the store is not yet
+       * configured; used only when `vectorStore` is `s3-vectors`.
+       * @type {{bucket: string, index: string}}
+       */
+      s3Vectors: {
+        bucket: process.env.DOC_AI_S3_VECTOR_BUCKET || '',
+        index: process.env.DOC_AI_S3_VECTOR_INDEX || ''
+      }
+    }
+  },
+
   rateLimits: {
 
     /**
@@ -711,6 +939,18 @@ function validateSettings() {
 
   if (settings.github.userOrgs.length === 0) {
     warnings.push('ATLANTIS_GITHUB_USER_ORGS not configured - repository discovery will be limited');
+  }
+
+  // Documentation AI: warn (never throw) when enabled without a usable vector store.
+  // Semantic search falls back to keyword search when its store is not configured.
+  const docAi = settings.documentation.ai;
+  if (docAi.enabled) {
+    if (docAi.vectorStore === 's3-vectors' && (docAi.s3Vectors.bucket === '' || docAi.s3Vectors.index === '')) {
+      warnings.push('DOC_AI_ENABLED is true with s3-vectors store but DOC_AI_S3_VECTOR_BUCKET/DOC_AI_S3_VECTOR_INDEX are not set - semantic search will fall back to keyword');
+    }
+    if (docAi.vectorStore === 'dynamodb' && settings.docIndexTable === '') {
+      warnings.push('DOC_AI_ENABLED is true with dynamodb store but DOC_INDEX_TABLE is not set - semantic search will fall back to keyword');
+    }
   }
 
   if (warnings.length > 0) {

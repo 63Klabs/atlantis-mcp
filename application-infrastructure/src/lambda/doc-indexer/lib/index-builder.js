@@ -18,6 +18,12 @@ const {
 	computeTtl,
 	SEVEN_DAYS_SECONDS
 } = require('./dynamo-writer');
+const { loadDocAiSettings } = require('./settings');
+const {
+	buildEmbeddingInput,
+	computeEmbeddingInputHash,
+	shouldReuseEmbedding
+} = require('./embedding-input');
 
 /**
  * Content type weights for relevance scoring.
@@ -265,6 +271,270 @@ async function processRepository(repo, token) {
 }
 
 /**
+ * Require a `doc-ai-common` layer module by base name.
+ *
+ * In Lambda the layer is extracted to `/opt/nodejs`; tests point `DOC_AI_LAYER_PATH` at
+ * the local layer `nodejs/` directory so they can load the real modules without the
+ * runtime layer. Isolating the require here keeps the layer-load target in a single,
+ * auditable place and lets the embedding phase treat a load failure as recoverable.
+ *
+ * @param {string} name - Layer module base name (e.g. `'embedding-provider'`, `'vector-store'`).
+ * @returns {Object} The required module's exports.
+ * @example
+ * const { EmbeddingProvider } = loadLayerModule('embedding-provider');
+ */
+function loadLayerModule(name) {
+	// >! Layer path from a fixed env var with a safe default; `name` is a first-party
+	// >! constant (never user input), so this is not a dynamic-require injection risk.
+	const base = process.env.DOC_AI_LAYER_PATH || '/opt/nodejs';
+	return require(`${base}/${name}`);
+}
+
+/**
+ * Load a prior index version's embeddings into a hash-keyed map for incremental reuse.
+ *
+ * Reads the previous version's vectors from the store (only when a previous version
+ * exists) and builds `Map(hash -> { embeddingInputHash, model, dims, vector })` so the
+ * embedding phase can decide, per entry, whether to reuse instead of re-embedding
+ * (Requirement 6.2). Any failure (or no previous version) yields an empty map, so every
+ * entry is (re)embedded rather than failing the build.
+ *
+ * @param {Object} vectorStore - A VectorStore exposing `getVersionVectors(version)`.
+ * @param {?string} previousVersion - The prior index version, or falsy on first build.
+ * @returns {Promise<Map<string, {embeddingInputHash: (string|undefined), model: (string|undefined), dims: (number|undefined), vector: number[]}>>}
+ *   Map keyed by content hash (empty when there is nothing to reuse).
+ * @example
+ * const prior = await loadPriorEmbeddings(store, 'v2');
+ * const record = prior.get(entry.hash); // maybe { embeddingInputHash, model, dims, vector }
+ */
+async function loadPriorEmbeddings(vectorStore, previousVersion) {
+	const map = new Map();
+	// No previous version (first build) or a store that cannot enumerate -> nothing to reuse.
+	if (!previousVersion || !vectorStore || typeof vectorStore.getVersionVectors !== 'function') {
+		return map;
+	}
+
+	try {
+		const records = await vectorStore.getVersionVectors(previousVersion);
+		for (const record of records) {
+			if (!record || typeof record.hash !== 'string' || record.hash.length === 0) {
+				continue;
+			}
+			const metadata = (record.metadata && typeof record.metadata === 'object') ? record.metadata : {};
+			map.set(record.hash, {
+				embeddingInputHash: metadata.embeddingInputHash,
+				model: metadata.model,
+				dims: metadata.dims,
+				vector: record.vector
+			});
+		}
+	} catch (err) {
+		// >! Non-fatal: log and return an empty map so all entries are (re)embedded rather
+		// >! than failing the build (a rebuilt index is better than none).
+		console.warn(JSON.stringify({
+			level: 'WARN',
+			event: 'prior_embeddings_load_failed',
+			previousVersion,
+			error: err.message
+		}));
+		return new Map();
+	}
+
+	return map;
+}
+
+/**
+ * Run the index-time embedding phase for one build: compute each entry's embedding input
+ * and hash, reuse a matching prior-version embedding when possible (Requirement 6.2) or
+ * embed via Bedrock otherwise, and upsert the resulting vectors to the configured store.
+ *
+ * This phase is failure-tolerant (design "Error Handling"): a layer require/construct
+ * failure skips the phase, a per-entry embedding failure skips just that entry, and an
+ * upsert failure is logged — none of them fail the overall build, so the keyword index
+ * (already written) still succeeds. It is exported so task 5.3 can unit test it with
+ * injected `embeddingProvider`, `vectorStore`, and `priorEmbeddings`.
+ *
+ * Returns a summary `{ ran, upserted, total, reused, embedded, skipped, model, dimensions }`
+ * that {@link build} uses to decide whether to record the embedding model/dimensions on the
+ * `version:pointer/active` item (task 5.2). `upserted` is `true` only when the store write
+ * succeeded AND at least one vector record was produced; it is `false` when the phase init
+ * failed, no records were produced, or the upsert threw (all already logged/degraded).
+ *
+ * @param {Object} params - Phase inputs.
+ * @param {string} params.tableName - DocIndex table name (used to construct the default DynamoDB store).
+ * @param {string} params.version - The new index version the vectors are written under.
+ * @param {?string} params.previousVersion - Prior index version for reuse (falsy on first build).
+ * @param {Array<Object>} params.entries - Deduplicated content entries (`{ hash, title, excerpt, content, type, subType, repository, owner, ... }`).
+ * @param {Object} params.docAi - The `documentation.ai` settings block (from {@link loadDocAiSettings}).
+ * @param {Object} [params.embeddingProvider] - Injected EmbeddingProvider (test seam); constructed from the layer when omitted.
+ * @param {Object} [params.vectorStore] - Injected VectorStore (test seam); constructed from the layer when omitted.
+ * @param {Map<string, Object>} [params.priorEmbeddings] - Injected prior-embedding map (test seam); loaded via {@link loadPriorEmbeddings} when omitted.
+ * @returns {Promise<{ran: boolean, upserted: boolean, total: number, reused: number, embedded: number, skipped: number, model: string, dimensions: number}>}
+ *   A summary of the phase (never rejects for embedding/store failures); `upserted` gates the version-metadata write in {@link build}.
+ * @example
+ * await runEmbeddingPhase({
+ *   tableName, version, previousVersion, entries: uniqueEntries, docAi,
+ *   embeddingProvider: mockProvider, vectorStore: mockStore, priorEmbeddings: new Map()
+ * });
+ */
+async function runEmbeddingPhase({
+	tableName,
+	version,
+	previousVersion,
+	entries,
+	docAi,
+	embeddingProvider,
+	vectorStore,
+	priorEmbeddings
+}) {
+	const model = docAi.embedding.model;
+	const dimensions = docAi.embedding.dimensions;
+	const entryList = Array.isArray(entries) ? entries : [];
+
+	// Resolve the provider + store. Tests inject them; in Lambda they are constructed from
+	// the doc-ai-common layer. A require/construct failure must NOT fail the build — log
+	// and skip the phase (design "Error Handling": partial index is better than none).
+	let provider = embeddingProvider || null;
+	let store = vectorStore || null;
+	if (!provider || !store) {
+		try {
+			if (!provider) {
+				const { EmbeddingProvider } = loadLayerModule('embedding-provider');
+				provider = new EmbeddingProvider({
+					model: docAi.embedding.model,
+					dimensions: docAi.embedding.dimensions,
+					maxInputTokens: docAi.embedding.maxInputTokens
+				});
+			}
+			if (!store) {
+				const { createVectorStore } = loadLayerModule('vector-store');
+				store = createVectorStore({
+					vectorStore: docAi.vectorStore,
+					dimensions: docAi.embedding.dimensions,
+					dynamodb: { tableName },
+					s3Vectors: docAi.s3Vectors
+				});
+			}
+		} catch (err) {
+			// >! Layer unavailable or store misconfigured: skip embeddings without failing
+			// >! the build. The keyword index is unaffected.
+			console.error(JSON.stringify({
+				level: 'ERROR',
+				event: 'embedding_phase_init_failed',
+				version,
+				error: err.message
+			}));
+			// >! Phase could not run: report nothing upserted so build() writes the version
+			// >! pointer with its keyword-only shape (no embedding metadata recorded).
+			return { ran: true, upserted: false, total: entryList.length, reused: 0, embedded: 0, skipped: 0, model, dimensions };
+		}
+	}
+
+	// Prior-version embeddings for incremental reuse (empty map on first build / any error).
+	const prior = priorEmbeddings || await loadPriorEmbeddings(store, previousVersion);
+
+	let reused = 0;
+	let embedded = 0;
+	let skipped = 0;
+	const vectorRecords = [];
+
+	for (const entry of entryList) {
+		const embeddingInput = buildEmbeddingInput(entry);
+		if (embeddingInput.length === 0) {
+			// No embeddable text (no title/excerpt/content) — skip without calling Bedrock.
+			skipped++;
+			continue;
+		}
+		const embeddingInputHash = computeEmbeddingInputHash(embeddingInput);
+
+		let vector;
+		const priorRecord = prior.get(entry.hash);
+		if (shouldReuseEmbedding(priorRecord, { embeddingInputHash, model, dimensions })) {
+			// >! Reuse the unchanged prior embedding — no Bedrock call (Requirement 6.2).
+			vector = priorRecord.vector;
+			reused++;
+		} else {
+			try {
+				vector = await provider.embed(embeddingInput);
+				embedded++;
+			} catch (err) {
+				// >! Per-entry embedding failure is logged and skipped (partial index is
+				// >! better than none); it never fails the build. No input text is logged,
+				// >! only the content hash + error code.
+				console.warn(JSON.stringify({
+					level: 'WARN',
+					event: 'embedding_entry_skipped',
+					version,
+					hash: entry.hash,
+					code: (err && err.code) ? err.code : 'EMBEDDING_ERROR',
+					error: err ? err.message : 'unknown'
+				}));
+				skipped++;
+				continue;
+			}
+		}
+
+		vectorRecords.push({
+			hash: entry.hash,
+			vector,
+			metadata: {
+				type: entry.type,
+				subType: entry.subType,
+				repository: entry.repository,
+				owner: entry.owner,
+				embeddingInputHash,
+				model,
+				dims: dimensions
+			}
+		});
+	}
+
+	// Upsert all vectors for this version. A store failure is logged and swallowed so the
+	// already-written keyword index still succeeds (graceful degradation).
+	let upsertSucceeded = false;
+	try {
+		await store.upsertVectors(version, vectorRecords);
+		upsertSucceeded = true;
+	} catch (err) {
+		console.error(JSON.stringify({
+			level: 'ERROR',
+			event: 'embedding_upsert_failed',
+			version,
+			error: err ? err.message : 'unknown'
+		}));
+	}
+
+	// >! Report the version as "upserted" only when the store write succeeded AND at least
+	// >! one vector record was produced. build() records the embedding model/dimensions on
+	// >! version:pointer/active only when this is true, so the query path (task 6.2) never
+	// >! attempts semantic retrieval against a version that has no vectors — it falls back
+	// >! to keyword instead (Req 2.5).
+	const upserted = upsertSucceeded && vectorRecords.length > 0;
+
+	console.log(JSON.stringify({
+		level: 'INFO',
+		event: 'embedding_phase_complete',
+		version,
+		total: entryList.length,
+		reused,
+		embedded,
+		skipped,
+		upserted
+	}));
+
+	return {
+		ran: true,
+		upserted,
+		total: entryList.length,
+		reused,
+		embedded,
+		skipped,
+		model,
+		dimensions
+	};
+}
+
+/**
  * Build the complete documentation index. This is the main orchestrator
  * that coordinates the full index build lifecycle:
  *
@@ -277,11 +547,19 @@ async function processRepository(repo, token) {
  *
  * If the build fails at any point, the version pointer remains unchanged.
  *
+ * When the AI feature is enabled (spec 0-0-6), an index-time embedding phase runs after
+ * the main index is written and before the version pointer flips; it is skipped entirely
+ * (no layer/Bedrock/store work) when disabled, and its failures never fail the build.
+ *
  * @param {Object} [options] - Build options (primarily for testing)
  * @param {string} [options.orgsEnv] - Override for ATLANTIS_GITHUB_USER_ORGS
  * @param {string} [options.tableName] - Override for DOC_INDEX_TABLE
  * @param {string} [options.paramStorePath] - Override for PARAM_STORE_PATH
  * @param {function} [options.tokenProvider] - Override for GitHub token retrieval
+ * @param {Object} [options.docAiSettings] - Override for the `documentation.ai` settings block (test seam; defaults to {@link loadDocAiSettings}).
+ * @param {Object} [options.embeddingProvider] - Injected EmbeddingProvider for the embedding phase (test seam).
+ * @param {Object} [options.vectorStore] - Injected VectorStore for the embedding phase (test seam).
+ * @param {Map<string, Object>} [options.priorEmbeddings] - Injected prior-embedding map for the embedding phase (test seam).
  * @returns {Promise<{version: string, totalEntries: number, totalRepos: number, duration: number}>}
  * @throws {Error} When the build fails critically (token missing, DynamoDB write error)
  */
@@ -424,7 +702,46 @@ async function build(options = {}) {
 		// No previous version — first build
 	}
 
-	await updateVersionPointer(tableName, version, previousVersion);
+	// -- Bedrock-assisted semantic search: index-time embedding phase (spec 0-0-6) --
+	// >! Gated behind the feature flag. When disabled the indexer performs NO embedding
+	// >! work — no layer require, no EmbeddingProvider/vector-store construction, no
+	// >! Bedrock call, no vector upsert, and no embedding version-metadata write — so every
+	// >! DynamoDB write (including version:pointer/active below) is byte-for-byte identical
+	// >! to the keyword-only behavior. Runs after `previousVersion` is known (for
+	// >! incremental reuse) and before the version pointer flips, so the new version's
+	// >! vectors exist before it becomes active. Embedding/store failures never fail the
+	// >! overall build (see runEmbeddingPhase).
+	const docAi = options.docAiSettings || loadDocAiSettings();
+	let embeddingSummary = null;
+	if (docAi.enabled) {
+		embeddingSummary = await runEmbeddingPhase({
+			tableName,
+			version,
+			previousVersion,
+			entries: uniqueEntries,
+			docAi,
+			embeddingProvider: options.embeddingProvider,
+			vectorStore: options.vectorStore,
+			priorEmbeddings: options.priorEmbeddings
+		});
+	}
+
+	// >! Record which embedding model/dimensions this version was built with on
+	// >! version:pointer/active — but ONLY when the feature is enabled AND vectors were
+	// >! actually upserted for this version. The query path (task 6.2) reads
+	// >! version:pointer/active to learn the active version AND its embedding model/dims, so
+	// >! it embeds queries with the SAME model; gating on "actually upserted" keeps it from
+	// >! attempting semantic retrieval against a version with no vectors (it falls back to
+	// >! keyword — Req 2.5). Otherwise (disabled, or nothing upserted) the pointer is
+	// >! written with its keyword-only shape, byte-for-byte unchanged.
+	if (docAi.enabled && embeddingSummary && embeddingSummary.upserted === true) {
+		await updateVersionPointer(tableName, version, previousVersion, {
+			model: embeddingSummary.model,
+			dimensions: embeddingSummary.dimensions
+		});
+	} else {
+		await updateVersionPointer(tableName, version, previousVersion);
+	}
 
 	console.log(JSON.stringify({
 		level: 'INFO',
@@ -462,6 +779,13 @@ module.exports = {
 	computeRelevanceScore,
 	buildKeywordEntries,
 	processRepository,
+	// Index-time embedding phase (spec 0-0-6, task 5.1) — exported for task 5.3 tests.
+	runEmbeddingPhase,
+	loadPriorEmbeddings,
+	loadLayerModule,
+	buildEmbeddingInput,
+	computeEmbeddingInputHash,
+	shouldReuseEmbedding,
 	TYPE_WEIGHTS,
 	SCORE_WEIGHTS
 };
