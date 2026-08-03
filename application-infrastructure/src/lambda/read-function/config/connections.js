@@ -11,7 +11,7 @@
  */
 
 // >! Web service and cache framework package
-const { tools: {DebugAndLog} } = require("@63klabs/cache-data");
+const { tools: {DebugAndLog} } = require('@63klabs/cache-data');
 
 // >! Application Modules
 const settings = require('./settings');
@@ -34,18 +34,18 @@ const TTL_NON_PROD = IS_PRODUCTION ? 3600 : 60;
 
 /**
  * Connection and cache profile definitions.
- * 
+ *
  * This array defines all data source connections and their associated cache
  * profiles for the Atlantis MCP Server. Each connection represents a data
  * source (S3 buckets, GitHub API, documentation index) with multiple cache
  * profiles for different access patterns.
- * 
+ *
  * Connection Structure:
  * - name: Unique identifier for the connection (e.g., 's3-templates')
  * - host: Target host (set dynamically in services for S3, static for GitHub)
  * - path: Base path for requests
  * - cache: Array of cache profiles with different TTL and caching strategies
- * 
+ *
  * Cache Profile Structure:
  * - profile: Unique identifier within the connection (e.g., 'templates-list')
  * - overrideOriginHeaderExpiration: Whether to override origin cache headers
@@ -55,27 +55,27 @@ const TTL_NON_PROD = IS_PRODUCTION ? 3600 : 60;
  * - hostId: Host identifier for cache key generation
  * - pathId: Path identifier for cache key generation
  * - encrypt: Whether to encrypt cached data
- * 
+ *
  * Dynamic Host Setting Pattern:
  * For S3 connections, the host is set to null and dynamically assigned in
  * services based on filtering requirements (e.g., specific S3 buckets from
  * settings.s3.buckets). This allows filtering by bucket while maintaining
  * consistent cache keys via hostId/pathId.
- * 
+ *
  * Production vs Test TTLs:
  * Cache profiles use different TTL values based on environment:
  * - Production (IS_PRODUCTION=true): Longer TTLs for stability and performance
  * - Test (IS_PRODUCTION=false): Shorter TTLs for rapid iteration during development
- * 
+ *
  * @type {Array<{name: string, host: string|null, path: string, cache: Array<Object>}>}
  * @example
  * // Access connection profiles via Config.getConnCacheProfile()
  * const { Config } = require('./config');
- * 
+ *
  * // Get cache profile for S3 template list
  * const profile = Config.getConnCacheProfile('s3-templates', 'templates-list');
  * console.log(profile.defaultExpirationInSeconds); // 3600 (production) or 300 (test)
- * 
+ *
  * @example
  * // Get cache profile for GitHub repository metadata
  * const profile = Config.getConnCacheProfile('github-api', 'repo-metadata');
@@ -88,7 +88,7 @@ const connections = [
     name: 's3-templates',
     // >! Host is set dynamically in services based on atlantisS3Buckets from settings
     // >! This allows filtering by specific buckets while maintaining cache key consistency
-    host: "",
+    host: '',
     path: settings.s3.templatePrefix, // 'templates/v2' - namespace prepended in DAO
     cache: [
       // Template list cache profile
@@ -148,7 +148,7 @@ const connections = [
   {
     name: 's3-app-starters',
     // >! Host is set dynamically in services based on atlantisS3Buckets from settings
-    host: "",
+    host: '',
     path: settings.s3.starterPrefix, // 'app-starters/v2' - namespace prepended in DAO
     cache: [
       // App starters list cache profile
@@ -174,6 +174,43 @@ const connections = [
         expirationIsOnInterval: false,
         headersToRetain: '',
         hostId: 's3-app-starters',
+        pathId: 'detail',
+        encrypt: false
+      }
+    ]
+  },
+
+  // S3 Agent Assets Connection
+  {
+    name: 's3-agent-assets',
+    // >! Host is set dynamically in services based on atlantisS3Buckets from settings
+    // >! This allows filtering by specific buckets while maintaining cache key consistency
+    host: '',
+    path: settings.s3.agentAssetPrefix, // 'utilities/v2/agent_assets' - namespace prepended in DAO
+    cache: [
+      // Agent assets list cache profile
+      {
+        profile: 'assets-list',
+        overrideOriginHeaderExpiration: true,
+        // >! Production: 1 hour TTL for asset lists (changes infrequently)
+        // >! Test: TTL_NON_PROD for rapid iteration
+        defaultExpirationInSeconds: IS_PRODUCTION ? (60 * 60) : TTL_NON_PROD,
+        expirationIsOnInterval: false,
+        headersToRetain: '',
+        hostId: 's3-agent-assets',
+        pathId: 'list',
+        encrypt: false
+      },
+      // Agent asset detail cache profile
+      {
+        profile: 'asset-detail',
+        overrideOriginHeaderExpiration: true,
+        // >! Production: 24 hour TTL for full asset content (rarely changes)
+        // >! Test: TTL_NON_PROD for rapid iteration
+        defaultExpirationInSeconds: IS_PRODUCTION ? (24 * 60 * 60) : TTL_NON_PROD,
+        expirationIsOnInterval: false,
+        headersToRetain: '',
+        hostId: 's3-agent-assets',
         pathId: 'detail',
         encrypt: false
       }
@@ -308,6 +345,28 @@ const connections = [
         expirationIsOnInterval: false,
         headersToRetain: '',
         hostId: 'template-chunks',
+        pathId: 'data',
+        encrypt: false
+      }
+    ]
+  },
+
+  // Agent Asset Chunk Internal Cache Connection
+  {
+    name: 'agent-asset-chunks',
+    host: 'internal', // Internal processing, not external API
+    path: '/agent-asset-chunks',
+    cache: [
+      // Chunk data cache profile
+      {
+        profile: 'chunk-data',
+        overrideOriginHeaderExpiration: true,
+        // >! Production: 24 hour TTL matching asset-detail (chunk TTL ≤ asset-detail TTL)
+        // >! Test: Short TTL for rapid iteration
+        defaultExpirationInSeconds: IS_PRODUCTION ? (24 * 60 * 60) : TTL_NON_PROD,
+        expirationIsOnInterval: false,
+        headersToRetain: '',
+        hostId: 'agent-asset-chunks',
         pathId: 'data',
         encrypt: false
       }

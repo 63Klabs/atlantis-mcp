@@ -418,6 +418,7 @@ chmod +x bulk-tag-buckets.sh
 ## Related Documentation
 
 - [Multiple S3 Bucket Configuration](./multiple-s3-buckets.md)
+- [Agent Asset S3 Layout](./agent-asset-layout.md)
 - [CloudFormation Parameters Reference](./cloudformation-parameters.md)
 - [Deployment Guide](./README.md)
 

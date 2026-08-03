@@ -432,6 +432,7 @@ Before deploying to production:
 - [S3 Bucket Configuration](./s3-bucket-tagging.md)
 - [GitHub Custom Properties Setup](./github-custom-properties.md)
 - [Multiple S3 Bucket Configuration](./multiple-s3-buckets.md)
+- [Agent Asset S3 Layout](./agent-asset-layout.md)
 - [Multiple GitHub Org Configuration](./multiple-github-orgs.md)
 - [Self-Hosting Guide](./self-hosting.md)
 

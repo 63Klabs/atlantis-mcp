@@ -36,6 +36,11 @@ jest.mock('../../controllers', () => ({
   },
   Tools: {
     list: jest.fn()
+  },
+  AgentAssets: {
+    list: jest.fn(),
+    get: jest.fn(),
+    listTypes: jest.fn()
   }
 }));
 

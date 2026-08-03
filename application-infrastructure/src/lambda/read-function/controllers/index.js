@@ -13,6 +13,7 @@ const Documentation = require('./documentation');
 const Validation = require('./validation');
 const Updates = require('./updates');
 const Tools = require('./tools');
+const AgentAssets = require('./agent-assets');
 
 module.exports = {
   Templates,
@@ -20,5 +21,6 @@ module.exports = {
   Documentation,
   Validation,
   Updates,
-  Tools
+  Tools,
+  AgentAssets
 };

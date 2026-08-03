@@ -8,6 +8,7 @@
  */
 
 const { tools: { DebugAndLog, CachedSsmParameter } } = require('@63klabs/cache-data');
+const AgentAssetTypes = require('./agent-asset-types');
 
 /**
  * Parse comma-delimited environment variable into array
@@ -204,6 +205,15 @@ const settings = {
     /**
      * Complete list of MCP tool definitions supported by this server.
      * This is the single source of truth for tool metadata.
+     *
+     * The literal array below holds the base tool set (templates, starters,
+     * documentation, naming validation, chunking, etc.). The registry-driven
+     * agent-asset tools (`list_agent_assets`, `get_agent_asset`,
+     * `list_agent_asset_types`) are appended from
+     * `AgentAssetTypes.generateToolDefinitions()` so that `tools/list`,
+     * `list_tools`, and `MCPProtocol.MCP_TOOLS` all discover them from this
+     * single source, with the `assetType` enum reflecting the enabled
+     * `AGENT_ASSET_TYPES` entries.
      * @type {Array<ToolDefinition>}
      */
     availableToolsList: [
@@ -477,7 +487,11 @@ const settings = {
           },
           required: ['templateName', 'category', 'chunkIndex']
         }
-      }
+      },
+      // >! Registry-driven agent-asset tools (list_agent_assets, get_agent_asset,
+      // >! list_agent_asset_types), with the `assetType` enum reflecting the
+      // >! enabled AGENT_ASSET_TYPES entries. See config/agent-asset-types.js.
+      ...AgentAssetTypes.generateToolDefinitions()
     ],
 
   },
@@ -501,7 +515,14 @@ const settings = {
      * S3 path prefix for app starters
      * @type {string}
      */
-    starterPrefix: 'app-starters/v2'
+    starterPrefix: 'app-starters/v2',
+
+    /**
+     * S3 path prefix for agent assets (steering documents, hooks, AGENTS.md, etc.)
+     * Used as the 's3-agent-assets' connection `path` and the agent-asset DAO `basePath`.
+     * @type {string}
+     */
+    agentAssetPrefix: 'utilities/v2/agent_assets'
   },
 
   // GitHub Configuration
@@ -509,24 +530,24 @@ const settings = {
 
     /**
      * GitHub token from SSM Parameter Store.
-     * 
+     *
      * This is a CachedSsmParameter instance that automatically retrieves and
      * refreshes the GitHub personal access token from AWS Systems Manager
      * Parameter Store. The token is used for GitHub API authentication.
-     * 
+     *
      * The parameter path is constructed as: PARAM_STORE_PATH + 'GitHubToken'
      * Example: /atlantis/mcp/GitHubToken
-     * 
+     *
      * Token refresh behavior:
      * - Cached for the lifetime specified in CachedSsmParameter configuration
      * - Automatically refreshed when cache expires
      * - Decrypted automatically if stored as SecureString
-     * 
+     *
      * @type {CachedSsmParameter}
      * @example
      * // Access token value (automatically retrieved from SSM)
      * const token = await settings.github.token.getValue();
-     * 
+     *
      * // Use in GitHub API request
      * const response = await fetch('https://api.github.com/user/repos', {
      *   headers: {
@@ -541,7 +562,7 @@ const settings = {
      * Parsed from ATLANTIS_GITHUB_USER_ORGS environment variable
      * @type {Array<string>}
      */
-    userOrgs: parseCommaSeparated('ATLANTIS_GITHUB_USER_ORGS', ["63klabs"]),
+    userOrgs: parseCommaSeparated('ATLANTIS_GITHUB_USER_ORGS', ['63klabs']),
 
     /**
      * GitHub custom property name for repository type
@@ -567,16 +588,16 @@ const settings = {
   cache: {
     /**
      * Cache TTL (Time To Live) values in seconds for different resource types.
-     * 
+     *
      * TTL values control how long cached data remains valid before requiring
      * refresh from the origin. Longer TTLs reduce API calls and improve
      * performance but may serve stale data. Shorter TTLs ensure fresher data
      * but increase API calls and latency.
-     * 
+     *
      * All TTL values are configurable via environment variables with sensible
      * defaults. Production deployments typically use longer TTLs than test
      * environments.
-     * 
+     *
      * @type {Object}
      */
     ttl: {
@@ -702,56 +723,56 @@ const settings = {
 
   /**
    * Rate limit configuration for different access tiers.
-   * 
+   *
    * Rate limits control the maximum number of requests allowed per time window
    * to prevent abuse and ensure fair resource allocation. Each tier has:
    * - limit: Maximum number of requests allowed
    * - window: Time window in seconds for the limit
-   * 
+   *
    * Access tiers:
    * - public: Unauthenticated requests (identified by IP address)
    * - registered: Authenticated free-tier users
    * - paid: Authenticated paid-tier users
    * - private: Internal access
-   * 
+   *
    * Rate limits are enforced per IP address for public access and per user ID
    * for authenticated access. Limits reset after the time window expires.
-   * 
+   *
    * @type {Object}
    */
   /**
    * Session hash salt from SSM Parameter Store.
-   * 
+   *
    * This is a CachedSsmParameter instance that retrieves and caches the
    * secret salt used for SHA-256 hashing of client identifiers in the
    * rate limiter. The salt prevents correlation of client identifiers
    * across rate limit windows.
-   * 
+   *
    * The parameter path is constructed as: PARAM_STORE_PATH + 'Mcp_SessionHashSalt'
-   * 
+   *
    * @type {CachedSsmParameter}
    */
   sessionHashSalt: new CachedSsmParameter(process.env.PARAM_STORE_PATH+'Mcp_SessionHashSalt'),
 
   /**
    * DynamoDB sessions table name for distributed rate limiting.
-   * 
+   *
    * Read from the MCP_DYNAMODB_SESSIONS_TABLE environment variable.
    * This table stores per-client rate limit counters with atomic updates
    * and TTL-based automatic cleanup.
-   * 
+   *
    * @type {string}
    */
   dynamoDbSessionsTable: process.env.MCP_DYNAMODB_SESSIONS_TABLE || '',
 
   /**
    * DynamoDB table name for the documentation index.
-   * 
+   *
    * Read from the DOC_INDEX_TABLE environment variable.
    * This table stores the persistent documentation index built by the
    * Indexer Lambda, including content entries, main index, search keywords,
    * and version pointers.
-   * 
+   *
    * @type {string}
    */
   docIndexTable: process.env.DOC_INDEX_TABLE || '',
@@ -872,9 +893,9 @@ const settings = {
 
     /**
      * Public rate limit (requests per window per IP address).
-     * 
+     *
      * Applied to unauthenticated requests. Default: 50 requests per hour.
-     * 
+     *
      * @type {Object}
      * @property {number} limitPerWindow - Maximum requests allowed (default: 50)
      * @property {number} windowInMinutes - Time window in minutes (default: 60 = 1 hour)
@@ -885,9 +906,9 @@ const settings = {
     },
     /**
      * Registered user rate limit (requests per window per user).
-     * 
+     *
      * Applied to authenticated free-tier users. Default: 100 requests per hour.
-     * 
+     *
      * @type {Object}
      * @property {number} limitPerWindow - Maximum requests allowed (default: 100)
      * @property {number} windowInMinutes - Time window in minutes (default: 60 = 1 hour)
@@ -898,9 +919,9 @@ const settings = {
     },
     /**
      * Paid user rate limit (requests per window per user).
-     * 
+     *
      * Applied to authenticated paid-tier users. Default: 3000 requests per day.
-     * 
+     *
      * @type {Object}
      * @property {number} limitPerWindow - Maximum requests allowed (default: 3000)
      * @property {number} windowInMinutes - Time window in minutes (default: 1440 = 24 hours)
@@ -911,9 +932,9 @@ const settings = {
     },
     /**
      * Private/admin rate limit (requests per window per user).
-     * 
+     *
      * Applied to internal/admin access. Default: 6000 requests per day.
-     * 
+     *
      * @type {Object}
      * @property {number} limitPerWindow - Maximum requests allowed (default: 6000)
      * @property {number} windowInMinutes - Time window in minutes (default: 1440 = 24 hours)

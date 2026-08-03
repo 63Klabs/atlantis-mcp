@@ -38,6 +38,12 @@ jest.mock('../../controllers', () => {
     },
     Tools: {
       list: jest.fn()
+    },
+    AgentAssets: {
+      list: jest.fn(),
+      get: jest.fn(),
+      listTypes: jest.fn(),
+      getChunk: jest.fn()
     }
   };
   return mockControllers;
@@ -66,7 +72,11 @@ const TOOL_TO_CONTROLLER = {
   search_documentation: Controllers.Documentation.search,
   validate_naming: Controllers.Validation.validate,
   check_template_updates: Controllers.Updates.check,
-  list_tools: Controllers.Tools.list
+  list_tools: Controllers.Tools.list,
+  list_agent_assets: Controllers.AgentAssets.list,
+  get_agent_asset: Controllers.AgentAssets.get,
+  list_agent_asset_types: Controllers.AgentAssets.listTypes,
+  get_agent_asset_chunk: Controllers.AgentAssets.getChunk
 };
 
 const KNOWN_TOOL_NAMES = Object.keys(TOOL_TO_CONTROLLER);
@@ -228,7 +238,7 @@ describe('Feature: get-integration-working, Property 3: Correct Method Dispatch'
   /**
    * **Validates: Requirements 2.4, 8.2**
    *
-   * Verify that TOOL_DISPATCH contains exactly the 10 known tool names
+   * Verify that TOOL_DISPATCH contains exactly the known tool names
    * and each maps to a function.
    */
   test('TOOL_DISPATCH contains all known tool names mapped to functions', () => {

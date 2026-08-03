@@ -168,6 +168,10 @@ src/lambda/read-function/
 | `search_documentation` | documentation | Search indexed documentation |
 | `validate_naming` | validation | Validate resource names against Atlantis conventions |
 | `recommend` | documentation | Content recommendations for a documentation page |
+| `list_agent_assets` | agent-assets | List Kiro agent assets (steering, hooks, AGENTS.md), optionally filtered by `assetType` |
+| `get_agent_asset` | agent-assets | Retrieve one agent asset's full content by `assetType` and `name` |
+| `list_agent_asset_types` | agent-assets | List the enabled agent-asset types with per-type asset counts |
+| `get_agent_asset_chunk` | agent-assets | Retrieve one chunk of a large agent asset (parity with `get_template_chunk`) |
 
 ### Auth Lambda
 
@@ -267,6 +271,33 @@ EventBridge Schedule
 │  └─ dynamo-writer.js → Batch write index entries to DocIndex table  │
 └─────────────────────────────────────────────────────────────────────┘
 ```
+
+## Agent Asset Tools (Registry-Driven)
+
+A read-only family of MCP tools, served by the Read Lambda, that let AI assistants discover and retrieve example Kiro "agent assets" — steering documents, hooks, and `AGENTS.md` files today, with `skills` shipped disabled and future types addable later. Assets are sourced from the same S3 buckets and namespace layout already used for templates and starters (`{bucket}/{namespace}/utilities/v2/agent_assets/{folder}/{filename}`), adding no new AWS infrastructure or IAM.
+
+Rather than one tool pair per asset type, the feature exposes a **fixed** set of generic tools — `list_agent_assets`, `get_agent_asset`, `list_agent_asset_types`, and `get_agent_asset_chunk` — that take the asset type as an `assetType` parameter, mirroring how `list_templates`/`get_template` take a `category` parameter. The full set of accepted `assetType` values is generated from a single registry, `config/agent-asset-types.js`'s `AGENT_ASSET_TYPES` array. Each entry declares `name` (the `assetType` enum value), `toolToken`, `folder` (the S3 subfolder), `extensions` (allowed file extensions), a `description`, and an optional `enabled` flag (`skills` ships with `enabled: false`). `validateRegistry()` runs once at module load and fails initialization fast — exposing no agent-asset tools — if any entry is missing a required field or duplicates another entry's `name`, `toolToken`, or `folder`.
+
+```
+AGENT_ASSET_TYPES registry
+  │
+  ├─ generateToolDefinitions() / generateSchemas() / generateExtendedDescriptions() / getToolDispatch()
+  │     merged into: config/settings.js, utils/schema-validator.js,
+  │                  config/tool-descriptions.js, utils/json-rpc-router.js
+  │
+  ▼
+controllers/agent-assets.js  (list / get / listTypes / getChunk — validates input, resolves assetType)
+  ▼
+services/agent-assets.js     (caching via CacheableDataAccess, strict assetType/bucket validation)
+  ▼
+models/s3-agent-assets.js    (S3 DAO: list/get, extension filtering, dedup, SHA-256)
+  ▼
+S3 buckets: {namespace}/utilities/v2/agent_assets/{folder}/{filename}
+```
+
+Adding a new asset type — or enabling the shipped-but-disabled `skills` type — requires **only a new entry in `AGENT_ASSET_TYPES`** (or removing/flipping its `enabled: false`). The new `name` automatically becomes an accepted `assetType` value for the existing `list_agent_assets`/`get_agent_asset` tools; no new tool is created, and the generic controller, service, and DAO logic (which all operate over whatever the registry currently contains) require no changes. See the [developer guide](docs/developer/agent-asset-tools.md) for the step-by-step procedure.
+
+Large assets degrade gracefully like large templates: `get_agent_asset` responses over the configured size threshold return a `contentTruncated: true` summary with a `totalChunks` count, and `get_agent_asset_chunk` retrieves the content incrementally by zero-based `chunkIndex` — the same `ContentSizer`/`ContentChunker` pattern used by `get_template`/`get_template_chunk`.
 
 ## Authentication and Access Tiers
 

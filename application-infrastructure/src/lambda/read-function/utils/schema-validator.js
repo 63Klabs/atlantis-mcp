@@ -8,12 +8,14 @@
  */
 
 const settings = require('../config/settings');
+const AgentAssetTypes = require('../config/agent-asset-types');
 const TEMPLATE_CATEGORIES = settings.templates.categories;
 
 /**
- * JSON Schema definitions for all MCP tools
+ * JSON Schema definitions for all MCP tools built into the base tool set
+ * (templates, starters, documentation, naming validation, chunking, etc.)
  */
-const schemas = {
+const baseSchemas = {
   /**
    * Schema for list_templates tool input
    * Lists all available CloudFormation templates from configured S3 buckets
@@ -375,6 +377,15 @@ const schemas = {
     additionalProperties: false
   }
 };
+
+/**
+ * JSON Schema definitions for all MCP tools, merging the base tool schemas
+ * above with the registry-generated agent-asset tool schemas
+ * (`list_agent_assets`, `get_agent_asset`, `list_agent_asset_types`), which
+ * include the `assetType` enum (optional on `list_agent_assets`, required on
+ * `get_agent_asset`) derived from the enabled `AGENT_ASSET_TYPES` entries.
+ */
+const schemas = { ...baseSchemas, ...AgentAssetTypes.generateSchemas() };
 
 /**
  * Validate input against a JSON Schema

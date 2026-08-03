@@ -528,6 +528,7 @@ curl -X POST https://your-api-endpoint/mcp \
 
 - [Multiple GitHub Org Configuration](./multiple-github-orgs.md)
 - [S3 Bucket Tagging](./s3-bucket-tagging.md)
+- [Agent Asset S3 Layout](./agent-asset-layout.md)
 - [Self-Hosting Guide](./self-hosting.md)
 
 ## Support

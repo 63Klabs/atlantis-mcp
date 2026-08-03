@@ -13,6 +13,9 @@ This document provides detailed information about each MCP tool available throug
 - [check_template_updates](#check_template_updates)
 - [list_starters](#list_starters)
 - [get_starter_info](#get_starter_info)
+- [list_agent_assets](#list_agent_assets)
+- [get_agent_asset](#get_agent_asset)
+- [list_agent_asset_types](#list_agent_asset_types)
 - [search_documentation](#search_documentation)
 - [validate_naming](#validate_naming)
 
@@ -293,6 +296,93 @@ Ask your AI: "Tell me about the atlantis-starter-02 repository"
 
 ---
 
+## list_agent_assets
+
+List available Kiro agent assets — reusable example steering documents, hooks, and AGENTS.md files (and other AI-assistant enhancement examples) — optionally filtered by asset type, S3 bucket, or namespace. Supported `assetType` values are the currently enabled types: `steering`, `hooks`, and `agents-md`. The registry also defines a `skills` type, but it is disabled by default and is not a valid `assetType` value until an administrator enables it — use `list_agent_asset_types` to discover the enabled values dynamically rather than hardcoding them. When `assetType` is omitted, results span every enabled type. Returns metadata for each matching asset (`name`, `type`, `namespace`, `bucket`, `s3Path`, `size`, `etag`, `lastModified`) but not `content` — use `get_agent_asset` to retrieve an asset's full content. Returns an empty array, not an error, when no assets match the specified filters.
+
+### Input Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `assetType` | string | No | Filter to a specific agent asset type: `steering`, `hooks`, or `agents-md`; omit to list across all enabled types |
+| `s3Buckets` | array[string] | No | Filter to specific S3 buckets from configured list |
+| `namespace` | string | No | Filter to a specific namespace (S3 root prefix) |
+
+> **Note:** `63klabs` is the only bucket and `atlantis` is the only namespace available via the public Atlantis MCP server. If your organization hosts its own Atlantis MCP server there may be additional namespaces and S3 buckets available.
+
+### Example Usage
+
+**List all agent assets:**
+```
+Ask your AI: "Show me available Kiro steering documents"
+```
+
+**Filter by type:**
+```
+Ask your AI: "List all Kiro hooks available from Atlantis"
+```
+
+### Use Cases
+
+- Discover reusable steering documents before starting a new project
+- Browse available hooks by type before deciding which to pull in
+- Check an AGENTS.md file's `size`/`etag`/`lastModified` without downloading its content
+
+---
+
+## get_agent_asset
+
+Retrieve one Kiro agent asset's full content by `assetType` and `name`. Both parameters are required; supported `assetType` values are the currently enabled types: `steering`, `hooks`, and `agents-md`. `name` is the exact filename (e.g. `product-guidelines.md`) with no path separators. Returns the asset's `content` together with `name`, `type`, `namespace`, `bucket`, `s3Path`, `size`, `etag`, `sha256`, and `lastModified`. Returns an `ASSET_NOT_FOUND` error listing the available asset names for that type when `name` does not exist for the requested `assetType`.
+
+### Input Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `assetType` | string | Yes | Agent asset type to retrieve from: `steering`, `hooks`, or `agents-md` |
+| `name` | string | Yes | Filename of the agent asset (no path separators), e.g. "product-guidelines.md" |
+| `s3Buckets` | array[string] | No | Filter to specific S3 buckets from configured list |
+| `namespace` | string | No | Filter to a specific namespace (S3 root prefix) |
+
+> **Note:** `63klabs` is the only bucket and `atlantis` is the only namespace available via the public Atlantis MCP server. If your organization hosts its own Atlantis MCP server there may be additional namespaces and S3 buckets available.
+
+> **Tip — keeping a local copy in sync:** If you maintain a local copy of a steering document, hook, or AGENTS.md file, compare its cached `size` and `etag` (from a prior `list_agent_assets` or `get_agent_asset` call) against the latest response before overwriting it. For a stronger check, compute the SHA-256 of your local file's bytes and compare it to the returned `sha256` — a match means your local copy is already current and no re-fetch or overwrite is needed.
+
+### Example Usage
+
+```
+Ask your AI: "Get the product-guidelines.md steering document"
+```
+
+### Use Cases
+
+- Pull a steering document into a new repository
+- Retrieve a hook definition to install locally
+- Check whether a local copy of an AGENTS.md file is out of date using `sha256` comparison
+
+---
+
+## list_agent_asset_types
+
+List every enabled Kiro agent asset type together with a count of the assets discoverable for that type across the configured S3 buckets and indexed namespaces. Takes no parameters. Returns an empty list if no asset types are enabled. Use the returned `name` values as the `assetType` argument to `list_agent_assets` and `get_agent_asset`.
+
+### Input Parameters
+
+None.
+
+### Example Usage
+
+```
+Ask your AI: "What types of agent assets are available?"
+```
+
+### Use Cases
+
+- Discover which asset types are enabled before calling `list_agent_assets`
+- See how many assets exist per type before deciding what to browse
+- Confirm a type like `skills` is not yet enabled on this server
+
+---
+
 ## search_documentation
 
 Search Atlantis documentation, tutorials, and code patterns by keyword. Returns results with title, excerpt, file path, GitHub URL, and result type. Requires the `query` parameter. Returns an empty array if no documents match the query. Optionally filter by `type` (guide, tutorial, reference, troubleshooting, template pattern, code example) or `ghusers` to narrow results to specific GitHub organizations.
@@ -394,6 +484,7 @@ Common error codes:
 - `INVALID_INPUT` - Input validation failed
 - `TEMPLATE_NOT_FOUND` - Requested template doesn't exist
 - `STARTER_NOT_FOUND` - Requested starter doesn't exist
+- `ASSET_NOT_FOUND` - Requested agent asset doesn't exist
 - `RATE_LIMIT_EXCEEDED` - Too many requests (HTTP 429)
 - `INTERNAL_ERROR` - Server error (HTTP 500)
 

@@ -17,6 +17,7 @@ const MCPProtocol = require('./mcp-protocol');
 const ContentSizer = require('./content-sizer');
 const ContentChunker = require('./content-chunker');
 const Controllers = require('../controllers');
+const AgentAssetTypes = require('../config/agent-asset-types');
 const { extendedDescriptions } = require('../config/tool-descriptions');
 
 /**
@@ -32,14 +33,13 @@ const STANDARD_HEADERS = {
 };
 
 /**
- * Map of MCP tool names to their controller handler functions.
- *
- * Each entry maps a tool `name` (as defined in config/settings.js)
- * to the controller function that processes that tool's requests.
+ * Base map of MCP tool names to their controller handler functions, covering
+ * the templates, starters, documentation, naming, update-check, and
+ * tool-listing tools.
  *
  * @constant {Object.<string, Function>}
  */
-const TOOL_DISPATCH = {
+const baseDispatch = {
   list_templates: Controllers.Templates.list,
   get_template: Controllers.Templates.get,
   get_template_chunk: Controllers.Templates.getChunk,
@@ -51,6 +51,26 @@ const TOOL_DISPATCH = {
   validate_naming: Controllers.Validation.validate,
   check_template_updates: Controllers.Updates.check,
   list_tools: Controllers.Tools.list
+};
+
+/**
+ * Map of MCP tool names to their controller handler functions.
+ *
+ * Each entry maps a tool `name` (as defined in config/settings.js)
+ * to the controller function that processes that tool's requests.
+ *
+ * Merges `baseDispatch` with the registry-generated agent-asset dispatch
+ * entries (`list_agent_assets`, `get_agent_asset`, `list_agent_asset_types`)
+ * produced by `AgentAssetTypes.getToolDispatch(Controllers.AgentAssets)`, so
+ * a tool absent from either source still falls through to the
+ * `Object.hasOwn(TOOL_DISPATCH, toolName)` guard in `handleToolsCall` and
+ * returns a JSON-RPC `-32601` Method not found error.
+ *
+ * @constant {Object.<string, Function>}
+ */
+const TOOL_DISPATCH = {
+  ...baseDispatch,
+  ...AgentAssetTypes.getToolDispatch(Controllers.AgentAssets)
 };
 
 /**
@@ -235,7 +255,6 @@ async function handleToolsCall(id, params, clientRequest, authInfo) {
   const toolName = params.name;
   const toolArgs = params.arguments || {};
 
-
   // >! Validate toolName is an own property of TOOL_DISPATCH to prevent
   // >! prototype chain lookups (hasOwnProperty, constructor, __proto__, etc.)
   if (!Object.hasOwn(TOOL_DISPATCH, toolName)) {
@@ -322,7 +341,26 @@ async function handleToolsCall(id, params, clientRequest, authInfo) {
         };
         return buildResponse(200, MCPProtocol.jsonRpcSuccess(id, summaryResult));
       }
-    } catch (summaryErr) {
+    } catch {
+      // >! Graceful fallback: if summary generation fails, return the original full response
+    }
+  }
+
+  // >! Size-aware response for get_agent_asset: return summary if payload exceeds threshold,
+  // >! mirroring the get_template summary above (Requirement 9.1, task 10.3)
+  if (toolName === 'get_agent_asset') {
+    try {
+      const serialized = result.content[0].text;
+      const sizeResult = ContentSizer.measure(serialized);
+
+      if (sizeResult.exceedsThreshold) {
+        const summary = buildAgentAssetSummary(resultData, serialized);
+        const summaryResult = {
+          content: [{ type: 'text', text: JSON.stringify(summary) }]
+        };
+        return buildResponse(200, MCPProtocol.jsonRpcSuccess(id, summaryResult));
+      }
+    } catch {
       // >! Graceful fallback: if summary generation fails, return the original full response
     }
   }
@@ -372,12 +410,45 @@ function buildTemplateSummary(templateData, serializedContent) {
   };
 }
 
+/**
+ * Build an Agent_Asset_Summary from asset data when the response exceeds the size threshold.
+ *
+ * Mirrors `buildTemplateSummary` above, but carries agent-asset detail
+ * metadata (`name`, `type`, `namespace`, `bucket`, `s3Path`, `size`, `etag`,
+ * `sha256`, `lastModified`) instead of template-specific fields, and never
+ * includes the asset's `content` — that is the point of truncation.
+ *
+ * @param {Object} assetData - The full agent-asset detail object
+ * @param {string} serializedContent - The JSON-serialized agent-asset content
+ * @returns {Object} Agent_Asset_Summary with metadata and retrieval hint
+ * @private
+ */
+function buildAgentAssetSummary(assetData, serializedContent) {
+  const chunks = ContentChunker.chunk(serializedContent);
+
+  return {
+    name: assetData.name || null,
+    type: assetData.type || null,
+    namespace: assetData.namespace || null,
+    bucket: assetData.bucket || null,
+    s3Path: assetData.s3Path || null,
+    size: assetData.size ?? null,
+    etag: assetData.etag || null,
+    sha256: assetData.sha256 || null,
+    lastModified: assetData.lastModified || null,
+    contentTruncated: true,
+    totalChunks: chunks.length,
+    retrievalHint: `Use the get_agent_asset_chunk tool with assetType and name to retrieve the full content. Pass chunkIndex from 0 to ${chunks.length - 1} to retrieve each chunk sequentially.`
+  };
+}
+
 module.exports = {
   handleJsonRpc,
   // Exported for testing
   extractId,
   buildResponse,
   buildTemplateSummary,
+  buildAgentAssetSummary,
   TOOL_DISPATCH,
   STANDARD_HEADERS
 };

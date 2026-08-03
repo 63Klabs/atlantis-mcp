@@ -108,7 +108,10 @@ Configure which tools run without confirmation:
         "get_starter_info",
         "search_documentation",
         "check_template_updates",
-        "get_template_chunk"
+        "get_template_chunk",
+        "list_agent_assets",
+        "get_agent_asset",
+        "list_agent_asset_types"
       ]
     }
   }

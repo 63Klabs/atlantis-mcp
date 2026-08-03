@@ -35,6 +35,11 @@ jest.mock('../../controllers', () => ({
   },
   Tools: {
     list: jest.fn().mockResolvedValue({ success: true, data: [] })
+  },
+  AgentAssets: {
+    list: jest.fn().mockResolvedValue({ success: true, data: { assets: [] } }),
+    get: jest.fn().mockResolvedValue({ success: true, data: {} }),
+    listTypes: jest.fn().mockResolvedValue({ success: true, data: { types: [] } })
   }
 }));
 

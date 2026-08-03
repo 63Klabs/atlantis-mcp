@@ -39,6 +39,12 @@ jest.mock('../../controllers', () => {
     },
     Tools: {
       list: jest.fn()
+    },
+    AgentAssets: {
+      list: jest.fn(),
+      get: jest.fn(),
+      listTypes: jest.fn(),
+      getChunk: jest.fn()
     }
   };
   return mockControllers;
@@ -143,7 +149,11 @@ const TOOL_TO_CONTROLLER = {
   search_documentation: Controllers.Documentation.search,
   validate_naming: Controllers.Validation.validate,
   check_template_updates: Controllers.Updates.check,
-  list_tools: Controllers.Tools.list
+  list_tools: Controllers.Tools.list,
+  list_agent_assets: Controllers.AgentAssets.list,
+  get_agent_asset: Controllers.AgentAssets.get,
+  list_agent_asset_types: Controllers.AgentAssets.listTypes,
+  get_agent_asset_chunk: Controllers.AgentAssets.getChunk
 };
 
 const KNOWN_TOOL_NAMES = Object.keys(TOOL_TO_CONTROLLER);
@@ -311,12 +321,12 @@ describe('Bugfix: Prototype Chain Tool Name Rejection — Property 2: Preservati
    * **Validates: Requirements 3.4**
    *
    * Property 2d — Export compatibility preservation:
-   * TOOL_DISPATCH exports all 11 registered tool names, each mapping to a function.
+   * TOOL_DISPATCH exports all 15 registered tool names, each mapping to a function.
    */
-  test('TOOL_DISPATCH exports all 11 registered tool names mapped to functions', () => {
+  test('TOOL_DISPATCH exports all 15 registered tool names mapped to functions', () => {
     const dispatchKeys = Object.keys(TOOL_DISPATCH);
 
-    expect(dispatchKeys).toHaveLength(11);
+    expect(dispatchKeys).toHaveLength(15);
 
     for (const name of dispatchKeys) {
       expect(typeof TOOL_DISPATCH[name]).toBe('function');
@@ -334,7 +344,11 @@ describe('Bugfix: Prototype Chain Tool Name Rejection — Property 2: Preservati
       'search_documentation',
       'validate_naming',
       'check_template_updates',
-      'list_tools'
+      'list_tools',
+      'list_agent_assets',
+      'get_agent_asset',
+      'list_agent_asset_types',
+      'get_agent_asset_chunk'
     ];
 
     for (const toolName of expectedTools) {
