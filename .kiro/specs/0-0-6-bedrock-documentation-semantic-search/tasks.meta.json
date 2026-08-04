@@ -568,6 +568,388 @@
         "chatSessionId": "sess_288b1ce9-22ab-416b-824e-1ede1c7b1978",
         "timestamp": 1784850698963
       }
+    ],
+    "10. Cross-region Bedrock configuration foundation": [
+      {
+        "executionId": "be5a5cf6-e442-46b5-9679-8f67cd08319b",
+        "chatSessionId": "sess_5147facf-82eb-4275-ab0e-244b0ee7a570",
+        "timestamp": 1785861082351
+      },
+      {
+        "executionId": "be5a5cf6-e442-46b5-9679-8f67cd08319b",
+        "chatSessionId": "sess_5147facf-82eb-4275-ab0e-244b0ee7a570",
+        "timestamp": 1785861496345
+      }
+    ],
+    "11. EmbeddingProvider region override + config-error classification": [
+      {
+        "executionId": "c600337f-832f-4328-95ab-9d45329ab55a",
+        "chatSessionId": "sess_ed082b6b-2f3d-47aa-a49b-60b0afeaaaa3",
+        "timestamp": 1785861727907
+      },
+      {
+        "executionId": "c600337f-832f-4328-95ab-9d45329ab55a",
+        "chatSessionId": "sess_ed082b6b-2f3d-47aa-a49b-60b0afeaaaa3",
+        "timestamp": 1785861993036
+      }
+    ],
+    "10.1 Add `DOC_AI_EMBEDDING_REGION` to both settings modules": [
+      {
+        "executionId": "9fb6c759-d20c-4a82-a67f-30fdaa09c4b1",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785865478772
+      },
+      {
+        "executionId": "9fb6c759-d20c-4a82-a67f-30fdaa09c4b1",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785865500123
+      },
+      {
+        "executionId": "9fb6c759-d20c-4a82-a67f-30fdaa09c4b1",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785865656990
+      }
+    ],
+    "11.1 Add the `region` constructor option to `EmbeddingProvider`; `#getClient()`": [
+      {
+        "executionId": "9fb6c759-d20c-4a82-a67f-30fdaa09c4b1",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785865478892
+      },
+      {
+        "executionId": "9fb6c759-d20c-4a82-a67f-30fdaa09c4b1",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785865668358
+      },
+      {
+        "executionId": "9fb6c759-d20c-4a82-a67f-30fdaa09c4b1",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785865749835
+      }
+    ],
+    "11.2 In the `embed()` catch block, classify `ResourceNotFoundException` /": [
+      {
+        "executionId": "9fb6c759-d20c-4a82-a67f-30fdaa09c4b1",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785865479000
+      },
+      {
+        "executionId": "027d416c-4478-490c-8af9-e9c25f5f02bf",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785865891742
+      },
+      {
+        "executionId": "027d416c-4478-490c-8af9-e9c25f5f02bf",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785866000068
+      }
+    ],
+    "11.3 Wire `documentation.ai.embedding.region` into both construction sites": [
+      {
+        "executionId": "9fb6c759-d20c-4a82-a67f-30fdaa09c4b1",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785865479130
+      },
+      {
+        "executionId": "027d416c-4478-490c-8af9-e9c25f5f02bf",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785866016087
+      },
+      {
+        "executionId": "027d416c-4478-490c-8af9-e9c25f5f02bf",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785866198774
+      }
+    ],
+    "11.4 Jest tests: mocked client construction with/without region; error": [
+      {
+        "executionId": "9fb6c759-d20c-4a82-a67f-30fdaa09c4b1",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785865479266
+      },
+      {
+        "executionId": "027d416c-4478-490c-8af9-e9c25f5f02bf",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785866205375
+      },
+      {
+        "executionId": "027d416c-4478-490c-8af9-e9c25f5f02bf",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785866350910
+      }
+    ],
+    "12.1 Apply the same `MODEL_NOT_AVAILABLE` classification to": [
+      {
+        "executionId": "9fb6c759-d20c-4a82-a67f-30fdaa09c4b1",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785865479359
+      },
+      {
+        "executionId": "027d416c-4478-490c-8af9-e9c25f5f02bf",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785866360926
+      },
+      {
+        "executionId": "027d416c-4478-490c-8af9-e9c25f5f02bf",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785866532891
+      }
+    ],
+    "12.2 Jest tests: same error-classification matrix as Task 11, adapted to": [
+      {
+        "executionId": "9fb6c759-d20c-4a82-a67f-30fdaa09c4b1",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785865479457
+      },
+      {
+        "executionId": "027d416c-4478-490c-8af9-e9c25f5f02bf",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785866541458
+      },
+      {
+        "executionId": "027d416c-4478-490c-8af9-e9c25f5f02bf",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785866652265
+      }
+    ],
+    "13.1 In `index-builder.js`'s per-entry embedding catch, emit one additional": [
+      {
+        "executionId": "9fb6c759-d20c-4a82-a67f-30fdaa09c4b1",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785865479547
+      },
+      {
+        "executionId": "027d416c-4478-490c-8af9-e9c25f5f02bf",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785866659196
+      },
+      {
+        "executionId": "027d416c-4478-490c-8af9-e9c25f5f02bf",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785866788899
+      }
+    ],
+    "13.2 Same additional ERROR-level log in `retrieval-strategy.js`'s": [
+      {
+        "executionId": "9fb6c759-d20c-4a82-a67f-30fdaa09c4b1",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785865479639
+      },
+      {
+        "executionId": "027d416c-4478-490c-8af9-e9c25f5f02bf",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785866797041
+      },
+      {
+        "executionId": "027d416c-4478-490c-8af9-e9c25f5f02bf",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785867794550
+      }
+    ],
+    "13.3 Jest tests: verify the ERROR line is emitted only for `MODEL_NOT_AVAILABLE`": [
+      {
+        "executionId": "9fb6c759-d20c-4a82-a67f-30fdaa09c4b1",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785865479739
+      },
+      {
+        "executionId": "027d416c-4478-490c-8af9-e9c25f5f02bf",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785867805490
+      },
+      {
+        "executionId": "027d416c-4478-490c-8af9-e9c25f5f02bf",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785868296916
+      }
+    ],
+    "14.1 Determine the correct CloudFormation mechanism to build a `Resource` array": [
+      {
+        "executionId": "9fb6c759-d20c-4a82-a67f-30fdaa09c4b1",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785865479837
+      },
+      {
+        "executionId": "027d416c-4478-490c-8af9-e9c25f5f02bf",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785868310862
+      },
+      {
+        "executionId": "027d416c-4478-490c-8af9-e9c25f5f02bf",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785868831243
+      }
+    ],
+    "14.2 Verify the exact inference-profile ARN format": [
+      {
+        "executionId": "9fb6c759-d20c-4a82-a67f-30fdaa09c4b1",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785865479934
+      },
+      {
+        "executionId": "027d416c-4478-490c-8af9-e9c25f5f02bf",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785868933830
+      },
+      {
+        "executionId": "027d416c-4478-490c-8af9-e9c25f5f02bf",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785869099380
+      }
+    ],
+    "14.3 Document the finding in `design.md` (Task 14 spike section) the way the": [
+      {
+        "executionId": "9fb6c759-d20c-4a82-a67f-30fdaa09c4b1",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785865480031
+      },
+      {
+        "executionId": "027d416c-4478-490c-8af9-e9c25f5f02bf",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785869108047
+      },
+      {
+        "executionId": "027d416c-4478-490c-8af9-e9c25f5f02bf",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785869265019
+      }
+    ],
+    "15.1 Apply Task 14's resolved mechanism to `ReadDocAiPolicy`'s assist statement": [
+      {
+        "executionId": "9fb6c759-d20c-4a82-a67f-30fdaa09c4b1",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785865480129
+      },
+      {
+        "executionId": "027d416c-4478-490c-8af9-e9c25f5f02bf",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785869270022
+      },
+      {
+        "executionId": "027d416c-4478-490c-8af9-e9c25f5f02bf",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785869624205
+      }
+    ],
+    "15.2 Update both roles' embedding statement to use `DocAiEmbeddingRegion` in place": [
+      {
+        "executionId": "9fb6c759-d20c-4a82-a67f-30fdaa09c4b1",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785865480240
+      },
+      {
+        "executionId": "027d416c-4478-490c-8af9-e9c25f5f02bf",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785869634229
+      },
+      {
+        "executionId": "027d416c-4478-490c-8af9-e9c25f5f02bf",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785869829527
+      }
+    ],
+    "15.3 Tests: template validation (`aws cloudformation validate-template` or": [
+      {
+        "executionId": "9fb6c759-d20c-4a82-a67f-30fdaa09c4b1",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785865480340
+      },
+      {
+        "executionId": "027d416c-4478-490c-8af9-e9c25f5f02bf",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785869839230
+      },
+      {
+        "executionId": "027d416c-4478-490c-8af9-e9c25f5f02bf",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785870293637
+      }
+    ],
+    "16.1 Update `DEPLOYMENT.md`: add both parameters to the table; replace the": [
+      {
+        "executionId": "9fb6c759-d20c-4a82-a67f-30fdaa09c4b1",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785865480434
+      },
+      {
+        "executionId": "027d416c-4478-490c-8af9-e9c25f5f02bf",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785870310220
+      },
+      {
+        "executionId": "027d416c-4478-490c-8af9-e9c25f5f02bf",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785870451779
+      }
+    ],
+    "16.2 Update `ARCHITECTURE.md` with a brief note that the embedding client can": [
+      {
+        "executionId": "9fb6c759-d20c-4a82-a67f-30fdaa09c4b1",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785865480536
+      },
+      {
+        "executionId": "027d416c-4478-490c-8af9-e9c25f5f02bf",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785870460662
+      },
+      {
+        "executionId": "027d416c-4478-490c-8af9-e9c25f5f02bf",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785870624760
+      }
+    ],
+    "16.3 Add CHANGELOG.md entries under the existing `v0.0.6 (unreleased)` section": [
+      {
+        "executionId": "9fb6c759-d20c-4a82-a67f-30fdaa09c4b1",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785865480631
+      },
+      {
+        "executionId": "027d416c-4478-490c-8af9-e9c25f5f02bf",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785870628262
+      },
+      {
+        "executionId": "027d416c-4478-490c-8af9-e9c25f5f02bf",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785870735613
+      }
+    ],
+    "12. AssistProvider config-error classification": [
+      {
+        "executionId": "027d416c-4478-490c-8af9-e9c25f5f02bf",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785866652428
+      }
+    ],
+    "13. Distinct ERROR-level logging for model-not-available": [
+      {
+        "executionId": "027d416c-4478-490c-8af9-e9c25f5f02bf",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785868297055
+      }
+    ],
+    "14. Spike: IAM Resource-list construction for the assist cross-region profile": [
+      {
+        "executionId": "027d416c-4478-490c-8af9-e9c25f5f02bf",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785869265135
+      }
+    ],
+    "15. Wire IAM Resource lists in template.yml": [
+      {
+        "executionId": "027d416c-4478-490c-8af9-e9c25f5f02bf",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785870293784
+      }
+    ],
+    "16. Documentation and changelog": [
+      {
+        "executionId": "027d416c-4478-490c-8af9-e9c25f5f02bf",
+        "chatSessionId": "sess_8d52ee28-6174-42ed-9930-a6d430409421",
+        "timestamp": 1785870735715
+      }
     ]
   }
 }

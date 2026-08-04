@@ -187,8 +187,10 @@ Set these parameters through your organization's Atlantis SAM Config (`samconfig
 | `DocAiEmbeddingModel` | `amazon.titan-embed-text-v2:0` | Bedrock embedding model ID used to embed queries and content. Public model identifier, not a secret. |
 | `DocAiEmbeddingDimensions` | `1024` | Embedding vector dimensions. Titan Text Embeddings V2 supports 256, 512, or 1024. Immutable for an existing S3 Vectors index — a change forces index replacement and a full re-index. |
 | `DocAiEmbeddingMaxInputTokens` | `8000` | Approximate token budget for embedding input; larger entries are truncated before embedding. |
+| `DocAiEmbeddingRegion` | `""` (empty) | Optional AWS region to source the Bedrock **embedding** model from, overriding the Lambda's deployment region. Set when the embedding model (e.g. Titan v2) is not available in your deployment region; a common fallback is `us-east-1`. Embedding models cannot use cross-region inference profiles, so this hard client-side region pin is the only cross-region option for embeddings. Leave empty to use the deployment region. |
 | `DocAiAssistModel` | `amazon.nova-micro-v1:0` | Bedrock small model ID used only in `semantic-assisted` mode for re-ranking. Public model identifier, not a secret. |
 | `DocAiAssistMaxCandidates` | `25` | Maximum number of top candidates passed to the assist model for re-ranking. |
+| `DocAiAssistProfileRegions` | `""` (empty) | Optional list of AWS regions a cross-region **assist** inference profile may route to. Used only for IAM `Resource` scoping — it is never passed to the Lambda runtime. When empty (default), the assist grant is the single plain foundation-model ARN, unchanged from today. When non-empty, set `DocAiAssistModel` to an inference-profile ID; the assist IAM policy then grants the inference-profile ARN plus the assist foundation model restricted to exactly the listed regions via the `aws:RequestedRegion` condition key. AWS performs the cross-region routing server-side. |
 | `DocAiTopK` | `10` | Number of results returned from semantic retrieval. |
 | `DocAiCandidateMultiplier` | `3` | Multiplier applied to Top K to determine how many candidate vectors to fetch before ranking/filtering. |
 | `DocAiS3VectorBucket` | `""` (empty) | S3 Vectors bucket name when the store is `s3-vectors`. Leave empty to use the derived name `<Prefix>-<ProjectId>-<StageId>-docvec`. Semantic search falls back to keyword while unset/unprovisioned. |
@@ -207,6 +209,7 @@ Without model access, `bedrock:InvokeModel` calls fail; the feature then degrade
 
 - **S3 Vectors** has limited regional availability. Before setting `DocAiVectorStore=s3-vectors`, confirm S3 Vectors is available in your deployment region. If it is not, set `DocAiVectorStore=dynamodb` (which reuses the DocIndex table and has no additional regional requirement).
 - **Bedrock model availability** likewise varies by region. Confirm both the embedding model and (for `semantic-assisted`) the assist model are available in the deployment region.
+- **Embedding model region override.** If the embedding model is not enabled or available in your deployment region, set `DocAiEmbeddingRegion` to a region where it is — `us-east-1` is a common fallback. The model must be enabled in Amazon Bedrock in that target region (apply the model-access prerequisite above to the override region, not just the deployment region). Leaving `DocAiEmbeddingRegion` empty uses the deployment region. Note that embedding models cannot use cross-region inference profiles, so this region pin is the only cross-region option for embeddings — for the assist model, use `DocAiAssistModel` + `DocAiAssistProfileRegions` instead (see the IAM note below).
 
 ### IAM
 
@@ -217,7 +220,7 @@ When `EnableDocAi=true`, two least-privilege, condition-gated policies are attac
 
 When `EnableDocAi=false`, neither policy exists, so no Bedrock or S3 Vectors permissions are granted.
 
-> **Note (inference profiles):** the Bedrock ARNs assume on-demand **foundation** models. If you point `DocAiEmbeddingModel` or `DocAiAssistModel` at a cross-region **inference-profile** model ID, the policy `Resource` must be broadened to the inference-profile ARN plus the underlying foundation-model ARNs it routes to.
+> **Note (cross-region model access):** cross-region Bedrock access is built in and works differently for each model type. The **embedding** model uses a hard client-side region pin: set `DocAiEmbeddingRegion` to source it from another region (embedding models cannot use inference profiles). When set, the embedding model's least-privilege IAM `Resource` ARN is built with that region instead of the deployment region. The **assist** model uses AWS server-side cross-region routing: set `DocAiAssistModel` to a cross-region inference-profile ID and list the regions it may route to in `DocAiAssistProfileRegions`. The assist IAM policy is then scoped to the inference-profile ARN plus the assist foundation model clamped to exactly those regions via the `aws:RequestedRegion` condition key; the assist client itself needs no region override because routing is server-side. When `DocAiAssistProfileRegions` is empty (default), the assist grant remains the single plain foundation-model ARN, unchanged from today.
 
 ### Enablement steps
 

@@ -51,6 +51,7 @@ const DOC_AI_ENV_KEYS = [
   'DOC_AI_EMBEDDING_MODEL',
   'DOC_AI_EMBEDDING_DIMENSIONS',
   'DOC_AI_EMBEDDING_MAX_INPUT_TOKENS',
+  'DOC_AI_EMBEDDING_REGION',
   'DOC_AI_ASSIST_MODEL',
   'DOC_AI_ASSIST_MAX_CANDIDATES',
   'DOC_AI_TOP_K',
@@ -102,6 +103,7 @@ describe('config/settings documentation.ai - defaults (Req 1.1, 1.2)', () => {
     expect(ai.embedding.model).toBe('amazon.titan-embed-text-v2:0');
     expect(ai.embedding.dimensions).toBe(1024);
     expect(ai.embedding.maxInputTokens).toBe(8000);
+    expect(ai.embedding.region).toBe(''); // Req 10.2/10.7: default = use deployment region
     expect(ai.assist.model).toBe('amazon.nova-micro-v1:0');
     expect(ai.assist.maxCandidates).toBe(25);
     expect(ai.topK).toBe(10);
@@ -227,5 +229,47 @@ describe('config/settings - keyword path unchanged when disabled (Req 1.2, backw
     expect(settings.cache.ttl.templateList).toBe(1800);
     expect(Array.isArray(settings.tools.availableToolsList)).toBe(true);
     expect(settings.tools.availableToolsList.length).toBeGreaterThan(0);
+  });
+});
+
+describe('config/settings documentation.ai.embedding.region - cross-region (Req 10.2, 10.7)', () => {
+  test('defaults to empty string (use deployment region) when unset', () => {
+    const { ai } = loadSettings();
+    expect(ai.embedding.region).toBe('');
+  });
+
+  test('passes a set region through unchanged', () => {
+    process.env.DOC_AI_EMBEDDING_REGION = 'us-east-1';
+    const { ai, DebugAndLog } = loadSettings();
+    expect(ai.embedding.region).toBe('us-east-1');
+    // Defensive pass-through: no warning is logged for a set region.
+    expect(DebugAndLog.warn).not.toHaveBeenCalledWith(expect.stringContaining('DOC_AI_EMBEDDING_REGION'));
+  });
+
+  test('passes an arbitrary non-empty value through without throwing (never validates/throws)', () => {
+    // Parsing is a defensive pass-through; the CloudFormation AllowedPattern is
+    // the real gate, so settings load never throws even on an odd value.
+    process.env.DOC_AI_EMBEDDING_REGION = 'not-a-real-region';
+    let ai;
+    expect(() => {
+      ai = loadSettings().ai;
+    }).not.toThrow();
+    expect(ai.embedding.region).toBe('not-a-real-region');
+  });
+
+  test('empty-string env var resolves to empty string (byte-identical to unset)', () => {
+    process.env.DOC_AI_EMBEDDING_REGION = '';
+    const { ai } = loadSettings();
+    expect(ai.embedding.region).toBe('');
+  });
+
+  test('adds only the region field; the rest of embedding is unchanged when unset', () => {
+    const { ai } = loadSettings();
+    expect(ai.embedding).toEqual({
+      model: 'amazon.titan-embed-text-v2:0',
+      dimensions: 1024,
+      maxInputTokens: 8000,
+      region: ''
+    });
   });
 });

@@ -95,6 +95,26 @@ const DEFAULT_MAX_EXCERPT_CHARS = 240;
 const DEFAULT_MAX_QUERY_CHARS = 512;
 
 /**
+ * Bedrock SDK error `name`s that indicate the requested assist model is not available or
+ * not usable in the targeted region/account (as opposed to a transient/throttling failure).
+ * When `rerank()`'s underlying invocation catches an error whose `name` is in this set, it
+ * classifies the wrapped {@link AssistError} as `code: 'MODEL_NOT_AVAILABLE'` so callers can
+ * log it distinctly as a configuration problem (e.g. an inference profile ID that is not
+ * enabled or reachable from the deployment region) rather than a routine invocation failure.
+ * Mirrors the classification in {@link module:embedding-provider EmbeddingProvider}. See
+ * Requirement 10.5 (cross-region model access). Unlike the embedding path, no region/client
+ * override accompanies this classification: the assist model relies on AWS's server-side
+ * cross-region routing via a configured inference profile ID (Requirement 10.3).
+ *
+ * @constant {Set<string>}
+ */
+const MODEL_UNAVAILABLE_ERROR_NAMES = new Set([
+  'ResourceNotFoundException',
+  'ValidationException',
+  'AccessDeniedException'
+]);
+
+/**
  * System prompt constraining the assist model to a strict re-rank function that emits ONLY
  * a JSON array of candidate indices — never prose or new content (Requirement 5.2).
  *
@@ -208,7 +228,7 @@ class AssistProvider {
    * @param {Array<{index: number, title?: string, excerpt?: string}>} params.candidates - Lightweight candidate descriptors. Each must carry an integer `index` (the caller's reference for the candidate); `title`/`excerpt` are optional and truncated before use. Capped to `maxCandidates`.
    * @param {number} [params.topK] - Maximum number of indices to request in the ordering (defaults to the number of candidates).
    * @returns {Promise<{order: number[], usage: (Object|null)}>} `order` is a de-duplicated subset/permutation of the input candidate indices (most relevant first); `usage` is the raw Bedrock token-count object (`{ inputTokens, outputTokens, totalTokens }`) for cost logging in task 7.2, or `null` when absent.
-   * @throws {AssistError} `INVALID_INPUT` when `query`/`candidates` are missing or malformed; `INVOCATION_FAILED` (with `cause`) when the Bedrock invocation fails; `INVALID_ASSIST_RESPONSE` when the response cannot be parsed into any valid candidate index.
+   * @throws {AssistError} `INVALID_INPUT` when `query`/`candidates` are missing or malformed; `MODEL_NOT_AVAILABLE` (with `cause`) when the Bedrock invocation fails because the assist model/inference profile is missing, invalid, or unauthorized in the targeted region/account; `INVOCATION_FAILED` (with `cause`) for any other Bedrock invocation failure; `INVALID_ASSIST_RESPONSE` when the response cannot be parsed into any valid candidate index.
    * @example
    * const { order, usage } = await assist.rerank({
    *   query: 'rotate the key',
@@ -337,7 +357,7 @@ class AssistProvider {
    * @async
    * @param {Object} requestBody - The Nova request body.
    * @returns {Promise<Object>} The decoded response object.
-   * @throws {AssistError} `INVOCATION_FAILED` when the Bedrock call fails; `INVALID_ASSIST_RESPONSE` when the response body cannot be decoded/parsed.
+   * @throws {AssistError} `MODEL_NOT_AVAILABLE` when the Bedrock call fails with a model-unavailable/config error (`ResourceNotFoundException`, `ValidationException`, `AccessDeniedException`); `INVOCATION_FAILED` for any other Bedrock call failure; `INVALID_ASSIST_RESPONSE` when the response body cannot be decoded/parsed.
    */
   async #invoke(requestBody) {
     const command = new InvokeModelCommand({
@@ -354,9 +374,17 @@ class AssistProvider {
       // >! Wrap the SDK error as `cause` and rethrow a typed error so the calling strategy
       // >! can surface it. The query/candidate text is deliberately omitted from the message
       // >! to avoid leaking content.
+      // >! Classify config errors (assist model/inference profile missing, invalid, or
+      // >! unauthorized) as MODEL_NOT_AVAILABLE so callers can log them distinctly at ERROR
+      // >! level, separate from routine invocation failures (Requirement 10.5). No region
+      // >! override is applied here: the assist model relies on AWS's server-side
+      // >! cross-region routing via the configured inference profile ID (Requirement 10.3).
+      const code = MODEL_UNAVAILABLE_ERROR_NAMES.has(error && error.name)
+        ? 'MODEL_NOT_AVAILABLE'
+        : 'INVOCATION_FAILED';
       throw new AssistError(
         `Bedrock InvokeModel failed for assist model "${this.model}"`,
-        { code: 'INVOCATION_FAILED', cause: error }
+        { code, cause: error }
       );
     }
 

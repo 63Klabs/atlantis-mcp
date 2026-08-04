@@ -146,7 +146,11 @@ function getDocAiComponents(ai) {
   const embeddingProvider = new EmbeddingProvider({
     model: ai.embedding.model,
     dimensions: ai.embedding.dimensions,
-    maxInputTokens: ai.embedding.maxInputTokens
+    maxInputTokens: ai.embedding.maxInputTokens,
+    // >! Optional cross-region pin (Requirement 10.1). Read defensively: this settings
+    // >! field may be absent until the settings module adds it, and an empty/unset value
+    // >! cleanly falls back to the Lambda's deployment region (identical to prior behavior).
+    region: ai.embedding.region ?? ''
   });
 
   const vectorStore = createVectorStore({

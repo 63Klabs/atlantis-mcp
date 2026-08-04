@@ -39,6 +39,7 @@ const DOC_AI_ENV_KEYS = [
   'DOC_AI_EMBEDDING_MODEL',
   'DOC_AI_EMBEDDING_DIMENSIONS',
   'DOC_AI_EMBEDDING_MAX_INPUT_TOKENS',
+  'DOC_AI_EMBEDDING_REGION',
   'DOC_AI_ASSIST_MODEL',
   'DOC_AI_ASSIST_MAX_CANDIDATES',
   'DOC_AI_TOP_K',
@@ -77,7 +78,8 @@ describe('loadDocAiSettings - defaults (Req 1.1, 1.2)', () => {
     expect(ai.embedding).toEqual({
       model: 'amazon.titan-embed-text-v2:0',
       dimensions: 1024,
-      maxInputTokens: 8000
+      maxInputTokens: 8000,
+      region: '' // Req 10.2/10.7: default = use deployment region
     });
     expect(ai.assist).toEqual({
       model: 'amazon.nova-micro-v1:0',
@@ -109,6 +111,7 @@ describe('loadDocAiSettings - valid overrides', () => {
     process.env.DOC_AI_CANDIDATE_MULTIPLIER = '5';
     process.env.DOC_AI_S3_VECTOR_BUCKET = 'my-vectors';
     process.env.DOC_AI_S3_VECTOR_INDEX = 'idx-v1';
+    process.env.DOC_AI_EMBEDDING_REGION = 'us-west-2';
 
     const ai = loadDocAiSettings();
     expect(ai).toEqual({
@@ -116,7 +119,7 @@ describe('loadDocAiSettings - valid overrides', () => {
       minTier: 'private',
       retrievalMode: 'semantic-assisted',
       vectorStore: 'dynamodb',
-      embedding: { model: 'amazon.titan-embed-text-v1', dimensions: 512, maxInputTokens: 4000 },
+      embedding: { model: 'amazon.titan-embed-text-v1', dimensions: 512, maxInputTokens: 4000, region: 'us-west-2' },
       assist: { model: 'amazon.nova-lite-v1:0', maxCandidates: 50 },
       topK: 20,
       candidateMultiplier: 5,
@@ -201,12 +204,39 @@ describe('loadDocAiSettings - never throws (Req 1.5)', () => {
       minTier: 'paid',
       retrievalMode: 'keyword',
       vectorStore: 's3-vectors',
-      embedding: { model: 'amazon.titan-embed-text-v2:0', dimensions: 1024, maxInputTokens: 8000 },
+      embedding: { model: 'amazon.titan-embed-text-v2:0', dimensions: 1024, maxInputTokens: 8000, region: '' },
       assist: { model: 'amazon.nova-micro-v1:0', maxCandidates: 25 },
       topK: 10,
       candidateMultiplier: 3,
       s3Vectors: { bucket: '', index: '' }
     });
+  });
+});
+
+describe('loadDocAiSettings - embedding.region cross-region (Req 10.2, 10.7)', () => {
+  test('defaults to empty string (use deployment region) when unset', () => {
+    expect(loadDocAiSettings().embedding.region).toBe('');
+  });
+
+  test('passes a set region through unchanged without warning', () => {
+    process.env.DOC_AI_EMBEDDING_REGION = 'us-east-1';
+    expect(loadDocAiSettings().embedding.region).toBe('us-east-1');
+    expect(console.warn).not.toHaveBeenCalledWith(expect.stringContaining('DOC_AI_EMBEDDING_REGION'));
+  });
+
+  test('passes an arbitrary non-empty value through without throwing (never validates/throws)', () => {
+    // Defensive pass-through; the CloudFormation AllowedPattern is the real gate.
+    process.env.DOC_AI_EMBEDDING_REGION = 'not-a-real-region';
+    let ai;
+    expect(() => {
+      ai = loadDocAiSettings();
+    }).not.toThrow();
+    expect(ai.embedding.region).toBe('not-a-real-region');
+  });
+
+  test('empty-string env var resolves to empty string (byte-identical to unset)', () => {
+    process.env.DOC_AI_EMBEDDING_REGION = '';
+    expect(loadDocAiSettings().embedding.region).toBe('');
   });
 });
 

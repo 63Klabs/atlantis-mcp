@@ -1,5 +1,10 @@
-# Tasks — Bedrock-Assisted Documentation Semantic Search
+# Implementation Plan
 
+## Overview
+
+Add AI to search
+
+## Tasks
 - [x] 1. Configuration and feature-flag foundation
   - [x] 1.1 Add the `documentation.ai` settings block to `read-function/config/settings.js`
         with `DOC_AI_*` parsing, defaults OFF/keyword, and warn-and-default validation.
@@ -78,3 +83,87 @@
         Bedrock model enablement, region prerequisites), end-user and developer docs.
   - [x] 9.2 Add CHANGELOG.md entries under `v0.0.6 (unreleased)` referencing this spec.
   - _Requirements: 9.1, 9.2, 9.3_
+
+- [x] 10. Cross-region Bedrock configuration foundation
+  - [x] 10.1 Add `DOC_AI_EMBEDDING_REGION` to both settings modules
+        (`read-function/config/settings.js`, `doc-indexer/lib/settings.js`) as
+        `documentation.ai.embedding.region` with empty-string default and defensive
+        pass-through parsing (never throws).
+  - [x] 10.2 Add `DocAiEmbeddingRegion` (String, default `""`, region-or-empty
+        `AllowedPattern`) and `DocAiAssistProfileRegions` (CommaDelimitedList, default
+        `""`) CloudFormation parameters, plus `HasDocAiEmbeddingRegionOverride` and
+        `HasDocAiAssistProfileRegions` Conditions; add both to the Metadata
+        `ParameterGroups` under "Documentation AI (Semantic Search) Settings".
+  - [x] 10.3 Wire `DOC_AI_EMBEDDING_REGION` into both Lambda functions' environment
+        variables via the override Condition (empty string when not set).
+  - [x] 10.4 Jest tests: settings parsing (unset → `''`, set → passed through); confirm
+        byte-identical env vars/behavior when unset.
+  - _Requirements: 10.2, 10.7_
+
+- [x] 11. EmbeddingProvider region override + config-error classification
+  - [x] 11.1 Add the `region` constructor option to `EmbeddingProvider`; `#getClient()`
+        passes it through conditionally (`{ region }` when set, `{}` when not).
+  - [x] 11.2 In the `embed()` catch block, classify `ResourceNotFoundException` /
+        `ValidationException` / `AccessDeniedException` as `code: 'MODEL_NOT_AVAILABLE'`,
+        still wrapping the original as `cause`.
+  - [x] 11.3 Wire `documentation.ai.embedding.region` into both construction sites
+        (`documentation.js` `getDocAiComponents`, `index-builder.js` `runEmbeddingPhase`).
+  - [x] 11.4 Jest tests: mocked client construction with/without region; error
+        classification for each matched SDK error name vs a generic failure.
+  - _Requirements: 10.1, 10.2, 10.5_
+
+- [x] 12. AssistProvider config-error classification
+  - [x] 12.1 Apply the same `MODEL_NOT_AVAILABLE` classification to
+        `AssistProvider#invoke()`'s catch block (no region/client changes — assist relies
+        on server-side cross-region routing when a profile ID is configured).
+  - [x] 12.2 Jest tests: same error-classification matrix as Task 11, adapted to
+        `AssistError`.
+  - _Requirements: 10.3, 10.5_
+
+- [x] 13. Distinct ERROR-level logging for model-not-available
+  - [x] 13.1 In `index-builder.js`'s per-entry embedding catch, emit one additional
+        ERROR-level log (`doc_ai_bedrock_model_unavailable`, carrying model id + attempted
+        region) when the caught error's `code` (or `cause.code`) is `MODEL_NOT_AVAILABLE`,
+        in addition to the existing WARN-level degrade line.
+  - [x] 13.2 Same additional ERROR-level log in `retrieval-strategy.js`'s
+        `SemanticRetrieval` / `FallbackRetrieval` / `SemanticAssistedRetrieval` degrade
+        paths.
+  - [x] 13.3 Jest tests: verify the ERROR line is emitted only for `MODEL_NOT_AVAILABLE`
+        and not for other failure codes; verify existing WARN/fallback behavior is
+        unchanged.
+  - _Requirements: 10.5_
+
+- [x] 14. Spike: IAM Resource-list construction for the assist cross-region profile
+  - [x] 14.1 Determine the correct CloudFormation mechanism to build a `Resource` array
+        combining the inference-profile ARN with one foundation-model ARN per entry in
+        `DocAiAssistProfileRegions` (candidates: `Fn::ForEach` under
+        `AWS::LanguageExtensions` added before `AWS::Serverless-2016-10-31` in the
+        `Transform` list; or a documented alternative if `Fn::ForEach` cannot target a
+        property inside a single statement).
+  - [x] 14.2 Verify the exact inference-profile ARN format
+        (`arn:aws:bedrock:{region}:{account-id}:inference-profile/{id}` is the documented
+        convention — confirm via the Bedrock console/CLI, not assumed).
+  - [x] 14.3 Document the finding in `design.md` (Task 14 spike section) the way the
+        S3 Vectors CloudFormation gap was documented in Task 4.1.
+  - _Requirements: 10.4_
+
+- [x] 15. Wire IAM Resource lists in template.yml
+  - [x] 15.1 Apply Task 14's resolved mechanism to `ReadDocAiPolicy`'s assist statement
+        (profile ARN + per-region foundation-model ARNs when `DocAiAssistProfileRegions`
+        is set, else the unchanged single foundation-model ARN).
+  - [x] 15.2 Update both roles' embedding statement to use `DocAiEmbeddingRegion` in place
+        of `AWS::Region` when set (via `HasDocAiEmbeddingRegionOverride`).
+  - [x] 15.3 Tests: template validation (`aws cloudformation validate-template` or
+        equivalent) for both the default (empty) and populated-list cases.
+  - _Requirements: 10.4, 10.6_
+
+- [x] 16. Documentation and changelog
+  - [x] 16.1 Update `DEPLOYMENT.md`: add both parameters to the table; replace the
+        speculative "inference profiles" note with the now-built mechanism; add
+        region-availability guidance for the embedding override.
+  - [x] 16.2 Update `ARCHITECTURE.md` with a brief note that the embedding client can
+        target a fixed alternate region and the assist model can use AWS cross-region
+        routing.
+  - [x] 16.3 Add CHANGELOG.md entries under the existing `v0.0.6 (unreleased)` section
+        (no version bump).
+  - _Requirements: 10.1, 10.2, 10.3, 10.4_

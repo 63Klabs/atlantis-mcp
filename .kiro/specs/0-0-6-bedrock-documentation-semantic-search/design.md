@@ -268,6 +268,165 @@ confirm it is available in the deployment region; if not, set `DOC_AI_VECTOR_STO
 [S3 Vectors overview](https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-vectors.html),
 [Creating a vector index](https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-vectors-create-index.html).
 
+## Cross-Region Bedrock Access (Requirement 10)
+
+The initial design constructs both Bedrock Runtime clients with no `region` override, so
+they always target the Lambda's own deployment region. If an operator deploys the MCP
+stack in a region where the embedding model (Titan v2) or the assist model (Nova Micro)
+is unavailable, the feature silently degrades to keyword search with no clear signal
+why. This section adds an explicit cross-region capability with two distinct mechanisms,
+because the two model types differ:
+
+- **Embedding model (Titan v2):** embedding models are explicitly excluded from Bedrock
+  cross-region inference profiles (confirmed against AWS docs), so they cannot use
+  server-side routing. Titan v2 therefore needs a hard, deploy-time **client-side region
+  pin**.
+- **Assist model (Nova Micro):** the assist model *can* use a cross-region inference
+  profile. Cross-region inference profiles are invoked from the *source* (deployment)
+  region's endpoint and AWS handles destination routing internally, so **no client-side
+  region override** is needed — only IAM scoped to the profile ARN plus the underlying
+  regions it may route to.
+
+`amazon.nova-micro-v1:0` stays the default for `DocAiAssistModel`. The cross-region
+mechanism is built and available but not defaulted on, since there is no verified real
+profile ID to ship as a default.
+
+### Configuration deltas
+
+- Add `documentation.ai.embedding.region` to `read-function/config/settings.js` and
+  `doc-indexer/lib/settings.js`, sourced from `DOC_AI_EMBEDDING_REGION` (default `''`).
+  Parsing is defensive string pass-through — empty string is valid and means "use the
+  deployment region"; it never throws. CloudFormation parameter `AllowedPattern` is the
+  real input gate.
+- No new settings field is needed for the assist side. `DocAiAssistProfileRegions` is
+  IAM-only and never reaches the Lambda runtime as an env var; the SDK does not need it
+  because routing is server-side.
+
+### EmbeddingProvider deltas (`doc-ai-common/nodejs/embedding-provider.js`)
+
+- Constructor accepts a `region` option. `#getClient()` becomes
+  `new BedrockRuntimeClient(this.region ? { region: this.region } : {})`, so an
+  empty/unset value behaves exactly as today.
+- In the `embed()` catch block, inspect the underlying SDK error's `name`
+  (`ResourceNotFoundException` / `ValidationException` / `AccessDeniedException`) and set
+  `code: 'MODEL_NOT_AVAILABLE'` instead of `'INVOCATION_FAILED'` when matched, still
+  wrapping the original error as `cause`.
+- Wire `documentation.ai.embedding.region` into both construction sites:
+  `documentation.js` `getDocAiComponents` and `index-builder.js` `runEmbeddingPhase`.
+
+### AssistProvider deltas (`doc-ai-common/nodejs/assist-provider.js`)
+
+- No client construction change — the assist path relies on server-side cross-region
+  routing when a profile ID is configured, so there is no region override.
+- Apply the same `MODEL_NOT_AVAILABLE` error classification to `#invoke()`'s catch block
+  as `EmbeddingProvider`.
+
+### Config-error logging (index-builder.js, retrieval-strategy.js, documentation.js)
+
+Wherever an `EmbeddingError` / `AssistError` / wrapped `RetrievalError` is caught for the
+routine WARN-level degrade, additionally check `error.code === 'MODEL_NOT_AVAILABLE'`
+(or `error.cause?.code`) and emit one extra ERROR-level line
+(`doc_ai_bedrock_model_unavailable`) carrying the model id and the region that was
+targeted (the deployment region, or `DocAiEmbeddingRegion` when set). This never changes
+the fallback behavior — it only makes a misconfigured region/model loud and searchable
+instead of blending into ordinary degrade noise. This applies to `index-builder.js`'s
+per-entry embedding catch and to `retrieval-strategy.js`'s `SemanticRetrieval` /
+`FallbackRetrieval` / `SemanticAssistedRetrieval` degrade paths.
+
+### CloudFormation deltas (`template.yml`)
+
+- New parameters: `DocAiEmbeddingRegion` (String, default `""`, description recommends
+  `us-east-1` as a common fallback, `AllowedPattern` matching AWS region codes or empty)
+  and `DocAiAssistProfileRegions` (CommaDelimitedList, default `""`).
+- New Conditions `HasDocAiEmbeddingRegionOverride` (mirrors the existing
+  `HasDocAiS3VectorBucketOverride` pattern) and `HasDocAiAssistProfileRegions`.
+- `DOC_AI_EMBEDDING_REGION` env var added to both `ReadLambdaFunction` and
+  `DocIndexerFunction`, using the override Condition (empty string when not set).
+- Embedding `bedrock:InvokeModel` `Resource` ARN in both `ReadDocAiPolicy` and
+  `DocIndexerDocAiPolicy` switches its region segment from `${AWS::Region}` to
+  `!If [HasDocAiEmbeddingRegionOverride, !Ref DocAiEmbeddingRegion, !Ref 'AWS::Region']`.
+- Assist `bedrock:InvokeModel` `Resource` in `ReadDocAiPolicy` (only the read role
+  invokes the assist model): when `DocAiAssistProfileRegions` is empty, unchanged single
+  foundation-model ARN; when non-empty, expand to the inference-profile ARN plus one
+  foundation-model ARN per listed region. The exact CloudFormation mechanism is deferred
+  to the spike below.
+- Metadata `ParameterGroups` gains both new parameters under "Documentation AI (Semantic
+  Search) Settings".
+
+### Assist Cross-Region IAM (Task 14 Spike Resolution)
+
+**Spike question:** what is the correct CloudFormation mechanism to build the assist
+`bedrock:InvokeModel` `Resource` scoping so that, when `DocAiAssistProfileRegions` is
+non-empty, the grant covers the inference-profile ARN plus the assist foundation model in
+each listed region, and when it is empty (default) the grant stays unchanged from today's
+single foundation-model ARN?
+
+**Decisive finding:** `Fn::ForEach` (the `AWS::LanguageExtensions` transform) **cannot**
+build list elements inside a single IAM statement's `Resource` array. `Fn::ForEach` emits
+**keyed map** entries (each `OutputKey` must contain the loop identifier to stay unique)
+that merge into a map section — `Resources`, `Outputs`, or a resource's `Properties`. An
+IAM statement's `Resource:` is an unkeyed YAML list, and `Fn::ForEach` has no mode that
+appends bare list elements. The only way to involve `Fn::ForEach` is to replicate whole
+keyed resources (e.g. one `AWS::IAM::Policy` per region), which would require adding the
+template-wide `AWS::LanguageExtensions` transform and carries its documented
+awkward-interaction risk with the SAM transform. That is the rejected fallback
+(Mechanism B).
+
+**Decision (Mechanism A):** use AWS's own documented cross-Region inference IAM pattern —
+a region wildcard on the model ARN clamped by the `aws:RequestedRegion` condition key —
+which maps natively onto a `CommaDelimitedList` with no `Fn::ForEach` and no new
+transform. `!Ref` of a `CommaDelimitedList` renders as the JSON array an IAM condition
+value expects, so the whole variable-length region set drops straight into the policy.
+The assist grant stays in the existing `ReadDocAiPolicy`, toggled by the existing
+`HasDocAiAssistProfileRegions` condition via `Fn::If`:
+
+- **Empty (default) branch** — one assist statement whose `Resource` is the unchanged
+  single foundation-model ARN
+  `arn:aws:bedrock:${AWS::Region}::foundation-model/${DocAiAssistModel}`, no condition.
+  This stays byte-identical to today.
+- **Non-empty branch** — two assist statements:
+  - a profile statement scoped to the inference-profile ARN
+    `arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/${DocAiAssistModel}`;
+  - a region-clamped model statement scoped to
+    `arn:aws:bedrock:*::foundation-model/${DocAiAssistModel}` with
+    `Condition: StringEquals: { aws:RequestedRegion: !Ref DocAiAssistProfileRegions }`.
+
+This preserves least privilege (still model-pinned; the wildcard region is clamped to
+exactly the operator-listed regions), avoids the `[""]`-from-empty-default iteration
+hazard, and is trivially validated for both the empty and populated cases.
+
+**Verified inference-profile ARN format:** the Bedrock inference-profile ARN is
+`arn:aws:bedrock:{region}:{account-id}:inference-profile/{id}` — the region **and**
+account-id segments are both **populated**. This contrasts with the foundation-model ARN
+`arn:aws:bedrock:{region}::foundation-model/{model}`, whose account-id field is
+deliberately **empty** (the double colon) because foundation models are AWS-owned, not
+account-scoped. The shape is identical across system-defined (geographic `us.`/`eu.`/
+`apac.`, global `global.`) and application inference profiles; only the `{id}` differs
+(the `global.` variant additionally needs a region-less/account-less FM statement gated
+by `aws:RequestedRegion = unspecified`, which is out of scope unless a `global.`-prefixed
+id is chosen). In CloudFormation the profile ARN maps to
+`!Sub arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/${DocAiAssistModel}`.
+
+**Open parameter question for Task 15:** the single `DocAiAssistModel` parameter must
+carry a *foundation-model* id in the empty-default branch but a *profile* id in the
+non-empty branch. Task 15 should decide whether one parameter can carry both or whether a
+distinct profile-id parameter is warranted. The ARN *formats* above are pinned regardless
+of that decision.
+
+**Requirement note:** Mechanism A satisfies the security intent of Req 10.4 but not its
+original literal wording (which mandated one foundation-model ARN string per region in the
+`Resource` list). Req 10.4 has been updated to describe the effective least-privilege
+scoping (profile ARN plus the model restricted to the listed regions via
+`aws:RequestedRegion`) rather than mandating per-region ARN strings.
+
+**References:**
+[CloudFormation — `Fn::ForEach`](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/intrinsic-function-reference-foreach.html),
+[CloudFormation — `Fn::ForEach` examples in Resources](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/intrinsic-function-reference-foreach-example-resource.html),
+[Bedrock — Geographic cross-Region inference (IAM requirements)](https://docs.aws.amazon.com/bedrock/latest/userguide/geographic-cross-region-inference.html),
+[Bedrock — Global cross-Region inference](https://docs.aws.amazon.com/bedrock/latest/userguide/global-cross-region-inference.html),
+[Deadline Cloud — assistant permissions (`aws:RequestedRegion` + wildcard FM ARN)](https://docs.aws.amazon.com/deadline-cloud/latest/userguide/assistant-permissions.html),
+[AWS SAM — CloudFormation language extensions support](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-specification-language-extensions.html).
+
 ## Testing Strategy
 
 - Jest only, `*.jest.mjs`; mock AWS SDK (Bedrock, DynamoDB, S3 Vectors) — no real calls

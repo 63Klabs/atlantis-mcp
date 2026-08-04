@@ -64,6 +64,22 @@ const DEFAULT_DIMENSIONS = 1024;
 const DEFAULT_MAX_INPUT_TOKENS = 8000;
 
 /**
+ * Bedrock SDK error `name`s that indicate the requested model is not available or not
+ * usable in the targeted region/account (as opposed to a transient/throttling failure).
+ * When `embed()` catches an error whose `name` is in this set, it classifies the wrapped
+ * {@link EmbeddingError} as `code: 'MODEL_NOT_AVAILABLE'` so callers can log it distinctly
+ * as a configuration problem (e.g. a region where the model is not enabled) rather than a
+ * routine invocation failure. See Requirement 10.5 (cross-region model access).
+ *
+ * @constant {Set<string>}
+ */
+const MODEL_UNAVAILABLE_ERROR_NAMES = new Set([
+  'ResourceNotFoundException',
+  'ValidationException',
+  'AccessDeniedException'
+]);
+
+/**
  * Error thrown when an embedding operation fails. Callers can catch this typed
  * error to distinguish embedding failures from other errors and fall back to
  * keyword search.
@@ -155,12 +171,17 @@ class EmbeddingProvider {
    * @param {string} [config.model='amazon.titan-embed-text-v2:0'] - Bedrock embedding model ID.
    * @param {number} [config.dimensions=1024] - Output vector length requested from Titan and asserted on the response.
    * @param {number} [config.maxInputTokens=8000] - Token budget; input is truncated to an approximate character budget derived from this before calling Bedrock.
+   * @param {string} [config.region] - Optional AWS region to pin the Bedrock Runtime client to (e.g. `'us-east-1'`), overriding the Lambda's deployment region. When unset/empty the SDK default provider chain resolves the region from the Lambda environment (`AWS_REGION`), identical to prior behavior. Enables sourcing the embedding model from a region where it is available (Requirement 10.1/10.2).
    * @param {Object} [config.client] - Optional pre-constructed Bedrock Runtime client exposing a `.send(command)` method. Primarily for test injection; when omitted the client is created lazily on first use.
    */
-  constructor({ model, dimensions, maxInputTokens, client } = {}) {
+  constructor({ model, dimensions, maxInputTokens, region, client } = {}) {
     this.model = model || DEFAULT_MODEL;
     this.dimensions = Number.isInteger(dimensions) ? dimensions : DEFAULT_DIMENSIONS;
     this.maxInputTokens = Number.isInteger(maxInputTokens) ? maxInputTokens : DEFAULT_MAX_INPUT_TOKENS;
+    // >! Optional region override (Requirement 10.1). Empty/unset means "use the Lambda's
+    // >! deployment region" — the falsy check in #getClient() preserves the prior behavior
+    // >! byte-for-byte. Defensive default so an unset settings value cannot throw here.
+    this.region = region || '';
     // >! Optional injected client (test seam). Not constructed here so that merely
     // >! instantiating the provider / attaching the layer incurs zero cold-start cost.
     this.#client = client || null;
@@ -201,9 +222,15 @@ class EmbeddingProvider {
       // >! Wrap the SDK error as `cause` and rethrow a typed error so callers can
       // >! catch EmbeddingError and fall back to keyword search (Req 2.4). The input
       // >! text is deliberately omitted from the message to avoid leaking content.
+      // >! Classify config errors (model missing/unauthorized in the targeted region)
+      // >! as MODEL_NOT_AVAILABLE so callers can log them distinctly at ERROR level,
+      // >! separate from routine invocation failures (Requirement 10.5).
+      const code = MODEL_UNAVAILABLE_ERROR_NAMES.has(error && error.name)
+        ? 'MODEL_NOT_AVAILABLE'
+        : 'INVOCATION_FAILED';
       throw new EmbeddingError(
         `Bedrock InvokeModel failed for embedding model "${this.model}"`,
-        { code: 'INVOCATION_FAILED', cause: error }
+        { code, cause: error }
       );
     }
 
@@ -250,10 +277,11 @@ class EmbeddingProvider {
    */
   #getClient() {
     if (!this.#client) {
-      // >! Construct the Bedrock client only on first use. The SDK default provider
-      // >! chain resolves the region from the Lambda environment (AWS_REGION); do not
-      // >! hardcode a region or credentials here.
-      this.#client = new BedrockRuntimeClient({});
+      // >! Construct the Bedrock client only on first use. When a region override is set
+      // >! (Requirement 10.1) pin the client to it; otherwise pass no region so the SDK
+      // >! default provider chain resolves it from the Lambda environment (AWS_REGION) —
+      // >! byte-identical to prior behavior. Never hardcode a region or credentials here.
+      this.#client = new BedrockRuntimeClient(this.region ? { region: this.region } : {});
     }
     return this.#client;
   }

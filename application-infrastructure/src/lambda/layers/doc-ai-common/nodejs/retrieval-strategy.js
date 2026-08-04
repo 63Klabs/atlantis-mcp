@@ -143,6 +143,22 @@ const USAGE_LOG_PREFIX = 'DOC_AI_USAGE';
 const DEFAULT_STORE_LABEL = 'unknown';
 
 /**
+ * Stable event name for the additional ERROR-level log emitted (alongside the routine
+ * WARN degrade) when a retrieval degrade is caused by a Bedrock model / inference profile
+ * that is not available in the targeted region/account (`code === 'MODEL_NOT_AVAILABLE'`).
+ *
+ * A misconfigured region/model is a configuration problem, not routine degrade noise, so it
+ * is logged loudly and searchably at ERROR level (Requirement 10.5) without changing the
+ * degrade behavior itself. The emitted line is this fixed token, one space, then compact
+ * JSON carrying the strategy label, the Bedrock model id, and the region that was targeted —
+ * mirroring the indexer's `doc_ai_bedrock_model_unavailable` line (index-builder.js) so one
+ * metric filter can match both the index-time and query-time occurrences.
+ *
+ * @constant {string}
+ */
+const MODEL_UNAVAILABLE_EVENT = 'doc_ai_bedrock_model_unavailable';
+
+/**
  * Helpful suggestions returned (matching the keyword path's wording) when a semantic
  * search yields no results — including the "no active index version" case (Requirement
  * 2.5). Copied per call so callers cannot mutate the shared array.
@@ -641,6 +657,11 @@ class SemanticRetrieval extends RetrievalStrategy {
     } catch (error) {
       // >! Wrap ANY semantic-path failure as a typed RetrievalError so selectStrategy (6.3)
       // >! can catch it and fall back to keyword search. No fallback is performed here.
+      // >! Note (Req 10.5): this strategy does NOT degrade — it re-throws — so the additional
+      // >! model-unavailable ERROR line is intentionally NOT emitted here. It is emitted once,
+      // >! at the actual degrade point in FallbackRetrieval (which catches this wrapped error
+      // >! via error.cause.code and carries the embedding model/region context). Emitting here
+      // >! too would double-log the same misconfiguration.
       throw SemanticRetrieval.#wrap(error, 'Semantic retrieval failed.', 'RETRIEVAL_FAILED');
     }
   }
@@ -1023,6 +1044,22 @@ class SemanticAssistedRetrieval extends RetrievalStrategy {
         `RetrievalStrategy "${ASSISTED_STRATEGY_LABEL}" (store=${this.#storeType}) assist re-rank failed ` +
         `(code=${code}); degrading to plain semantic results. Reason: ${reason}`
       );
+      // >! A model-not-available classification (Req 10.5) is a configuration problem — the
+      // >! assist model / inference profile is missing, invalid, or unauthorized in the
+      // >! targeted region/account — not routine degrade noise. Emit ONE additional
+      // >! ERROR-level line carrying the assist model id and the region the assist call
+      // >! targeted. The assist path relies on AWS server-side cross-region routing (no
+      // >! client-side region override, Req 10.3), so the targeted region is the Lambda's own
+      // >! deployment region (AWS_REGION). This never changes the degrade above: the plain
+      // >! semantic results are still returned below. No PII is logged.
+      if (isModelUnavailableError(error)) {
+        emitModelUnavailableLog(
+          this.#logger,
+          ASSISTED_STRATEGY_LABEL,
+          this.#assist && this.#assist.model,
+          process.env.AWS_REGION || ''
+        );
+      }
       return SemanticAssistedRetrieval.#sliceEnvelope(candidateEnvelope, candidateResults, effectiveTopK, query);
     }
   }
@@ -1222,6 +1259,69 @@ function normalizeLogger(logger) {
 }
 
 /**
+ * Returns true when a caught error indicates the Bedrock model / inference profile is not
+ * available in the targeted region/account — either directly (`error.code`) or via the
+ * wrapped underlying error (`error.cause.code`). A `SemanticRetrieval` failure reaches
+ * `FallbackRetrieval` as a wrapped `RetrievalError` (so the classification lives on
+ * `error.cause.code`), while an assist failure reaches `SemanticAssistedRetrieval` as an
+ * `AssistError` (so it lives on `error.code`); this helper handles both shapes.
+ *
+ * Used to decide whether to emit the extra ERROR-level {@link MODEL_UNAVAILABLE_EVENT} line
+ * alongside the routine WARN degrade (Requirement 10.5). It never throws.
+ *
+ * @param {*} error - The caught error (e.g. a wrapped `RetrievalError` or an `AssistError`).
+ * @returns {boolean} True when the failure is a `MODEL_NOT_AVAILABLE` classification.
+ * @example
+ * isModelUnavailableError(new RetrievalError('x', { code: 'RETRIEVAL_FAILED', cause: { code: 'MODEL_NOT_AVAILABLE' } })); // true
+ * isModelUnavailableError(new RetrievalError('x', { code: 'RETRIEVAL_FAILED' })); // false
+ */
+function isModelUnavailableError(error) {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+  if (error.code === 'MODEL_NOT_AVAILABLE') {
+    return true;
+  }
+  return !!(error.cause && typeof error.cause === 'object' && error.cause.code === 'MODEL_NOT_AVAILABLE');
+}
+
+/**
+ * Emit the single additional ERROR-level {@link MODEL_UNAVAILABLE_EVENT} log line through
+ * the injected logger, carrying the strategy label, the Bedrock model id, and the region
+ * that was targeted. The line is the fixed {@link MODEL_UNAVAILABLE_EVENT} token, one space,
+ * then compact JSON with a stable key order, mirroring the indexer's line:
+ *   `doc_ai_bedrock_model_unavailable {"strategy":"semantic","model":"amazon.titan-embed-text-v2:0","region":"us-east-1"}`
+ *
+ * Security / no-PII: only the fixed event token, the strategy label, the model id, and the
+ * region are logged — never the query text, candidate titles/excerpts, embeddings, filters,
+ * or caller identity. The `region` falls back to the Lambda deployment region (`AWS_REGION`)
+ * when no explicit override is known, matching index-builder.js. This never changes the
+ * degrade behavior and NEVER throws: a logging failure must not turn a graceful degrade into
+ * a thrown error.
+ *
+ * @param {{error: Function}} logger - Normalized logger (its `error` method is used).
+ * @param {string} strategy - Strategy label (e.g. `'semantic'`, `'semantic-assisted'`).
+ * @param {string} model - The Bedrock model id that was targeted (embedding or assist).
+ * @param {string} region - The region that was targeted; empty string when unknown.
+ * @returns {void}
+ */
+function emitModelUnavailableLog(logger, strategy, model, region) {
+  try {
+    // >! NO PII: only the fixed event token, strategy label, model id, and region are
+    // >! logged. Stable key order keeps the line matchable by a single CloudWatch metric
+    // >! filter shared with the indexer's identical event name.
+    logger.error(`${MODEL_UNAVAILABLE_EVENT} ${JSON.stringify({
+      strategy: (typeof strategy === 'string') ? strategy : '',
+      model: (typeof model === 'string') ? model : '',
+      region: (typeof region === 'string') ? region : ''
+    })}`);
+  } catch {
+    // >! Best-effort telemetry: swallow any logging error so it can never fail the request
+    // >! or convert a graceful degrade into a thrown error.
+  }
+}
+
+/**
  * Fallback-wrapping retrieval strategy produced by {@link selectStrategy} when a semantic
  * strategy is selected. Its {@link FallbackRetrieval#retrieve} runs the selected `primary`
  * strategy (semantic or semantic-assisted) and, on ANY thrown error, logs a non-sensitive
@@ -1272,6 +1372,26 @@ class FallbackRetrieval extends RetrievalStrategy {
   #strategyName;
 
   /**
+   * Bedrock embedding model id the wrapped semantic primary targets, used ONLY in the
+   * additional model-unavailable ERROR log (Req 10.5); empty string when unknown. This is
+   * the degrade-to-keyword point for a semantic failure, so the relevant model is always the
+   * embedding model (an assist failure degrades inside `SemanticAssistedRetrieval` and never
+   * reaches this wrapper).
+   * @private
+   * @type {string}
+   */
+  #modelId;
+
+  /**
+   * Region the wrapped semantic primary's embedding client targeted (the embedding region
+   * override, else the Lambda deployment region), used ONLY in the model-unavailable ERROR
+   * log (Req 10.5); empty string when unknown.
+   * @private
+   * @type {string}
+   */
+  #region;
+
+  /**
    * Creates a new FallbackRetrieval.
    *
    * @param {Object} deps - Injected dependencies.
@@ -1279,9 +1399,11 @@ class FallbackRetrieval extends RetrievalStrategy {
    * @param {Object} deps.fallback - The fallback strategy (keyword) used when `primary` throws (must expose an async `retrieve(options)`).
    * @param {Object} [deps.logger] - Optional `{ warn, error, debug }` logger; defaults to a no-op logger so the layer stays silent unless a logger is injected.
    * @param {string} [deps.strategyName='semantic'] - Name of the primary strategy, used only in the non-sensitive fallback log message.
+   * @param {string} [deps.model] - The Bedrock embedding model id the semantic primary targets. Used ONLY in the additional `MODEL_NOT_AVAILABLE` ERROR log (Req 10.5); never affects retrieval.
+   * @param {string} [deps.region] - The region the semantic primary's embedding client targets (embedding region override, else the deployment region). Used ONLY in the model-unavailable ERROR log (Req 10.5).
    * @throws {RetrievalError} `INVALID_CONFIG` when `primary` or `fallback` is missing or lacks a `retrieve()` method.
    */
-  constructor({ primary, fallback, logger, strategyName } = {}) {
+  constructor({ primary, fallback, logger, strategyName, model, region } = {}) {
     super({ primary, fallback });
 
     // >! Fail fast on a missing/wrong-typed collaborator so misconfiguration surfaces as a
@@ -1305,6 +1427,11 @@ class FallbackRetrieval extends RetrievalStrategy {
     this.#strategyName = (typeof strategyName === 'string' && strategyName.trim().length > 0)
       ? strategyName.trim()
       : 'semantic';
+    // >! Logging context only (Req 10.5): the embedding model id and targeted region for the
+    // >! additional model-unavailable ERROR line. Never used to select a store or build a
+    // >! query, so an unexpected/empty value cannot change retrieval behavior.
+    this.#modelId = (typeof model === 'string') ? model : '';
+    this.#region = (typeof region === 'string') ? region : '';
   }
 
   /**
@@ -1330,6 +1457,17 @@ class FallbackRetrieval extends RetrievalStrategy {
       this.#logger.warn(
         `RetrievalStrategy "${this.#strategyName}" failed (code=${code}); falling back to keyword search. Reason: ${reason}`
       );
+      // >! A model-not-available classification (Req 10.5) means the semantic path degraded
+      // >! because the embedding model is missing/unauthorized in the targeted region — a
+      // >! configuration problem, not routine degrade noise. Emit ONE additional ERROR-level
+      // >! line carrying the embedding model id and region (injected from settings via
+      // >! selectStrategy) so a misconfigured region/model is loud and searchable. This is the
+      // >! single degrade point for every semantic failure (SemanticRetrieval re-throws to
+      // >! here rather than degrading itself), so the line is emitted exactly once. It never
+      // >! changes the keyword fallback below, and it logs no PII.
+      if (isModelUnavailableError(error)) {
+        emitModelUnavailableLog(this.#logger, this.#strategyName, this.#modelId, this.#region);
+      }
       // >! Delegate to keyword. Its errors are intentionally NOT caught here, so a keyword
       // >! failure propagates to the caller instead of being masked by the fallback wrapper.
       return this.#fallback.retrieve(options);
@@ -1446,13 +1584,29 @@ function selectStrategy({ config, tier, strategies, logger } = {}) {
     return strats.keyword;
   }
 
+  // >! Embedding model/region context for the additional model-unavailable ERROR log
+  // >! (Req 10.5), sourced from the `documentation.ai.embedding` settings already passed as
+  // >! `config`. Read defensively (the block may be absent) and fall back to the Lambda
+  // >! deployment region when no explicit override is set — matching index-builder.js. This
+  // >! is logging context ONLY; it never affects strategy selection or retrieval. A semantic
+  // >! failure that reaches FallbackRetrieval is always an embedding failure (an assist
+  // >! failure degrades inside SemanticAssistedRetrieval and never propagates here), so the
+  // >! embedding model/region is always the right context to log.
+  const embeddingCfg = (cfg.embedding && typeof cfg.embedding === 'object') ? cfg.embedding : {};
+  const embeddingModel = (typeof embeddingCfg.model === 'string') ? embeddingCfg.model : '';
+  const embeddingRegion = (typeof embeddingCfg.region === 'string' && embeddingCfg.region.trim().length > 0)
+    ? embeddingCfg.region.trim()
+    : (process.env.AWS_REGION || '');
+
   // >! Wrap so ANY semantic-path error -> keyword fallback + warn log (Req 2.4). The wrapper
   // >! does not swallow keyword's own errors.
   return new FallbackRetrieval({
     primary,
     fallback: strats.keyword,
     logger: log,
-    strategyName
+    strategyName,
+    model: embeddingModel,
+    region: embeddingRegion
   });
 }
 
@@ -1467,5 +1621,8 @@ module.exports = {
   // Exposed for testing (task 6.4: filter building, query normalization, cache behavior).
   buildSemanticFilters,
   normalizeQuery,
-  DEFAULT_TOP_K
+  DEFAULT_TOP_K,
+  // Exposed for testing (task 13.3: model-not-available ERROR logging classification).
+  isModelUnavailableError,
+  MODEL_UNAVAILABLE_EVENT
 };

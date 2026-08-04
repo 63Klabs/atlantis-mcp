@@ -403,7 +403,12 @@ async function runEmbeddingPhase({
 				provider = new EmbeddingProvider({
 					model: docAi.embedding.model,
 					dimensions: docAi.embedding.dimensions,
-					maxInputTokens: docAi.embedding.maxInputTokens
+					maxInputTokens: docAi.embedding.maxInputTokens,
+					// >! Optional cross-region pin (Requirement 10.1). Read defensively: this
+					// >! settings field may be absent until the settings module adds it, and an
+					// >! empty/unset value cleanly falls back to the deployment region (identical
+					// >! to prior behavior).
+					region: docAi.embedding.region ?? ''
 				});
 			}
 			if (!store) {
@@ -469,6 +474,24 @@ async function runEmbeddingPhase({
 					code: (err && err.code) ? err.code : 'EMBEDDING_ERROR',
 					error: err ? err.message : 'unknown'
 				}));
+				// >! A model-not-available classification is a configuration problem
+				// >! (wrong model id or a region without access), not routine degrade
+				// >! noise. Emit ONE additional ERROR-level line — carrying the model id
+				// >! and the region that was targeted (DocAiEmbeddingRegion when set,
+				// >! otherwise the deployment region) — so it is loud and searchable
+				// >! (Requirement 10.5). No input text is logged. This does not change the
+				// >! degrade behavior: the entry is still skipped below.
+				const isModelUnavailable = (err && err.code === 'MODEL_NOT_AVAILABLE')
+					|| (err && err.cause && err.cause.code === 'MODEL_NOT_AVAILABLE');
+				if (isModelUnavailable) {
+					console.error(JSON.stringify({
+						level: 'ERROR',
+						event: 'doc_ai_bedrock_model_unavailable',
+						version,
+						model,
+						region: docAi.embedding.region || process.env.AWS_REGION || ''
+					}));
+				}
 				skipped++;
 				continue;
 			}

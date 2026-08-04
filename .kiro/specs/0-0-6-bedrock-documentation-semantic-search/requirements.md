@@ -173,3 +173,34 @@ that operators can enable and switch strategies and understand the feature.
    (unreleased)` section only.
 3. WHEN documentation is added THEN semantic search SHALL be described as a paid/private
    tier capability.
+
+### Requirement 10: Cross-region Bedrock model access
+
+**User Story:** As an operator, I want to deploy the MCP application in one region
+while sourcing Bedrock models from a different region (embedding) or via AWS's own
+cross-region routing (assist), so that regional model availability does not block my
+choice of deployment location.
+
+#### Acceptance Criteria
+1. WHEN `DocAiEmbeddingRegion` is set THEN the system SHALL construct the embedding
+   Bedrock Runtime client using that region, overriding the Lambda's deployment region.
+2. WHEN `DocAiEmbeddingRegion` is unset (default) THEN the embedding client SHALL use
+   the Lambda's deployment region (`AWS_REGION`), identical to current behavior.
+3. WHEN `DocAiAssistModel` is set to a cross-region inference profile ID THEN the
+   assist client SHALL invoke it from the deployment region's Bedrock endpoint with no
+   client-side region override, relying on AWS's internal routing.
+4. WHEN `DocAiAssistProfileRegions` is non-empty THEN the assist IAM policy SHALL grant
+   `bedrock:InvokeModel` on the inference-profile ARN plus the assist foundation model
+   restricted to exactly the listed regions (via the `aws:RequestedRegion` condition
+   key), so the effective grant is least-privilege and model-pinned; WHEN it is empty
+   (default) THEN the policy SHALL grant only the single plain foundation-model ARN,
+   unchanged from today.
+5. WHEN a Bedrock `InvokeModel` call fails with `ResourceNotFoundException`,
+   `ValidationException`, or `AccessDeniedException` THEN the system SHALL classify the
+   error as a distinct configuration error (`MODEL_NOT_AVAILABLE`) and log it at ERROR
+   level with the model id and the region attempted, separately from the routine
+   WARN-level degrade-to-fallback log.
+6. WHERE `DocAiEmbeddingRegion` is set THEN the embedding model's least-privilege IAM
+   `Resource` ARN SHALL be built using that region instead of `AWS::Region`.
+7. WHEN settings are loaded THEN `DOC_AI_EMBEDDING_REGION` SHALL be parsed defensively
+   (empty string is valid and means "use deployment region"; parsing never throws).

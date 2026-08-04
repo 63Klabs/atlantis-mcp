@@ -118,6 +118,8 @@ Metadata:
           - DocAiCandidateMultiplier
           - DocAiS3VectorBucket
           - DocAiS3VectorIndex
+          - DocAiEmbeddingRegion
+          - DocAiAssistProfileRegions
 
 # =============================================================================
 # PARAMETERS
@@ -524,6 +526,18 @@ Parameters:
     AllowedPattern: "^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$|^$"
     ConstraintDescription: "May be empty, or 3 to 63 characters: lower case alphanumeric, dashes, and periods, starting and ending with a letter or number."
 
+  DocAiEmbeddingRegion:
+    Type: String
+    Description: "Optional AWS region to source the Bedrock EMBEDDING model from (DOC_AI_EMBEDDING_REGION), overriding the Lambda deployment region. Leave empty (default) to use the deployment region. Set this when the embedding model (e.g. Titan v2) is unavailable in your deployment region; a common fallback is us-east-1. Embedding models cannot use cross-region inference profiles, so this hard client-side pin is the only cross-region option for embeddings."
+    Default: ""
+    AllowedPattern: "^[a-z]{2}(-[a-z]+)+-\\d+$|^$"
+    ConstraintDescription: "May be empty, or a valid AWS region code such as us-east-1 or us-gov-west-1."
+
+  DocAiAssistProfileRegions:
+    Type: CommaDelimitedList
+    Description: "Optional comma-delimited list of AWS regions a cross-region ASSIST inference profile may route to (used only for IAM Resource scoping; not passed to the Lambda runtime). Leave empty (default) to grant only the single plain foundation-model ARN. When non-empty, set DocAiAssistModel to an inference-profile id: the assist IAM policy then grants the inference-profile ARN plus the assist foundation model restricted to exactly these regions via the aws:RequestedRegion condition key (AWS's documented cross-region inference pattern - still model-pinned and least-privilege)."
+    Default: ""
+
 # =============================================================================
 # MAPPINGS
 # -----------------------------------------------------------------------------
@@ -592,6 +606,16 @@ Conditions:
   # read-function/doc-indexer DOC_AI_S3_VECTOR_* env vars.
   HasDocAiS3VectorBucketOverride: !Not [!Equals [!Ref DocAiS3VectorBucket, ""]]
   HasDocAiS3VectorIndexOverride: !Not [!Equals [!Ref DocAiS3VectorIndex, ""]]
+
+  # Cross-region Bedrock access (spec 0-0-6, Req 10). When an operator supplies an explicit
+  # embedding region, pin the embedding client to it; otherwise the Lambda uses its own
+  # deployment region (AWS_REGION) and the DOC_AI_EMBEDDING_REGION env var resolves to "".
+  # Mirrors the HasDocAiS3VectorBucketOverride pattern.
+  HasDocAiEmbeddingRegionOverride: !Not [!Equals [!Ref DocAiEmbeddingRegion, ""]]
+  # DocAiAssistProfileRegions is a CommaDelimitedList; joining its elements yields "" only
+  # when the list is empty (the default single empty-string element), so this detects a
+  # populated list without a per-element check. IAM-only; never reaches the Lambda runtime.
+  HasDocAiAssistProfileRegions: !Not [!Equals [!Join ["", !Ref DocAiAssistProfileRegions], ""]]
 
 # =============================================================================
 # GLOBALS
@@ -836,6 +860,11 @@ Resources:
           DOC_AI_EMBEDDING_MODEL: !Ref DocAiEmbeddingModel
           DOC_AI_EMBEDDING_DIMENSIONS: !Ref DocAiEmbeddingDimensions
           DOC_AI_EMBEDDING_MAX_INPUT_TOKENS: !Ref DocAiEmbeddingMaxInputTokens
+          # Optional embedding client region override (DOC_AI_EMBEDDING_REGION). Gated via
+          # HasDocAiEmbeddingRegionOverride so it resolves to an empty string when unset,
+          # keeping this env var byte-identical to before the cross-region feature. Empty
+          # means "use the Lambda deployment region" (parsed defensively; never throws).
+          DOC_AI_EMBEDDING_REGION: !If [HasDocAiEmbeddingRegionOverride, !Ref DocAiEmbeddingRegion, ""]
           DOC_AI_ASSIST_MODEL: !Ref DocAiAssistModel
           DOC_AI_ASSIST_MAX_CANDIDATES: !Ref DocAiAssistMaxCandidates
           DOC_AI_TOP_K: !Ref DocAiTopK
@@ -1324,6 +1353,11 @@ Resources:
           DOC_AI_EMBEDDING_MODEL: !Ref DocAiEmbeddingModel
           DOC_AI_EMBEDDING_DIMENSIONS: !Ref DocAiEmbeddingDimensions
           DOC_AI_EMBEDDING_MAX_INPUT_TOKENS: !Ref DocAiEmbeddingMaxInputTokens
+          # Optional embedding client region override (DOC_AI_EMBEDDING_REGION). Gated via
+          # HasDocAiEmbeddingRegionOverride so it resolves to an empty string when unset,
+          # keeping this env var byte-identical to before the cross-region feature. Empty
+          # means "use the Lambda deployment region" (parsed defensively; never throws).
+          DOC_AI_EMBEDDING_REGION: !If [HasDocAiEmbeddingRegionOverride, !Ref DocAiEmbeddingRegion, ""]
           DOC_AI_ASSIST_MODEL: !Ref DocAiAssistModel
           DOC_AI_ASSIST_MAX_CANDIDATES: !Ref DocAiAssistMaxCandidates
           DOC_AI_TOP_K: !Ref DocAiTopK
@@ -1578,10 +1612,17 @@ Resources:
   # >!   - Each role gets ONLY the s3vectors commands its own code path issues (verified in
   # >!     layer nodejs/vector-store-s3.js): the read role gets Query only; the indexer gets
   # >!     write/reuse/cleanup only. Neither gets the other's actions.
-  # >! Inference-profile caveat: these ARNs assume on-demand FOUNDATION models. If an operator
-  # >! points DocAiEmbeddingModel/DocAiAssistModel at a cross-region INFERENCE PROFILE id, the
-  # >! Resource must be broadened to the inference-profile ARN PLUS the underlying
-  # >! foundation-model ARNs it routes to (an inference profile invokes models across regions).
+  # >! Inference-profile handling:
+  # >!   - ASSIST (cross-region IS supported): when an operator sets DocAiAssistProfileRegions
+  # >!     and points DocAiAssistModel at a cross-region INFERENCE-PROFILE id, the assist grant
+  # >!     in ReadDocAiPolicy broadens to the inference-profile ARN PLUS the underlying assist
+  # >!     foundation model, clamped to exactly the listed regions via the aws:RequestedRegion
+  # >!     condition key (AWS's documented cross-region inference IAM pattern - still model-pinned,
+  # >!     no model wildcard). When DocAiAssistProfileRegions is empty (default), the assist grant
+  # >!     stays a single on-demand foundation-model ARN, unchanged from the original behavior.
+  # >!   - EMBEDDING still assumes an on-demand FOUNDATION model. Embedding models cannot use
+  # >!     inference profiles, so cross-region embedding is handled by pointing the embedding
+  # >!     client at DocAiEmbeddingRegion (a hard region pin), not by broadening this ARN.
 
   # -- Read Lambda DATA-plane policy (query embedding + assist re-rank + vector query) --
   ReadDocAiPolicy:
@@ -1595,17 +1636,76 @@ Resources:
         Version: '2012-10-17'
         Statement:
 
-          - Sid: BedrockInvokeQueryEmbeddingAndAssistModels
-            # >! read-function embeds the query (embedding model) and, in semantic-assisted
-            # >! mode, re-ranks the top candidates (assist model), so InvokeModel is scoped to
-            # >! BOTH specific foundation-model ARNs and nothing else. No account id (double
-            # >! colon). See the inference-profile caveat in the section header above.
+          # -- Embedding-model invoke (query embedding) --
+          - Sid: BedrockInvokeQueryEmbeddingModel
+            # >! read-function embeds the query with the embedding model, so InvokeModel is
+            # >! scoped to the single embedding foundation-model ARN and nothing else. No account
+            # >! id (the '::' double colon is intentional; foundation models are AWS-owned).
+            # >! Region segment follows DocAiEmbeddingRegion when HasDocAiEmbeddingRegionOverride
+            # >! is set, matching the runtime embedding-client region pin (DOC_AI_EMBEDDING_REGION)
+            # >! so the grant covers the exact region of the actual InvokeModel call. Embedding
+            # >! models cannot use cross-region inference profiles, hence a hard region pin rather
+            # >! than the aws:RequestedRegion pattern used for assist. When the override is empty
+            # >! (default) this is byte-identical to AWS::Region. Still model-pinned, no wildcard.
             Effect: Allow
             Action:
             - bedrock:InvokeModel
             Resource:
-            - !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/${DocAiEmbeddingModel}'
-            - !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/${DocAiAssistModel}'
+            - !If
+              - HasDocAiEmbeddingRegionOverride
+              - !Sub 'arn:aws:bedrock:${DocAiEmbeddingRegion}::foundation-model/${DocAiEmbeddingModel}'
+              - !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/${DocAiEmbeddingModel}'
+
+          # -- Assist-model invoke (semantic-assisted re-rank), cross-region aware --
+          # >! Cross-region assist scoping via AWS's documented aws:RequestedRegion pattern
+          # >! (no Fn::ForEach, no AWS::LanguageExtensions transform - see the section header):
+          # >!   - DocAiAssistProfileRegions EMPTY (default): a single plain assist
+          # >!     foundation-model ARN, no condition - byte-identical to the original grant.
+          # >!   - DocAiAssistProfileRegions NON-EMPTY: DocAiAssistModel is expected to be an
+          # >!     INFERENCE-PROFILE id, and the grant becomes two statements - (1) the
+          # >!     inference-profile ARN and (2) the underlying assist foundation model via a
+          # >!     region-wildcard ARN CLAMPED by aws:RequestedRegion to exactly the listed
+          # >!     regions. Still model-pinned and least-privilege: no model wildcard, and the
+          # >!     region wildcard is constrained by the condition to the operator-listed regions.
+          # >! The two shapes are toggled by the existing HasDocAiAssistProfileRegions condition.
+          - !If
+            - HasDocAiAssistProfileRegions
+            # Non-empty branch, statement 1 of 2: the inference-profile ARN itself.
+            # >! Unlike a foundation-model ARN, an inference-profile ARN carries BOTH region AND
+            # >! account id (single colons around ${AWS::AccountId}) - it is an account-scoped,
+            # >! regional resource. Model-pinned to the specific profile id, no wildcard.
+            - Sid: BedrockInvokeAssistInferenceProfile
+              Effect: Allow
+              Action:
+              - bedrock:InvokeModel
+              Resource:
+              - !Sub 'arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/${DocAiAssistModel}'
+            # Empty (default) branch: single plain assist foundation-model ARN, no condition.
+            # >! No account id (double colon). Byte-identical assist grant to the original behavior.
+            - Sid: BedrockInvokeAssistModel
+              Effect: Allow
+              Action:
+              - bedrock:InvokeModel
+              Resource:
+              - !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/${DocAiAssistModel}'
+
+          - !If
+            - HasDocAiAssistProfileRegions
+            # Non-empty branch, statement 2 of 2: the assist foundation model the profile routes
+            # >! to, region-wildcarded but CLAMPED by aws:RequestedRegion to exactly the
+            # >! operator-listed DocAiAssistProfileRegions (a CommaDelimitedList renders as the
+            # >! JSON array the condition value expects). Omitted entirely in the empty branch.
+            - Sid: BedrockInvokeAssistModelRegionClamped
+              Effect: Allow
+              Action:
+              - bedrock:InvokeModel
+              Resource:
+              - !Sub 'arn:aws:bedrock:*::foundation-model/${DocAiAssistModel}'
+              Condition:
+                StringEquals:
+                  aws:RequestedRegion: !Ref DocAiAssistProfileRegions
+            # Empty (default) branch: this second statement does not exist.
+            - !Ref 'AWS::NoValue'
 
           - Sid: S3VectorsQueryDataPlane
             # >! Query-only data-plane: the retrieval path calls VectorStore.query() which
@@ -1637,11 +1737,19 @@ Resources:
             # >! assist model, so InvokeModel is scoped to the single embedding foundation-model
             # >! ARN (no account id -> double colon; no model wildcard). See the inference-profile
             # >! caveat in the section header above.
+            # >! Region segment follows DocAiEmbeddingRegion when HasDocAiEmbeddingRegionOverride
+            # >! is set, matching the runtime embedding-client region pin (DOC_AI_EMBEDDING_REGION)
+            # >! so the grant covers the exact region of the actual InvokeModel call. When the
+            # >! override is empty (default) this is byte-identical to AWS::Region. Still
+            # >! model-pinned, no wildcard.
             Effect: Allow
             Action:
             - bedrock:InvokeModel
             Resource:
-            - !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/${DocAiEmbeddingModel}'
+            - !If
+              - HasDocAiEmbeddingRegionOverride
+              - !Sub 'arn:aws:bedrock:${DocAiEmbeddingRegion}::foundation-model/${DocAiEmbeddingModel}'
+              - !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/${DocAiEmbeddingModel}'
 
           - Sid: S3VectorsWriteDataPlane
             # >! Write/reuse/cleanup data-plane for the index path (verified in layer

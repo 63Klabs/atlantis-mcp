@@ -193,6 +193,8 @@ function parseIntSetting(envVar, defaultValue, { min = 1, max = Infinity } = {})
  * - `DOC_AI_EMBEDDING_MODEL` (default `amazon.titan-embed-text-v2:0`) *
  * - `DOC_AI_EMBEDDING_DIMENSIONS` (int, default 1024) *
  * - `DOC_AI_EMBEDDING_MAX_INPUT_TOKENS` (int, default 8000) *
+ * - `DOC_AI_EMBEDDING_REGION` (default '') * - optional embedding client
+ *   region override; empty means "use deployment region"
  * - `DOC_AI_ASSIST_MODEL` (default `amazon.nova-micro-v1:0`)
  * - `DOC_AI_ASSIST_MAX_CANDIDATES` (int, default 25)
  * - `DOC_AI_TOP_K` (int, default 10)
@@ -205,7 +207,7 @@ function parseIntSetting(envVar, defaultValue, { min = 1, max = Infinity } = {})
  *   minTier: string,
  *   retrievalMode: string,
  *   vectorStore: string,
- *   embedding: {model: string, dimensions: number, maxInputTokens: number},
+ *   embedding: {model: string, dimensions: number, maxInputTokens: number, region: string},
  *   assist: {model: string, maxCandidates: number},
  *   topK: number,
  *   candidateMultiplier: number,
@@ -241,7 +243,14 @@ function loadDocAiSettings() {
     embedding: {
       model: process.env.DOC_AI_EMBEDDING_MODEL || 'amazon.titan-embed-text-v2:0',
       dimensions: parseIntSetting('DOC_AI_EMBEDDING_DIMENSIONS', 1024, { min: 1 }),
-      maxInputTokens: parseIntSetting('DOC_AI_EMBEDDING_MAX_INPUT_TOKENS', 8000, { min: 1 })
+      maxInputTokens: parseIntSetting('DOC_AI_EMBEDDING_MAX_INPUT_TOKENS', 8000, { min: 1 }),
+      // Optional embedding client region override. Defensive string
+      // pass-through: empty string (the default) means "use the deployment
+      // region" and is fully valid; parsing never throws. The CloudFormation
+      // DocAiEmbeddingRegion AllowedPattern is the real input gate. Embedding
+      // models cannot use Bedrock cross-region inference profiles, so a hard
+      // client-side region pin is the only cross-region mechanism available.
+      region: process.env.DOC_AI_EMBEDDING_REGION || ''
     },
 
     // Small-model assist configuration (query-time concern; mirrored for

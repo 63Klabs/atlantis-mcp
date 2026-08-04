@@ -807,6 +807,8 @@ const settings = {
      * - `DOC_AI_EMBEDDING_MODEL` (default `amazon.titan-embed-text-v2:0`)
      * - `DOC_AI_EMBEDDING_DIMENSIONS` (int, default 1024)
      * - `DOC_AI_EMBEDDING_MAX_INPUT_TOKENS` (int, default 8000)
+     * - `DOC_AI_EMBEDDING_REGION` (default '') - optional embedding client
+     *   region override; empty means "use deployment region"
      * - `DOC_AI_ASSIST_MODEL` (default `amazon.nova-micro-v1:0`)
      * - `DOC_AI_ASSIST_MAX_CANDIDATES` (int, default 25)
      * - `DOC_AI_TOP_K` (int, default 10)
@@ -846,12 +848,24 @@ const settings = {
 
       /**
        * Embedding model configuration used to embed queries and content.
-       * @type {{model: string, dimensions: number, maxInputTokens: number}}
+       *
+       * `region` optionally pins the embedding Bedrock Runtime client to a
+       * fixed region, overriding the Lambda's deployment region. An empty
+       * string (the default) means "use the deployment region" and is fully
+       * valid; the value is a defensive string pass-through that never throws
+       * during settings load. The CloudFormation `DocAiEmbeddingRegion`
+       * parameter `AllowedPattern` is the real input gate. Embedding models
+       * cannot use Bedrock cross-region inference profiles, so a hard
+       * client-side region pin is the only cross-region mechanism available.
+       * @type {{model: string, dimensions: number, maxInputTokens: number, region: string}}
        */
       embedding: {
         model: process.env.DOC_AI_EMBEDDING_MODEL || 'amazon.titan-embed-text-v2:0',
         dimensions: parseIntSetting('DOC_AI_EMBEDDING_DIMENSIONS', 1024, { min: 1 }),
-        maxInputTokens: parseIntSetting('DOC_AI_EMBEDDING_MAX_INPUT_TOKENS', 8000, { min: 1 })
+        maxInputTokens: parseIntSetting('DOC_AI_EMBEDDING_MAX_INPUT_TOKENS', 8000, { min: 1 }),
+        // Defensive pass-through: empty string means "use deployment region".
+        // Never throws; the CloudFormation AllowedPattern gates the real input.
+        region: process.env.DOC_AI_EMBEDDING_REGION || ''
       },
 
       /**
