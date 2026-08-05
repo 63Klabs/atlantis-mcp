@@ -6,7 +6,8 @@
     "FunctionTimeOutInSeconds": "15",
     "ApiGatewayLoggingEnabled": "TRUE",
     "CacheDataS3BucketName": "",
-    "CacheDataDynamoDbTableName": ""
+    "CacheDataDynamoDbTableName": "",
+    "EnableDocAi": "true"
   },
   "Tags": {
 
