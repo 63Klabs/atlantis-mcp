@@ -165,7 +165,8 @@ search result, so that I can analyze complete context beyond the excerpt.
    value is supplied, the system SHALL resolve it to the owning file.
 5. WHEN the requested content is present in storage THEN the system SHALL return the stored content;
    IF it is missing from storage THEN the system SHALL fall back to fetching the file live from
-   GitHub using the stored/derived GitHub URL.
+   GitHub using the stored/derived GitHub URL. 
+   **CLARIFICATION/REFINEMENT NEEDED** I would like the MCP server and tools to do as little direct fetching from GitHub as possible so as to not incur rate limits on GitHub especially since the MCP server is handling requests for many clients. I would rather the agent on the client handle any per document request from GitHub after checking the storage first. Perhaps, if the storage retrieval fails, supply the agent with the full github url to the document. This would prioritize storage over live fetches, and place the fetch on the client.
 6. `get_document` SHALL be available at the same access level as keyword `search_documentation`
    (no additional tier gating) and SHALL function regardless of `EnableDocAi` or the active
    `DocAiRetrievalMode`.
@@ -173,7 +174,7 @@ search result, so that I can analyze complete context beyond the excerpt.
    retrieval consistent with the existing `get_template` / `get_template_chunk` pattern (a summary
    plus chunk-count and a chunk accessor), rather than silently dropping content.
 8. IF the document cannot be found in storage or on GitHub THEN the system SHALL return a JSON-RPC
-   error identifying the requested `filePath`/`hash`.
+   error identifying the requested `filePath`/`hash`. **CLARIFICATION/REFINEMENT NEEDED** Refer back to Acceptance Criteria 5, the server should not try to fetch GitHub pages on storage error, it should provide the github url to the client in the error response.
 
 ---
 
