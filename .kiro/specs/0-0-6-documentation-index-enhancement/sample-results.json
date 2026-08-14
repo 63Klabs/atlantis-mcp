@@ -1,0 +1,128 @@
+{
+  "results": [
+    {
+      "title": "RegionalModuleBuckets",
+      "excerpt": "Maps AWS regions to their corresponding S3 bucket names for module storage. This mapping is used when `S3ModuleLocation` is left empty (default behavior).\n\n| Region | Bucket Name |\n|--------|---------",
+      "filePath": "63Klabs/atlantis-sam-templates/docs/templates/v2/service-role/template-service-role-pipeline-README.md/regionalmodulebuckets",
+      "githubUrl": null,
+      "type": "documentation",
+      "subType": "guide",
+      "relevanceScore": 29,
+      "repository": "atlantis-sam-templates",
+      "repositoryType": null,
+      "namespace": null
+    },
+    {
+      "title": "RegionalModuleBuckets",
+      "excerpt": "Maps AWS regions to their corresponding S3 bucket names for module storage. This mapping is used when `S3ModuleLocation` is left empty (default behavior).\n\n| Region | Bucket Name |\n|--------|---------",
+      "filePath": "63Klabs/atlantis-sam-templates/docs/templates/v2/service-role/template-service-role-storage-README.md/regionalmodulebuckets",
+      "githubUrl": null,
+      "type": "documentation",
+      "subType": "guide",
+      "relevanceScore": 29,
+      "repository": "atlantis-sam-templates",
+      "repositoryType": null,
+      "namespace": null
+    },
+    {
+      "title": "S3ModuleLocation",
+      "excerpt": "S3 bucket name containing module snippets. Modules are loaded from `s3://<S3ModuleLocation>/<S3ModuleNamespace>/templates/v2/modules/*`.\n\n| Attribute | Setting |\n|-----------|---------|\n| Type | Strin",
+      "filePath": "63Klabs/atlantis-sam-templates/docs/templates/v2/account/account-wide-infrastructure-README.md/s3modulelocation",
+      "githubUrl": null,
+      "type": "documentation",
+      "subType": "guide",
+      "relevanceScore": 26,
+      "repository": "atlantis-sam-templates",
+      "repositoryType": null,
+      "namespace": null
+    },
+    {
+      "title": "S3 Artifacts Bucket Only",
+      "excerpt": "Enable just the shared artifacts bucket:\n\n```\nOrgPrefix: ACME\nRolePath: /\nEnableS3ArtifactsBucket: true\nS3BucketNameOrgPrefix: acme\nS3ModuleLocation: 63klabs-atlas-us-east-1\nS3ModuleNamespace: atlanti",
+      "filePath": "63Klabs/atlantis-sam-templates/docs/templates/v2/account/account-wide-infrastructure-README.md/s3-artifacts-bucket-only",
+      "githubUrl": null,
+      "type": "documentation",
+      "subType": "guide",
+      "relevanceScore": 26,
+      "repository": "atlantis-sam-templates",
+      "repositoryType": null,
+      "namespace": null
+    },
+    {
+      "title": "S3BucketWebConsole",
+      "excerpt": "Web console link to the S3 bucket for easy access and monitoring.\n\n**Example Value:** `https://s3.console.aws.amazon.com/s3/buckets/acme-myapp-us-east-1-123456789012?region=us-east-1`\n\n**Usage:** Quic",
+      "filePath": "63Klabs/atlantis-sam-templates/docs/templates/v2/storage/template-storage-cache-data-README.md/s3bucketwebconsole",
+      "githubUrl": null,
+      "type": "documentation",
+      "subType": "guide",
+      "relevanceScore": 26,
+      "repository": "atlantis-sam-templates",
+      "repositoryType": null,
+      "namespace": null
+    },
+    {
+      "title": "S3ModuleLocation",
+      "excerpt": "S3 bucket name override for module snippets. Leave empty to use the default regional bucket from the RegionalModuleBuckets mapping.\n\n| Attribute | Setting |\n|-----------|---------|\n| Type | String |\n|",
+      "filePath": "63Klabs/atlantis-sam-templates/docs/templates/v2/service-role/template-service-role-pipeline-README.md/s3modulelocation",
+      "githubUrl": null,
+      "type": "documentation",
+      "subType": "guide",
+      "relevanceScore": 24,
+      "repository": "atlantis-sam-templates",
+      "repositoryType": null,
+      "namespace": null
+    },
+    {
+      "title": "S3ModuleLocation",
+      "excerpt": "S3 bucket name override for module snippets. Leave empty to use the default regional bucket from the RegionalModuleBuckets mapping.\n\n| Attribute | Setting |\n|-----------|---------|\n| Type | String |\n|",
+      "filePath": "63Klabs/atlantis-sam-templates/docs/templates/v2/service-role/template-service-role-storage-README.md/s3modulelocation",
+      "githubUrl": null,
+      "type": "documentation",
+      "subType": "guide",
+      "relevanceScore": 24,
+      "repository": "atlantis-sam-templates",
+      "repositoryType": null,
+      "namespace": null
+    },
+    {
+      "title": "S3ModuleLocation",
+      "excerpt": "Parameter: S3ModuleLocation\nType: String\nDescription: S3 bucket name containing module snippets. Modules are loaded from s3://<S3ModuleLocation>/<S3ModuleNamespace>/templates/v2/modules/*. Regional bu",
+      "filePath": "63Klabs/atlantis-sam-templates/templates/v2/service-role/template-service-role-network-cloudfront.yml/Parameters/S3ModuleLocation",
+      "githubUrl": null,
+      "type": "template-pattern",
+      "subType": "parameter",
+      "relevanceScore": 23,
+      "repository": "atlantis-sam-templates",
+      "repositoryType": null,
+      "namespace": null
+    },
+    {
+      "title": "S3ModuleLocation",
+      "excerpt": "Parameter: S3ModuleLocation\nType: String\nDescription: S3 bucket name containing module snippets. Modules are loaded from s3://<S3ModuleLocation>/<S3ModuleNamespace>/templates/v2/modules/*. Regional bu",
+      "filePath": "63Klabs/atlantis-sam-templates/templates/v2/service-role/template-service-role-pipeline.yml/Parameters/S3ModuleLocation",
+      "githubUrl": null,
+      "type": "template-pattern",
+      "subType": "parameter",
+      "relevanceScore": 23,
+      "repository": "atlantis-sam-templates",
+      "repositoryType": null,
+      "namespace": null
+    },
+    {
+      "title": "S3ModuleLocation",
+      "excerpt": "Parameter: S3ModuleLocation\nType: String\nDescription: S3 bucket name containing module snippets. Modules are loaded from s3://<S3ModuleLocation>/<S3ModuleNamespace>/templates/v2/modules/*. Regional bu",
+      "filePath": "63Klabs/atlantis-sam-templates/templates/v2/service-role/template-service-role-storage.yml/Parameters/S3ModuleLocation",
+      "githubUrl": null,
+      "type": "template-pattern",
+      "subType": "parameter",
+      "relevanceScore": 23,
+      "repository": "atlantis-sam-templates",
+      "repositoryType": null,
+      "namespace": null
+    }
+  ],
+  "totalResults": 30,
+  "query": "S3ModuleLocation bucket for us-east-1",
+  "suggestions": [],
+  "partialData": false
+}

@@ -449,7 +449,7 @@ Parameters:
   DocAiRetrievalMode:
     Type: String
     Description: "Retrieval strategy for eligible requests (DOC_AI_RETRIEVAL_MODE). 'keyword' preserves current behavior; 'semantic' uses vector similarity; 'semantic-assisted' adds a light LLM re-rank/expansion."
-    Default: "semantic-assisted"
+    Default: "keyword"
     AllowedValues: ["keyword", "semantic", "semantic-assisted"]
 
   DocAiVectorStore:

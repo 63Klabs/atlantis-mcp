@@ -7,7 +7,8 @@
     "ApiGatewayLoggingEnabled": "TRUE",
     "CacheDataS3BucketName": "",
     "CacheDataDynamoDbTableName": "",
-    "EnableDocAi": "true"
+    "EnableDocAi": "true",
+    "DocAiRetrievalMode": "semantic-assisted"
   },
   "Tags": {
 
