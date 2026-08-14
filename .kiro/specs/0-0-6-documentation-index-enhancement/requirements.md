@@ -152,6 +152,13 @@ I can distinguish documentation from templates, starters, packages, and MCP repo
 **User Story:** As an AI agent, I want a `get_document` tool that returns the full source file for a
 search result, so that I can analyze complete context beyond the excerpt.
 
+> **Rationale (GitHub fetch policy):** The MCP server handles requests on behalf of many clients, so
+> it must minimize direct GitHub traffic to avoid shared rate-limit exhaustion. `get_document` is
+> therefore a **storage-only** retrieval: the server never fetches from GitHub. When storage does not
+> hold the requested document, the server hands the client the file-level GitHub URL and the client
+> performs the fetch itself (spreading any GitHub load across clients rather than concentrating it on
+> the server).
+
 #### Acceptance Criteria
 
 1. WHEN an agent lists tools (`list_tools` / `tools/list`) THEN `get_document` SHALL appear in the
@@ -163,18 +170,24 @@ search result, so that I can analyze complete context beyond the excerpt.
    single referenced section.
 4. The tool SHALL accept either a `filePath` or a `hash` as the lookup key; when a section-level
    value is supplied, the system SHALL resolve it to the owning file.
-5. WHEN the requested content is present in storage THEN the system SHALL return the stored content;
-   IF it is missing from storage THEN the system SHALL fall back to fetching the file live from
-   GitHub using the stored/derived GitHub URL. 
-   **CLARIFICATION/REFINEMENT NEEDED** I would like the MCP server and tools to do as little direct fetching from GitHub as possible so as to not incur rate limits on GitHub especially since the MCP server is handling requests for many clients. I would rather the agent on the client handle any per document request from GitHub after checking the storage first. Perhaps, if the storage retrieval fails, supply the agent with the full github url to the document. This would prioritize storage over live fetches, and place the fetch on the client.
+5. WHEN the requested content is present in storage THEN the system SHALL assemble and return the
+   stored content (the full source file reconstructed from the stored section body items). The
+   system SHALL NOT perform live GitHub fetches to satisfy `get_document`; retrieving a document
+   that is not in storage is delegated to the client (see Acceptance Criterion 8).
 6. `get_document` SHALL be available at the same access level as keyword `search_documentation`
    (no additional tier gating) and SHALL function regardless of `EnableDocAi` or the active
    `DocAiRetrievalMode`.
 7. WHEN a returned document exceeds the response size limit THEN the system SHALL provide chunked
    retrieval consistent with the existing `get_template` / `get_template_chunk` pattern (a summary
    plus chunk-count and a chunk accessor), rather than silently dropping content.
-8. IF the document cannot be found in storage or on GitHub THEN the system SHALL return a JSON-RPC
-   error identifying the requested `filePath`/`hash`. **CLARIFICATION/REFINEMENT NEEDED** Refer back to Acceptance Criteria 5, the server should not try to fetch GitHub pages on storage error, it should provide the github url to the client in the error response.
+8. IF the document cannot be found in storage THEN the system SHALL NOT attempt to fetch it from
+   GitHub, and SHALL instead return a JSON-RPC error that identifies the requested `filePath`/`hash`
+   AND includes the file-level GitHub URL (when it can be derived from stored metadata) so the client
+   can retrieve the document directly. IF no GitHub URL can be derived THEN the error SHALL still
+   identify the requested `filePath`/`hash`.
+9. WHEN `get_document` returns stored content successfully THEN the response SHALL also include the
+   file-level `githubUrl` for the source file (when available), so the client always has a direct
+   link alongside the content.
 
 ---
 
@@ -289,3 +302,5 @@ admins, developers, and end users have accurate information after this change.
 - Heading-anchor deep links in `githubUrl` (Q5a) — file-level links only.
 - Point-in-time / version-diff retrieval of content bodies (Q6).
 - Retaining a DynamoDB vector backend or air-gapped vector option (Q2).
+- Server-side live GitHub fetching for `get_document` (Requirement 6) — the server is storage-only
+  and delegates any GitHub fetch to the client by returning the file-level URL.
