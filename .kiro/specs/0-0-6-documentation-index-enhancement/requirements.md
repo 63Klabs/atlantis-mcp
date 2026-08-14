@@ -1,4 +1,6 @@
-# Requirements — Documentation Index Enhancement
+# Requirements Document
+
+Documentation Index Enhancement
 
 ## Introduction
 
@@ -28,7 +30,7 @@ All three `DocAiRetrievalMode` values remain supported: **keyword**, **semantic*
 - **Feature gating unchanged.** `EnableDocAi` still gates all semantic/Bedrock/vector code paths.
 - **`get_document` is retrieval-by-id**, independent of retrieval mode and of `EnableDocAi`.
 
-### Glossary
+## Glossary
 
 - **contentPath** — `{org}/{repo}/{filePath}/{slug}`, returned to callers as `filePath`.
 - **hash** — deterministic SHA-256(contentPath) truncated to 16 hex chars; the content key.
@@ -38,13 +40,15 @@ All three `DocAiRetrievalMode` values remain supported: **keyword**, **semantic*
 
 ---
 
-## Requirement 1 — Batched metadata retrieval in search (R1)
+## Requirements
 
-**User story:** As an operator, I want documentation search to fetch result metadata in batched
+### Requirement 1: Batched metadata retrieval in search (R1)
+
+**User Story:** As an operator, I want documentation search to fetch result metadata in batched
 DynamoDB requests, so that search latency and per-request read cost scale sub-linearly with the
 number of results across all retrieval modes.
 
-#### Acceptance criteria
+#### Acceptance Criteria
 
 1. WHEN `queryIndex` resolves its ranked set of content hashes THEN the system SHALL retrieve
    their metadata items using `BatchGetItem` requests (chunked at the 100-key DynamoDB limit)
@@ -60,13 +64,13 @@ number of results across all retrieval modes.
 
 ---
 
-## Requirement 2 — Content stored keyed by hash only (R2/R2b)
+### Requirement 2: Content stored keyed by hash only (R2/R2b)
 
-**User story:** As a maintainer, I want document bodies stored once per content hash instead of
+**User Story:** As a maintainer, I want document bodies stored once per content hash instead of
 duplicated per index version, so that storage cost is reduced and stale content is cleaned up
 automatically.
 
-#### Acceptance criteria
+#### Acceptance Criteria
 
 1. WHEN the indexer writes a content body THEN the system SHALL key it by content hash without
    embedding the index version in the key (e.g. a single `content:{hash}` body item), so the body
@@ -82,13 +86,13 @@ automatically.
 
 ---
 
-## Requirement 3 — Boundary-aware excerpts (R3)
+### Requirement 3: Boundary-aware excerpts (R3)
 
-**User story:** As an AI agent consuming search results, I want excerpts that read as coherent
+**User Story:** As an AI agent consuming search results, I want excerpts that read as coherent
 prose rather than mid-word/mid-table fragments, so that I can judge relevance without fetching the
 full document.
 
-#### Acceptance criteria
+#### Acceptance Criteria
 
 1. WHEN the indexer produces an excerpt for a section THEN the system SHALL trim at a word or
    sentence boundary at or before the maximum length rather than performing a hard character cut.
@@ -103,12 +107,12 @@ full document.
 
 ---
 
-## Requirement 4 — Populate `githubUrl` (R4, Q5a/Q5b)
+### Requirement 4: Populate `githubUrl` (R4, Q5a/Q5b)
 
-**User story:** As an AI agent, I want each search result to include a working GitHub URL to the
+**User Story:** As an AI agent, I want each search result to include a working GitHub URL to the
 source file, so that I can open or fetch the full document.
 
-#### Acceptance criteria
+#### Acceptance Criteria
 
 1. WHEN the indexer writes a content metadata item THEN the system SHALL store a file-level GitHub
    URL of the form `https://github.com/{owner}/{repo}/blob/{ref}/{filePath}`.
@@ -122,12 +126,12 @@ source file, so that I can open or fetch the full document.
 
 ---
 
-## Requirement 5 — Populate `repositoryType` and `namespace` (Q5c)
+### Requirement 5: Populate `repositoryType` and `namespace` (Q5c)
 
-**User story:** As an AI agent, I want results to carry the repository type and namespace, so that
+**User Story:** As an AI agent, I want results to carry the repository type and namespace, so that
 I can distinguish documentation from templates, starters, packages, and MCP repos.
 
-#### Acceptance criteria
+#### Acceptance Criteria
 
 1. WHEN the indexer processes a repository THEN the system SHALL capture its
    `atlantis_repository-type` custom property and store it as `repositoryType` on the content
@@ -143,12 +147,12 @@ I can distinguish documentation from templates, starters, packages, and MCP repo
 
 ---
 
-## Requirement 6 — `get_document` MCP tool (Q1)
+### Requirement 6: `get_document` MCP tool (Q1)
 
-**User story:** As an AI agent, I want a `get_document` tool that returns the full source file for a
+**User Story:** As an AI agent, I want a `get_document` tool that returns the full source file for a
 search result, so that I can analyze complete context beyond the excerpt.
 
-#### Acceptance criteria
+#### Acceptance Criteria
 
 1. WHEN an agent lists tools (`list_tools` / `tools/list`) THEN `get_document` SHALL appear in the
    catalog with a description and input schema.
@@ -173,12 +177,12 @@ search result, so that I can analyze complete context beyond the excerpt.
 
 ---
 
-## Requirement 7 — Consolidate on S3 Vectors; remove `DocAiVectorStore` (Q2)
+### Requirement 7: Consolidate on S3 Vectors; remove `DocAiVectorStore` (Q2)
 
-**User story:** As a maintainer, I want a single vector store backend (S3 Vectors), so that I have
+**User Story:** As a maintainer, I want a single vector store backend (S3 Vectors), so that I have
 less configuration surface, no whole-corpus in-Lambda scan path, and lower vector-storage cost.
 
-#### Acceptance criteria
+#### Acceptance Criteria
 
 1. The system SHALL use S3 Vectors as the sole vector store backend for semantic and
    semantic-assisted retrieval.
@@ -195,12 +199,12 @@ less configuration surface, no whole-corpus in-Lambda scan path, and lower vecto
 
 ---
 
-## Requirement 8 — Filter discoverability and push-down (R5, Q3)
+### Requirement 8: Filter discoverability and push-down (R5, Q3)
 
-**User story:** As an AI agent, I want the search tool to make `type`/`subType` filters discoverable
+**User Story:** As an AI agent, I want the search tool to make `type`/`subType` filters discoverable
 and to apply them efficiently, so that I can narrow broad result sets and the server does less work.
 
-#### Acceptance criteria
+#### Acceptance Criteria
 
 1. WHEN search returns results THEN the response SHALL include an additive `availableFilters` (facet)
    block listing the distinct `type` and `subType` values present in the matched set with their
@@ -219,12 +223,12 @@ and to apply them efficiently, so that I can narrow broad result sets and the se
 
 ---
 
-## Requirement 9 — Query-time exact-phrase ranking boost (R8, Q4)
+### Requirement 9: Query-time exact-phrase ranking boost (R8, Q4)
 
-**User story:** As an AI agent, I want exact-phrase matches ranked higher, so that a result whose
+**User Story:** As an AI agent, I want exact-phrase matches ranked higher, so that a result whose
 title or excerpt literally contains my query phrase surfaces near the top.
 
-#### Acceptance criteria
+#### Acceptance Criteria
 
 1. WHEN keyword-mode results are scored THEN the system SHALL apply the `exactPhrase` weight as a
    query-time boost to entries whose title or excerpt contains the full query phrase.
@@ -237,12 +241,12 @@ title or excerpt literally contains my query phrase surfaces near the top.
 
 ---
 
-## Requirement 10 — Backward compatibility (Q8)
+### Requirement 10: Backward compatibility (Q8)
 
-**User story:** As an existing MCP client, I want the response contract to remain compatible, so that
+**User Story:** As an existing MCP client, I want the response contract to remain compatible, so that
 current integrations keep working after this change.
 
-#### Acceptance criteria
+#### Acceptance Criteria
 
 1. The system SHALL NOT remove or rename any existing field in the `search_documentation` result
    objects or envelope.
@@ -255,12 +259,12 @@ current integrations keep working after this change.
 
 ---
 
-## Requirement 11 — Documentation and tests kept in sync (AGENTS.md §9, Q2, Q7)
+### Requirement 11: Documentation and tests kept in sync (AGENTS.md §9, Q2, Q7)
 
-**User story:** As a maintainer, I want documentation and tests updated alongside the code, so that
+**User Story:** As a maintainer, I want documentation and tests updated alongside the code, so that
 admins, developers, and end users have accurate information after this change.
 
-#### Acceptance criteria
+#### Acceptance Criteria
 
 1. WHEN the vector store is consolidated (Requirement 7) THEN ARCHITECTURE.md, DEPLOYMENT.md, and
    affected `docs/` and CloudFormation parameter docs SHALL be updated to remove the selectable
