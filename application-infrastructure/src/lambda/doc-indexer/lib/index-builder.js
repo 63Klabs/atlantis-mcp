@@ -4,7 +4,13 @@ const http = require('http');
 const { hashContentPath } = require('./hasher');
 const { isIndexable } = require('./file-filter');
 const { extractArchive } = require('./archive-processor');
-const { listRepositories, getLatestRelease, downloadArchive } = require('./github-client');
+const {
+	listRepositories,
+	getLatestRelease,
+	downloadArchive,
+	getRepositoryProperties,
+	buildGithubUrl
+} = require('./github-client');
 const markdownExtractor = require('./extractors/markdown');
 const jsdocExtractor = require('./extractors/jsdoc');
 const pythonExtractor = require('./extractors/python');
@@ -42,8 +48,7 @@ const TYPE_WEIGHTS = {
 const SCORE_WEIGHTS = {
 	titleMatch: 10,
 	excerptMatch: 5,
-	keywordMatch: 3,
-	exactPhrase: 20
+	keywordMatch: 3
 };
 
 /**
@@ -213,19 +218,40 @@ function buildKeywordEntries(entries) {
 /**
  * Process a single repository: download archive, extract files, run extractors.
  *
+ * Each returned entry carries, in addition to the extractor output:
+ * - `hash` — SHA-256(contentPath) truncated to 16 hex (the per-section content key).
+ * - `documentPath` — `{org}/{repo}/{filePath}` (file-level, no heading slug).
+ * - `documentHash` — SHA-256(documentPath) truncated to 16 hex (the per-file document key,
+ *   used by `get_document` resolution and the `document:{fileHash}` write in task 1.5).
+ * - `githubUrl` — file-level `https://github.com/{owner}/{repo}/blob/{ref}/{filePath}`, or
+ *   `null` when a component is unavailable. `{ref}` is the release tag when the release
+ *   archive was downloaded, else the repository default branch.
+ * - `repositoryType` / `namespace` — from the repository's GitHub custom properties, or
+ *   `null` when absent (best-effort; a custom-property failure never fails the build).
+ * - `fileContent` — the full raw source file text, retained so task 1.5 can write one
+ *   `document:{fileHash}` item per file (de-duplicated by `documentHash`).
+ *
  * @param {Object} repo - Repository info with name, defaultBranch, owner
  * @param {string} token - GitHub PAT
- * @returns {Promise<Array<Object>>} Extracted content entries with hash
+ * @returns {Promise<Array<Object>>} Extracted content entries with hash and file-level metadata
  */
 async function processRepository(repo, token) {
 	const release = await getLatestRelease(repo.owner, repo.name, token);
 
 	let archiveUrl;
+	let ref;
 	if (release) {
 		archiveUrl = release.zipUrl;
+		// Ref actually indexed: the release tag when the release archive was downloaded.
+		ref = release.tagName;
 	} else {
 		archiveUrl = `https://api.github.com/repos/${repo.owner}/${repo.name}/zipball/${repo.defaultBranch}`;
+		// Otherwise the default branch that was archived.
+		ref = repo.defaultBranch;
 	}
+
+	// Repository classification (best-effort; never throws, never fails the build).
+	const { repositoryType, namespace } = await getRepositoryProperties(repo.owner, repo.name, token);
 
 	const buffer = await downloadArchive(archiveUrl, token);
 	const files = extractArchive(buffer);
@@ -247,10 +273,28 @@ async function processRepository(repo, token) {
 				repo: repo.name
 			});
 
+			// File-level values shared by every section entry from this file.
+			const documentPath = `${repo.owner}/${repo.name}/${file.path}`;
+			const documentHash = hashContentPath(documentPath);
+			const githubUrl = buildGithubUrl({
+				owner: repo.owner,
+				repo: repo.name,
+				ref,
+				filePath: file.path
+			});
+
 			for (const entry of extracted) {
 				entries.push({
 					...entry,
 					hash: hashContentPath(entry.contentPath),
+					documentPath,
+					documentHash,
+					githubUrl,
+					repositoryType,
+					namespace,
+					ref,
+					// Full raw file body retained so task 1.5 writes it once per file.
+					fileContent: file.content,
 					repository: repo.name,
 					owner: repo.owner
 				});

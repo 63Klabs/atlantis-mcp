@@ -21,6 +21,20 @@ const BASE_BACKOFF_MS = 1000;
 const GITHUB_API_HOST = 'api.github.com';
 
 /**
+ * Default GitHub custom-property name that classifies a repository's Atlantis type
+ * (documentation, app-starter, templates, package, mcp). Callers may override this via
+ * the `repositoryTypeProperty` option to {@link getRepositoryProperties}.
+ * @type {string}
+ */
+const REPOSITORY_TYPE_PROPERTY = 'atlantis_repository-type';
+
+/**
+ * Default GitHub custom-property name that carries a repository's namespace, when set.
+ * @type {string}
+ */
+const NAMESPACE_PROPERTY = 'atlantis_namespace';
+
+/**
  * In-memory cache for GitHub API responses within a single build run.
  * Keyed by request URL.
  * @type {Map<string, *>}
@@ -335,10 +349,123 @@ async function downloadWithRedirects(url, token, maxRedirects) {
 	throw new Error(`Archive download failed: ${result.statusCode}`);
 }
 
+/**
+ * Build a file-level GitHub blob URL for an indexed source file.
+ *
+ * Produces `https://github.com/{owner}/{repo}/blob/{ref}/{filePath}` where `{ref}` is the
+ * release tag or default branch actually indexed. Heading anchors are out of scope
+ * (file-level links only). Returns `null` when any component is missing so the caller can
+ * store `null` and continue rather than emitting a broken URL.
+ *
+ * @param {Object} params - URL components
+ * @param {string} params.owner - Repository owner (org or user)
+ * @param {string} params.repo - Repository name
+ * @param {string} params.ref - Git ref that was indexed (release tag or default branch)
+ * @param {string} params.filePath - Repo-relative file path (e.g., "docs/setup.md")
+ * @returns {string|null} File-level blob URL, or `null` when a component is missing
+ * @example
+ * buildGithubUrl({ owner: '63klabs', repo: 'cache-data', ref: 'v1.3.6', filePath: 'README.md' });
+ * // "https://github.com/63klabs/cache-data/blob/v1.3.6/README.md"
+ */
+function buildGithubUrl({ owner, repo, ref, filePath } = {}) {
+	if (!owner || !repo || !ref || !filePath) {
+		return null;
+	}
+	if (typeof owner !== 'string' || typeof repo !== 'string' || typeof ref !== 'string' || typeof filePath !== 'string') {
+		return null;
+	}
+	return `https://github.com/${owner}/${repo}/blob/${ref}/${filePath}`;
+}
+
+/**
+ * Normalize a GitHub custom-property value into a non-empty string or null. GitHub returns
+ * a property `value` as a string, `null`, or (for multi-select properties) an array; this
+ * collapses those to a single string (first element for arrays) or `null`.
+ *
+ * @param {(string|Array<string>|null)} value - Raw custom-property value
+ * @returns {string|null} Normalized string value, or `null` when absent/empty
+ */
+function normalizePropertyValue(value) {
+	if (typeof value === 'string') {
+		const trimmed = value.trim();
+		return trimmed.length > 0 ? trimmed : null;
+	}
+	if (Array.isArray(value) && value.length > 0) {
+		const first = value[0];
+		if (typeof first === 'string' && first.trim().length > 0) {
+			return first.trim();
+		}
+	}
+	return null;
+}
+
+/**
+ * Fetch a repository's Atlantis custom properties (best-effort, failure-tolerant).
+ *
+ * Calls the GitHub custom-properties API (`GET /repos/{owner}/{repo}/properties/values`)
+ * and maps the `atlantis_repository-type` property to `repositoryType` and the
+ * `atlantis_namespace` property to `namespace`. This never throws and never fails a build:
+ * a fetch error, a 404, or an absent property yields `null` for the affected field. The
+ * GitHub token is never logged.
+ *
+ * @param {string} owner - Repository owner (org or user)
+ * @param {string} repo - Repository name
+ * @param {string} token - GitHub Personal Access Token
+ * @param {Object} [options] - Options
+ * @param {string} [options.repositoryTypeProperty=REPOSITORY_TYPE_PROPERTY] - Custom-property name for the repository type
+ * @param {string} [options.namespaceProperty=NAMESPACE_PROPERTY] - Custom-property name for the namespace
+ * @returns {Promise<{repositoryType: (string|null), namespace: (string|null)}>} Mapped properties (fields are `null` when unavailable)
+ * @example
+ * const props = await getRepositoryProperties('63klabs', 'cache-data', token);
+ * // { repositoryType: 'package', namespace: null }
+ */
+async function getRepositoryProperties(owner, repo, token, options = {}) {
+	const repositoryTypeProperty = options.repositoryTypeProperty || REPOSITORY_TYPE_PROPERTY;
+	const namespaceProperty = options.namespaceProperty || NAMESPACE_PROPERTY;
+
+	try {
+		const data = await githubRequest(
+			`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/properties/values`,
+			token
+		);
+
+		let repositoryType = null;
+		let namespace = null;
+
+		if (Array.isArray(data)) {
+			for (const prop of data) {
+				if (!prop || typeof prop.property_name !== 'string') {
+					continue;
+				}
+				if (prop.property_name === repositoryTypeProperty) {
+					repositoryType = normalizePropertyValue(prop.value);
+				} else if (prop.property_name === namespaceProperty) {
+					namespace = normalizePropertyValue(prop.value);
+				}
+			}
+		}
+
+		return { repositoryType, namespace };
+	} catch (err) {
+		// >! Best-effort: a custom-property failure must never fail the build. Log the
+		// >! owner/repo and error message only — never the token.
+		console.warn(JSON.stringify({
+			level: 'WARN',
+			event: 'repo_properties_failed',
+			owner,
+			repo,
+			error: err.message
+		}));
+		return { repositoryType: null, namespace: null };
+	}
+}
+
 module.exports = {
 	listRepositories,
 	getLatestRelease,
 	downloadArchive,
+	getRepositoryProperties,
+	buildGithubUrl,
 	clearCache,
 	resetRateLimitState,
 	getRateLimitState,
@@ -348,6 +475,9 @@ module.exports = {
 	waitForRateLimitReset,
 	sleep,
 	makeHttpsRequest,
+	normalizePropertyValue,
+	REPOSITORY_TYPE_PROPERTY,
+	NAMESPACE_PROPERTY,
 	MAX_RETRIES,
 	BASE_BACKOFF_MS
 };

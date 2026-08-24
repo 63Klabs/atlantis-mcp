@@ -118,28 +118,36 @@ describe('Property 3: Markdown extraction produces valid entries', () => {
 		);
 	});
 
-	// **Validates: Requirements 7.5**
-	it('excerpt is at most 200 characters', () => {
+	// **Validates: Requirement 3 (boundary-aware excerpts)**
+	// Boundary-aware excerpts may extend a sentence up to the hard cap (240) but never
+	// beyond it (spec 0-0-6, task 1.2), so 240 is the invariant rather than the old 200.
+	it('excerpt is at most the hard cap (240 characters)', () => {
 		fc.assert(
 			fc.property(markdownArb, contextArb, filePathArb, (markdown, context, filePath) => {
 				const entries = extract(markdown, filePath, context);
 
 				for (const entry of entries) {
-					expect(entry.excerpt.length).toBeLessThanOrEqual(200);
+					expect(entry.excerpt.length).toBeLessThanOrEqual(240);
 				}
 			}),
 			{ numRuns: 100 }
 		);
 	});
 
-	// **Validates: Requirements 7.5**
-	it('excerpt is a prefix of the content', () => {
+	// **Validates: Requirement 3 (boundary-aware excerpts)**
+	// The excerpt is no longer a raw prefix of the body: it prefers the first prose
+	// paragraph and normalizes whitespace. The preserved invariants are that it is
+	// whitespace-trimmed and appears as a contiguous, whitespace-normalized substring of
+	// the body (so no synthetic text is introduced).
+	it('excerpt is a whitespace-normalized substring of the content and is trimmed', () => {
+		const collapse = (s) => s.replace(/\s+/g, ' ').trim();
 		fc.assert(
 			fc.property(markdownArb, contextArb, filePathArb, (markdown, context, filePath) => {
 				const entries = extract(markdown, filePath, context);
 
 				for (const entry of entries) {
-					expect(entry.content.startsWith(entry.excerpt)).toBe(true);
+					expect(entry.excerpt).toBe(entry.excerpt.trim());
+					expect(collapse(entry.content).includes(entry.excerpt)).toBe(true);
 				}
 			}),
 			{ numRuns: 100 }

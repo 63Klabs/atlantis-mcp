@@ -23,10 +23,19 @@ const STOP_WORDS = new Set([
 ]);
 
 /**
- * Maximum excerpt length in characters.
+ * Maximum (soft) excerpt length in characters. Excerpts are trimmed at a sentence or
+ * word boundary at or near this length.
  * @type {number}
  */
 const MAX_EXCERPT_LENGTH = 200;
+
+/**
+ * Hard cap for an excerpt in characters. A sentence boundary may extend the excerpt past
+ * {@link MAX_EXCERPT_LENGTH} up to this cap so a sentence is not cut short, but never
+ * beyond it (prevents a runaway sentence from producing an oversized excerpt).
+ * @type {number}
+ */
+const EXCERPT_HARD_CAP = 240;
 
 /**
  * Minimum keyword length to include.
@@ -125,6 +134,140 @@ function parseSections(content) {
 }
 
 /**
+ * Scan a section body for the first descriptive prose paragraph, skipping leading
+ * non-prose markup: fenced code blocks, markdown table rows and dividers, heading lines,
+ * and blank lines. Consecutive prose lines are joined into a single paragraph.
+ *
+ * @param {string} body - Section body text (may begin with tables, code fences, etc.)
+ * @returns {string} The first prose paragraph, or an empty string when none is found
+ * @example
+ * extractFirstProseParagraph('| A | B |\n|---|---|\n\nThis explains the table.');
+ * // "This explains the table."
+ */
+function extractFirstProseParagraph(body) {
+	const lines = body.split('\n');
+	let inFence = false;
+	const paragraph = [];
+
+	for (const line of lines) {
+		const trimmed = line.trim();
+
+		// Toggle fenced code block state on ``` or ~~~ fences (skip the fence and its body).
+		if (/^(```|~~~)/.test(trimmed)) {
+			inFence = !inFence;
+			if (paragraph.length > 0) {
+				break;
+			}
+			continue;
+		}
+		if (inFence) {
+			continue;
+		}
+
+		const isBlank = trimmed.length === 0;
+		const isHeading = /^#{1,6}\s+/.test(trimmed);
+		const isTableRow = /^\|/.test(trimmed);
+		const isTableDivider = /^\|?\s*:?-{2,}/.test(trimmed);
+
+		if (isBlank || isHeading || isTableRow || isTableDivider) {
+			// A blank line (or new block) after prose ends the first paragraph.
+			if (paragraph.length > 0) {
+				break;
+			}
+			continue;
+		}
+
+		// Descriptive prose line: accumulate into the current paragraph.
+		paragraph.push(trimmed);
+	}
+
+	return paragraph.join(' ').trim();
+}
+
+/**
+ * Trim text to a coherent excerpt: collapse whitespace, then cut at a sentence boundary
+ * near the soft limit (extending up to the hard cap so a sentence is not cut short), or
+ * failing that at the last word boundary at or before the soft limit. Never ends
+ * mid-word.
+ *
+ * @param {string} text - Source text to trim
+ * @param {number} [maxLen=MAX_EXCERPT_LENGTH] - Soft length limit
+ * @param {number} [hardCap=EXCERPT_HARD_CAP] - Absolute maximum length
+ * @returns {string} Boundary-trimmed excerpt (no trailing partial word)
+ * @example
+ * trimToBoundary('First sentence. Second sentence that runs long...', 20);
+ * // "First sentence."
+ */
+function trimToBoundary(text, maxLen = MAX_EXCERPT_LENGTH, hardCap = EXCERPT_HARD_CAP) {
+	const clean = text.replace(/\s+/g, ' ').trim();
+	if (clean.length <= maxLen) {
+		return clean;
+	}
+
+	// Collect sentence-boundary positions (index just past the terminal punctuation).
+	const sentenceEnds = [];
+	const sentenceRe = /[.!?]+(?=\s|$)/g;
+	let match;
+	while ((match = sentenceRe.exec(clean)) !== null) {
+		sentenceEnds.push(match.index + match[0].length);
+	}
+
+	// Prefer the smallest sentence boundary in [maxLen, hardCap] (a complete sentence just
+	// past the soft limit); otherwise the largest sentence boundary in [minLen, maxLen].
+	const minLen = Math.floor(maxLen / 2);
+	let boundary = -1;
+	for (const pos of sentenceEnds) {
+		if (pos >= maxLen && pos <= hardCap) {
+			boundary = pos;
+			break;
+		}
+	}
+	if (boundary === -1) {
+		for (const pos of sentenceEnds) {
+			if (pos <= maxLen && pos >= minLen) {
+				boundary = pos;
+			}
+			if (pos > maxLen) {
+				break;
+			}
+		}
+	}
+	if (boundary > 0) {
+		return clean.slice(0, boundary).trim();
+	}
+
+	// No suitable sentence boundary: cut at the last word boundary at or before maxLen.
+	const slice = clean.slice(0, maxLen);
+	const lastSpace = slice.lastIndexOf(' ');
+	if (lastSpace > 0) {
+		return slice.slice(0, lastSpace).trim();
+	}
+
+	// A single word longer than maxLen: an exact cut is unavoidable.
+	return slice.trim();
+}
+
+/**
+ * Build a coherent excerpt for a section body. Prefers the first descriptive prose
+ * paragraph (skipping leading tables, code fences, headings, and blanks) and trims it at
+ * a sentence or word boundary so the excerpt never ends mid-word or mid-table.
+ *
+ * @param {string} body - Section body text
+ * @returns {string} Boundary-aware excerpt (empty string for empty/non-string input)
+ * @example
+ * buildExcerpt('| Setting | Value |\n|---|---|\n\nConfigures the cache TTL in seconds.');
+ * // "Configures the cache TTL in seconds."
+ */
+function buildExcerpt(body) {
+	if (!body || typeof body !== 'string') {
+		return '';
+	}
+	const prose = extractFirstProseParagraph(body);
+	const source = prose.length > 0 ? prose : body;
+	return trimToBoundary(source, MAX_EXCERPT_LENGTH, EXCERPT_HARD_CAP);
+}
+
+/**
  * Extract indexed entries from a Markdown file. Each heading (H1–H6)
  * produces one entry with a content path, title, excerpt, full content,
  * type metadata, and extracted keywords.
@@ -163,7 +306,7 @@ function extract(content, filePath, context) {
 		}
 
 		const contentPath = `${context.org}/${context.repo}/${filePath}/${slug}`;
-		const excerpt = section.body.substring(0, MAX_EXCERPT_LENGTH);
+		const excerpt = buildExcerpt(section.body);
 
 		const headingKeywords = extractKeywords(section.heading);
 		const bodyKeywords = extractKeywords(section.body);
@@ -187,4 +330,12 @@ function extract(content, filePath, context) {
 	return entries;
 }
 
-module.exports = { extract, slugifyHeading, extractKeywords, parseSections };
+module.exports = {
+	extract,
+	slugifyHeading,
+	extractKeywords,
+	parseSections,
+	buildExcerpt,
+	extractFirstProseParagraph,
+	trimToBoundary
+};

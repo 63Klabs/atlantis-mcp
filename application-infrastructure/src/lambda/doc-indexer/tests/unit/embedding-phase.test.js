@@ -43,7 +43,10 @@ jest.mock('../../lib/github-client', () => ({
   // Default: no repositories -> zero entries. Overridden per-test where a repo is needed.
   listRepositories: jest.fn().mockResolvedValue([]),
   getLatestRelease: jest.fn().mockResolvedValue(null),
-  downloadArchive: jest.fn().mockResolvedValue(Buffer.from('zip'))
+  downloadArchive: jest.fn().mockResolvedValue(Buffer.from('zip')),
+  // Repository classification is best-effort; default to null so build() proceeds.
+  getRepositoryProperties: jest.fn().mockResolvedValue({ repositoryType: null, namespace: null }),
+  buildGithubUrl: jest.fn(() => null)
 }));
 
 jest.mock('../../lib/archive-processor', () => ({

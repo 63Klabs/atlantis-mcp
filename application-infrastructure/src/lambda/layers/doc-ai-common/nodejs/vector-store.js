@@ -7,11 +7,10 @@
  * the read-function (query-time `query`).
  *
  * This module intentionally defines ONLY the abstract contract and the factory. The
- * concrete stores live in sibling modules and are loaded lazily by the factory:
- *   - `dynamodb`   -> `./vector-store-dynamodb` exporting `DynamoDbVectorStore` (task 3.2)
- *   - `s3-vectors` -> `./vector-store-s3` exporting `S3VectorStore` (task 4.2)
- * A future `opensearch` store plugs in the same way (Requirement 4.5): the factory is
- * the single extension point, so callers never change when a new backend is added.
+ * single concrete store lives in a sibling module and is loaded lazily by the factory:
+ *   - `s3-vectors` -> `./vector-store-s3` exporting `S3VectorStore`
+ * As of spec 0-0-6 (Requirement 7), S3 Vectors is the sole backend; `createVectorStore`
+ * always returns `S3VectorStore` and the former DynamoDB vector store has been removed.
  *
  * Design notes:
  *   - No AWS SDK at module load: this file requires no AWS SDK client at the top level,
@@ -67,22 +66,22 @@
  * // hits === [{ hash, score, metadata }, ...] ordered by descending similarity
  */
 
-/** Vector-store identifier: reuse the existing DocIndex DynamoDB table. */
-const VECTOR_STORE_DYNAMODB = 'dynamodb';
-/** Vector-store identifier: use an S3 Vectors vector bucket + index. */
+/** Vector-store identifier: use an S3 Vectors vector bucket + index (the sole backend). */
 const VECTOR_STORE_S3_VECTORS = 's3-vectors';
 
 /**
- * Fixed allowlist mapping a supported `vectorStore` id to the sibling module that
+ * Fixed allowlist mapping the supported `vectorStore` id to the sibling module that
  * implements it and the class that module is expected to export. Dispatching through
  * this constant (rather than interpolating a caller-supplied value into `require()`)
  * keeps module loading confined to known implementations.
+ *
+ * As of spec 0-0-6 (Requirement 7) S3 Vectors is the ONLY backend: the former DynamoDB
+ * vector store (whole-corpus-into-Lambda cosine path) has been removed.
  *
  * @constant {Object.<string, {module: string, exportName: string}>}
  */
 // >! Static allowlist: `require()` targets come from here, never from `config`.
 const STORE_REGISTRY = {
-  [VECTOR_STORE_DYNAMODB]: { module: './vector-store-dynamodb', exportName: 'DynamoDbVectorStore' },
   [VECTOR_STORE_S3_VECTORS]: { module: './vector-store-s3', exportName: 'S3VectorStore' }
 };
 
@@ -260,46 +259,31 @@ function loadStoreClass(storeId, entry) {
 }
 
 /**
- * Factory that returns a concrete {@link VectorStore} for the configured backend. This
- * is the single extension point for retrieval backends: callers depend only on the
- * VectorStore contract, and a new backend is added by registering it in
- * `STORE_REGISTRY` and shipping its module (Requirement 4.5).
+ * Factory that returns the concrete S3 Vectors {@link VectorStore}. Callers depend only
+ * on the VectorStore contract; S3 Vectors is the sole backend (spec 0-0-6, Requirement 7).
  *
- * The `config` may be a superset of what any single store needs; each concrete store
- * reads only the keys it cares about. This keeps the shape aligned with the
- * `documentation.ai` settings block (`vectorStore`, `embedding.dimensions`,
- * `s3Vectors.{bucket,index}`) and the DynamoDB DocIndex table name.
+ * The `config` may be a superset of what the store needs; the store reads only the keys
+ * it cares about. This keeps the shape aligned with the `documentation.ai` settings block
+ * (`embedding.dimensions`, `s3Vectors.{bucket,index}`). Any legacy `config.vectorStore`
+ * selector is ignored.
  *
  * @param {Object} config - Vector-store configuration (typically derived from `documentation.ai` settings).
- * @param {string} config.vectorStore - Backend selector: `'dynamodb'` or `'s3-vectors'` (a future `'opensearch'`).
- * @param {number} [config.dimensions] - Embedding vector length; passed through to the concrete store.
- * @param {Object} [config.dynamodb] - DynamoDB store options.
- * @param {string} [config.dynamodb.tableName] - The DocIndex table name (`DOC_INDEX_TABLE`).
+ * @param {number} [config.dimensions] - Embedding vector length; passed through to the store.
  * @param {Object} [config.s3Vectors] - S3 Vectors store options.
  * @param {string} [config.s3Vectors.bucket] - Vector bucket name.
  * @param {string} [config.s3Vectors.index] - Vector index name.
- * @returns {VectorStore} A concrete store instance for the selected backend.
- * @throws {VectorStoreError} `INVALID_CONFIG` when `config` is missing/not an object or `vectorStore` is absent/not a string.
- * @throws {VectorStoreError} `UNSUPPORTED_STORE` when `vectorStore` is not a recognized backend (includes `'opensearch'` until it is added).
- * @throws {VectorStoreError} `STORE_NOT_AVAILABLE` when the selected backend's implementation module is not present yet.
+ * @returns {VectorStore} An {@link S3VectorStore} instance.
+ * @throws {VectorStoreError} `INVALID_CONFIG` when `config` is missing/not an object (or the store's required `s3Vectors.bucket`/`s3Vectors.index` are absent).
+ * @throws {VectorStoreError} `STORE_NOT_AVAILABLE` when the S3 Vectors implementation module is not present.
  * @example
  * const store = createVectorStore({
- *   vectorStore: 's3-vectors',
  *   dimensions: 1024,
  *   s3Vectors: { bucket: process.env.DOC_AI_S3_VECTOR_BUCKET, index: process.env.DOC_AI_S3_VECTOR_INDEX }
  * });
- *
- * @example
- * // Unknown/unsupported backend throws a typed error:
- * try {
- *   createVectorStore({ vectorStore: 'opensearch' });
- * } catch (error) {
- *   console.error(error.code); // 'UNSUPPORTED_STORE'
- * }
  */
 function createVectorStore(config) {
   // >! Validate untrusted config before use: fail with a typed error rather than
-  // >! dereferencing undefined or dispatching on a non-string selector.
+  // >! dereferencing undefined.
   if (!config || typeof config !== 'object') {
     throw new VectorStoreError(
       'createVectorStore(config) requires a config object.',
@@ -307,24 +291,11 @@ function createVectorStore(config) {
     );
   }
 
-  const storeId = config.vectorStore;
-  if (typeof storeId !== 'string' || storeId.trim().length === 0) {
-    throw new VectorStoreError(
-      'createVectorStore config is missing a "vectorStore" selector.',
-      { code: 'INVALID_CONFIG' }
-    );
-  }
-
-  const entry = STORE_REGISTRY[storeId];
-  if (!entry) {
-    const supported = Object.keys(STORE_REGISTRY).join(', ');
-    throw new VectorStoreError(
-      `Unsupported vector store "${storeId}". Supported stores: ${supported}.`,
-      { code: 'UNSUPPORTED_STORE' }
-    );
-  }
-
-  const StoreClass = loadStoreClass(storeId, entry);
+  // S3 Vectors is the sole backend (spec 0-0-6, Requirement 7). Any former
+  // `config.vectorStore` selector is ignored — the factory always returns S3VectorStore —
+  // so removing the `DocAiVectorStore` setting cannot change which store is used.
+  const entry = STORE_REGISTRY[VECTOR_STORE_S3_VECTORS];
+  const StoreClass = loadStoreClass(VECTOR_STORE_S3_VECTORS, entry);
   return new StoreClass(config);
 }
 

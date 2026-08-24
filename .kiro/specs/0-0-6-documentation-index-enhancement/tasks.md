@@ -14,14 +14,14 @@ attributes as `null`/absent). Each task lists the requirements it satisfies. All
 
 ### 1. doc-indexer: storage schema and indexing changes
 
-- [ ] 1.1 Add `documentHash` and `documentPath` to extracted entries
+- [x] 1.1 Add `documentHash` and `documentPath` to extracted entries
   - In `doc-indexer/lib/index-builder.js` `processRepository()`, compute
     `documentPath = {org}/{repo}/{filePath}` (contentPath without the trailing `/{slug}`) and
     `entry.documentHash = hashContentPath(documentPath)` via `lib/hasher.js`.
   - Retain the full raw file body per file so it can be written once (task 1.5).
   - _Requirements: 2.1, 6.3, 6.4_
 
-- [ ] 1.2 Boundary-aware excerpt builder
+- [x] 1.2 Boundary-aware excerpt builder
   - In `doc-indexer/lib/extractors/markdown.js`, replace the `body.substring(0, 200)` cut with a
     `buildExcerpt(body)` helper: prefer the first prose paragraph (skip leading table rows/dividers,
     fenced code blocks, headings, blanks), then trim to `MAX_EXCERPT_LENGTH` at a sentence or word
@@ -29,7 +29,7 @@ attributes as `null`/absent). Each task lists the requirements it satisfies. All
   - Add unit tests for prose preference, boundary trimming, and hard-cap behavior.
   - _Requirements: 3.1, 3.2, 3.3, 3.4_
 
-- [ ] 1.3 Capture the archive ref and build `githubUrl`
+- [x] 1.3 Capture the archive ref and build `githubUrl`
   - In `lib/index-builder.js` `processRepository()`, record the ref actually used: release tag when
     the release archive was downloaded, else `repo.defaultBranch`. Expose `tagName` from
     `lib/github-client.js` `getLatestRelease()` if not already present.
@@ -39,7 +39,7 @@ attributes as `null`/absent). Each task lists the requirements it satisfies. All
   - Add unit tests for release-tag vs default-branch selection and the `null` fallback.
   - _Requirements: 4.1, 4.2, 4.4, 4.5_
 
-- [ ] 1.4 Capture `repositoryType` and `namespace`
+- [x] 1.4 Capture `repositoryType` and `namespace`
   - In `lib/github-client.js`, add `getRepositoryProperties(owner, repo, token)` calling the GitHub
     custom-properties API (`GET /repos/{owner}/{repo}/properties/values`); read
     `atlantis_repository-type` (name from `settings.github.repositoryTypeProperty`) into
@@ -68,14 +68,14 @@ attributes as `null`/absent). Each task lists the requirements it satisfies. All
   - Add unit tests asserting the new attributes are persisted.
   - _Requirements: 4.1, 5.1, 5.2, 6.4, 8.2_
 
-- [ ] 1.7 Remove the dead `exactPhrase` index-time weight
+- [x] 1.7 Remove the dead `exactPhrase` index-time weight
   - In `lib/index-builder.js`, remove `SCORE_WEIGHTS.exactPhrase` (the boost becomes query-time in
     the read-function, task 4.1).
   - _Requirements: 9.3_
 
 ### 2. read-function: batched metadata retrieval (R1)
 
-- [ ] 2.1 Add a shared `batchGetMetadata` helper
+- [x] 2.1 Add a shared `batchGetMetadata` helper
   - In `read-function/models/doc-index.js`, add `batchGetMetadata(tableName, version, hashes)` that
     builds `content:{hash}/v:{version}:metadata` keys, chunks at 100, issues batches in parallel,
     retries only `UnprocessedKeys` with bounded attempts + backoff, and returns a hash→item map
@@ -172,7 +172,7 @@ attributes as `null`/absent). Each task lists the requirements it satisfies. All
 
 ### 6. Vector-store consolidation on S3 Vectors (R7)
 
-- [ ] 6.1 Collapse the vector-store factory to S3 Vectors
+- [x] 6.1 Collapse the vector-store factory to S3 Vectors
   - In `layers/doc-ai-common/nodejs/vector-store.js`, reduce `STORE_REGISTRY` to `s3-vectors` and
     make `createVectorStore()` always return `S3VectorStore`.
   - Delete `vector-store-dynamodb.js`; repoint the indexer embedding-reuse phase to
@@ -197,7 +197,7 @@ attributes as `null`/absent). Each task lists the requirements it satisfies. All
     definitions. Leave S3 Vectors resources/conditions/IAM (gated by `EnableDocAiIsTrue`) intact.
   - _Requirements: 7.2_
 
-- [ ] 7.2 Review `template-openapi-spec.yml`
+- [x] 7.2 Review `template-openapi-spec.yml`
   - Confirm the single `POST /mcp/v1` path still describes all MCP operations; add no new path for
     `get_document*` (JSON-RPC methods).
   - _Requirements: 6.2, 11.6_
