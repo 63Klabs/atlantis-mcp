@@ -107,6 +107,8 @@ Configure which tools run without confirmation:
         "list_starters",
         "get_starter_info",
         "search_documentation",
+        "get_document",
+        "get_document_chunk",
         "check_template_updates",
         "get_template_chunk",
         "list_agent_assets",

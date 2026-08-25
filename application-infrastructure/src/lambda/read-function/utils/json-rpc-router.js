@@ -48,6 +48,8 @@ const baseDispatch = {
   list_starters: Controllers.Starters.list,
   get_starter_info: Controllers.Starters.get,
   search_documentation: Controllers.Documentation.search,
+  get_document: Controllers.Documentation.getDocument,
+  get_document_chunk: Controllers.Documentation.getDocumentChunk,
   validate_naming: Controllers.Validation.validate,
   check_template_updates: Controllers.Updates.check,
   list_tools: Controllers.Tools.list
@@ -346,6 +348,25 @@ async function handleToolsCall(id, params, clientRequest, authInfo) {
     }
   }
 
+  // >! Size-aware response for get_document: return summary if payload exceeds threshold,
+  // >! mirroring the get_template summary above (spec 0-0-6, Requirement 6.7 / task 5.4)
+  if (toolName === 'get_document') {
+    try {
+      const serialized = result.content[0].text;
+      const sizeResult = ContentSizer.measure(serialized);
+
+      if (sizeResult.exceedsThreshold) {
+        const summary = buildDocumentSummary(resultData, serialized);
+        const summaryResult = {
+          content: [{ type: 'text', text: JSON.stringify(summary) }]
+        };
+        return buildResponse(200, MCPProtocol.jsonRpcSuccess(id, summaryResult));
+      }
+    } catch {
+      // >! Graceful fallback: if summary generation fails, return the original full response
+    }
+  }
+
   // >! Size-aware response for get_agent_asset: return summary if payload exceeds threshold,
   // >! mirroring the get_template summary above (Requirement 9.1, task 10.3)
   if (toolName === 'get_agent_asset') {
@@ -442,6 +463,35 @@ function buildAgentAssetSummary(assetData, serializedContent) {
   };
 }
 
+/**
+ * Build a Document_Summary from `get_document` data when the response exceeds the size
+ * threshold (spec 0-0-6, Requirement 6.7).
+ *
+ * Mirrors `buildTemplateSummary`/`buildAgentAssetSummary` above, but carries the
+ * `get_document` file-level metadata (`filePath`, `githubUrl`, `repository`,
+ * `repositoryType`, `namespace`) instead of template/asset-specific fields, and never
+ * includes the document's `content` — that is the point of truncation.
+ *
+ * @param {Object} documentData - The full `get_document` success payload
+ * @param {string} serializedContent - The JSON-serialized `get_document` content
+ * @returns {Object} Document_Summary with metadata and retrieval hint
+ * @private
+ */
+function buildDocumentSummary(documentData, serializedContent) {
+  const chunks = ContentChunker.chunk(serializedContent);
+
+  return {
+    filePath: documentData.filePath || null,
+    githubUrl: documentData.githubUrl || null,
+    repository: documentData.repository || null,
+    repositoryType: documentData.repositoryType || null,
+    namespace: documentData.namespace || null,
+    contentTruncated: true,
+    totalChunks: chunks.length,
+    retrievalHint: `Use the get_document_chunk tool with filePath or hash to retrieve the full content. Pass chunkIndex from 0 to ${chunks.length - 1} to retrieve each chunk sequentially.`
+  };
+}
+
 module.exports = {
   handleJsonRpc,
   // Exported for testing
@@ -449,6 +499,7 @@ module.exports = {
   buildResponse,
   buildTemplateSummary,
   buildAgentAssetSummary,
+  buildDocumentSummary,
   TOOL_DISPATCH,
   STANDARD_HEADERS
 };

@@ -30,7 +30,9 @@ jest.mock('../../../controllers', () => ({
     get: jest.fn()
   },
   Documentation: {
-    search: jest.fn()
+    search: jest.fn(),
+    getDocument: jest.fn(),
+    getDocumentChunk: jest.fn()
   },
   Validation: {
     validate: jest.fn()

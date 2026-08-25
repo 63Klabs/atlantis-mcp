@@ -29,13 +29,29 @@ jest.mock('../../../utils/mcp-protocol', () => ({
 }));
 
 jest.mock('@63klabs/cache-data', () => ({
+  cache: {
+    CacheableDataAccess: {
+      getData: jest.fn()
+    }
+  },
   tools: {
     DebugAndLog: {
       error: jest.fn(),
       warn: jest.fn(),
       info: jest.fn(),
       debug: jest.fn()
+    },
+    ApiRequest: {
+      success: jest.fn(({ body }) => ({ statusCode: 200, body: JSON.stringify(body) })),
+      error: jest.fn(({ body }) => ({ statusCode: 400, body: JSON.stringify(body) }))
     }
+  }
+}));
+
+jest.mock('../../../config', () => ({
+  Config: {
+    getConnCacheProfile: jest.fn(),
+    settings: jest.fn()
   }
 }));
 
@@ -290,7 +306,8 @@ describe('Documentation Controller', () => {
         bodyParameters: {
           input: {
             query: 'CloudFormation',
-            type: 'code example',
+            type: 'code-example',
+            subType: 'function',
             ghusers: ['63klabs', 'myorg']
           }
         }
@@ -306,8 +323,33 @@ describe('Documentation Controller', () => {
       expect(Services.Documentation.search).toHaveBeenCalledWith(
         expect.objectContaining({
           query: 'CloudFormation',
-          type: 'code example',
+          type: 'code-example',
+          subType: 'function',
           ghusers: ['63klabs', 'myorg']
+        })
+      );
+    });
+
+    test('should pass undefined type/subType when no filters are supplied', async () => {
+      // Arrange
+      const props = {
+        bodyParameters: {
+          input: { query: 'CloudFormation' }
+        }
+      };
+
+      SchemaValidator.validate.mockReturnValue({ valid: true });
+      Services.Documentation.search.mockResolvedValue({ results: [] });
+
+      // Act
+      await DocumentationController.search(props);
+
+      // Assert
+      expect(Services.Documentation.search).toHaveBeenCalledWith(
+        expect.objectContaining({
+          query: 'CloudFormation',
+          type: undefined,
+          subType: undefined
         })
       );
     });

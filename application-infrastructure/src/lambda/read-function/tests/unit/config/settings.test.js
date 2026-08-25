@@ -99,7 +99,6 @@ describe('config/settings documentation.ai - defaults (Req 1.1, 1.2)', () => {
     expect(ai.enabled).toBe(false); // Req 1.2: disabled by default
     expect(ai.minTier).toBe('paid');
     expect(ai.retrievalMode).toBe('semantic');
-    expect(ai.vectorStore).toBe('s3-vectors');
     expect(ai.embedding.model).toBe('amazon.titan-embed-text-v2:0');
     expect(ai.embedding.dimensions).toBe(1024);
     expect(ai.embedding.maxInputTokens).toBe(8000);
@@ -117,7 +116,6 @@ describe('config/settings documentation.ai - valid overrides', () => {
   test('valid overrides parse correctly', () => {
     process.env.DOC_AI_ENABLED = 'true';
     process.env.DOC_AI_RETRIEVAL_MODE = 'semantic-assisted';
-    process.env.DOC_AI_VECTOR_STORE = 'dynamodb';
     process.env.DOC_AI_TOP_K = '20';
     process.env.DOC_AI_MIN_TIER = 'private';
     process.env.DOC_AI_EMBEDDING_DIMENSIONS = '512';
@@ -127,7 +125,6 @@ describe('config/settings documentation.ai - valid overrides', () => {
     const { ai } = loadSettings();
     expect(ai.enabled).toBe(true);
     expect(ai.retrievalMode).toBe('semantic-assisted');
-    expect(ai.vectorStore).toBe('dynamodb');
     expect(ai.topK).toBe(20);
     expect(ai.minTier).toBe('private');
     expect(ai.embedding.dimensions).toBe(512);
@@ -141,13 +138,6 @@ describe('config/settings documentation.ai - invalid-value fallback (Req 1.3, 1.
     const { ai, DebugAndLog } = loadSettings();
     expect(ai.retrievalMode).toBe('keyword');
     expect(DebugAndLog.warn).toHaveBeenCalledWith(expect.stringContaining('DOC_AI_RETRIEVAL_MODE'));
-  });
-
-  test('invalid vector store falls back to s3-vectors and logs a warning (Req 1.4)', () => {
-    process.env.DOC_AI_VECTOR_STORE = 'pinecone';
-    const { ai, DebugAndLog } = loadSettings();
-    expect(ai.vectorStore).toBe('s3-vectors');
-    expect(DebugAndLog.warn).toHaveBeenCalledWith(expect.stringContaining('DOC_AI_VECTOR_STORE'));
   });
 
   test('invalid tier falls back to paid (Req 1.5)', () => {
@@ -187,7 +177,6 @@ describe('config/settings documentation.ai - never throws (Req 1.5)', () => {
     process.env.DOC_AI_ENABLED = 'maybe';
     process.env.DOC_AI_MIN_TIER = 'gold';
     process.env.DOC_AI_RETRIEVAL_MODE = 'fuzzy';
-    process.env.DOC_AI_VECTOR_STORE = 'pinecone';
     process.env.DOC_AI_EMBEDDING_DIMENSIONS = 'abc';
     process.env.DOC_AI_TOP_K = '0';
     process.env.DOC_AI_CANDIDATE_MULTIPLIER = 'x';
@@ -197,15 +186,34 @@ describe('config/settings documentation.ai - never throws (Req 1.5)', () => {
     }).not.toThrow();
   });
 
-  test('does not throw when enabled with an unconfigured s3-vectors store', () => {
-    // enabled + s3-vectors but bucket/index unset -> validateSettings warns, must not throw.
+  test('does not throw when enabled with an unconfigured S3 Vectors store', () => {
+    // enabled but bucket/index unset -> validateSettings warns, must not throw.
     process.env.DOC_AI_ENABLED = 'true';
-    process.env.DOC_AI_VECTOR_STORE = 's3-vectors';
     let ai;
+    let DebugAndLog;
     expect(() => {
-      ai = loadSettings().ai;
+      ({ ai, DebugAndLog } = loadSettings());
     }).not.toThrow();
     expect(ai.enabled).toBe(true);
+    expect(DebugAndLog.warn).toHaveBeenCalledWith(
+      expect.stringContaining('DOC_AI_S3_VECTOR_BUCKET/DOC_AI_S3_VECTOR_INDEX')
+    );
+  });
+});
+
+describe('config/settings documentation.ai - DocAiVectorStore removed (Req 7.2)', () => {
+  test('does not expose a vectorStore setting', () => {
+    expect(loadSettings().ai).not.toHaveProperty('vectorStore');
+  });
+
+  test('ignores DOC_AI_VECTOR_STORE entirely, even when set to a removed backend', () => {
+    process.env.DOC_AI_VECTOR_STORE = 'dynamodb';
+    const { ai, DebugAndLog } = loadSettings();
+    expect(ai).not.toHaveProperty('vectorStore');
+    // No warning: the variable is not parsed at all, so it cannot be "invalid".
+    expect(DebugAndLog.warn).not.toHaveBeenCalledWith(
+      expect.stringContaining('DOC_AI_VECTOR_STORE')
+    );
   });
 });
 

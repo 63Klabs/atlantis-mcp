@@ -17,6 +17,7 @@ const pythonExtractor = require('./extractors/python');
 const cfnExtractor = require('./extractors/cloudformation');
 const {
 	writeContentEntries,
+	writeDocumentEntries,
 	writeSearchKeywords,
 	writeMainIndex,
 	updateVersionPointer,
@@ -188,8 +189,13 @@ function computeRelevanceScore(keyword, entry) {
 /**
  * Build keyword entries with relevance scores for a set of content entries.
  *
- * @param {Array<Object>} entries - Content entries with hash, title, excerpt, keywords, type
- * @returns {Array<{hash: string, keyword: string, relevanceScore: number, typeWeight: number}>}
+ * Each keyword entry carries the source entry's `type` and `subType` so
+ * {@link writeSearchKeywords} can persist them on the `search:{keyword}` item, which is
+ * what lets the read path push `type`/`subType` filters down ahead of the metadata fetch
+ * (spec 0-0-6, task 1.6). Missing values are normalized to `null`.
+ *
+ * @param {Array<Object>} entries - Content entries with hash, title, excerpt, keywords, type, subType
+ * @returns {Array<{hash: string, keyword: string, relevanceScore: number, typeWeight: number, type: (string|null), subType: (string|null)}>}
  */
 function buildKeywordEntries(entries) {
 	const keywordEntries = [];
@@ -207,7 +213,9 @@ function buildKeywordEntries(entries) {
 				hash: entry.hash,
 				keyword,
 				relevanceScore,
-				typeWeight
+				typeWeight,
+				type: entry.type ?? null,
+				subType: entry.subType ?? null
 			});
 		}
 	}
@@ -405,7 +413,6 @@ async function loadPriorEmbeddings(vectorStore, previousVersion) {
  * failed, no records were produced, or the upsert threw (all already logged/degraded).
  *
  * @param {Object} params - Phase inputs.
- * @param {string} params.tableName - DocIndex table name (used to construct the default DynamoDB store).
  * @param {string} params.version - The new index version the vectors are written under.
  * @param {?string} params.previousVersion - Prior index version for reuse (falsy on first build).
  * @param {Array<Object>} params.entries - Deduplicated content entries (`{ hash, title, excerpt, content, type, subType, repository, owner, ... }`).
@@ -417,12 +424,11 @@ async function loadPriorEmbeddings(vectorStore, previousVersion) {
  *   A summary of the phase (never rejects for embedding/store failures); `upserted` gates the version-metadata write in {@link build}.
  * @example
  * await runEmbeddingPhase({
- *   tableName, version, previousVersion, entries: uniqueEntries, docAi,
+ *   version, previousVersion, entries: uniqueEntries, docAi,
  *   embeddingProvider: mockProvider, vectorStore: mockStore, priorEmbeddings: new Map()
  * });
  */
 async function runEmbeddingPhase({
-	tableName,
 	version,
 	previousVersion,
 	entries,
@@ -456,11 +462,11 @@ async function runEmbeddingPhase({
 				});
 			}
 			if (!store) {
+				// S3 Vectors is the sole backend (spec 0-0-6, Requirement 7); the factory needs
+				// only the embedding dimensions and the vector bucket/index location.
 				const { createVectorStore } = loadLayerModule('vector-store');
 				store = createVectorStore({
-					vectorStore: docAi.vectorStore,
 					dimensions: docAi.embedding.dimensions,
-					dynamodb: { tableName },
 					s3Vectors: docAi.s3Vectors
 				});
 			}
@@ -733,6 +739,11 @@ async function build(options = {}) {
 	// Write to DynamoDB
 	await writeContentEntries(tableName, version, uniqueEntries);
 
+	// One version-less `document:{fileHash}` item per source file (spec 0-0-6, task 1.5).
+	// Section entries no longer carry their own body item; the raw file text is stored once
+	// here (de-duplicated by documentHash) with a refreshed 7-day TTL each build.
+	await writeDocumentEntries(tableName, version, uniqueEntries);
+
 	const keywordEntries = buildKeywordEntries(uniqueEntries);
 	await writeSearchKeywords(tableName, version, keywordEntries);
 
@@ -782,7 +793,6 @@ async function build(options = {}) {
 	let embeddingSummary = null;
 	if (docAi.enabled) {
 		embeddingSummary = await runEmbeddingPhase({
-			tableName,
 			version,
 			previousVersion,
 			entries: uniqueEntries,

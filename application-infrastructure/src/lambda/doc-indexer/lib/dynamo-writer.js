@@ -111,14 +111,26 @@ async function batchWrite(tableName, putRequests) {
 }
 
 /**
- * Write content metadata and content body items to DynamoDB for a set
- * of extracted entries. Each entry produces two items: a metadata item
- * (pk=`content:{hash}`, sk=`v:{version}:metadata`) and a content body
- * item (pk=`content:{hash}`, sk=`v:{version}:content`).
+ * Write content metadata items to DynamoDB for a set of extracted entries.
+ * Each entry produces one metadata item (pk=`content:{hash}`,
+ * sk=`v:{version}:metadata`).
+ *
+ * The former per-section, per-version body item (sk=`v:{version}:content`) is no
+ * longer written. Source bodies are stored once per file by
+ * {@link writeDocumentEntries} under a version-less `document:{fileHash}` key,
+ * which removes the per-version duplication and is what `get_document` reads
+ * (spec 0-0-6, task 1.5).
+ *
+ * In addition to the fields it has always stored, the metadata item carries the
+ * file-level attributes captured upstream (spec 0-0-6, task 1.6): `githubUrl`,
+ * `repositoryType`, `namespace`, and `documentHash`. `documentHash` is the pointer
+ * used to resolve a section to its owning `document:{fileHash}` item, and the other
+ * three are returned directly on search results. Each is stored as `null` when it
+ * could not be derived upstream rather than failing the build.
  *
  * @param {string} tableName - DynamoDB table name
  * @param {string} version - Index version identifier (e.g., "20250715T060000")
- * @param {Array<Object>} entries - Extracted content entries with hash, contentPath, title, excerpt, content, type, subType, keywords, repository, owner
+ * @param {Array<Object>} entries - Extracted content entries with hash, contentPath, title, excerpt, type, subType, keywords, repository, owner, githubUrl, repositoryType, namespace, documentHash
  * @returns {Promise<void>}
  * @throws {Error} When a DynamoDB write fails
  * @example
@@ -127,12 +139,15 @@ async function batchWrite(tableName, putRequests) {
  *   contentPath: '63klabs/cache-data/README.md/install',
  *   title: 'Install',
  *   excerpt: 'Run npm install...',
- *   content: 'Run npm install @63klabs/cache-data',
  *   type: 'documentation',
  *   subType: 'guide',
  *   keywords: ['install', 'npm'],
  *   repository: 'cache-data',
- *   owner: '63klabs'
+ *   owner: '63klabs',
+ *   githubUrl: 'https://github.com/63klabs/cache-data/blob/v2.0.0/README.md',
+ *   repositoryType: 'package',
+ *   namespace: null,
+ *   documentHash: 'b1c2d3e4f5a60718'
  * }]);
  */
 async function writeContentEntries(tableName, version, entries) {
@@ -154,15 +169,13 @@ async function writeContentEntries(tableName, version, entries) {
 			repository: entry.repository,
 			owner: entry.owner,
 			keywords: entry.keywords,
+			// File-level attributes (spec 0-0-6). Stored as null when un-derivable so the
+			// build never fails and the read path can treat them uniformly as absent.
+			githubUrl: entry.githubUrl ?? null,
+			repositoryType: entry.repositoryType ?? null,
+			namespace: entry.namespace ?? null,
+			documentHash: entry.documentHash ?? null,
 			lastIndexed: now,
-			ttl
-		});
-
-		items.push({
-			pk: `content:${entry.hash}`,
-			sk: `v:${version}:content`,
-			version,
-			content: entry.content,
 			ttl
 		});
 	}
@@ -171,13 +184,88 @@ async function writeContentEntries(tableName, version, entries) {
 }
 
 /**
+ * Write one document item per source file (pk=`document:{fileHash}`, sk=`content`).
+ *
+ * Entries arrive per section; every section extracted from the same file carries the
+ * same `documentHash`/`documentPath` and the same retained `fileContent`, so entries
+ * are grouped by `documentHash` and only the first occurrence of each file is written.
+ * A file with N headings therefore produces exactly one document item.
+ *
+ * The key deliberately omits the index version: each build upserts the same key with
+ * the latest body and a refreshed 7-day TTL, so bodies are never duplicated across
+ * versions and a file that disappears from a build simply expires via TTL. The
+ * `version` argument is recorded as an attribute (alongside `lastIndexed`) to show
+ * which build last refreshed the item; it is not part of the key.
+ *
+ * Fields that could not be derived upstream (`githubUrl`, `repositoryType`,
+ * `namespace`) are stored as `null` rather than failing the build. Entries with no
+ * `documentHash` are skipped for the same reason.
+ *
+ * @param {string} tableName - DynamoDB table name
+ * @param {string} version - Index version identifier (e.g., "20250715T060000")
+ * @param {Array<Object>} entries - Extracted content entries carrying documentHash, documentPath, fileContent, githubUrl, repositoryType, namespace, repository, owner
+ * @returns {Promise<void>}
+ * @throws {Error} When a DynamoDB write fails
+ * @example
+ * await writeDocumentEntries('my-table', '20250715T060000', [{
+ *   documentHash: 'b1c2d3e4f5a60718',
+ *   documentPath: '63klabs/cache-data/README.md',
+ *   fileContent: '# Cache Data\n\nRun npm install @63klabs/cache-data\n',
+ *   githubUrl: 'https://github.com/63klabs/cache-data/blob/v2.0.0/README.md',
+ *   repositoryType: 'package',
+ *   namespace: null,
+ *   repository: 'cache-data',
+ *   owner: '63klabs'
+ * }]);
+ */
+async function writeDocumentEntries(tableName, version, entries) {
+	const ttl = computeTtl();
+	const now = new Date().toISOString();
+	const documentItems = new Map();
+
+	for (const entry of entries) {
+		// Without a document hash there is no key to write; skip rather than fail the build.
+		if (!entry || !entry.documentHash) {
+			continue;
+		}
+
+		// One item per file: keep the first section's copy of the file-level values.
+		if (documentItems.has(entry.documentHash)) {
+			continue;
+		}
+
+		documentItems.set(entry.documentHash, {
+			pk: `document:${entry.documentHash}`,
+			sk: 'content',
+			version,
+			documentPath: entry.documentPath ?? null,
+			content: entry.fileContent ?? null,
+			githubUrl: entry.githubUrl ?? null,
+			repositoryType: entry.repositoryType ?? null,
+			namespace: entry.namespace ?? null,
+			repository: entry.repository ?? null,
+			owner: entry.owner ?? null,
+			lastIndexed: now,
+			ttl
+		});
+	}
+
+	await batchWrite(tableName, Array.from(documentItems.values()));
+}
+
+/**
  * Write search keyword entries to DynamoDB. Each keyword for each entry
  * produces one item (pk=`search:{keyword}`, sk=`v:{version}:{hash}`)
  * with a pre-computed relevance score.
  *
+ * Each entry also carries its content `type` and `subType` (spec 0-0-6, task 1.6) so the
+ * read path can apply `type`/`subType` filters to the ranked hash set *before* the
+ * metadata enrichment fetch, reading fewer metadata items for a filtered query. Absent
+ * values are stored as `null`.
+ *
  * @param {string} tableName - DynamoDB table name
  * @param {string} version - Index version identifier
- * @param {Array<Object>} entries - Keyword entries with hash, keyword, relevanceScore, typeWeight
+ * @param {Array<Object>} entries - Keyword entries with hash, keyword, relevanceScore, typeWeight, type, subType
  * @returns {Promise<void>}
  * @throws {Error} When a DynamoDB write fails
  * @example
@@ -185,7 +273,9 @@ async function writeContentEntries(tableName, version, entries) {
  *   hash: 'ea6f1a2b3c4d5e6f',
  *   keyword: 'install',
  *   relevanceScore: 13,
- *   typeWeight: 1.0
+ *   typeWeight: 1.0,
+ *   type: 'documentation',
+ *   subType: 'guide'
  * }]);
  */
 async function writeSearchKeywords(tableName, version, entries) {
@@ -197,6 +287,9 @@ async function writeSearchKeywords(tableName, version, entries) {
 		hash: entry.hash,
 		relevanceScore: entry.relevanceScore,
 		typeWeight: entry.typeWeight,
+		// Carried for read-side filter push-down; null when the extractor produced no value.
+		type: entry.type ?? null,
+		subType: entry.subType ?? null,
 		ttl
 	}));
 
@@ -349,6 +442,7 @@ async function setTtlOnPreviousVersion(tableName, previousVersion, ttlTimestamp)
 
 module.exports = {
 	writeContentEntries,
+	writeDocumentEntries,
 	writeSearchKeywords,
 	writeMainIndex,
 	updateVersionPointer,

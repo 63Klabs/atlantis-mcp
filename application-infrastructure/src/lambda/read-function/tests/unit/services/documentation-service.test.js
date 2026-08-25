@@ -88,8 +88,7 @@ describe('Documentation Service', () => {
         ai: {
           enabled: false,
           minTier: 'paid',
-          retrievalMode: 'semantic',
-          vectorStore: 's3-vectors'
+          retrievalMode: 'semantic'
         }
       }
     });

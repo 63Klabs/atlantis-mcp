@@ -182,8 +182,7 @@ Set these parameters through your organization's Atlantis SAM Config (`samconfig
 |-----------|---------|---------|
 | `EnableDocAi` | `false` | Master toggle. When `false`, no AI resources or IAM are created and no AI code path runs. When `true`, provisions the vector bucket/index, the data-plane IAM policies, and the usage metric filters. |
 | `DocAiMinTier` | `paid` | Minimum access tier eligible for semantic search (`public` \| `registered` \| `paid` \| `private`). Requests below this tier use keyword search. |
-| `DocAiRetrievalMode` | `semantic` | Retrieval strategy for eligible requests: `keyword` (preserves current behavior), `semantic` (vector similarity), or `semantic-assisted` (adds a light LLM re-rank/expansion). |
-| `DocAiVectorStore` | `s3-vectors` | Vector store backend: `dynamodb` (reuses the DocIndex table) or `s3-vectors` (an S3 Vectors bucket/index). |
+| `DocAiRetrievalMode` | `keyword` | Retrieval strategy for eligible requests: `keyword` (preserves current behavior), `semantic` (vector similarity), or `semantic-assisted` (adds a light LLM re-rank/expansion). S3 Vectors is the only vector store backend — there is no separate vector-store parameter to set. |
 | `DocAiEmbeddingModel` | `amazon.titan-embed-text-v2:0` | Bedrock embedding model ID used to embed queries and content. Public model identifier, not a secret. |
 | `DocAiEmbeddingDimensions` | `1024` | Embedding vector dimensions. Titan Text Embeddings V2 supports 256, 512, or 1024. Immutable for an existing S3 Vectors index — a change forces index replacement and a full re-index. |
 | `DocAiEmbeddingMaxInputTokens` | `8000` | Approximate token budget for embedding input; larger entries are truncated before embedding. |
@@ -193,7 +192,7 @@ Set these parameters through your organization's Atlantis SAM Config (`samconfig
 | `DocAiAssistProfileRegions` | `""` (empty) | Optional list of AWS regions a cross-region **assist** inference profile may route to. Used only for IAM `Resource` scoping — it is never passed to the Lambda runtime. When empty (default), the assist grant is the single plain foundation-model ARN, unchanged from today. When non-empty, set `DocAiAssistModel` to an inference-profile ID; the assist IAM policy then grants the inference-profile ARN plus the assist foundation model restricted to exactly the listed regions via the `aws:RequestedRegion` condition key. AWS performs the cross-region routing server-side. |
 | `DocAiTopK` | `10` | Number of results returned from semantic retrieval. |
 | `DocAiCandidateMultiplier` | `3` | Multiplier applied to Top K to determine how many candidate vectors to fetch before ranking/filtering. |
-| `DocAiS3VectorBucket` | `""` (empty) | S3 Vectors bucket name when the store is `s3-vectors`. Leave empty to use the derived name `<Prefix>-<ProjectId>-<StageId>-docvec`. Semantic search falls back to keyword while unset/unprovisioned. |
+| `DocAiS3VectorBucket` | `""` (empty) | S3 Vectors bucket name. Leave empty to use the derived name `<Prefix>-<ProjectId>-<StageId>-docvec`. Semantic search falls back to keyword while unset/unprovisioned. |
 | `DocAiS3VectorIndex` | `""` (empty) | S3 Vectors index name within the vector bucket. Leave empty to use the derived name `<Prefix>-<ProjectId>-<StageId>-docidx`. Semantic search falls back to keyword while unset/unprovisioned. |
 
 ### Prerequisite: Enable Bedrock model access
@@ -207,7 +206,7 @@ Without model access, `bedrock:InvokeModel` calls fail; the feature then degrade
 
 ### Prerequisite: Confirm regional availability
 
-- **S3 Vectors** has limited regional availability. Before setting `DocAiVectorStore=s3-vectors`, confirm S3 Vectors is available in your deployment region. If it is not, set `DocAiVectorStore=dynamodb` (which reuses the DocIndex table and has no additional regional requirement).
+- **S3 Vectors** is the only vector store backend and has limited regional availability. Before setting `EnableDocAi=true` with `DocAiRetrievalMode=semantic` or `semantic-assisted`, confirm S3 Vectors is available in your deployment region. If it is not available, keep `DocAiRetrievalMode=keyword` until it is.
 - **Bedrock model availability** likewise varies by region. Confirm both the embedding model and (for `semantic-assisted`) the assist model are available in the deployment region.
 - **Embedding model region override.** If the embedding model is not enabled or available in your deployment region, set `DocAiEmbeddingRegion` to a region where it is — `us-east-1` is a common fallback. The model must be enabled in Amazon Bedrock in that target region (apply the model-access prerequisite above to the override region, not just the deployment region). Leaving `DocAiEmbeddingRegion` empty uses the deployment region. Note that embedding models cannot use cross-region inference profiles, so this region pin is the only cross-region option for embeddings — for the assist model, use `DocAiAssistModel` + `DocAiAssistProfileRegions` instead (see the IAM note below).
 
@@ -225,9 +224,9 @@ When `EnableDocAi=false`, neither policy exists, so no Bedrock or S3 Vectors per
 ### Enablement steps
 
 1. Enable Bedrock model access and confirm regional availability (above).
-2. Set `EnableDocAi=true` in your pipeline/`samconfig` configuration and deploy. This provisions the S3 Vectors vector bucket and index (when the store is `s3-vectors`), attaches the data-plane IAM policies, and creates the usage metric filters.
+2. Set `EnableDocAi=true` in your pipeline/`samconfig` configuration and deploy. This provisions the S3 Vectors vector bucket and index, attaches the data-plane IAM policies, and creates the usage metric filters.
 3. Let the Doc Indexer run (on its schedule, or trigger it) so embeddings are built into the active index version. Until vectors exist, semantic queries return empty and fall back to keyword search.
-4. Choose your `DocAiVectorStore`, `DocAiRetrievalMode`, and `DocAiMinTier` to match your cost/relevance goals.
+4. Choose your `DocAiRetrievalMode` and `DocAiMinTier` to match your cost/relevance goals.
 
 Nothing is created or billed while `EnableDocAi=false`.
 
@@ -237,10 +236,11 @@ When enabled, CloudWatch metric filters on the Read Lambda log group publish to 
 
 | Metric | Meaning |
 |--------|---------|
-| `SemanticAssistedUsageCount` | Count of semantic-assisted re-ranks (usage/cost signal), any store |
-| `SemanticAssistedUsageS3Vectors` | Semantic-assisted usage against the `s3-vectors` store |
-| `SemanticAssistedUsageDynamoDb` | Semantic-assisted usage against the `dynamodb` store |
+| `SemanticAssistedUsageCount` | Count of semantic-assisted re-ranks (usage/cost signal) |
+| `SemanticAssistedUsageS3Vectors` | Semantic-assisted usage against the `s3-vectors` store (the sole backend, so this tracks the same events as `SemanticAssistedUsageCount`) |
 | `SemanticDegradeCount` | Assist re-rank failed and fell back to plain semantic |
+
+> **Note:** The stack also defines a `SemanticAssistedUsageDynamoDb` metric filter left over from when a DynamoDB vector-store backend existed. Since S3 Vectors is now the only backend, its filter pattern never matches and it will always read `0`.
 
 The `DOC_AI_USAGE` usage line is logged at INFO level (visible in production, where the Read Lambda runs at INFO); the degrade line is WARN. The raw `DOC_AI_USAGE {json}` line also carries token counts for ad-hoc Logs Insights queries. These filters are gated by `EnableDocAi=true`, so nothing is created when the feature is off.
 
@@ -250,8 +250,8 @@ A gated smoke test exercises the real Bedrock + S3 Vectors runtime path end to e
 
 To run it against a deployed TEST stack:
 
-1. Deploy a TEST stack with the feature enabled and the `s3-vectors` store so the vector bucket/index and IAM exist (`EnableDocAi=true`, `DocAiVectorStore=s3-vectors`).
-2. Confirm S3 Vectors is available in the deployment region (otherwise use the `dynamodb` store instead — this smoke test targets `s3-vectors`).
+1. Deploy a TEST stack with the feature enabled so the S3 Vectors bucket/index and IAM exist (`EnableDocAi=true`).
+2. Confirm S3 Vectors is available in the deployment region — it is the sole vector store backend, so this smoke test cannot run where S3 Vectors is unavailable.
 3. Set the operator environment variables (values from the deployed stack), with AWS credentials for the test account available to the SDK:
 
    ```bash

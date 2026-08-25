@@ -25,8 +25,7 @@ const {
   parseEnum,
   parseIntSetting,
   DOC_AI_TIERS,
-  DOC_AI_RETRIEVAL_MODES,
-  DOC_AI_VECTOR_STORES
+  DOC_AI_RETRIEVAL_MODES
 } = require('../../lib/settings');
 
 // Every DOC_AI_* variable the factory reads; cleared before each test so that
@@ -74,7 +73,6 @@ describe('loadDocAiSettings - defaults (Req 1.1, 1.2)', () => {
     expect(ai.enabled).toBe(false); // Req 1.2: disabled by default
     expect(ai.minTier).toBe('paid');
     expect(ai.retrievalMode).toBe('semantic');
-    expect(ai.vectorStore).toBe('s3-vectors');
     expect(ai.embedding).toEqual({
       model: 'amazon.titan-embed-text-v2:0',
       dimensions: 1024,
@@ -96,12 +94,25 @@ describe('loadDocAiSettings - defaults (Req 1.1, 1.2)', () => {
   });
 });
 
+describe('loadDocAiSettings - DocAiVectorStore removed (Req 7.2)', () => {
+  test('does not expose a vectorStore setting', () => {
+    expect(loadDocAiSettings()).not.toHaveProperty('vectorStore');
+  });
+
+  test('ignores DOC_AI_VECTOR_STORE entirely, even when set to a removed backend', () => {
+    process.env.DOC_AI_VECTOR_STORE = 'dynamodb';
+    const ai = loadDocAiSettings();
+    expect(ai).not.toHaveProperty('vectorStore');
+    // No warning: the variable is not parsed at all, so it cannot be "invalid".
+    expect(console.warn).not.toHaveBeenCalled();
+  });
+});
+
 describe('loadDocAiSettings - valid overrides', () => {
   test('parses valid values for every setting', () => {
     process.env.DOC_AI_ENABLED = 'true';
     process.env.DOC_AI_MIN_TIER = 'private';
     process.env.DOC_AI_RETRIEVAL_MODE = 'semantic-assisted';
-    process.env.DOC_AI_VECTOR_STORE = 'dynamodb';
     process.env.DOC_AI_EMBEDDING_MODEL = 'amazon.titan-embed-text-v1';
     process.env.DOC_AI_EMBEDDING_DIMENSIONS = '512';
     process.env.DOC_AI_EMBEDDING_MAX_INPUT_TOKENS = '4000';
@@ -118,7 +129,6 @@ describe('loadDocAiSettings - valid overrides', () => {
       enabled: true,
       minTier: 'private',
       retrievalMode: 'semantic-assisted',
-      vectorStore: 'dynamodb',
       embedding: { model: 'amazon.titan-embed-text-v1', dimensions: 512, maxInputTokens: 4000, region: 'us-west-2' },
       assist: { model: 'amazon.nova-lite-v1:0', maxCandidates: 50 },
       topK: 20,
@@ -146,12 +156,6 @@ describe('loadDocAiSettings - invalid-value fallback (Req 1.3, 1.4, 1.5)', () =>
     process.env.DOC_AI_RETRIEVAL_MODE = 'fuzzy';
     expect(loadDocAiSettings().retrievalMode).toBe('keyword');
     expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('DOC_AI_RETRIEVAL_MODE'));
-  });
-
-  test('invalid vector store falls back to s3-vectors and warns (Req 1.4)', () => {
-    process.env.DOC_AI_VECTOR_STORE = 'pinecone';
-    expect(loadDocAiSettings().vectorStore).toBe('s3-vectors');
-    expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('DOC_AI_VECTOR_STORE'));
   });
 
   test('invalid tier falls back to paid and warns (Req 1.5)', () => {
@@ -188,7 +192,6 @@ describe('loadDocAiSettings - never throws (Req 1.5)', () => {
     process.env.DOC_AI_ENABLED = 'maybe';
     process.env.DOC_AI_MIN_TIER = 'gold';
     process.env.DOC_AI_RETRIEVAL_MODE = 'fuzzy';
-    process.env.DOC_AI_VECTOR_STORE = 'pinecone';
     process.env.DOC_AI_EMBEDDING_DIMENSIONS = 'abc';
     process.env.DOC_AI_EMBEDDING_MAX_INPUT_TOKENS = '-1';
     process.env.DOC_AI_ASSIST_MAX_CANDIDATES = 'NaN';
@@ -203,7 +206,6 @@ describe('loadDocAiSettings - never throws (Req 1.5)', () => {
       enabled: false,
       minTier: 'paid',
       retrievalMode: 'keyword',
-      vectorStore: 's3-vectors',
       embedding: { model: 'amazon.titan-embed-text-v2:0', dimensions: 1024, maxInputTokens: 8000, region: '' },
       assist: { model: 'amazon.nova-micro-v1:0', maxCandidates: 25 },
       topK: 10,
@@ -304,7 +306,6 @@ describe('parseEnum helper', () => {
   test('exported constants expose the expected members', () => {
     expect(DOC_AI_TIERS).toEqual(['public', 'registered', 'paid', 'private']);
     expect(DOC_AI_RETRIEVAL_MODES).toEqual(['keyword', 'semantic', 'semantic-assisted']);
-    expect(DOC_AI_VECTOR_STORES).toEqual(['dynamodb', 's3-vectors']);
   });
 });
 

@@ -31,6 +31,32 @@ const BATCH_GET_BASE_BACKOFF_MS = 50;
 const CONTENT_PK_PREFIX = 'content:';
 
 /**
+ * DynamoDB partition-key prefix for a per-file document body item. The key is deliberately
+ * version-less (spec 0-0-6, Requirement 2.1) so a document can be read without the caller
+ * supplying an index version.
+ * @type {string}
+ */
+const DOCUMENT_PK_PREFIX = 'document:';
+
+/**
+ * DynamoDB sort key for a per-file document body item.
+ * @type {string}
+ */
+const DOCUMENT_SK = 'content';
+
+/**
+ * Relevance points added to a keyword-mode candidate whose `title` or `excerpt` contains
+ * the caller's full query phrase.
+ *
+ * Exact-phrase matching depends on the query, so it can only be evaluated at query time.
+ * This value matches the weight the indexer previously declared (and never used) as
+ * `SCORE_WEIGHTS.exactPhrase`, which was removed as dead code (R9.3).
+ *
+ * @type {number}
+ */
+const EXACT_PHRASE_BOOST = 20;
+
+/**
  * Documentation Index DAO
  *
  * Queries the persistent DynamoDB-backed documentation index built by the
@@ -40,7 +66,7 @@ const CONTENT_PK_PREFIX = 'content:';
  * - Version pointer: pk=`version:pointer`, sk=`active`
  * - Main index: pk=`mainindex:{version}`, sk=`entries`
  * - Content metadata: pk=`content:{hash}`, sk=`v:{version}:metadata`
- * - Content body: pk=`content:{hash}`, sk=`v:{version}:content`
+ * - Document body: pk=`document:{fileHash}`, sk=`content` (version-less, one per source file)
  * - Search keywords: pk=`search:{keyword}`, sk=`v:{version}:{hash}`
  */
 
@@ -193,6 +219,118 @@ function extractQueryKeywords(query) {
 }
 
 /**
+ * Apply `type`/`subType` filter push-down to a ranked set of search-index candidates.
+ *
+ * Uses the `type`/`subType` attributes carried on `search:{keyword}` entries to discard
+ * candidates that cannot satisfy the requested filter, so the metadata `BatchGetItem`
+ * reads fewer items (R8.2).
+ *
+ * A candidate is discarded ONLY when its indexed value is known (non-null) and differs
+ * from the requested value. Candidates indexed before `type`/`subType` were written to
+ * search entries carry `null` and are always retained, leaving the authoritative
+ * post-fetch metadata filter to decide — so the returned membership is identical to the
+ * post-fetch-only behavior (R8.5).
+ *
+ * @param {Array<{hash: string, totalScore: number, type: (string|null), subType: (string|null)}>} candidates
+ *   Ranked candidates from the search-keyword aggregation.
+ * @param {string} [type] - Requested `type` filter, or falsy for no filter.
+ * @param {string} [subType] - Requested `subType` filter, or falsy for no filter.
+ * @returns {Array<Object>} The retained candidates, in their original ranked order. The
+ *   input array is returned unchanged when no filter is requested.
+ * @example
+ * const kept = applyIndexedFilterPushDown(
+ *   [{ hash: 'a', type: 'documentation' }, { hash: 'b', type: 'code-example' }, { hash: 'c', type: null }],
+ *   'documentation'
+ * );
+ * // kept = [{ hash: 'a', ... }, { hash: 'c', ... }]  ('c' is unknown, so it survives to the post-fetch filter)
+ */
+function applyIndexedFilterPushDown(candidates, type, subType) {
+	if (!type && !subType) {
+		return candidates;
+	}
+
+	return candidates.filter((entry) => {
+		if (type && entry.type !== null && entry.type !== undefined && entry.type !== type) {
+			return false;
+		}
+		if (subType && entry.subType !== null && entry.subType !== undefined && entry.subType !== subType) {
+			return false;
+		}
+		return true;
+	});
+}
+
+/**
+ * Normalize text for exact-phrase comparison.
+ *
+ * Applies the SAME transformation {@link extractQueryKeywords} applies to the query
+ * (lowercase, non-alphanumeric/non-hyphen characters replaced with a space) and then
+ * collapses runs of whitespace, so a query phrase and a candidate's title/excerpt are
+ * compared on equal footing regardless of punctuation or spacing differences.
+ *
+ * @param {string} text - Raw text to normalize
+ * @returns {string} Normalized text, or an empty string for non-string/empty input
+ * @example
+ * normalizeForPhraseMatch('Cache-Data:  Installation Guide!');
+ * // 'cache-data installation guide'
+ */
+function normalizeForPhraseMatch(text) {
+	if (!text || typeof text !== 'string') {
+		return '';
+	}
+
+	return text
+		.toLowerCase()
+		.replace(/[^a-z0-9\s-]/g, ' ')
+		.replace(/\s+/g, ' ')
+		.trim();
+}
+
+/**
+ * Apply the query-time exact-phrase relevance boost to keyword-mode candidates (R9.1, R9.2).
+ *
+ * Runs over the already-enriched top candidates, so it adds no additional DynamoDB reads.
+ * A candidate receives {@link EXACT_PHRASE_BOOST} when its `title` or `excerpt` contains the
+ * normalized full query phrase (case- and punctuation-insensitive via
+ * {@link normalizeForPhraseMatch}).
+ *
+ * The boost mutates each candidate's `relevanceScore` in place and NEVER adds or removes
+ * candidates, so it changes only ordering, never membership (R9.4). Callers must re-sort by
+ * `relevanceScore` descending afterwards.
+ *
+ * @param {Array<{title: (string|undefined), excerpt: (string|undefined), relevanceScore: number}>} candidates
+ *   Enriched candidates to score, mutated in place.
+ * @param {string} query - The caller's raw query string.
+ * @returns {Array<Object>} The same `candidates` array, for convenient chaining.
+ * @example
+ * const scored = applyExactPhraseBoost(
+ *   [{ title: 'Cache-Data Installation', excerpt: '', relevanceScore: 10 }],
+ *   'cache-data installation'
+ * );
+ * // scored[0].relevanceScore === 30
+ */
+function applyExactPhraseBoost(candidates, query) {
+	const phrase = normalizeForPhraseMatch(query);
+
+	// >! An empty/punctuation-only query normalizes away; boosting on '' would match
+	// >! every candidate, so skip the pass entirely.
+	if (phrase === '') {
+		return candidates;
+	}
+
+	for (const candidate of candidates) {
+		const title = normalizeForPhraseMatch(candidate.title);
+		const excerpt = normalizeForPhraseMatch(candidate.excerpt);
+
+		if (title.includes(phrase) || excerpt.includes(phrase)) {
+			candidate.relevanceScore += EXACT_PHRASE_BOOST;
+		}
+	}
+
+	return candidates;
+}
+
+/**
  * Query the DynamoDB documentation index.
  *
  * Searches keyword entries, aggregates relevance scores per content hash,
@@ -271,7 +409,26 @@ async function queryIndex(options = {}) {
 				for (const item of result.Items) {
 					const hash = item.hash;
 					if (!scoresByHash[hash]) {
-						scoresByHash[hash] = { hash, totalScore: 0, typeWeight: item.typeWeight || 1.0 };
+						scoresByHash[hash] = {
+							hash,
+							totalScore: 0,
+							typeWeight: item.typeWeight || 1.0,
+							// >! `type`/`subType` on search entries were added by spec 0-0-6 task 1.6.
+							// >! Entries written before that deploy have them absent; normalize to null
+							// >! so the push-down below can tell "known value" from "unknown".
+							type: (item.type === undefined || item.type === null) ? null : item.type,
+							subType: (item.subType === undefined || item.subType === null) ? null : item.subType
+						};
+					} else {
+						// >! A hash can appear under several keywords. Adopt the first known
+						// >! type/subType so a legacy (null) entry does not mask a populated one.
+						const known = scoresByHash[hash];
+						if (known.type === null && item.type !== undefined && item.type !== null) {
+							known.type = item.type;
+						}
+						if (known.subType === null && item.subType !== undefined && item.subType !== null) {
+							known.subType = item.subType;
+						}
 					}
 					scoresByHash[hash].totalScore += (item.relevanceScore || 0);
 				}
@@ -285,33 +442,40 @@ async function queryIndex(options = {}) {
 	let ranked = Object.values(scoresByHash)
 		.sort((a, b) => b.totalScore - a.totalScore);
 
-	// >! Fetch content metadata for top results (before type filtering, fetch enough)
+	// >! Select the top slice BEFORE filtering, exactly as the pre-push-down code did, so the
+	// >! candidate window (and therefore the returned membership) is unchanged (R8.5).
 	const fetchLimit = Math.min(ranked.length, limit * 3);
 	const topHashes = ranked.slice(0, fetchLimit);
 
-	const metadataResults = [];
-	for (const entry of topHashes) {
-		try {
-			const metaResult = await client.send(new GetCommand({
-				TableName: tableName,
-				Key: {
-					pk: `content:${entry.hash}`,
-					sk: `v:${version}:metadata`
-				}
-			}));
+	// >! Filter push-down (R8.2): drop candidates whose indexed type/subType already
+	// >! contradicts the requested filter, so the metadata BatchGetItem reads fewer items.
+	// >! Candidates with an unknown (null) type/subType are retained and settled by the
+	// >! authoritative post-fetch filter below, keeping membership identical to the
+	// >! post-fetch-only behavior for indexes written before task 1.6 (R8.5).
+	const candidates = applyIndexedFilterPushDown(topHashes, type, subType);
 
-			if (metaResult.Item) {
-				metadataResults.push({
-					...metaResult.Item,
-					relevanceScore: entry.totalScore
-				});
-			}
-		} catch (error) {
-			DebugAndLog.warn(`Failed to fetch metadata for hash ${entry.hash}: ${error.message}`);
+	// >! Batched metadata read (BatchGetItem, chunked at 100) instead of one GetItem per
+	// >! hash, so read cost/latency scale sub-linearly with result count (R1.1).
+	const metadataByHash = await batchGetMetadata(tableName, version, candidates.map((entry) => entry.hash));
+
+	// >! Walk the ranked slice (not the returned map) so the pre-fetch ordering survives:
+	// >! BatchGetItem may return items in any order (R1.4). Hashes with no stored metadata
+	// >! are simply skipped rather than failing the request (R1.5).
+	const metadataResults = [];
+	for (const entry of candidates) {
+		const item = metadataByHash[entry.hash];
+		if (item) {
+			metadataResults.push({
+				...item,
+				relevanceScore: entry.totalScore
+			});
 		}
 	}
 
-	// >! Apply type filters
+	// >! Authoritative type/subType filter. Push-down above only removes candidates whose
+	// >! indexed type/subType is KNOWN to mismatch; this pass settles candidates whose search
+	// >! entries predate task 1.6 (type/subType absent), so membership is identical to the
+	// >! original post-fetch-only filtering (R8.5).
 	let filtered = metadataResults;
 	if (type) {
 		filtered = filtered.filter(item => item.type === type);
@@ -320,7 +484,14 @@ async function queryIndex(options = {}) {
 		filtered = filtered.filter(item => item.subType === subType);
 	}
 
-	// >! Sort by relevance descending (already mostly sorted, but re-sort after filtering)
+	// >! Query-time exact-phrase boost (R9.1, R9.2). Runs over the already-fetched candidates
+	// >! so it costs no additional reads, and only adjusts scores — membership is unchanged
+	// >! (R9.4). This is the keyword path only; the semantic/assisted paths rank by cosine in
+	// >! services/documentation.js buildResults() and are untouched (R9.5).
+	applyExactPhraseBoost(filtered, query);
+
+	// >! Sort by FINAL relevance descending — after filtering and after the phrase boost —
+	// >! before slicing to limit (R9.4).
 	filtered.sort((a, b) => b.relevanceScore - a.relevanceScore);
 
 	const totalResults = filtered.length;
@@ -355,13 +526,16 @@ async function queryIndex(options = {}) {
 /**
  * Fetch content metadata items for a set of content hashes at a specific index version.
  *
- * Reads each `pk=content:{hash}, sk=v:{version}:metadata` item using the same shared
- * DynamoDB Document Client and `GetCommand` access pattern as {@link queryIndex}, and
- * returns a `hash -> item` map. Hashes with no stored metadata are tolerated and simply
- * omitted from the map, and a per-hash read error is logged and skipped, so a partial or
- * superseded index can never fail the caller. Used by the semantic retrieval path (task
- * 8.4) to enrich ranked vector hits with the SAME content metadata the keyword path
- * returns, so both paths share one enrichment source.
+ * Reads the `pk=content:{hash}, sk=v:{version}:metadata` items via the shared batched
+ * reader ({@link batchGetMetadata}), so the semantic/assisted path uses the SAME chunked
+ * `BatchGetItem` mechanism as the keyword path (R1.2) and the SAME content metadata the
+ * keyword path returns. Hashes with no stored metadata are tolerated and simply omitted
+ * from the map, and a read failure is degraded rather than thrown, so a partial or
+ * superseded index can never fail the caller.
+ *
+ * Because the returned value is a `hash -> item` map, callers (e.g.
+ * `services/documentation.js` `buildResults()`) preserve their own vector-rank order by
+ * walking their ranked hits and looking each hash up in the map.
  *
  * @param {string} tableName - DynamoDB table name.
  * @param {string} version - Index version identifier whose metadata to read.
@@ -373,37 +547,7 @@ async function queryIndex(options = {}) {
  * // byHash.abc123 = { title, excerpt, path, type, subType, repository, ... }
  */
 async function getContentMetadataByHashes(tableName, version, hashes) {
-	const map = {};
-
-	// >! Tolerate empty/invalid input and a missing version: return an empty map rather
-	// >! than issuing malformed reads, so a caller can pass ranked hits through unchanged.
-	if (!Array.isArray(hashes) || hashes.length === 0 || !version) {
-		return map;
-	}
-
-	const client = getDocClient();
-
-	for (const hash of hashes) {
-		try {
-			const metaResult = await client.send(new GetCommand({
-				TableName: tableName,
-				Key: {
-					pk: `content:${hash}`,
-					sk: `v:${version}:metadata`
-				}
-			}));
-
-			// >! Skip hashes with no stored metadata (e.g. superseded/partial index) so the
-			// >! returned map only contains fully-resolvable content.
-			if (metaResult.Item) {
-				map[hash] = metaResult.Item;
-			}
-		} catch (error) {
-			DebugAndLog.warn(`Failed to fetch content metadata for hash ${hash}: ${error.message}`);
-		}
-	}
-
-	return map;
+	return batchGetMetadata(tableName, version, hashes);
 }
 
 /**
@@ -537,6 +681,89 @@ async function batchGetMetadata(tableName, version, hashes) {
 }
 
 /**
+ * Read a single section's content metadata item and return the pointers `get_document`
+ * resolution needs.
+ *
+ * Reads `pk=content:{hash}, sk=v:{version}:metadata` through the shared batched reader
+ * ({@link batchGetMetadata}), so it inherits that helper's bounded `UnprocessedKeys` retry
+ * and its degrade-rather-than-throw behavior instead of duplicating a `GetItem` path.
+ *
+ * `documentHash` and `githubUrl` were added to the metadata item by spec 0-0-6 task 1.6;
+ * items written before that deploy have them absent, so both are normalized to `null`. A
+ * `null` return therefore means "no metadata item for this hash/version", which is distinct
+ * from "item present but its pointers were never indexed".
+ *
+ * @param {string} tableName - DynamoDB table name
+ * @param {string} version - Index version identifier whose metadata to read
+ * @param {string} hash - Section content hash (16 hex characters)
+ * @returns {Promise<?{documentHash: (string|null), githubUrl: (string|null)}>} The section's
+ *   document pointer and file-level GitHub URL, or `null` when no metadata item exists
+ * @example
+ * const pointers = await getSectionMetadata('doc-index-table', '20250715T060000', 'ea6f1a2b3c4d5e6f');
+ * // pointers = { documentHash: 'b1c2d3e4f5a60718', githubUrl: 'https://github.com/…/README.md' }
+ */
+async function getSectionMetadata(tableName, version, hash) {
+	if (!tableName || !version || typeof hash !== 'string' || hash.length === 0) {
+		return null;
+	}
+
+	const byHash = await batchGetMetadata(tableName, version, [hash]);
+	const item = byHash[hash];
+
+	if (!item) {
+		return null;
+	}
+
+	return {
+		// >! Normalize absent (pre-task-1.6) attributes to null so callers have one shape.
+		documentHash: item.documentHash ?? null,
+		githubUrl: item.githubUrl ?? null
+	};
+}
+
+/**
+ * Read the stored source file for a document hash.
+ *
+ * Reads the version-less `pk=document:{fileHash}, sk=content` item written once per source
+ * file by the indexer (spec 0-0-6 task 1.5). Because the key omits the index version, the
+ * caller never has to supply one (Requirement 2.4).
+ *
+ * This is a storage-only read: a missing item resolves to `null` and a read failure is
+ * logged and degraded to `null`. Neither case triggers a GitHub fetch — delegating a
+ * storage miss to the client is what keeps the server off GitHub's shared rate limit
+ * (Requirement 6.5).
+ *
+ * @param {string} tableName - DynamoDB table name
+ * @param {string} fileHash - Document (per-file) hash, 16 hex characters
+ * @returns {Promise<?Object>} The document item (`content`, `documentPath`, `githubUrl`,
+ *   `repositoryType`, `namespace`, `repository`, `owner`, …), or `null` when it is not stored
+ * @example
+ * const doc = await getDocumentByFileHash('doc-index-table', 'b1c2d3e4f5a60718');
+ * // doc.content = '# Cache Data\n\n…'  (raw source file)
+ */
+async function getDocumentByFileHash(tableName, fileHash) {
+	if (!tableName || typeof fileHash !== 'string' || fileHash.length === 0) {
+		return null;
+	}
+
+	const client = getDocClient();
+
+	try {
+		const result = await client.send(new GetCommand({
+			TableName: tableName,
+			Key: { pk: `${DOCUMENT_PK_PREFIX}${fileHash}`, sk: DOCUMENT_SK }
+		}));
+
+		return result.Item || null;
+	} catch (error) {
+		// >! Degrade to a storage miss rather than failing the caller; the client is handed
+		// >! the GitHub URL and fetches the document itself.
+		DebugAndLog.warn(`Failed to read document ${fileHash}: ${error.message}`);
+		return null;
+	}
+}
+
+/**
  * Test harness for accessing internal state for testing purposes.
  * WARNING: This class is for testing only and should NEVER be used in production code.
  *
@@ -552,6 +779,26 @@ class TestHarness {
 	static resetClient() {
 		docClient = null;
 	}
+
+	/**
+	 * Get access to internal helpers for testing purposes.
+	 * WARNING: This method is for testing only and should never be used in production.
+	 *
+	 * @returns {{applyIndexedFilterPushDown: typeof applyIndexedFilterPushDown, applyExactPhraseBoost: typeof applyExactPhraseBoost, normalizeForPhraseMatch: typeof normalizeForPhraseMatch, EXACT_PHRASE_BOOST: number}} Internal helpers
+	 * @private
+	 * @example
+	 * // In tests only - DO NOT use in production
+	 * const { applyIndexedFilterPushDown } = TestHarness.getInternals();
+	 * const kept = applyIndexedFilterPushDown([{ hash: 'a', type: 'documentation' }], 'documentation');
+	 */
+	static getInternals() {
+		return {
+			applyIndexedFilterPushDown,
+			applyExactPhraseBoost,
+			normalizeForPhraseMatch,
+			EXACT_PHRASE_BOOST
+		};
+	}
 }
 
 module.exports = {
@@ -560,6 +807,8 @@ module.exports = {
 	queryIndex,
 	getContentMetadataByHashes,
 	batchGetMetadata,
+	getSectionMetadata,
+	getDocumentByFileHash,
 	setDocClient,
 	TestHarness
 };

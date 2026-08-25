@@ -301,7 +301,7 @@ describe('JSON Schema Validator', () => {
     test('should accept valid type filter', () => {
       const result = validate('search_documentation', {
         query: 'test',
-        type: 'guide'
+        type: 'documentation'
       });
 
       expect(result.valid).toBe(true);

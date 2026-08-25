@@ -39,12 +39,6 @@ const DOC_AI_TIERS = ['public', 'registered', 'paid', 'private'];
 const DOC_AI_RETRIEVAL_MODES = ['keyword', 'semantic', 'semantic-assisted'];
 
 /**
- * Valid vector stores for `DOC_AI_VECTOR_STORE`.
- * @constant {Array<string>}
- */
-const DOC_AI_VECTOR_STORES = ['dynamodb', 's3-vectors'];
-
-/**
  * Emit a structured warning when a `DOC_AI_*` value is invalid and a documented
  * default is being used instead. Uses the indexer's existing structured logging
  * convention (`console.warn(JSON.stringify({ level, event, ... }))`) rather than
@@ -188,8 +182,6 @@ function parseIntSetting(envVar, defaultValue, { min = 1, max = Infinity } = {})
  *   (public|registered|paid|private)
  * - `DOC_AI_RETRIEVAL_MODE` (default `semantic`) - retrieval strategy
  *   (keyword|semantic|semantic-assisted); invalid values fall back to `keyword`
- * - `DOC_AI_VECTOR_STORE` (default `s3-vectors`) * - vector store backend
- *   (dynamodb|s3-vectors)
  * - `DOC_AI_EMBEDDING_MODEL` (default `amazon.titan-embed-text-v2:0`) *
  * - `DOC_AI_EMBEDDING_DIMENSIONS` (int, default 1024) *
  * - `DOC_AI_EMBEDDING_MAX_INPUT_TOKENS` (int, default 8000) *
@@ -206,7 +198,6 @@ function parseIntSetting(envVar, defaultValue, { min = 1, max = Infinity } = {})
  *   enabled: boolean,
  *   minTier: string,
  *   retrievalMode: string,
- *   vectorStore: string,
  *   embedding: {model: string, dimensions: number, maxInputTokens: number, region: string},
  *   assist: {model: string, maxCandidates: number},
  *   topK: number,
@@ -233,10 +224,6 @@ function loadDocAiSettings() {
     // Retrieval strategy (query-time concern; mirrored for parity). Defaults
     // to `semantic` when unset; unrecognized values fall back to `keyword`.
     retrievalMode: parseEnum('DOC_AI_RETRIEVAL_MODE', DOC_AI_RETRIEVAL_MODES, 'semantic', 'keyword'),
-
-    // Vector store backend the indexer upserts embeddings to. Invalid values
-    // fall back to `s3-vectors`.
-    vectorStore: parseEnum('DOC_AI_VECTOR_STORE', DOC_AI_VECTOR_STORES, 's3-vectors'),
 
     // >! Embedding model ID is read from the environment (public Bedrock
     // >! model identifier, not a secret) with a documented default.
@@ -265,8 +252,9 @@ function loadDocAiSettings() {
     topK: parseIntSetting('DOC_AI_TOP_K', 10, { min: 1 }),
     candidateMultiplier: parseIntSetting('DOC_AI_CANDIDATE_MULTIPLIER', 3, { min: 1 }),
 
-    // S3 Vectors store location. Empty strings indicate the store is not yet
-    // configured; used only when `vectorStore` is `s3-vectors`.
+    // S3 Vectors store location. S3 Vectors is the sole vector-store backend
+    // (spec 0-0-6, Requirement 7); empty strings indicate the store is not yet
+    // configured, in which case the embedding phase is skipped.
     s3Vectors: {
       bucket: process.env.DOC_AI_S3_VECTOR_BUCKET || '',
       index: process.env.DOC_AI_S3_VECTOR_INDEX || ''
@@ -280,6 +268,5 @@ module.exports = {
   parseEnum,
   parseIntSetting,
   DOC_AI_TIERS,
-  DOC_AI_RETRIEVAL_MODES,
-  DOC_AI_VECTOR_STORES
+  DOC_AI_RETRIEVAL_MODES
 };

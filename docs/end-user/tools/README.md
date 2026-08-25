@@ -17,6 +17,8 @@ This document provides detailed information about each MCP tool available throug
 - [get_agent_asset](#get_agent_asset)
 - [list_agent_asset_types](#list_agent_asset_types)
 - [search_documentation](#search_documentation)
+- [get_document](#get_document)
+- [get_document_chunk](#get_document_chunk)
 - [validate_naming](#validate_naming)
 
 ---
@@ -385,7 +387,7 @@ Ask your AI: "What types of agent assets are available?"
 
 ## search_documentation
 
-Search Atlantis documentation, tutorials, and code patterns by keyword. Returns results with title, excerpt, file path, GitHub URL, and result type. Requires the `query` parameter. Returns an empty array if no documents match the query. Optionally filter by `type` (guide, tutorial, reference, troubleshooting, template pattern, code example) or `ghusers` to narrow results to specific GitHub organizations.
+Search Atlantis documentation, tutorials, and code patterns by keyword. Returns results with title, excerpt, file path, GitHub URL, and result type. Requires the `query` parameter. Returns an empty array if no documents match the query. All filters are optional: `type` and `subType` narrow the result set, and `ghusers` narrows to specific GitHub organizations.
 
 > **Tip:** On servers where it is enabled, eligible (paid/private) tiers receive results ranked by meaning rather than exact keywords — using the same tool and the same response shape. See [Semantic Documentation Search](semantic-search.md).
 
@@ -394,8 +396,18 @@ Search Atlantis documentation, tutorials, and code patterns by keyword. Returns 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `query` | string | Yes | Search keywords |
-| `type` | string | No | Filter by type: "guide", "tutorial", "reference", "troubleshooting", "template pattern", "code example" |
+| `type` | string | No | Filter by result type: `documentation`, `template-pattern`, `code-example` |
+| `subType` | string | No | Filter by result subtype: `guide`, `function`, `parameter` |
 | `ghusers` | array[string] | No | Filter to specific GitHub users/orgs from configured list |
+
+### Response Fields
+
+Each result includes `title`, `excerpt`, `filePath`, `githubUrl`, `type`, `subType`, `relevanceScore`, `repository`, `repositoryType`, and `namespace`. `githubUrl`, `repositoryType`, and `namespace` may be `null` for entries indexed before those fields were populated.
+
+The envelope also includes:
+
+- **`availableFilters`** (optional) — the distinct `type` and `subType` values present in the matched set, with counts, e.g. `{ "type": [{ "value": "documentation", "count": 22 }], "subType": [...] }`. Use these values directly as `type`/`subType` filters on a follow-up query. Absent when there is nothing to report (e.g. zero results).
+- **`suggestions`** — used for zero-result guidance as before, and also gains a "narrow the search with a type or subType filter" hint when the matched set is large, pointing you at `availableFilters`.
 
 ### Example Usage
 
@@ -409,6 +421,11 @@ Ask your AI: "Search documentation for DynamoDB caching"
 Ask your AI: "Find code examples for Lambda functions"
 ```
 
+**Narrow a broad result set:**
+```
+Ask your AI: "That search had too many results — narrow it to type template-pattern"
+```
+
 ### Use Cases
 
 - Find implementation guidance
@@ -416,6 +433,84 @@ Ask your AI: "Find code examples for Lambda functions"
 - Locate troubleshooting information
 - Learn best practices
 - Find CloudFormation resource patterns
+- Narrow a broad result set using the `availableFilters` values from a prior search
+
+---
+
+## get_document
+
+Retrieve the complete source file behind a `search_documentation` result, rather than the excerpt. Supply exactly one lookup key: the `filePath` (contentPath) from a search result, or a section `hash` (16 hexadecimal characters). A section-level key resolves to the file that contains it, so the response is the whole source file in document order, not just the matched section.
+
+Retrieval is **storage-only** — the server never fetches from GitHub. If the document is not currently in the index, the tool returns an error that identifies what you asked for and includes the file-level `githubUrl` (when it can be derived) so you can fetch the file yourself. `get_document` requires no elevated tier and works the same whether or not semantic search is enabled.
+
+### Input Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `filePath` | string | One of `filePath`/`hash` | contentPath from a search result (e.g., `{org}/{repo}/{filePath}/{slug}`) |
+| `hash` | string | One of `filePath`/`hash` | Section content hash (16 hexadecimal characters) |
+
+Supply exactly one of `filePath` or `hash` — providing both, or neither, is rejected.
+
+### Response Fields
+
+| Field | Description |
+|-------|-------------|
+| `filePath` | The resolved file path the content came from |
+| `githubUrl` | File-level GitHub URL, or `null` when it could not be derived |
+| `repository` | Repository name |
+| `repositoryType` | Repository classification (e.g., `documentation`, `template`), or `null` |
+| `namespace` | Repository namespace, or `null` |
+| `content` | The raw source file text |
+
+If the document exceeds the response size limit, a summary is returned instead with `contentTruncated: true`, `totalChunks`, and a `retrievalHint` describing how to use `get_document_chunk`.
+
+### Storage-miss behavior
+
+When the document isn't in storage, `get_document` returns a `DOCUMENT_NOT_FOUND` error carrying the requested `filePath`/`hash` and the file-level `githubUrl` (or `null` when no URL could be derived). The server does not attempt to fetch the file from GitHub on your behalf — use the returned `githubUrl` to fetch it directly.
+
+### Example Usage
+
+```
+Ask your AI: "Get the full source file for that last search result"
+```
+
+### Use Cases
+
+- Read the full context around an excerpt that looked relevant
+- Retrieve a document by the `filePath` or `hash` returned from `search_documentation`
+- Fall back to fetching from GitHub yourself when a document isn't indexed yet
+
+---
+
+## get_document_chunk
+
+Retrieve a specific chunk of a large document that was too large to return in a single `get_document` response. Takes the same lookup key as `get_document` (exactly one of `filePath` or `hash`) plus a required zero-based `chunkIndex`.
+
+### Input Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `filePath` | string | One of `filePath`/`hash` | contentPath from a search result (e.g., `{org}/{repo}/{filePath}/{slug}`) |
+| `hash` | string | One of `filePath`/`hash` | Section content hash (16 hexadecimal characters) |
+| `chunkIndex` | integer | Yes | Zero-based index of the chunk to retrieve |
+
+### Response Fields
+
+The response includes `chunkIndex`, `totalChunks`, `filePath`, and the chunk `content` as a text string.
+
+Returns an `INVALID_CHUNK_INDEX` error if `chunkIndex` is out of range, or a `DOCUMENT_NOT_FOUND` error (same shape as `get_document`) if the document is no longer in storage.
+
+### Example Usage
+
+```
+Ask your AI: "That document was truncated. Get chunk 0"
+```
+
+### Use Cases
+
+- Retrieve the full content of a large document that exceeded the single-response size limit
+- Incrementally fetch document content chunk by chunk, concatenating chunks `0` through `totalChunks - 1` to reassemble the full document
 
 ---
 
@@ -485,6 +580,8 @@ Common error codes:
 - `TEMPLATE_NOT_FOUND` - Requested template doesn't exist
 - `STARTER_NOT_FOUND` - Requested starter doesn't exist
 - `ASSET_NOT_FOUND` - Requested agent asset doesn't exist
+- `DOCUMENT_NOT_FOUND` - Requested document isn't in storage; the error includes `githubUrl` (or `null`) so the client can fetch it directly
+- `INVALID_CHUNK_INDEX` - `chunkIndex` passed to `get_document_chunk` (or `get_template_chunk`/`get_agent_asset_chunk`) is out of range
 - `RATE_LIMIT_EXCEEDED` - Too many requests (HTTP 429)
 - `INTERNAL_ERROR` - Server error (HTTP 500)
 

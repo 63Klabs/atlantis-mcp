@@ -34,7 +34,6 @@ const { runEmbeddingPhase } = require('../../lib/index-builder');
  */
 const DOC_AI = {
 	enabled: true,
-	vectorStore: 's3-vectors',
 	embedding: { model: 'amazon.titan-embed-text-v2:0', dimensions: 1024, maxInputTokens: 8000, region: '' },
 	s3Vectors: { bucket: 'b', index: 'i' }
 };

@@ -35,10 +35,10 @@ jest.mock('@63klabs/cache-data', () => ({
 }));
 
 /**
- * Create a mock DynamoDB Document Client that routes GetCommand and QueryCommand
- * to provided handler functions.
+ * Create a mock DynamoDB Document Client that routes GetCommand, QueryCommand, and
+ * BatchGetCommand to provided handler functions.
  *
- * @param {Object} handlers - { get: fn(params), query: fn(params) }
+ * @param {Object} handlers - { get: fn(params), query: fn(params), batchGet: fn(params) }
  * @returns {Object} Mock client with send() method
  */
 function createMockClient(handlers = {}) {
@@ -50,6 +50,9 @@ function createMockClient(handlers = {}) {
 			}
 			if (commandName === 'QueryCommand' && handlers.query) {
 				return handlers.query(command.input);
+			}
+			if (commandName === 'BatchGetCommand' && handlers.batchGet) {
+				return handlers.batchGet(command.input);
 			}
 			return {};
 		})
@@ -157,7 +160,13 @@ describe('Documentation Index DAO — DynamoDB Integration', () => {
 		 * Helper: build a mock client that serves a version pointer, keyword
 		 * search results, and content metadata.
 		 */
-		function buildSearchMockClient({ version = '20250715T060000', keywordItems = {}, metadataItems = {} } = {}) {
+		function buildSearchMockClient({
+			version = '20250715T060000',
+			keywordItems = {},
+			metadataItems = {},
+			reverseBatchOrder = false,
+			tableName = 'test-doc-index-table'
+		} = {}) {
 			return createMockClient({
 				get: (params) => {
 					// Version pointer
@@ -165,17 +174,27 @@ describe('Documentation Index DAO — DynamoDB Integration', () => {
 						if (!version) return {};
 						return { Item: { pk: 'version:pointer', sk: 'active', version } };
 					}
-					// Content metadata
-					const metaKey = `${params.Key.pk}|${params.Key.sk}`;
-					if (metadataItems[metaKey]) {
-						return { Item: metadataItems[metaKey] };
-					}
 					return {};
 				},
 				query: (params) => {
 					// Keyword search
 					const keyword = params.ExpressionAttributeValues[':pk'].replace('search:', '');
 					return { Items: keywordItems[keyword] || [] };
+				},
+				// Content metadata is read in batches (spec 0-0-6 task 2.2). DynamoDB returns
+				// items in arbitrary order and omits keys with no stored item.
+				batchGet: (params) => {
+					const keys = params.RequestItems[tableName].Keys;
+					const items = keys
+						.map((key) => {
+							const item = metadataItems[`${key.pk}|${key.sk}`];
+							return item ? { ...item, pk: key.pk, sk: key.sk } : null;
+						})
+						.filter((item) => item !== null);
+					if (reverseBatchOrder) {
+						items.reverse();
+					}
+					return { Responses: { [tableName]: items } };
 				}
 			});
 		}
@@ -210,11 +229,108 @@ describe('Documentation Index DAO — DynamoDB Integration', () => {
 
 			expect(result.results.length).toBe(3);
 			expect(result.totalResults).toBe(3);
-			// bbb has score 20, aaa has 10+5=15, ccc has 3
+			// Keyword scores: bbb 20, aaa 10+5=15, ccc 3. bbb's title 'Cache Data Guide'
+			// contains the full query phrase 'cache data', so it also earns the query-time
+			// exact-phrase boost of 20 (spec 0-0-6 task 4.1, R9.1) => 40.
 			expect(result.results[0].title).toBe('Cache Data Guide');
-			expect(result.results[0].relevanceScore).toBe(20);
+			expect(result.results[0].relevanceScore).toBe(40);
 			expect(result.results[1].relevanceScore).toBe(15);
 			expect(result.results[2].relevanceScore).toBe(3);
+		});
+
+		// -----------------------------------------------------------
+		// Batched metadata enrichment (spec 0-0-6 task 2.2, R1.1/R1.4/R1.5)
+		// -----------------------------------------------------------
+		it('should read metadata in one batched request instead of one GetItem per hash', async () => {
+			const mockClient = buildSearchMockClient({
+				keywordItems: {
+					'cache': [
+						{ hash: 'aaa', relevanceScore: 10, typeWeight: 1.0 },
+						{ hash: 'bbb', relevanceScore: 20, typeWeight: 1.0 },
+						{ hash: 'ccc', relevanceScore: 5, typeWeight: 1.0 }
+					]
+				},
+				metadataItems: {
+					'content:aaa|v:20250715T060000:metadata': { title: 'A', excerpt: 'a', type: 'documentation', path: 'repo/a.md' },
+					'content:bbb|v:20250715T060000:metadata': { title: 'B', excerpt: 'b', type: 'documentation', path: 'repo/b.md' },
+					'content:ccc|v:20250715T060000:metadata': { title: 'C', excerpt: 'c', type: 'documentation', path: 'repo/c.md' }
+				}
+			});
+			DocIndex.setDocClient(mockClient);
+
+			const result = await DocIndex.queryIndex({ query: 'cache', limit: 10 });
+
+			expect(result.results).toHaveLength(3);
+
+			const commandNames = mockClient.send.mock.calls.map((call) => call[0].constructor.name);
+			// Exactly one batched metadata read for all three hashes.
+			expect(commandNames.filter((name) => name === 'BatchGetCommand')).toHaveLength(1);
+			// The only GetItem is the version pointer — no per-hash metadata GetItem remains.
+			const getKeys = mockClient.send.mock.calls
+				.filter((call) => call[0].constructor.name === 'GetCommand')
+				.map((call) => call[0].input.Key);
+			expect(getKeys).toEqual([{ pk: 'version:pointer', sk: 'active' }]);
+
+			const batchKeys = mockClient.send.mock.calls
+				.find((call) => call[0].constructor.name === 'BatchGetCommand')[0]
+				.input.RequestItems['test-doc-index-table'].Keys;
+			expect(batchKeys).toHaveLength(3);
+			expect(batchKeys).toContainEqual({ pk: 'content:bbb', sk: 'v:20250715T060000:metadata' });
+		});
+
+		it('should preserve ranked ordering when the batch returns items out of order', async () => {
+			const options = {
+				keywordItems: {
+					'cache': [
+						{ hash: 'aaa', relevanceScore: 10, typeWeight: 1.0 },
+						{ hash: 'bbb', relevanceScore: 20, typeWeight: 1.0 }
+					],
+					'data': [
+						{ hash: 'aaa', relevanceScore: 5, typeWeight: 1.0 },
+						{ hash: 'ccc', relevanceScore: 3, typeWeight: 1.0 }
+					]
+				},
+				metadataItems: {
+					'content:bbb|v:20250715T060000:metadata': { title: 'Cache Data Guide', excerpt: 'x', type: 'documentation', path: 'repo/b.md' },
+					'content:aaa|v:20250715T060000:metadata': { title: 'Installation', excerpt: 'x', type: 'documentation', path: 'repo/a.md' },
+					'content:ccc|v:20250715T060000:metadata': { title: 'Data Patterns', excerpt: 'x', type: 'code-example', path: 'repo/c.md' }
+				}
+			};
+
+			DocIndex.setDocClient(buildSearchMockClient(options));
+			const inOrder = await DocIndex.queryIndex({ query: 'cache data', limit: 10 });
+
+			DocIndex.TestHarness.resetClient();
+			DocIndex.setDocClient(buildSearchMockClient({ ...options, reverseBatchOrder: true }));
+			const outOfOrder = await DocIndex.queryIndex({ query: 'cache data', limit: 10 });
+
+			// Ordering comes from the pre-fetch ranking, not the batch response order.
+			expect(outOfOrder.results.map((r) => r.title)).toEqual(['Cache Data Guide', 'Installation', 'Data Patterns']);
+			// bbb: 20 + the 20-point exact-phrase boost ('Cache Data Guide' contains
+			// 'cache data') = 40 (spec 0-0-6 task 4.1, R9.1).
+			expect(outOfOrder.results.map((r) => r.relevanceScore)).toEqual([40, 15, 3]);
+			expect(outOfOrder.results).toEqual(inOrder.results);
+		});
+
+		it('should omit ranked hashes whose metadata item is missing', async () => {
+			const mockClient = buildSearchMockClient({
+				keywordItems: {
+					'cache': [
+						{ hash: 'present', relevanceScore: 10, typeWeight: 1.0 },
+						{ hash: 'missing', relevanceScore: 20, typeWeight: 1.0 }
+					]
+				},
+				metadataItems: {
+					'content:present|v:20250715T060000:metadata': { title: 'Present', excerpt: 'x', type: 'documentation', path: 'repo/p.md' }
+				}
+			});
+			DocIndex.setDocClient(mockClient);
+
+			const result = await DocIndex.queryIndex({ query: 'cache', limit: 10 });
+
+			expect(result.results).toHaveLength(1);
+			expect(result.totalResults).toBe(1);
+			expect(result.results[0].title).toBe('Present');
 		});
 
 		it('should return empty results with suggestion when no active version', async () => {

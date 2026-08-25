@@ -49,7 +49,7 @@ attributes as `null`/absent). Each task lists the requirements it satisfies. All
   - Add unit tests for property mapping, absent-property `null`, and fetch-failure tolerance.
   - _Requirements: 5.1, 5.2, 5.4, 5.5_
 
-- [ ] 1.5 Write the per-file `document:{fileHash}` item
+- [x] 1.5 Write the per-file `document:{fileHash}` item
   - In `doc-indexer/lib/dynamo-writer.js`, add `writeDocumentEntries(entries, version)` that groups
     entries by `fileHash`, writes one `pk=document:{fileHash}, sk=content` item (raw file text,
     `documentPath`, `githubUrl`, `repositoryType`, `namespace`, `repository`, `owner`, refreshed
@@ -60,7 +60,7 @@ attributes as `null`/absent). Each task lists the requirements it satisfies. All
     longer written.
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 6.3_
 
-- [ ] 1.6 Extend metadata and search-entry writes
+- [x] 1.6 Extend metadata and search-entry writes
   - `writeContentEntries()`: add `githubUrl`, `repositoryType`, `namespace`, `documentHash` to the
     `content:{hash}/v:{version}:metadata` item.
   - `writeSearchKeywords()`: add `type` and `subType` to each `search:{keyword}/v:{version}:{hash}`
@@ -83,7 +83,7 @@ attributes as `null`/absent). Each task lists the requirements it satisfies. All
   - Add unit tests: 100-key chunking, `UnprocessedKeys` bounded retry, missing-item omission.
   - _Requirements: 1.1, 1.3, 1.5_
 
-- [ ] 2.2 Use batched reads in both enrichment paths
+- [x] 2.2 Use batched reads in both enrichment paths
   - Refactor `queryIndex()` to fetch the ranked/filtered top slice via `batchGetMetadata`, then
     re-sort by score to preserve pre-fetch ordering.
   - Refactor `getContentMetadataByHashes()` (used by `services/documentation.js` `buildResults()`)
@@ -93,7 +93,7 @@ attributes as `null`/absent). Each task lists the requirements it satisfies. All
 
 ### 3. read-function: filter discoverability, push-down, facets (R8)
 
-- [ ] 3.1 Filter push-down before metadata fetch
+- [x] 3.1 Filter push-down before metadata fetch
   - In `queryIndex()`, apply `type`/`subType` filtering on the ranked hash set using the new
     `type`/`subType` attributes on `search:{keyword}` entries **before** the `batchGetMetadata`
     call.
@@ -101,7 +101,7 @@ attributes as `null`/absent). Each task lists the requirements it satisfies. All
     fewer metadata items when filtered.
   - _Requirements: 8.2, 8.5_
 
-- [ ] 3.2 `availableFilters` facets and `suggestions` nudge
+- [x] 3.2 `availableFilters` facets and `suggestions` nudge
   - In `services/documentation.js`, after assembling results, compute `availableFilters` (distinct
     `type`/`subType` with counts over the matched set) and add it to the envelope (additive/optional).
   - When `totalResults` exceeds a threshold, populate the existing `suggestions` array with a
@@ -109,7 +109,7 @@ attributes as `null`/absent). Each task lists the requirements it satisfies. All
   - Add tests for facet counts and the large-result suggestion.
   - _Requirements: 8.1, 8.4, 8.5_
 
-- [ ] 3.3 Update `search_documentation` schema and description
+- [x] 3.3 Update `search_documentation` schema and description
   - Correct the input `type` enum to the stored values (`documentation`, `template-pattern`,
     `code-example`), add a `subType` enum, mark both optional, and add a "refine with type/subType
     when results are broad" hint to the tool description in `config/settings.js`
@@ -120,7 +120,7 @@ attributes as `null`/absent). Each task lists the requirements it satisfies. All
 
 ### 4. read-function: query-time exact-phrase boost (R9)
 
-- [ ] 4.1 Apply the exact-phrase boost in keyword mode
+- [x] 4.1 Apply the exact-phrase boost in keyword mode
   - Define `EXACT_PHRASE_BOOST = 20` in the read-function scoring logic. After `batchGetMetadata`
     enrichment (keyword mode only), add the boost to candidates whose `title` or `excerpt` contains
     the normalized full query phrase, then re-sort by final `relevanceScore` descending.
@@ -130,7 +130,7 @@ attributes as `null`/absent). Each task lists the requirements it satisfies. All
 
 ### 5. read-function: `get_document` and `get_document_chunk` (R6)
 
-- [ ] 5.1 Model + service resolution (storage-only)
+- [x] 5.1 Model + service resolution (storage-only)
   - In `models/doc-index.js`, add `getDocumentByFileHash(tableName, fileHash)` (GetItem
     `document:{fileHash}/content`) and a metadata lookup that returns `documentHash`/`githubUrl`.
   - In `services/documentation.js`, add `getDocument({ filePath, hash, authInfo })`: resolve active
@@ -140,7 +140,7 @@ attributes as `null`/absent). Each task lists the requirements it satisfies. All
   - Add tests: resolution by `filePath` and by `hash`; storage hit; strip-slug fallback.
   - _Requirements: 6.3, 6.4, 6.5, 6.6_
 
-- [ ] 5.2 Controller + tool registration
+- [x] 5.2 Controller + tool registration
   - Add `Controllers.Documentation.getDocument` and `getDocumentChunk`.
   - Register `get_document` and `get_document_chunk` in `TOOL_DISPATCH` (`utils/json-rpc-router.js`),
     in `availableToolsList`/`extendedDescriptions`, and add their `SchemaValidator` schemas
@@ -150,7 +150,7 @@ attributes as `null`/absent). Each task lists the requirements it satisfies. All
     missing keys.
   - _Requirements: 6.1, 6.2, 6.6_
 
-- [ ] 5.3 Success response + `githubUrl`, and storage-miss error
+- [x] 5.3 Success response + `githubUrl`, and storage-miss error
   - Success payload includes `filePath`, `githubUrl`, `repository`, `repositoryType`, `namespace`,
     `content`.
   - On storage miss, return a JSON-RPC error identifying `filePath`/`hash` with `githubUrl` in the
@@ -159,7 +159,7 @@ attributes as `null`/absent). Each task lists the requirements it satisfies. All
     URL returns error + `null`.
   - _Requirements: 6.8, 6.9_
 
-- [ ] 5.4 Size-aware chunking (`get_document_chunk`)
+- [x] 5.4 Size-aware chunking (`get_document_chunk`)
   - Extend the size-aware branch in `json-rpc-router.js` `handleToolsCall()` to handle
     `get_document`: over-threshold results return `buildDocumentSummary(...)` (`contentTruncated`,
     `totalChunks`, `retrievalHint`).
@@ -181,7 +181,7 @@ attributes as `null`/absent). Each task lists the requirements it satisfies. All
     keyword fallback still work.
   - _Requirements: 7.1, 7.3, 7.4, 7.6_
 
-- [ ] 6.2 Remove `DocAiVectorStore` from settings and cache key
+- [x] 6.2 Remove `DocAiVectorStore` from settings and cache key
   - Remove `vectorStore` from `documentation.ai` in `read-function/config/settings.js` and
     `doc-indexer/lib/settings.js`; stop reading `DOC_AI_VECTOR_STORE`.
   - Drop the `vectorStore` segment from the `docAiMode` cache discriminator in
@@ -191,7 +191,7 @@ attributes as `null`/absent). Each task lists the requirements it satisfies. All
 
 ### 7. Infrastructure (R7, R11)
 
-- [ ] 7.1 Remove `DocAiVectorStore` from `template.yml`
+- [x] 7.1 Remove `DocAiVectorStore` from `template.yml`
   - Remove the `DocAiVectorStore` parameter, its metadata group entry, and the
     `DOC_AI_VECTOR_STORE` environment variable from both the read-function and doc-indexer function
     definitions. Leave S3 Vectors resources/conditions/IAM (gated by `EnableDocAiIsTrue`) intact.
@@ -204,26 +204,26 @@ attributes as `null`/absent). Each task lists the requirements it satisfies. All
 
 ### 8. Documentation and changelog (R11)
 
-- [ ] 8.1 Update ARCHITECTURE.md and DEPLOYMENT.md
+- [x] 8.1 Update ARCHITECTURE.md and DEPLOYMENT.md
   - ARCHITECTURE.md: hash-keyed `document:{fileHash}` content, new metadata/search-entry fields,
     batched reads, S3-Vectors-only retrieval.
   - DEPLOYMENT.md: remove `DocAiVectorStore`; state S3 Vectors is the only backend; confirm
     `DocAiRetrievalMode` default.
   - _Requirements: 7.5, 11.1, 11.3_
 
-- [ ] 8.2 Update `docs/` for the new tools and search fields
+- [x] 8.2 Update `docs/` for the new tools and search fields
   - Document `get_document`/`get_document_chunk` (purpose, inputs, outputs, storage-miss URL
     behavior) and the enriched search fields/facets.
   - _Requirements: 11.2_
 
-- [ ] 8.3 Update CHANGELOG.md
+- [x] 8.3 Update CHANGELOG.md
   - Under `v0.0.6 (unreleased)`, add Added/Changed/Removed entries referencing
     `[Spec: 0-0-6-documentation-index-enhancement]` (see design §10).
   - _Requirements: 11.4_
 
 ### 9. Final verification
 
-- [ ] 9.1 Run per-function Jest suites and fix failures
+- [x] 9.1 Run per-function Jest suites and fix failures
   - Run each affected function's suite; confirm all pass with mocked I/O and bounded iterations.
   - Add a backward-compat snapshot proving no `search_documentation` field is removed/renamed and
     new fields are additive.

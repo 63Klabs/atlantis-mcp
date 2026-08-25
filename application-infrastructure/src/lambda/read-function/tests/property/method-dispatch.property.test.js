@@ -28,7 +28,9 @@ jest.mock('../../controllers', () => {
       get: jest.fn()
     },
     Documentation: {
-      search: jest.fn()
+      search: jest.fn(),
+      getDocument: jest.fn(),
+      getDocumentChunk: jest.fn()
     },
     Validation: {
       validate: jest.fn()
@@ -70,6 +72,8 @@ const TOOL_TO_CONTROLLER = {
   list_starters: Controllers.Starters.list,
   get_starter_info: Controllers.Starters.get,
   search_documentation: Controllers.Documentation.search,
+  get_document: Controllers.Documentation.getDocument,
+  get_document_chunk: Controllers.Documentation.getDocumentChunk,
   validate_naming: Controllers.Validation.validate,
   check_template_updates: Controllers.Updates.check,
   list_tools: Controllers.Tools.list,

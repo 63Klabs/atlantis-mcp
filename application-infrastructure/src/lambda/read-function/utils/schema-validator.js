@@ -209,10 +209,17 @@ const baseSchemas = {
         minLength: 1,
         description: 'Search query keywords'
       },
+      // >! Enum values must match the `type` values written by the doc-indexer extractors.
+      // >! A mismatched enum silently excludes every stored document from a filtered search.
       type: {
         type: 'string',
-        enum: ['guide', 'tutorial', 'reference', 'troubleshooting', 'template pattern', 'code example'],
-        description: 'Filter by documentation type'
+        enum: ['documentation', 'template-pattern', 'code-example'],
+        description: 'Filter by result type. Optional; omit to search all types.'
+      },
+      subType: {
+        type: 'string',
+        enum: ['guide', 'function', 'parameter'],
+        description: 'Filter by result subtype. Optional; omit to search all subtypes.'
       },
       ghusers: {
         type: 'array',
@@ -225,6 +232,69 @@ const baseSchemas = {
       }
     },
     required: ['query'],
+    additionalProperties: false
+  },
+
+  /**
+   * Schema for get_document tool input
+   * Retrieves the full stored source file behind a search result.
+   *
+   * `oneOf` enforces exactly one lookup key: `filePath` (a section contentPath) or `hash`
+   * (a section content hash). Both keys resolve to the same document, so supplying both is
+   * ambiguous and rejected rather than silently preferring one.
+   */
+  get_document: {
+    type: 'object',
+    properties: {
+      filePath: {
+        type: 'string',
+        minLength: 1,
+        description: 'contentPath from a search result (e.g., {org}/{repo}/{filePath}/{slug})'
+      },
+      // >! Constrain the hash to 16 hex characters. Both lookup keys are opaque DynamoDB key
+      // >! components — never used as a file-system path or shell argument.
+      hash: {
+        type: 'string',
+        pattern: '^[0-9a-f]{16}$',
+        description: 'Section content hash (16 hexadecimal characters)'
+      }
+    },
+    oneOf: [
+      { required: ['filePath'] },
+      { required: ['hash'] }
+    ],
+    additionalProperties: false
+  },
+
+  /**
+   * Schema for get_document_chunk tool input
+   * Retrieves one chunk of a document too large for a single get_document response.
+   * Same lookup key rule as get_document, plus a required zero-based chunkIndex.
+   */
+  get_document_chunk: {
+    type: 'object',
+    properties: {
+      filePath: {
+        type: 'string',
+        minLength: 1,
+        description: 'contentPath from a search result (e.g., {org}/{repo}/{filePath}/{slug})'
+      },
+      hash: {
+        type: 'string',
+        pattern: '^[0-9a-f]{16}$',
+        description: 'Section content hash (16 hexadecimal characters)'
+      },
+      chunkIndex: {
+        type: 'integer',
+        minimum: 0,
+        description: 'Zero-based index of the chunk to retrieve'
+      }
+    },
+    required: ['chunkIndex'],
+    oneOf: [
+      { required: ['filePath'] },
+      { required: ['hash'] }
+    ],
     additionalProperties: false
   },
 
@@ -424,6 +494,21 @@ const validate = (toolName, input) => {
       if (!(requiredProp in input)) {
         errors.push(`Missing required property: ${requiredProp}`);
       }
+    }
+  }
+
+  // >! Check oneOf branches (exactly one must be satisfied). Only `required` branches are
+  // >! supported, which is all the tool schemas use: mutually exclusive lookup keys. Matching
+  // >! zero branches means the caller supplied no key; matching more than one means the input
+  // >! is ambiguous. Both are rejected rather than resolved by preference.
+  if (Array.isArray(schema.oneOf)) {
+    const branchLabels = schema.oneOf.map(branch => (branch.required || []).join(' + '));
+    const matchCount = schema.oneOf.filter(
+      branch => (branch.required || []).every(prop => prop in input)
+    ).length;
+
+    if (matchCount !== 1) {
+      errors.push(`Input must include exactly one of: ${branchLabels.join(' | ')} (matched ${matchCount})`);
     }
   }
 

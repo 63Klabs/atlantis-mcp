@@ -166,6 +166,8 @@ src/lambda/read-function/
 | `list_starters` | starters | List application starter repositories |
 | `get_starter_info` | starters | Detailed starter metadata |
 | `search_documentation` | documentation | Search indexed documentation |
+| `get_document` | documentation | Retrieve the full stored source file behind a search result (storage-only; never fetches from GitHub) |
+| `get_document_chunk` | documentation | Retrieve one chunk of a large document (parity with `get_template_chunk`) |
 | `validate_naming` | validation | Validate resource names against Atlantis conventions |
 | `recommend` | documentation | Content recommendations for a documentation page |
 | `list_agent_assets` | agent-assets | List Kiro agent assets (steering, hooks, AGENTS.md), optionally filtered by `assetType` |
@@ -418,8 +420,8 @@ sequenceDiagram
 │  TTL: ttl                                                           │
 │                                                                     │
 │  Stores indexed documentation: main index entries, search           │
-│  keywords, section content, and version pointers.                   │
-│  Populated by the Doc Indexer Lambda on schedule.                   │
+│  keywords, per-section metadata, per-file document bodies, and      │
+│  version pointers. Populated by the Doc Indexer Lambda on schedule. │
 └─────────────────────────────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────────────────────────────┐
@@ -430,6 +432,20 @@ sequenceDiagram
 │  Imported via CloudFormation cross-stack references.                 │
 └──────────────────────────────────────────────────────────────────────┘
 ```
+
+#### DocIndex Table Item Shapes
+
+The DocIndex table is single-table design: every item type shares the table but is distinguished by its `pk`/`sk` prefix.
+
+| Item | `pk` | `sk` | Notes |
+|------|------|------|-------|
+| Content metadata | `content:{hash}` | `v:{version}:metadata` | One per indexed section. `hash` = SHA-256(contentPath) truncated to 16 hex. Carries `title`, `excerpt`, `type`, `subType`, `repository`, `owner`, `keywords`, plus `githubUrl`, `repositoryType`, `namespace`, and `documentHash` (each `null` when not derivable). |
+| Document body | `document:{fileHash}` | `content` | One per source **file** (not per section), version-less. `fileHash` = SHA-256(`{org}/{repo}/{filePath}`) truncated to 16 hex. Holds the raw file text plus `githubUrl`/`repositoryType`/`namespace`/`repository`/`owner`. Upserted on every build with a refreshed 7-day TTL; a file no longer present in a build simply expires via TTL (no orphan-delete pass). Read by the `get_document`/`get_document_chunk` tools. |
+| Search keyword | `search:{keyword}` | `v:{version}:{hash}` | One per keyword per section, with a pre-computed `relevanceScore`/`typeWeight` and (as of this change) the section's `type`/`subType`, enabling filter push-down before metadata is fetched. |
+| Main index | `mainindex:{version}` | `entries` / `entries:{n}` | Chunked manifest of all indexed content paths for a version. |
+| Version pointer | `version:pointer` | `active` | Points to the currently active index version; optionally carries embedding model/dimensions when semantic indexing is enabled. |
+
+The former per-section, per-version body item (`content:{hash}` / `v:{version}:content`) no longer exists — it had no reader and duplicated storage across versions. Source bodies are now stored once per file under the version-less `document:{fileHash}` key described above.
 
 ### S3 Buckets
 
@@ -486,16 +502,15 @@ flowchart TD
     end
 
     subgraph LAYER["doc-ai-common Lambda Layer"]
-        VSF["createVectorStore factory"]
+        VSF["createVectorStore factory<br/>(S3 Vectors only)"]
     end
 
-    KW -->|"keyword query"| DDB[("DocIndex table")]
-    BR -->|"content metadata"| DDB
+    KW -->|"keyword query (BatchGetItem)"| DDB[("DocIndex table")]
+    BR -->|"content metadata (BatchGetItem)"| DDB
     SEM -->|"vector query"| VSF
     RU --> VSF
     EMB --> VSF
-    VSF -->|"dynamodb"| DDB
-    VSF -->|"s3-vectors"| S3V[("S3 Vectors bucket + index")]
+    VSF --> S3V[("S3 Vectors bucket + index")]
     EPQ <--> BEDE[["Bedrock InvokeModel<br/>Titan embeddings"]]
     EMB <--> BEDE
     AP <--> BEDN[["Bedrock InvokeModel<br/>Nova assist"]]
@@ -508,8 +523,7 @@ Shared abstractions ship in a single Lambda Layer (`DocAiCommonLayer`, named `<P
 | Module (`nodejs/`) | Component(s) | Responsibility |
 |--------------------|--------------|----------------|
 | `embedding-provider.js` | `EmbeddingProvider` | Wraps Bedrock `InvokeModel` for Amazon Titan Text Embeddings V2 (`{ inputText, dimensions, normalize: true }`); input truncation to a token budget; lazy client; typed errors |
-| `vector-store.js` | `VectorStore`, `createVectorStore` | Storage-agnostic interface plus a registry-dispatched factory (the single extension point); typed errors |
-| `vector-store-dynamodb.js` | `DynamoDbVectorStore` | Stores vectors in the DocIndex table; in-Lambda cosine ranking; version manifest; metadata filters; warm in-memory cache; TTL cleanup |
+| `vector-store.js` | `VectorStore`, `createVectorStore` | Storage-agnostic interface plus a factory that always returns `S3VectorStore` (S3 Vectors is the sole backend); typed errors |
 | `vector-store-s3.js` | `S3VectorStore` | Maps upsert/query onto the S3 Vectors data plane; metadata filter translation |
 | `retrieval-strategy.js` | `KeywordRetrieval`, `SemanticRetrieval`, `SemanticAssistedRetrieval`, `FallbackRetrieval`, `selectStrategy` | Retrieval strategy family, tier-gated selection, and the keyword-fallback wrapper |
 | `assist-provider.js` | `AssistProvider` | Wraps Bedrock `InvokeModel` for Amazon Nova Micro; re-rank only (returns an index ordering), never synthesizes prose; deterministic (`temperature: 0`) |
@@ -520,7 +534,13 @@ The caller's tier is threaded from authentication through to strategy selection:
 
 `selectStrategy` chooses the semantic path only when the feature is enabled, the retrieval mode is not `keyword`, and the caller's tier rank is at or above `minTier`; otherwise it returns the keyword strategy unchanged. An unknown or missing tier ranks as `public` (fail-secure). When a semantic primary is chosen it is wrapped in a `FallbackRetrieval` so any semantic-path error is logged and degraded to keyword search.
 
-`SemanticRetrieval` embeds the query with `EmbeddingProvider` (caching the vector by normalized query, model, and dimensions to avoid repeat Bedrock calls), queries the active index version through the `VectorStore`, and maps the ranked hits back to the existing result shape via an injected `buildResults`. `buildResults` fetches the same content metadata the keyword path uses (`Models.DocIndex.getContentMetadataByHashes`, keyed by `content:{hash}`), so semantic and keyword results are indistinguishable in shape; the cosine `score` becomes `relevanceScore`. Results are cached through the existing `documentation-index` cache profile, with a cache-key discriminator (`mode|store|tier` when enabled, `keyword` when disabled) so a paid/private semantic hit is never served to a below-tier keyword caller.
+`SemanticRetrieval` embeds the query with `EmbeddingProvider` (caching the vector by normalized query, model, and dimensions to avoid repeat Bedrock calls), queries the active index version through the `VectorStore`, and maps the ranked hits back to the existing result shape via an injected `buildResults`. `buildResults` fetches the same content metadata the keyword path uses (`Models.DocIndex.getContentMetadataByHashes`, keyed by `content:{hash}`) via the shared `batchGetMetadata` helper (chunked `BatchGetItem`, bounded `UnprocessedKeys` retry — see [Batched Metadata Retrieval](#batched-metadata-retrieval) below), so semantic and keyword results are indistinguishable in shape; the cosine `score` becomes `relevanceScore`. Results are cached through the existing `documentation-index` cache profile, with a cache-key discriminator (`mode|tier` when enabled, `keyword` when disabled) so a paid/private semantic hit is never served to a below-tier keyword caller.
+
+#### Batched Metadata Retrieval
+
+Both the keyword path (`queryIndex`) and the semantic/assisted enrichment path (`getContentMetadataByHashes`) fetch content metadata through a shared `batchGetMetadata(tableName, version, hashes)` helper in `read-function/models/doc-index.js` instead of one serial `GetItem` per hash. The helper builds `content:{hash}/v:{version}:metadata` keys, chunks them at the 100-key `BatchGetItem` limit, issues chunks in parallel, and retries only `UnprocessedKeys` with a bounded number of attempts and exponential backoff (never an unbounded loop). Because `BatchGetItem` can return items out of order or omit missing keys, both callers re-sort by their pre-fetch ranking (relevance score or vector rank) after the fetch, so a hash with no stored metadata (e.g. a superseded or partial index) is simply omitted rather than failing the request.
+
+For the keyword path, `type`/`subType` filters are pushed down onto the ranked hash set — using `type`/`subType` now carried on each `search:{keyword}` entry — *before* the `batchGetMetadata` call, so a filtered query reads fewer metadata items without changing which results are returned versus post-fetch filtering. After enrichment, an `EXACT_PHRASE_BOOST` (20, matching the indexer's former `SCORE_WEIGHTS.exactPhrase`) is added to any candidate whose `title` or `excerpt` contains the normalized full query phrase, and candidates are re-sorted by final relevance descending — this changes ordering only, never membership, and never affects the semantic path. The search envelope also gains two additive, optional fields: `availableFilters` (distinct `type`/`subType` values with counts over the matched set) and a "narrow by type/subType" nudge appended to `suggestions` once `totalResults` is large.
 
 ### Index Path (Doc Indexer)
 
@@ -528,16 +548,15 @@ When the feature is enabled, after extraction the indexer computes an `embedding
 
 ### Configuration Axes and Layered Fallback
 
-Two configuration axes select behavior (both mirrored to the Read Lambda settings and the Doc Indexer settings loader so the two functions stay in lockstep):
+One configuration axis selects retrieval behavior (mirrored to the Read Lambda settings and the Doc Indexer settings loader so the two functions stay in lockstep):
 
-- **Retrieval mode** (`DOC_AI_RETRIEVAL_MODE`): `keyword` | `semantic` | `semantic-assisted`.
-- **Vector store** (`DOC_AI_VECTOR_STORE`): `dynamodb` | `s3-vectors`.
+- **Retrieval mode** (`DOC_AI_RETRIEVAL_MODE`): `keyword` | `semantic` | `semantic-assisted`. Defaults to `keyword`.
 
-Fallback is layered and never fails the request: a semantic error degrades to keyword search; an assist-model error in `semantic-assisted` mode degrades to plain semantic results. Settings validation warns and applies documented defaults rather than throwing.
+S3 Vectors is the sole vector-store backend — there is no vector-store selection axis or setting. Fallback is layered and never fails the request: a semantic error degrades to keyword search; an assist-model error in `semantic-assisted` mode degrades to plain semantic results. Settings validation warns and applies documented defaults rather than throwing.
 
-### Vector Stores and S3 Vectors Provisioning
+### S3 Vectors Provisioning
 
-The `dynamodb` backend reuses the existing DocIndex table (vector items, a per-version manifest, in-Lambda cosine similarity). The `s3-vectors` backend uses an S3 Vectors vector bucket and index. S3 Vectors has no native CloudFormation resource type, so the vector bucket and index are provisioned by a Lambda-backed custom resource (`Custom::S3VectorIndex`, resource `DocAiVectorIndex`) whose handler (`S3VectorsProvisioner`) owns the full create/update/delete lifecycle. The index is created with the `cosine` distance metric and the configured dimension (both immutable — a change forces index replacement). All S3 Vectors infrastructure — the provisioner function, its role and log group, and the custom resource — is gated by the `EnableDocAiIsTrue` condition, so a default (disabled) deploy creates no AI resources.
+Semantic and semantic-assisted retrieval use a single S3 Vectors vector bucket and index. S3 Vectors has no native CloudFormation resource type, so the vector bucket and index are provisioned by a Lambda-backed custom resource (`Custom::S3VectorIndex`, resource `DocAiVectorIndex`) whose handler (`S3VectorsProvisioner`) owns the full create/update/delete lifecycle. The index is created with the `cosine` distance metric and the configured dimension (both immutable — a change forces index replacement). All S3 Vectors infrastructure — the provisioner function, its role and log group, and the custom resource — is gated by the `EnableDocAiIsTrue` condition, so a default (disabled) deploy creates no AI resources. There is no DynamoDB vector-store backend; the DocIndex table stores keyword search entries, per-section metadata, and per-file document bodies only (see [Data Stores](#data-stores)).
 
 Runtime IAM is delivered as two condition-gated policies with no wildcards: `ReadDocAiPolicy` grants the Read Lambda `bedrock:InvokeModel` on the specific embedding and assist model ARNs plus `s3vectors:QueryVectors` on the one resolved index ARN; `DocIndexerDocAiPolicy` grants the Doc Indexer `bedrock:InvokeModel` on the embedding model ARN plus `s3vectors:PutVectors`/`GetVectors`/`ListVectors`/`DeleteVectors` on that index ARN. When the feature is disabled, neither policy exists.
 
@@ -547,7 +566,7 @@ The two Bedrock model types reach other regions differently because embedding mo
 
 ### Observability
 
-When enabled, CloudWatch metric filters on the Read Lambda log group publish usage/cost signal to the `<Prefix>-<ProjectId>/DocAi` namespace: `SemanticAssistedUsageCount` (all stores), `SemanticAssistedUsageS3Vectors` and `SemanticAssistedUsageDynamoDb` (per-store), and `SemanticDegradeCount` (assist re-rank fell back to plain semantic). The `DOC_AI_USAGE` usage line is emitted at INFO level (visible in production); the degrade line is WARN level. These filters are gated by `EnableDocAiIsTrue`, so nothing is created when the feature is off.
+When enabled, CloudWatch metric filters on the Read Lambda log group publish usage/cost signal to the `<Prefix>-<ProjectId>/DocAi` namespace: `SemanticAssistedUsageCount` and `SemanticAssistedUsageS3Vectors` (both track the same events, since S3 Vectors is the sole backend), and `SemanticDegradeCount` (assist re-rank fell back to plain semantic). A `SemanticAssistedUsageDynamoDb` filter also exists but never matches now that the DynamoDB vector-store backend has been removed. The `DOC_AI_USAGE` usage line is emitted at INFO level (visible in production); the degrade line is WARN level. These filters are gated by `EnableDocAiIsTrue`, so nothing is created when the feature is off.
 
 ## Static Site
 

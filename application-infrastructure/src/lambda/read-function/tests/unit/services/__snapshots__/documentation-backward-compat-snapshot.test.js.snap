@@ -1,0 +1,27 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`search_documentation backward-compatibility snapshot field-set snapshot (regression guard) should match the locked-in envelope and result key sets 1`] = `
+{
+  "envelopeKeys": [
+    "availableFilters",
+    "errors",
+    "partialData",
+    "query",
+    "results",
+    "suggestions",
+    "totalResults",
+  ],
+  "resultKeys": [
+    "excerpt",
+    "filePath",
+    "githubUrl",
+    "namespace",
+    "relevanceScore",
+    "repository",
+    "repositoryType",
+    "subType",
+    "title",
+    "type",
+  ],
+}
+`;

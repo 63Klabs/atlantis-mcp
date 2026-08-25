@@ -256,6 +256,24 @@ Ask AI: "List starters from 63klabs"
 
 ---
 
+### Problem: DOCUMENT_NOT_FOUND
+
+**Symptoms:**
+- "Document not found in storage" error from `get_document` or `get_document_chunk`
+- Error response includes a `githubUrl` field (possibly `null`)
+
+**Possible Causes:**
+
+1. **Not indexed yet** — the file hasn't been picked up by a documentation index build.
+2. **Stale `filePath`/`hash`** — the lookup key came from an older search result and the underlying entry has since been superseded or expired.
+
+**Solutions:**
+
+- If the error includes a `githubUrl`, fetch the file directly from GitHub — `get_document` never fetches from GitHub itself, so a storage miss is expected to be handled client-side.
+- Re-run `search_documentation` to get a current `filePath`/`hash` and try `get_document` again.
+
+---
+
 ## Performance Issues
 
 ### Problem: Slow Response Times
@@ -594,7 +612,7 @@ curl -i -X POST https://mcp.atlantis.63klabs.net/mcp/v1
 |------|---------|----------|
 | 400 | Bad Request | Check input parameters |
 | 401 | Unauthorized | Check URL or credentials |
-| 404 | Not Found | Verify resource name and category |
+| 404 | Not Found | Verify resource name and category (or, for `get_document`, use the returned `githubUrl` to fetch directly) |
 | 429 | Rate Limit Exceeded | Wait for reset or self-host |
 | 500 | Internal Server Error | Retry or contact support |
 | 503 | Service Unavailable | Temporary issue, retry later |

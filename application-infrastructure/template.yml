@@ -108,7 +108,6 @@ Metadata:
           - EnableDocAi
           - DocAiMinTier
           - DocAiRetrievalMode
-          - DocAiVectorStore
           - DocAiEmbeddingModel
           - DocAiEmbeddingDimensions
           - DocAiEmbeddingMaxInputTokens
@@ -452,12 +451,6 @@ Parameters:
     Default: "keyword"
     AllowedValues: ["keyword", "semantic", "semantic-assisted"]
 
-  DocAiVectorStore:
-    Type: String
-    Description: "Vector store backend used for semantic retrieval (DOC_AI_VECTOR_STORE). 'dynamodb' reuses the DocIndex table; 's3-vectors' uses an S3 Vectors bucket/index."
-    Default: "s3-vectors"
-    AllowedValues: ["dynamodb", "s3-vectors"]
-
   DocAiEmbeddingModel:
     Type: String
     Description: "Bedrock embedding model ID used to embed queries and content (DOC_AI_EMBEDDING_MODEL). Public model identifier, not a secret."
@@ -514,7 +507,7 @@ Parameters:
 
   DocAiS3VectorBucket:
     Type: String
-    Description: "Name of the S3 Vectors bucket used when DocAiVectorStore is 's3-vectors' (DOC_AI_S3_VECTOR_BUCKET). Leave empty until the vector bucket is provisioned; semantic search falls back to keyword when unset."
+    Description: "Name of the S3 Vectors bucket used for semantic retrieval (DOC_AI_S3_VECTOR_BUCKET). Leave empty to use the stack-derived default name; semantic search falls back to keyword when the vector bucket is unavailable."
     Default: ""
     AllowedPattern: "^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$|^$"
     ConstraintDescription: "May be empty, or 3 to 63 characters: lower case alphanumeric and dashes, starting and ending with a letter or number."
@@ -856,7 +849,6 @@ Resources:
           DOC_AI_ENABLED: !Ref EnableDocAi
           DOC_AI_MIN_TIER: !Ref DocAiMinTier
           DOC_AI_RETRIEVAL_MODE: !Ref DocAiRetrievalMode
-          DOC_AI_VECTOR_STORE: !Ref DocAiVectorStore
           DOC_AI_EMBEDDING_MODEL: !Ref DocAiEmbeddingModel
           DOC_AI_EMBEDDING_DIMENSIONS: !Ref DocAiEmbeddingDimensions
           DOC_AI_EMBEDDING_MAX_INPUT_TOKENS: !Ref DocAiEmbeddingMaxInputTokens
@@ -1343,13 +1335,12 @@ Resources:
           # Documentation AI (Semantic Search) Settings
           # Feature defaults OFF (DOC_AI_ENABLED = "false"); parsed defensively by
           # doc-indexer/lib/settings.js (loadDocAiSettings). The indexer consumes a
-          # subset (enabled, vector store, embedding model/dims/token budget, S3
-          # Vectors location); the full set is passed for config parity with the
+          # subset (enabled, embedding model/dims/token budget, S3 Vectors
+          # location); the full set is passed for config parity with the
           # read-function. Numbers render as strings via !Ref, which the JS parsers handle.
           DOC_AI_ENABLED: !Ref EnableDocAi
           DOC_AI_MIN_TIER: !Ref DocAiMinTier
           DOC_AI_RETRIEVAL_MODE: !Ref DocAiRetrievalMode
-          DOC_AI_VECTOR_STORE: !Ref DocAiVectorStore
           DOC_AI_EMBEDDING_MODEL: !Ref DocAiEmbeddingModel
           DOC_AI_EMBEDDING_DIMENSIONS: !Ref DocAiEmbeddingDimensions
           DOC_AI_EMBEDDING_MAX_INPUT_TOKENS: !Ref DocAiEmbeddingMaxInputTokens

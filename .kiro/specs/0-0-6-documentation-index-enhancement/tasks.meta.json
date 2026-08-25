@@ -1,0 +1,209 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.5 Write the per-file `document:{fileHash}` item": [
+      {
+        "executionId": "384842ef-4e67-445a-8699-8ee9b5c9d247",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787632019187
+      },
+      {
+        "executionId": "384842ef-4e67-445a-8699-8ee9b5c9d247",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787632031121
+      }
+    ],
+    "1.6 Extend metadata and search-entry writes": [
+      {
+        "executionId": "384842ef-4e67-445a-8699-8ee9b5c9d247",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787632019340
+      },
+      {
+        "executionId": "285e4c84-9a76-4879-bea5-88c17f811632",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787669442347
+      }
+    ],
+    "2.2 Use batched reads in both enrichment paths": [
+      {
+        "executionId": "384842ef-4e67-445a-8699-8ee9b5c9d247",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787632019456
+      },
+      {
+        "executionId": "285e4c84-9a76-4879-bea5-88c17f811632",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787674030221
+      }
+    ],
+    "3.1 Filter push-down before metadata fetch": [
+      {
+        "executionId": "384842ef-4e67-445a-8699-8ee9b5c9d247",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787632019548
+      },
+      {
+        "executionId": "285e4c84-9a76-4879-bea5-88c17f811632",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787677831361
+      }
+    ],
+    "3.2 `availableFilters` facets and `suggestions` nudge": [
+      {
+        "executionId": "384842ef-4e67-445a-8699-8ee9b5c9d247",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787632019643
+      },
+      {
+        "executionId": "285e4c84-9a76-4879-bea5-88c17f811632",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787683345798
+      }
+    ],
+    "3.3 Update `search_documentation` schema and description": [
+      {
+        "executionId": "384842ef-4e67-445a-8699-8ee9b5c9d247",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787632019732
+      },
+      {
+        "executionId": "285e4c84-9a76-4879-bea5-88c17f811632",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787677834940
+      }
+    ],
+    "4.1 Apply the exact-phrase boost in keyword mode": [
+      {
+        "executionId": "384842ef-4e67-445a-8699-8ee9b5c9d247",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787632019840
+      },
+      {
+        "executionId": "285e4c84-9a76-4879-bea5-88c17f811632",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787683351305
+      }
+    ],
+    "5.1 Model + service resolution (storage-only)": [
+      {
+        "executionId": "384842ef-4e67-445a-8699-8ee9b5c9d247",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787632019933
+      },
+      {
+        "executionId": "285e4c84-9a76-4879-bea5-88c17f811632",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787683720721
+      }
+    ],
+    "5.2 Controller + tool registration": [
+      {
+        "executionId": "384842ef-4e67-445a-8699-8ee9b5c9d247",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787632020016
+      },
+      {
+        "executionId": "285e4c84-9a76-4879-bea5-88c17f811632",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787684679966
+      }
+    ],
+    "5.3 Success response + `githubUrl`, and storage-miss error": [
+      {
+        "executionId": "384842ef-4e67-445a-8699-8ee9b5c9d247",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787632020132
+      },
+      {
+        "executionId": "285e4c84-9a76-4879-bea5-88c17f811632",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787685646613
+      }
+    ],
+    "5.4 Size-aware chunking (`get_document_chunk`)": [
+      {
+        "executionId": "384842ef-4e67-445a-8699-8ee9b5c9d247",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787632020217
+      },
+      {
+        "executionId": "285e4c84-9a76-4879-bea5-88c17f811632",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787686016725
+      }
+    ],
+    "6.2 Remove `DocAiVectorStore` from settings and cache key": [
+      {
+        "executionId": "384842ef-4e67-445a-8699-8ee9b5c9d247",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787632020296
+      },
+      {
+        "executionId": "384842ef-4e67-445a-8699-8ee9b5c9d247",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787632049427
+      }
+    ],
+    "7.1 Remove `DocAiVectorStore` from `template.yml`": [
+      {
+        "executionId": "384842ef-4e67-445a-8699-8ee9b5c9d247",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787632020400
+      },
+      {
+        "executionId": "285e4c84-9a76-4879-bea5-88c17f811632",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787677840085
+      }
+    ],
+    "8.1 Update ARCHITECTURE.md and DEPLOYMENT.md": [
+      {
+        "executionId": "384842ef-4e67-445a-8699-8ee9b5c9d247",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787632020481
+      },
+      {
+        "executionId": "4fbbdb8e-0474-458e-b766-1058347704c8",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787687411177
+      }
+    ],
+    "8.2 Update `docs/` for the new tools and search fields": [
+      {
+        "executionId": "384842ef-4e67-445a-8699-8ee9b5c9d247",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787632020565
+      },
+      {
+        "executionId": "4fbbdb8e-0474-458e-b766-1058347704c8",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787687768885
+      }
+    ],
+    "8.3 Update CHANGELOG.md": [
+      {
+        "executionId": "384842ef-4e67-445a-8699-8ee9b5c9d247",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787632020650
+      },
+      {
+        "executionId": "4fbbdb8e-0474-458e-b766-1058347704c8",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787687769672
+      }
+    ],
+    "9.1 Run per-function Jest suites and fix failures": [
+      {
+        "executionId": "384842ef-4e67-445a-8699-8ee9b5c9d247",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787632020738
+      },
+      {
+        "executionId": "4fbbdb8e-0474-458e-b766-1058347704c8",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787688029942
+      }
+    ]
+  }
+}

@@ -329,6 +329,52 @@ const connections = [
     ]
   },
 
+  // Document Retrieval Internal Cache Connection (get_document)
+  {
+    name: 'document',
+    host: 'internal', // DynamoDB reads only — get_document never fetches from GitHub
+    path: '/document',
+    cache: [
+      // Full source-file document cache profile
+      {
+        profile: 'doc-data',
+        overrideOriginHeaderExpiration: true,
+        // >! Production: 24 hour TTL. The stored document item is refreshed by each indexer
+        // >! build and carries a 7-day TTL of its own, so a day-old cached body is never
+        // >! staler than the index it came from.
+        // >! Test: TTL_NON_PROD for rapid iteration
+        defaultExpirationInSeconds: IS_PRODUCTION ? (24 * 60 * 60) : TTL_NON_PROD,
+        expirationIsOnInterval: false,
+        headersToRetain: '',
+        hostId: 'document',
+        pathId: 'data',
+        encrypt: false
+      }
+    ]
+  },
+
+  // Document Chunk Internal Cache Connection (get_document_chunk)
+  {
+    name: 'document-chunks',
+    host: 'internal', // Internal processing, not external API
+    path: '/document-chunks',
+    cache: [
+      // Chunk data cache profile
+      {
+        profile: 'doc-chunk-data',
+        overrideOriginHeaderExpiration: true,
+        // >! Production: 24 hour TTL matching document/doc-data (chunk TTL <= doc-data TTL)
+        // >! Test: Short TTL for rapid iteration
+        defaultExpirationInSeconds: IS_PRODUCTION ? (24 * 60 * 60) : TTL_NON_PROD,
+        expirationIsOnInterval: false,
+        headersToRetain: '',
+        hostId: 'document-chunks',
+        pathId: 'data',
+        encrypt: false
+      }
+    ]
+  },
+
   // Template Chunk Internal Cache Connection
   {
     name: 'template-chunks',

@@ -29,7 +29,9 @@ jest.mock('../../controllers', () => {
       get: jest.fn()
     },
     Documentation: {
-      search: jest.fn()
+      search: jest.fn(),
+      getDocument: jest.fn(),
+      getDocumentChunk: jest.fn()
     },
     Validation: {
       validate: jest.fn()
@@ -147,6 +149,8 @@ const TOOL_TO_CONTROLLER = {
   list_starters: Controllers.Starters.list,
   get_starter_info: Controllers.Starters.get,
   search_documentation: Controllers.Documentation.search,
+  get_document: Controllers.Documentation.getDocument,
+  get_document_chunk: Controllers.Documentation.getDocumentChunk,
   validate_naming: Controllers.Validation.validate,
   check_template_updates: Controllers.Updates.check,
   list_tools: Controllers.Tools.list,
@@ -321,12 +325,12 @@ describe('Bugfix: Prototype Chain Tool Name Rejection — Property 2: Preservati
    * **Validates: Requirements 3.4**
    *
    * Property 2d — Export compatibility preservation:
-   * TOOL_DISPATCH exports all 15 registered tool names, each mapping to a function.
+   * TOOL_DISPATCH exports all 17 registered tool names, each mapping to a function.
    */
-  test('TOOL_DISPATCH exports all 15 registered tool names mapped to functions', () => {
+  test('TOOL_DISPATCH exports all 17 registered tool names mapped to functions', () => {
     const dispatchKeys = Object.keys(TOOL_DISPATCH);
 
-    expect(dispatchKeys).toHaveLength(15);
+    expect(dispatchKeys).toHaveLength(17);
 
     for (const name of dispatchKeys) {
       expect(typeof TOOL_DISPATCH[name]).toBe('function');
@@ -342,6 +346,8 @@ describe('Bugfix: Prototype Chain Tool Name Rejection — Property 2: Preservati
       'list_starters',
       'get_starter_info',
       'search_documentation',
+      'get_document',
+      'get_document_chunk',
       'validate_naming',
       'check_template_updates',
       'list_tools',

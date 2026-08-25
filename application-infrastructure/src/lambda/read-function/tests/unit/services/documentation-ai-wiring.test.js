@@ -109,7 +109,6 @@ function makeSettings(aiOverrides = {}) {
         enabled: false,
         minTier: 'paid',
         retrievalMode: 'semantic',
-        vectorStore: 'dynamodb',
         embedding: { model: 'amazon.titan-embed-text-v2:0', dimensions: 4, maxInputTokens: 8000 },
         assist: { model: 'amazon.nova-micro-v1:0', maxCandidates: 25 },
         topK: 10,
@@ -168,6 +167,11 @@ describe('Documentation Service — AI retrieval-strategy wiring (task 8.4)', ()
       totalResults: 1,
       query: 'cache-data',
       suggestions: [],
+      // Additive facet block (spec 0-0-6, Req 8.1); every other field is unchanged.
+      availableFilters: {
+        type: [{ value: 'documentation', count: 1 }],
+        subType: [{ value: 'guide', count: 1 }]
+      },
       errors: undefined,
       partialData: false
     });
@@ -191,7 +195,7 @@ describe('Documentation Service — AI retrieval-strategy wiring (task 8.4)', ()
   });
 
   it('enabled + eligible tier + semantic: uses semantic retrieval and maps hit.score -> relevanceScore', async () => {
-    Config.settings.mockReturnValue(makeSettings({ enabled: true, minTier: 'paid', retrievalMode: 'semantic', vectorStore: 'dynamodb' }));
+    Config.settings.mockReturnValue(makeSettings({ enabled: true, minTier: 'paid', retrievalMode: 'semantic' }));
     Models.DocIndex.getActiveVersion.mockResolvedValue('v3');
     mockEmbed.mockResolvedValue([0.1, 0.2, 0.3, 0.4]);
     mockVectorQuery.mockResolvedValue([
@@ -232,7 +236,7 @@ describe('Documentation Service — AI retrieval-strategy wiring (task 8.4)', ()
   });
 
   it('enabled + semantic-assisted: re-ranks the semantic candidates via the assist provider', async () => {
-    Config.settings.mockReturnValue(makeSettings({ enabled: true, minTier: 'paid', retrievalMode: 'semantic-assisted', vectorStore: 's3-vectors' }));
+    Config.settings.mockReturnValue(makeSettings({ enabled: true, minTier: 'paid', retrievalMode: 'semantic-assisted' }));
     Models.DocIndex.getActiveVersion.mockResolvedValue('v3');
     mockEmbed.mockResolvedValue([0.1, 0.2, 0.3, 0.4]);
     mockVectorQuery.mockResolvedValue([
@@ -263,7 +267,7 @@ describe('Documentation Service — AI retrieval-strategy wiring (task 8.4)', ()
   });
 
   it('semantic failure: falls back to keyword and still returns a valid envelope', async () => {
-    Config.settings.mockReturnValue(makeSettings({ enabled: true, minTier: 'paid', retrievalMode: 'semantic', vectorStore: 'dynamodb' }));
+    Config.settings.mockReturnValue(makeSettings({ enabled: true, minTier: 'paid', retrievalMode: 'semantic' }));
     Models.DocIndex.getActiveVersion.mockResolvedValue('v3');
     mockEmbed.mockResolvedValue([0.1, 0.2, 0.3, 0.4]);
     mockVectorQuery.mockRejectedValue(new Error('vector store unavailable'));
@@ -286,7 +290,7 @@ describe('Documentation Service — AI retrieval-strategy wiring (task 8.4)', ()
     });
   });
 
-  it('cache-key discriminator (docAiMode) differs by enabled/mode/store/tier', async () => {
+  it('cache-key discriminator (docAiMode) differs by enabled/mode/tier (Req 7.2, 10.3)', async () => {
     // Bypass the fetch function; we only inspect conn.parameters passed to getData.
     CacheableDataAccess.getData.mockImplementation(async () => ({
       getBody: () => ({ results: [], totalResults: 0, query: '', suggestions: [] })
@@ -301,24 +305,64 @@ describe('Documentation Service — AI retrieval-strategy wiring (task 8.4)', ()
     await Documentation.search({ query: 'q', authInfo: { tier: 'private' } });
     const disabled = lastMode();
 
-    Config.settings.mockReturnValue(makeSettings({ enabled: true, retrievalMode: 'semantic', vectorStore: 'dynamodb' }));
+    Config.settings.mockReturnValue(makeSettings({ enabled: true, retrievalMode: 'semantic' }));
     await Documentation.search({ query: 'q', authInfo: { tier: 'private' } });
     const semanticPrivate = lastMode();
 
     await Documentation.search({ query: 'q', authInfo: { tier: 'paid' } });
     const semanticPaid = lastMode();
 
-    Config.settings.mockReturnValue(makeSettings({ enabled: true, retrievalMode: 'semantic-assisted', vectorStore: 's3-vectors' }));
+    await Documentation.search({ query: 'q' });
+    const semanticPublic = lastMode();
+
+    Config.settings.mockReturnValue(makeSettings({ enabled: true, retrievalMode: 'semantic-assisted' }));
     await Documentation.search({ query: 'q', authInfo: { tier: 'private' } });
     const assistedPrivate = lastMode();
 
-    expect(disabled).toBe('keyword');
-    expect(semanticPrivate).toBe('semantic|dynamodb|private');
-    expect(semanticPaid).toBe('semantic|dynamodb|paid');
-    expect(assistedPrivate).toBe('semantic-assisted|s3-vectors|private');
+    Config.settings.mockReturnValue(makeSettings({ enabled: true, retrievalMode: 'keyword' }));
+    await Documentation.search({ query: 'q', authInfo: { tier: 'private' } });
+    const keywordModePrivate = lastMode();
 
-    // All discriminators are distinct, so these result sets never collide in the cache.
-    const all = [disabled, semanticPrivate, semanticPaid, assistedPrivate];
+    // >! The store segment is gone (S3 Vectors is the only backend, Req 7.2); the
+    // >! discriminator is now `${retrievalMode}|${tier}` when enabled.
+    expect(disabled).toBe('keyword');
+    expect(semanticPrivate).toBe('semantic|private');
+    expect(semanticPaid).toBe('semantic|paid');
+    expect(semanticPublic).toBe('semantic|public');
+    expect(assistedPrivate).toBe('semantic-assisted|private');
+    expect(keywordModePrivate).toBe('keyword|private');
+
+    // All discriminators are distinct, so these result sets never collide in the cache:
+    // keyword vs semantic vs semantic-assisted stay isolated, as does each tier.
+    const all = [
+      disabled, semanticPrivate, semanticPaid, semanticPublic, assistedPrivate, keywordModePrivate
+    ];
     expect(new Set(all).size).toBe(all.length);
+  });
+
+  it('docAiMode no longer varies by vector store (Req 7.2)', async () => {
+    CacheableDataAccess.getData.mockImplementation(async () => ({
+      getBody: () => ({ results: [], totalResults: 0, query: '', suggestions: [] })
+    }));
+
+    const lastMode = () => {
+      const calls = CacheableDataAccess.getData.mock.calls;
+      return calls[calls.length - 1][2].parameters.docAiMode;
+    };
+
+    // A lingering `vectorStore` value on the settings block (e.g. a stale deployment)
+    // must not leak into the cache key.
+    Config.settings.mockReturnValue(makeSettings({ enabled: true, retrievalMode: 'semantic' }));
+    await Documentation.search({ query: 'q', authInfo: { tier: 'paid' } });
+    const withoutStore = lastMode();
+
+    Config.settings.mockReturnValue(
+      makeSettings({ enabled: true, retrievalMode: 'semantic', vectorStore: 'dynamodb' })
+    );
+    await Documentation.search({ query: 'q', authInfo: { tier: 'paid' } });
+    const withStaleStore = lastMode();
+
+    expect(withoutStore).toBe('semantic|paid');
+    expect(withStaleStore).toBe('semantic|paid');
   });
 });

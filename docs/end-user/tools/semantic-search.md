@@ -7,7 +7,7 @@ This is a paid/private tier capability. It is available to eligible tiers when t
 ## What you need to know
 
 - **Same tool, same response.** You call `search_documentation` exactly as before. Every result has the same fields (title, excerpt, file path, GitHub URL, type, relevance score, and so on), so nothing in your AI assistant or client needs to change.
-- **Same filters.** The `type` and `ghusers` filters work the same way for semantically-ranked results as they do for keyword results.
+- **Same filters.** The `type`, `subType`, and `ghusers` filters work the same way for semantically-ranked results as they do for keyword results.
 - **Better matches for natural-language queries.** You can describe what you want in your own words instead of guessing the exact keywords used in the docs.
 - **Automatic fallback.** If semantic search is unavailable for any reason, the server automatically falls back to keyword search and still returns a valid response — you never see an error from this.
 

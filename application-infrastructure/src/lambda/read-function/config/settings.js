@@ -183,12 +183,6 @@ const DOC_AI_TIERS = ['public', 'registered', 'paid', 'private'];
 const DOC_AI_RETRIEVAL_MODES = ['keyword', 'semantic', 'semantic-assisted'];
 
 /**
- * Valid vector stores for `DOC_AI_VECTOR_STORE`.
- * @constant {Array<string>}
- */
-const DOC_AI_VECTOR_STORES = ['dynamodb', 's3-vectors'];
-
-/**
  * @typedef {Object} ToolDefinition
  * @property {string} name - Tool name used for routing
  * @property {string} description - Human-readable description of the tool
@@ -353,7 +347,7 @@ const settings = {
       },
       {
         name: 'search_documentation',
-        description: 'Search Atlantis documentation, tutorials, and code patterns. Returns search results with title, excerpt, file path, GitHub URL, and result type (documentation or code example).',
+        description: 'Search Atlantis documentation, tutorials, and code patterns. Returns search results with title, excerpt, file path, GitHub URL, and result type (documentation or code example). When results are broad, refine with the optional `type` and/or `subType` filters; the response `availableFilters` block lists the `type`/`subType` values present in the matched set with counts.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -363,8 +357,13 @@ const settings = {
             },
             type: {
               type: 'string',
-              description: 'Filter by result type',
-              enum: ['guide', 'tutorial', 'reference', 'troubleshooting', 'template pattern', 'code example']
+              description: 'Optional. Filter by result type. Use to refine when results are broad.',
+              enum: ['documentation', 'template-pattern', 'code-example']
+            },
+            subType: {
+              type: 'string',
+              description: 'Optional. Filter by result subtype. Use to refine when results are broad.',
+              enum: ['guide', 'function', 'parameter']
             },
             ghusers: {
               type: 'array',
@@ -373,6 +372,58 @@ const settings = {
             }
           },
           required: ['query']
+        }
+      },
+      {
+        name: 'get_document',
+        description: 'Retrieve the full stored source file behind a search_documentation result. Accepts either the `filePath` returned on a search result or a section `hash` (exactly one of the two). Returns filePath, githubUrl, repository, repositoryType, namespace, and the raw file content. Retrieval is storage-only: the server never fetches from GitHub, so when the document is not in storage an error is returned carrying the file-level `githubUrl` for the client to fetch directly.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            filePath: {
+              type: 'string',
+              description: 'contentPath from a search result (e.g., {org}/{repo}/{filePath}/{slug})'
+            },
+            hash: {
+              type: 'string',
+              description: 'Section content hash (16 hexadecimal characters)',
+              pattern: '^[0-9a-f]{16}$'
+            }
+          },
+          // >! Exactly one lookup key: supplying both is ambiguous and is rejected.
+          oneOf: [
+            { required: ['filePath'] },
+            { required: ['hash'] }
+          ]
+        }
+      },
+      {
+        name: 'get_document_chunk',
+        description: 'Retrieve a specific chunk of a large document that was too large to return in a single get_document response. Takes the same lookup key as get_document (exactly one of `filePath` or `hash`) plus a zero-based `chunkIndex`.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            filePath: {
+              type: 'string',
+              description: 'contentPath from a search result (e.g., {org}/{repo}/{filePath}/{slug})'
+            },
+            hash: {
+              type: 'string',
+              description: 'Section content hash (16 hexadecimal characters)',
+              pattern: '^[0-9a-f]{16}$'
+            },
+            chunkIndex: {
+              type: 'integer',
+              description: 'Zero-based index of the chunk to retrieve',
+              minimum: 0
+            }
+          },
+          required: ['chunkIndex'],
+          // >! Same exactly-one lookup key rule as get_document.
+          oneOf: [
+            { required: ['filePath'] },
+            { required: ['hash'] }
+          ]
         }
       },
       {
@@ -802,8 +853,6 @@ const settings = {
      *   (public|registered|paid|private)
      * - `DOC_AI_RETRIEVAL_MODE` (default `semantic`) - retrieval strategy
      *   (keyword|semantic|semantic-assisted); invalid values fall back to `keyword`
-     * - `DOC_AI_VECTOR_STORE` (default `s3-vectors`) - vector store backend
-     *   (dynamodb|s3-vectors)
      * - `DOC_AI_EMBEDDING_MODEL` (default `amazon.titan-embed-text-v2:0`)
      * - `DOC_AI_EMBEDDING_DIMENSIONS` (int, default 1024)
      * - `DOC_AI_EMBEDDING_MAX_INPUT_TOKENS` (int, default 8000)
@@ -839,12 +888,6 @@ const settings = {
        * @type {string}
        */
       retrievalMode: parseEnum('DOC_AI_RETRIEVAL_MODE', DOC_AI_RETRIEVAL_MODES, 'semantic', 'keyword'),
-
-      /**
-       * Vector store backend. Invalid values fall back to `s3-vectors`.
-       * @type {string}
-       */
-      vectorStore: parseEnum('DOC_AI_VECTOR_STORE', DOC_AI_VECTOR_STORES, 's3-vectors'),
 
       /**
        * Embedding model configuration used to embed queries and content.
@@ -892,8 +935,9 @@ const settings = {
       candidateMultiplier: parseIntSetting('DOC_AI_CANDIDATE_MULTIPLIER', 3, { min: 1 }),
 
       /**
-       * S3 Vectors store location. Empty strings indicate the store is not yet
-       * configured; used only when `vectorStore` is `s3-vectors`.
+       * S3 Vectors store location. S3 Vectors is the sole vector-store backend
+       * (spec 0-0-6, Requirement 7); empty strings indicate the store is not yet
+       * configured, in which case semantic search falls back to keyword.
        * @type {{bucket: string, index: string}}
        */
       s3Vectors: {
@@ -977,15 +1021,11 @@ function validateSettings() {
   }
 
   // Documentation AI: warn (never throw) when enabled without a usable vector store.
-  // Semantic search falls back to keyword search when its store is not configured.
+  // S3 Vectors is the sole backend, so an unset bucket/index is the only failure mode;
+  // semantic search falls back to keyword search when the store is not configured.
   const docAi = settings.documentation.ai;
-  if (docAi.enabled) {
-    if (docAi.vectorStore === 's3-vectors' && (docAi.s3Vectors.bucket === '' || docAi.s3Vectors.index === '')) {
-      warnings.push('DOC_AI_ENABLED is true with s3-vectors store but DOC_AI_S3_VECTOR_BUCKET/DOC_AI_S3_VECTOR_INDEX are not set - semantic search will fall back to keyword');
-    }
-    if (docAi.vectorStore === 'dynamodb' && settings.docIndexTable === '') {
-      warnings.push('DOC_AI_ENABLED is true with dynamodb store but DOC_INDEX_TABLE is not set - semantic search will fall back to keyword');
-    }
+  if (docAi.enabled && (docAi.s3Vectors.bucket === '' || docAi.s3Vectors.index === '')) {
+    warnings.push('DOC_AI_ENABLED is true but DOC_AI_S3_VECTOR_BUCKET/DOC_AI_S3_VECTOR_INDEX are not set - semantic search will fall back to keyword');
   }
 
   if (warnings.length > 0) {

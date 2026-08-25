@@ -28,6 +28,7 @@ jest.mock('../../lib/dynamo-writer', () => {
   const send = jest.fn().mockResolvedValue({});
   return {
     writeContentEntries: jest.fn().mockResolvedValue(undefined),
+    writeDocumentEntries: jest.fn().mockResolvedValue(undefined),
     writeSearchKeywords: jest.fn().mockResolvedValue(undefined),
     writeMainIndex: jest.fn().mockResolvedValue(undefined),
     updateVersionPointer: jest.fn().mockResolvedValue(undefined),
@@ -80,7 +81,6 @@ const markdownExtractor = require('../../lib/extractors/markdown');
  */
 const DOC_AI = {
   enabled: true,
-  vectorStore: 's3-vectors',
   embedding: { model: 'amazon.titan-embed-text-v2:0', dimensions: 1024, maxInputTokens: 8000 },
   s3Vectors: { bucket: 'b', index: 'i' }
 };
@@ -385,7 +385,6 @@ describe('build - embedding version-metadata gating', () => {
       tokenProvider: async () => 'tok',
       docAiSettings: {
         enabled: true,
-        vectorStore: 'dynamodb',
         embedding: { model: 'm', dimensions: 4, maxInputTokens: 100 },
         s3Vectors: { bucket: '', index: '' }
       },
@@ -429,7 +428,6 @@ describe('build - embedding version-metadata gating', () => {
       tokenProvider: async () => 'tok',
       docAiSettings: {
         enabled: true,
-        vectorStore: 'dynamodb',
         embedding: { model: 'm', dimensions: 4, maxInputTokens: 100 },
         s3Vectors: { bucket: '', index: '' }
       },
