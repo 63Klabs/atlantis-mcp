@@ -359,3 +359,483 @@ Verified: full `doc-ai-common` layer suite (207/207) and the `read-function`
    one and the `DIAG: pre-selectStrategy snapshot` one in `services/documentation.js`) as part
    of the fix commit, along with reverting the `logger` constructor addition if it is not
    otherwise wanted as a permanent capability of `SemanticRetrieval`.
+
+## Update: REQ4 test — exact query/embedding match confirmed, but the new `SemanticRetrieval` diagnostic is absent from the trace
+
+Request `2c6ad0a5-70be-4a06-8967-4d86dd78974c` (query `"atlantis regional s3 buckets
+location"`, tier `private`, full trace in `REQ4-CW-LOGS.md`; response in
+`REQ4-API-RESPONSE.md`; Bedrock invocation detail in `REQ4-MODEL-LOGS.md`).
+
+### New fact: this is the first time the Bedrock call and the application request are provably the same event
+
+Unlike the two earlier Bedrock invocation checks (which had `inputText` values that did not
+match the query in the traced request, so they could only be treated as "Bedrock works in
+general"), this time:
+- `REQ4-MODEL-LOGS.md` `inputText`: `"atlantis regional s3 buckets location"` — **exact match**
+  to the traced request's query.
+- Model invocation timestamp: `August 26, 2026, 14:16 UTC-05:00` = `19:16 UTC` — matches the
+  traced request's timing (`19:16:26.437Z` DIAG snapshot, `19:16:26.7xx` response) to the
+  minute.
+
+**This conclusively proves, for the first time, that `EmbeddingProvider.embed()` was invoked
+with the real user query for this exact `search_documentation` call.** Since the only caller of
+`EmbeddingProvider.embed()` in this codebase is `SemanticRetrieval.#embedQuery()` (private,
+called only from inside `SemanticRetrieval.retrieve()`'s try block), this proves execution
+reached inside `SemanticRetrieval.retrieve()`, past the point where our newest diagnostic log
+(`DIAG: SemanticRetrieval.retrieve start`, logged at INFO immediately before `#embedQuery` is
+even called) should have fired.
+
+### The contradiction: the new diagnostic line never appears
+
+`REQ4-CW-LOGS.md` contains `DIAG: pre-selectStrategy snapshot` (the OLDER diagnostic, in
+`services/documentation.js`) but **none** of the newer `DIAG: SemanticRetrieval.*` lines added
+in the last code change to `retrieval-strategy.js` — not the `retrieve start` line, not
+`embedding obtained`, not `filters built`, not `vectorStore.query resolved`, not
+`buildResults resolved`, and not the WARN `retrieve caught an error` line. Given the embedding
+call is now proven to have happened for this exact request, at least the first ("retrieve
+start") and second ("embedding obtained") of these lines should be unconditionally present —
+they sit directly in the code path the embedding call took.
+
+The response (`REQ4-API-RESPONSE.md`) is, again, keyword-shaped: `relevanceScore` values are
+small integers (32, 26×9), and — notably — the `type`/`subType` breakdown in `availableFilters`
+(`template-pattern`/`parameter` ×7, `documentation`/`guide` ×3) matches the keyword scorer's
+type-weighted integer scoring exactly, not a cosine-similarity ranking.
+
+### Leading hypothesis: the newest diagnostic patch was not actually deployed for this test
+
+The simplest explanation, and the one to rule out FIRST before considering anything more
+exotic: **this REQ4 test likely ran against a Lambda/layer deployment that predates the
+`SemanticRetrieval` diagnostic patch** (the patch that added `#logger`/the `DIAG:
+SemanticRetrieval.*` lines to `retrieval-strategy.js` and wired `logger: DebugAndLog` into its
+constructor call in `services/documentation.js`). The user's own framing ("logs for a query
+that includes the latest DIAG message") is consistent with them treating `DIAG:
+pre-selectStrategy snapshot` as "the latest," since that was the most recently *discussed*
+diagnostic in earlier turns — but the `SemanticRetrieval` diagnostic was added in the turn
+immediately before this one and its deployment status was never explicitly confirmed.
+
+This also fits the observed timing: the traced request was a **warm invocation** (the `REPORT`
+line has no `Init Duration` field at all), meaning it reused an existing execution
+environment. If that environment was warmed before the newest layer patch was deployed, it may
+be running against an in-memory `docAiComponents` singleton (`services/documentation.js`
+memoizes `getDocAiComponents(ai)` at module scope — constructed once per warm container and
+reused for the container's remaining lifetime) that was built from the pre-patch layer code.
+
+### Secondary observation worth flagging (not yet implicated, needs no action unless the primary hypothesis is ruled out)
+
+`template.yml`'s `ReadLambdaFunction` has `AutoPublishCodeSha256: "20260224T000000"` — a
+hardcoded literal string, not a value that changes per deployment. This SAM property controls
+whether a new Lambda **version** is published and the `live` **alias** repointed; a static value
+across deployments can mean the `live` alias stops tracking new code even though `$LATEST`
+updates normally. However, `template-openapi-spec.yml`'s API Gateway integration invokes
+`${ReadLambdaFunction.Arn}` (the unqualified ARN, i.e. `$LATEST`), not `${ReadLambdaFunction.Alias}`,
+so this mechanism likely does not affect the TEST stage's request path. Flagged for later
+hygiene (the hardcoded value should probably be a real per-build token, e.g. a git SHA or build
+timestamp actually substituted at build time) but not the leading suspect for this specific
+symptom.
+
+## Recommended next step (do this before anything else)
+
+1. **Confirm whether the `retrieval-strategy.js` diagnostic patch (added in the immediately
+   preceding step, before REQ4 testing began) has actually been deployed to this stack.** Use
+   the same verification technique already validated earlier in this investigation:
+   ```bash
+   aws lambda get-function-configuration \
+     --function-name prod63k-atlantis-mcp-test-ReadFunction \
+     --query 'Layers[].Arn' --profile YOUR_PROFILE
+
+   aws lambda get-layer-version-by-arn \
+     --arn "<the DocAiCommon layer ARN:version from above>" \
+     --query 'Content.Location' --profile YOUR_PROFILE
+
+   curl -o /tmp/doc-ai-layer-check.zip "<signed URL>"
+   unzip -p /tmp/doc-ai-layer-check.zip nodejs/retrieval-strategy.js | grep -c "DIAG: SemanticRetrieval.retrieve start"
+   ```
+   A `0` confirms the deploy has not gone out yet — deploy it, then re-run one test and re-pull
+   the trace. A non-zero count means the patch IS live, and the missing log lines are a genuine
+   new finding requiring further investigation (at that point, check the Lambda's actual cold
+   vs. warm status more carefully across several back-to-back test calls, and consider whether
+   `getDocAiComponents()`'s module-level memoization is holding onto a stale in-memory instance
+   across a deploy in a way that needs its own fix — e.g. adding a cache-busting mechanism tied
+   to a deploy identifier).
+2. If the patch was confirmed not-yet-deployed, redeploy, then re-run the SAME query
+   (`"atlantis regional s3 buckets location"` — reusing it lets the new Bedrock invocation
+   check act as a second independent confirmation that this exact request is being traced) and
+   pull the full unfiltered log again. Expect one of the outcomes enumerated in the "What to do
+   with this diagnostic" section above (start-only-then-stops / hitsLength 0 / resultsLength 0
+   / the caught-error WARN line) — whichever appears will identify the fault boundary directly.
+
+## Update: Layer confirmed patched (`grep -c` returned 1) — ruling in a sharper hypothesis
+
+The DocAiCommon layer download check returned `1` for
+`"DIAG: SemanticRetrieval.retrieve start"` in `nodejs/retrieval-strategy.js`. **The layer
+deployment is current; the leading "stale layer" hypothesis from the previous update is
+ruled out.**
+
+However, the diagnostic patch touched TWO files, and only the layer half has now been
+verified:
+
+1. `application-infrastructure/src/lambda/layers/doc-ai-common/nodejs/retrieval-strategy.js`
+   (the layer) — **confirmed deployed** (this check).
+2. `application-infrastructure/src/lambda/read-function/services/documentation.js` (the
+   function's OWN code package, deployed separately from the layer in SAM/CloudFormation) —
+   **not yet independently verified.** This file is what passes `logger: DebugAndLog` into
+   the `SemanticRetrieval` constructor inside `getDocAiComponents()`.
+
+### Why this specific gap would produce exactly the observed silence
+
+`SemanticRetrieval`'s constructor signature is
+`constructor({ embeddingProvider, vectorStore, buildResults, cache, maxCacheSize, topK, logger } = {})`,
+and it always sets `this.#logger = normalizeLogger(logger)`. `normalizeLogger(undefined)`
+returns an object where `warn`/`error`/`debug`/`info` are ALL no-ops (`NOOP = () => {}`) when
+no logger is supplied.
+
+If the deployed `services/documentation.js` predates the change that added `logger:
+DebugAndLog` to the `SemanticRetrieval` constructor call, then:
+- `SemanticRetrieval` is constructed with `logger` = `undefined`.
+- `this.#logger` becomes the fully-silent no-op object.
+- Every `this.#logger.info(...)`/`this.#logger.warn(...)` call inside `retrieve()` — literally
+  ALL of the new `DIAG: SemanticRetrieval.*` lines, on both the success path and the catch
+  block — executes and returns immediately without producing any output.
+- Meanwhile `this.#embeddingProvider.embed(query)` (the Bedrock call) is completely
+  independent of the logger and works exactly as it did before this diagnostic was ever
+  added — which is precisely why the Bedrock invocation for the exact query/timestamp was
+  proven to have happened in the previous update, while every new log line stayed silent.
+
+This hypothesis is now the leading explanation and fits ALL observed evidence without
+contradiction (unlike the retired "stale layer" theory, which the grep check just
+disproved).
+
+## Recommended next step
+
+**Verify the function's own deployed code package** the same way the layer was just checked,
+substituting `get-function` (function code) for `get-layer-version-by-arn` (layer code):
+
+```bash
+# 1. Get the function code package download URL
+aws lambda get-function \
+  --function-name prod63k-atlantis-mcp-test-ReadFunction \
+  --query 'Code.Location' \
+  --output text \
+  --profile YOUR_PROFILE
+
+# 2. Download and check for the logger wiring added in the same patch
+curl -o /tmp/read-function-code-check.zip "PASTE_THE_SIGNED_URL_HERE"
+unzip -p /tmp/read-function-code-check.zip services/documentation.js | grep -c "logger: DebugAndLog"
+
+# cleanup
+rm -f /tmp/read-function-code-check.zip
+```
+
+**Reading the result — CONFIRMED BASELINE:** running
+`grep -c "logger: DebugAndLog" application-infrastructure/src/lambda/read-function/services/documentation.js`
+against the current repo returns **3** (one for the `SemanticRetrieval` constructor added by
+this diagnostic patch, plus two pre-existing occurrences for `SemanticAssistedRetrieval` and
+`selectStrategy`'s own call). **3 is the target count** for a fully up-to-date deployment.
+
+- If the deployed function code's count comes back **less than 3**, that CONFIRMS this
+  hypothesis — the `SemanticRetrieval` constructor call is missing `logger: DebugAndLog` in
+  the deployed package, so `SemanticRetrieval` silently uses a no-op logger, and a redeploy of
+  the ReadFunction (not just the layer) is needed.
+- If the deployed count is also **3**, this hypothesis is ruled out too, and the investigation
+  needs to fall back to the warm-container/memoization angle noted in the previous update, or
+  add more granular diagnostics (e.g. logging `typeof this.#logger.info` and confirming
+  `this.#logger` is not the no-op object directly inside the constructor).
+- If the counts match, this hypothesis is also ruled out, and the investigation needs to
+  fall back to the warm-container/memoization angle noted in the previous update, or add
+  even more granular diagnostics (e.g. logging `typeof this.#logger.info` and
+  `this.#logger === DebugAndLog` directly inside the constructor) to catch a subtler wiring
+  issue.
+
+Once confirmed, redeploy the ReadFunction (this is a normal code deploy through the existing
+`test` branch pipeline, not a manual layer operation), re-run the exact same query
+(`"atlantis regional s3 buckets location"` — reusing it makes it easy to cross-check against
+`REQ4-MODEL-LOGS.md`'s Bedrock invocation again if needed), and pull a fresh unfiltered trace.
+
+## Update: Function code ALSO confirmed current (3/3) — both stale-deployment hypotheses ruled out
+
+`unzip -p ... services/documentation.js | grep -c "logger: DebugAndLog"` against the deployed
+ReadFunction code returned **3**, matching the repo baseline exactly. Combined with the
+layer's confirmed `1` from the previous check, **both files touched by the diagnostic patch
+are now verified current on the deployed stack.**
+
+This rules out "stale layer" and "stale function code" as explanations for REQ4's missing
+`DIAG: SemanticRetrieval.*` lines.
+
+### Reframing: "current" was only verified as of NOW, not as of the REQ4 test time
+
+These two checks confirm what is deployed **at the moment the check was run** — they say
+nothing about whether that same code was already live at `2026-08-26T19:16:26Z`, when the
+REQ4 request (`2c6ad0a5-70be-4a06-8967-4d86dd78974c`) actually executed. If the diagnostic
+patch's deploy pipeline finished sometime AFTER that timestamp, REQ4's trace would have been
+produced by the pre-patch code even though the code is now (post-deploy) fully current — this
+would fully explain the missing lines without any remaining code defect.
+
+**This is now the leading, and most easily falsifiable, hypothesis.**
+
+## Recommended next step (two parts — do both)
+
+### Part A — Confirm deploy timing (quick, retrospective)
+
+```bash
+# Function's own last-modified timestamp
+aws lambda get-function-configuration \
+  --function-name prod63k-atlantis-mcp-test-ReadFunction \
+  --query 'LastModified' \
+  --profile YOUR_PROFILE
+
+# Layer version's creation timestamp (use the same DocAiCommon ARN:version from the earlier check)
+aws lambda get-layer-version-by-arn \
+  --arn "PASTE_THE_DOCAICOMMON_ARN_HERE" \
+  --query 'CreatedDate' \
+  --profile YOUR_PROFILE
+```
+
+Compare both results against the REQ4 request time, **`2026-08-26T19:16:26Z`** (from
+`REQ4-CW-LOGS.md`'s `requestTimeEpoch: 1787771786319` / the `EVENT RECEIVED` line). If either
+timestamp is AFTER `19:16:26Z`, that confirms REQ4 ran against pre-patch code — mystery
+solved, no code defect, just a timing artifact of when the test was run relative to the
+deploy.
+
+### Part B — Re-run the test now (this is the real fix regardless of Part A's answer)
+
+Since both the layer and function code are confirmed current **as of right now**, the most
+direct way forward is simply to re-run the exact same query
+(`"atlantis regional s3 buckets location"`, tier `private`) again immediately, and pull a
+fresh unfiltered CloudWatch trace for the new RequestId. Do this even if Part A is
+inconclusive or you don't have easy access to the timestamps — it is the fastest way to get
+an authoritative answer:
+
+- If the new trace NOW shows the `DIAG: SemanticRetrieval.*` lines (start → embedding
+  obtained → filters built → vectorStore.query resolved → buildResults resolved, or the WARN
+  catch line) — this confirms REQ4 was simply a timing artifact (deploy hadn't finished yet),
+  and whichever line the trace stops at will finally reveal the true fault boundary within
+  `SemanticRetrieval.retrieve()`, resolving this investigation.
+- If the new trace STILL shows zero `DIAG: SemanticRetrieval.*` output despite both code
+  artifacts being independently confirmed current — that is a much more serious and unusual
+  finding (would imply something outside normal request/deploy semantics, e.g. a request
+  routed to a stale execution environment API Gateway/Lambda hasn't recycled, or an
+  unaccounted-for code path). At that point, escalate to adding an even more defensive
+  diagnostic: log `this.#logger === DebugAndLog` and `typeof this.#logger.info` directly
+  inside `SemanticRetrieval`'s constructor (not just inside `retrieve()`), so construction
+  itself is traced independently of whether `retrieve()` is ever reached.
+
+## Update: Deploy timestamps rule out timing-staleness entirely — both artifacts predate REQ4 by ~15 hours
+
+```
+ReadFunction LastModified:  2026-08-26T04:02:14.000+0000
+DocAiCommon:12 CreatedDate: 2026-08-26T04:02:02.448+0000
+REQ4 request time:          2026-08-26T19:16:26.318Z  (from EVENT RECEIVED / requestTimeEpoch)
+```
+
+Both the function code and the layer were deployed at ~04:02 UTC, roughly **15 hours before**
+the REQ4 request executed. This rules out "deploy hadn't finished yet" entirely — the patched
+code was unambiguously live and had been for hours by the time REQ4 ran. Every
+deployment-staleness hypothesis pursued so far (stale layer, stale function code, timing race
+with an in-flight deploy) is now exhausted and ruled out.
+
+### New hypothesis: the traced RequestId may not be the request that actually called Bedrock
+
+Re-examining the "exact match" reasoning from two updates ago: the match between
+`REQ4-MODEL-LOGS.md` and the traced request (`2c6ad0a5-70be-4a06-8967-4d86dd78974c`) was
+established by **query text + timestamp to the minute**, not by any Lambda-level correlation
+(no `X-Amzn-Trace-Id`/RequestId is present in the Bedrock invocation record). Every
+investigation step since then has implicitly treated that match as ironclad and asked "why is
+`SemanticRetrieval` silent for THIS request." But if a second, untraced invocation fired the
+identical query text (`"atlantis regional s3 buckets location"`) within the same 60-second
+window — e.g. a double-click send in Postman, a client-side timeout retry, or simply the user
+re-running the same saved request twice in quick succession — its Bedrock call would be
+indistinguishable from request `2c6ad0a5`'s in the evidence gathered so far, while its OWN
+`DIAG: SemanticRetrieval.*` lines would be sitting under a completely different, not-yet-
+examined RequestId/log stream that this investigation has never looked at.
+
+This would fully resolve the contradiction without requiring any code defect: request
+`2c6ad0a5` genuinely never reached `SemanticRetrieval.retrieve()` (hence zero DIAG output,
+consistent with every other trace pulled so far), while a sibling request nobody has looked at
+yet is the one that actually embedded the query and — if it got further — should carry its own
+complete `DIAG: SemanticRetrieval.*` trace, including whichever line reveals the true fault
+boundary.
+
+## Recommended next step
+
+**Search the ReadFunction log group broadly for the time window, WITHOUT filtering by the
+`2c6ad0a5` RequestId**, to find every RequestId active around `19:16:2x` and specifically
+locate which one (if any) carries the `DIAG: SemanticRetrieval` lines:
+
+```
+fields @timestamp, @requestId, @message
+| filter @message like /DIAG: SemanticRetrieval|atlantis regional s3 buckets location/
+| sort @timestamp asc
+```
+
+Run this as a CloudWatch Logs Insights query (or `aws logs filter-log-events` with
+`--filter-pattern` on the same phrase) against
+`/aws/lambda/prod63k-atlantis-mcp-test-ReadFunction`, time range spanning at least
+`19:16:00Z`–`19:17:00Z`.
+
+- **If a DIFFERENT RequestId shows up** carrying `search_documentation request | { query:
+  'atlantis regional s3 buckets location', ... }` and/or any `DIAG: SemanticRetrieval.*`
+  lines — this confirms the new hypothesis. Pull that RequestId's FULL unfiltered trace next;
+  whichever `DIAG:` line it stops at (or the WARN catch line) finally identifies the real
+  fault boundary, resolving this investigation.
+- **If NO other RequestId shows up** with that query text or those DIAG lines anywhere in the
+  window — the "second untraced request" hypothesis is ruled out too, and request `2c6ad0a5`
+  really is the only candidate. In that case the investigation needs to return to verifying
+  `SemanticRetrieval` construction itself (not just `retrieve()`): add a diagnostic directly
+  inside the constructor (e.g. `this.#logger.info('DIAG: SemanticRetrieval constructed', {
+  hasInfo: typeof this.#logger.info })` at the very end of the constructor body) so
+  construction is traced independently of whether `.retrieve()` is ever invoked on that
+  instance — this would catch a scenario where `getDocAiComponents()`'s memoized
+  `docAiComponents` singleton holds a DIFFERENT `SemanticRetrieval` instance than the one
+  whose logger was verified, or where an exception between construction and `retrieve()` is
+  being swallowed somewhere not yet instrumented (e.g. inside `selectStrategy`'s
+  `FallbackRetrieval` wrapper itself, before `primary.retrieve()` is even called).
+
+## BREAKTHROUGH: Root cause of the silence identified — `normalizeLogger()` uses `typeof logger === 'object'`, but `DebugAndLog` is a class (`typeof === 'function'`)
+
+Per the user's direction: assume no deployment/timing issue and no duplicate-request
+confusion (single-user test server, confirmed no other traffic in the window) — focus
+purely on the code for a missing `await` or a fire-and-forget logging call. That review
+found the actual bug, and it is NOT a missing await. It is a `typeof` type-check bug in the
+shared logger-normalization helper.
+
+### The bug
+
+`application-infrastructure/src/lambda/layers/doc-ai-common/nodejs/retrieval-strategy.js`:
+
+```js
+function normalizeLogger(logger) {
+  const src = (logger && typeof logger === 'object') ? logger : {};
+  return {
+    warn: typeof src.warn === 'function' ? src.warn.bind(src) : NOOP,
+    error: typeof src.error === 'function' ? src.error.bind(src) : NOOP,
+    debug: typeof src.debug === 'function' ? src.debug.bind(src) : NOOP,
+    info: typeof src.info === 'function' ? src.info.bind(src) : NOOP
+  };
+}
+```
+
+`DebugAndLog` (from `@63klabs/cache-data`, `require('@63klabs/cache-data').tools.DebugAndLog`)
+is a **class exposing only `static` methods** — it is used as a namespace, never
+instantiated. In JavaScript, `typeof` on a class reference (or any function/class, since
+classes ARE functions under the hood) is `'function'`, **not** `'object'`:
+
+```js
+class DebugAndLog { static async info(message, obj) {} static async warn(message, obj) {} }
+typeof DebugAndLog        // 'function'
+typeof DebugAndLog === 'object'   // false
+```
+
+Reproduced and confirmed directly with `node -e`:
+```
+typeof DebugAndLog (class ref): function
+typeof DebugAndLog === object?  false
+info is NOOP (silenced)?        true
+warn is NOOP (silenced)?        true
+```
+
+Because `typeof logger === 'object'` is `false` for `DebugAndLog`, `normalizeLogger()`'s
+guard falls through to `src = {}`, and EVERY returned method (`info`, `warn`, `debug`,
+`error`) resolves to the module-level `NOOP = () => {}` — silently, with no error, no
+warning, nothing.
+
+### Why this fully explains the silence (but not yet the keyword-shaped output)
+
+`normalizeLogger(logger)` is called identically in the constructors of THREE classes, all of
+which receive `logger: DebugAndLog` from `services/documentation.js`:
+
+- `SemanticRetrieval` (the diagnostic patch's `this.#logger` — every `DIAG:
+  SemanticRetrieval.*` line silenced)
+- `SemanticAssistedRetrieval` (`this.#logger.debug('<=1 candidate...')`,
+  `this.#logger.warn('assist re-rank failed...')`, and the `DOC_AI_USAGE` success line via
+  `#logUsage` → `this.#logger.info(...)` — ALL silenced)
+- `FallbackRetrieval` (constructed by `selectStrategy`; `this.#logger.warn('RetrievalStrategy
+  "..." failed... falling back to keyword search...')` — ALSO silenced)
+
+This means **every log line this entire investigation has been searching for, across every
+prior update in this document, has been unconditionally silenced since the semantic-assisted
+feature was first implemented** — independent of deploy state, log level, warm/cold starts,
+or request identity. This resolves the central contradiction that drove every earlier
+(now-superseded) hypothesis in this document: it was never a deployment, timing, or
+duplicate-request issue. The logging itself was broken from day one for this exact call
+pattern (a class-as-namespace logger), and every previous "why is there no log line" question
+in this investigation has the same one-line answer.
+
+### What this does NOT yet explain
+
+The `typeof` bug fully accounts for the SILENCE. It does not, by itself, explain why
+`DOC-SEARCH-RESULT.json`/`REQ4-API-RESPONSE.md` return keyword-shaped integer relevance
+scores and `totalResults: 30` rather than semantic/assisted output. Two non-exclusive
+possibilities remain open:
+
+1. **The retrieval logic actually IS working correctly as semantic-assisted**, and the
+   `relevanceScore`/`totalResults` shape assumptions used throughout this document need
+   re-examination. Re-read `SemanticAssistedRetrieval.#sliceEnvelope`/`#applyOrder` and
+   `SemanticRetrieval.retrieve()`'s returned `relevanceScore` mapping (`hit.score` — cosine
+   similarity, expected `[0,1]`) against the ACTUAL numbers in `REQ4-API-RESPONSE.md` (32,
+   26×9) once more, now that logging can be trusted after the fix below. It is possible the
+   silence itself (rather than a retrieval defect) caused the earlier per-line reasoning
+   about "which line proves keyword vs. semantic" to rely too heavily on absence-of-evidence.
+2. **A genuine second defect exists in the retrieval path** (vector query returning 0 hits,
+   content-lookup dropping every hit, or a `FallbackRetrieval`-caught error silently
+   degrading to keyword) that was ALWAYS there, but has been undiagnosable until now because
+   every log line that would have proven it was silenced by this same bug.
+
+Both are resolved the same way: fix the logger bug, redeploy, re-run the test, and read the
+now-actually-working log lines.
+
+## THE FIX
+
+In `application-infrastructure/src/lambda/layers/doc-ai-common/nodejs/retrieval-strategy.js`,
+`normalizeLogger()`'s guard must accept BOTH plain objects and functions/classes (since a
+valid logger may legitimately be either — cache-data's `DebugAndLog` is a class/namespace,
+while a test mock or plain `{ info, warn, ... }` object is a plain object):
+
+```js
+// Before (bug):
+const src = (logger && typeof logger === 'object') ? logger : {};
+
+// After (fix):
+const src = (logger && (typeof logger === 'object' || typeof logger === 'function')) ? logger : {};
+```
+
+This one-line change is the entire fix for the silence. It requires no change to any of the
+three call sites (`SemanticRetrieval`, `SemanticAssistedRetrieval`, `FallbackRetrieval` all
+already pass `logger: DebugAndLog` correctly) — the defect is isolated entirely to
+`normalizeLogger()`'s type guard.
+
+## Recommended next steps
+
+1. Apply the one-line fix to `normalizeLogger()` in `retrieval-strategy.js` (the
+   `doc-ai-common` layer).
+2. Run the full `doc-ai-common` layer Jest suite to confirm no regression (207 tests as of
+   the last full run in this investigation) — a few existing tests may currently assert
+   NOOP/silent behavior when a class-like logger is passed and could need updating to assert
+   the methods now actually fire; check `retrieval-strategy.test.js`,
+   `retrieval-strategy-model-unavailable.test.js`, and `semantic-assisted-retrieval.test.js`
+   specifically for any test that constructs a logger stub and checks call counts.
+3. Redeploy the layer (function code in `services/documentation.js` needs no change — it was
+   already passing `logger: DebugAndLog` correctly).
+4. Re-run the SAME test query (`"atlantis regional s3 buckets location"`, tier `private`) and
+   pull a fresh unfiltered trace. Now that logging can be trusted, this will show — for the
+   FIRST time in this investigation — the actual step-by-step outcome inside
+   `SemanticRetrieval`/`SemanticAssistedRetrieval`/`FallbackRetrieval`:
+   - `DOC_AI_USAGE {"strategy":"semantic-assisted",...}` → the assisted path is genuinely
+     working; re-examine the relevanceScore-shape assumption per point 1 above.
+   - `SemanticAssistedRetrieval: <=1 candidate...` (debug) → confirms zero/one hits from the
+     vector store for this query; investigate `S3VectorStore.query()`/filters/version-key
+     next.
+   - `RetrievalStrategy "semantic-assisted" (store=s3-vectors) assist re-rank failed...`
+     (warn) → the semantic candidates were found but the ASSIST model call itself failed;
+     the `code`/`message` in this now-visible line will name the actual Bedrock/Nova error.
+   - `RetrievalStrategy "semantic-assisted" failed... falling back to keyword search...`
+     (warn) → the semantic step itself (embedding or vector query or content lookup) threw;
+     this is what has actually been happening whenever results are keyword-shaped, and the
+     `code`/`message` will finally reveal the true underlying error.
+5. Once the true underlying error/behavior is visible and addressed, remove the temporary
+   `DIAG: pre-selectStrategy snapshot` (`services/documentation.js`) and `DIAG:
+   SemanticRetrieval.*` (`retrieval-strategy.js`) diagnostics added during this investigation,
+   but KEEP the `normalizeLogger()` fix and the `logger` parameter/wiring added to
+   `SemanticRetrieval` — these are legitimate, permanent improvements: `SemanticRetrieval`
+   previously had no logging seam at all, and the `normalizeLogger()` fix corrects a
+   real bug that was silently disabling logging for `SemanticAssistedRetrieval` and
+   `FallbackRetrieval` from their original implementation, not just for this diagnostic.

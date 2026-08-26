@@ -1290,7 +1290,13 @@ function tierRank(tier, fallbackRank = 0) {
  * @returns {{warn: Function, error: Function, debug: Function, info: Function}} A complete logger (no-op where a method is absent).
  */
 function normalizeLogger(logger) {
-  const src = (logger && typeof logger === 'object') ? logger : {};
+  // >! FIX (spec 0-0-6-fix-documentation-index-ai-assist): `typeof logger === 'object'` is
+  // >! false for a class reference used as a static-method namespace (e.g. cache-data's
+  // >! `DebugAndLog`, which is exactly what this doc comment above describes and what every
+  // >! call site in this file passes) — `typeof` on a class/function is `'function'`, not
+  // >! `'object'`. The old object-only guard silently fell through to `{}`, turning every
+  // >! returned method into a no-op NOOP for that entire class of logger. Accept both shapes.
+  const src = (logger && (typeof logger === 'object' || typeof logger === 'function')) ? logger : {};
   return {
     warn: typeof src.warn === 'function' ? src.warn.bind(src) : NOOP,
     error: typeof src.error === 'function' ? src.error.bind(src) : NOOP,
