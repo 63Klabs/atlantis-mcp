@@ -288,7 +288,10 @@ function getDocAiComponents(ai) {
     embeddingProvider,
     vectorStore,
     buildResults,
-    topK: ai.topK
+    topK: ai.topK,
+    // >! TEMPORARY DIAGNOSTIC (spec 0-0-6-fix-documentation-index-ai-assist): lets
+    // >! SemanticRetrieval.retrieve() emit INFO-level trace lines for this investigation.
+    logger: DebugAndLog
   });
 
   const assist = new AssistProvider({

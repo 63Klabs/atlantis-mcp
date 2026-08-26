@@ -534,6 +534,16 @@ class SemanticRetrieval extends RetrievalStrategy {
   #cacheMisses;
 
   /**
+   * TEMPORARY DIAGNOSTIC (spec 0-0-6-fix-documentation-index-ai-assist): optional injected
+   * logger used ONLY for temporary trace-level diagnostics inside retrieve(), added to find
+   * why semantic-assisted retrieval silently returns keyword-shaped results in production.
+   * Defaults to a no-op logger, so omitting it is fully backward compatible.
+   * @private
+   * @type {{warn: Function, error: Function, debug: Function, info: Function}}
+   */
+  #logger;
+
+  /**
    * Creates a new SemanticRetrieval.
    *
    * @param {Object} deps - Injected dependencies.
@@ -543,9 +553,10 @@ class SemanticRetrieval extends RetrievalStrategy {
    * @param {Map<string, number[]>} [deps.cache] - Optional pre-constructed cache Map (test seam / shared cache); a new Map is created when omitted.
    * @param {number} [deps.maxCacheSize=128] - Maximum cached embeddings before FIFO eviction.
    * @param {number} [deps.topK=10] - Default result count when a call omits a positive `topK`.
+   * @param {Object} [deps.logger] - TEMPORARY DIAGNOSTIC seam (see `#logger` above); optional, defaults to a no-op logger.
    * @throws {RetrievalError} `INVALID_CONFIG` when `embeddingProvider`/`vectorStore`/`buildResults` are missing or of the wrong type.
    */
-  constructor({ embeddingProvider, vectorStore, buildResults, cache, maxCacheSize, topK } = {}) {
+  constructor({ embeddingProvider, vectorStore, buildResults, cache, maxCacheSize, topK, logger } = {}) {
     super({ embeddingProvider, vectorStore, buildResults });
 
     // >! Fail fast when a required collaborator is missing/wrong-typed, so misconfiguration
@@ -579,6 +590,8 @@ class SemanticRetrieval extends RetrievalStrategy {
     this.#defaultTopK = (Number.isInteger(topK) && topK > 0) ? topK : DEFAULT_TOP_K;
     this.#cacheHits = 0;
     this.#cacheMisses = 0;
+    // >! TEMPORARY DIAGNOSTIC: see #logger field doc above.
+    this.#logger = normalizeLogger(logger);
   }
 
   /**
@@ -625,8 +638,20 @@ class SemanticRetrieval extends RetrievalStrategy {
     const effectiveTopK = (Number.isInteger(topK) && topK > 0) ? topK : this.#defaultTopK;
 
     try {
+      // >! TEMPORARY DIAGNOSTIC (remove after root-causing spec 0-0-6-fix-documentation-index-ai-assist):
+      // >! trace every stage of SemanticRetrieval.retrieve() at INFO level (visible in PROD),
+      // >! since production traces show zero log output between strategy selection and the
+      // >! cache write despite keyword-shaped results being returned.
+      this.#logger.info('DIAG: SemanticRetrieval.retrieve start', { version, effectiveTopK });
+
       const embedding = await this.#embedQuery(query);
+      this.#logger.info('DIAG: SemanticRetrieval embedding obtained', {
+        embeddingLength: Array.isArray(embedding) ? embedding.length : null,
+        cacheStats: this.getCacheStats()
+      });
+
       const filters = buildSemanticFilters({ type, ghusers });
+      this.#logger.info('DIAG: SemanticRetrieval filters built', { filters });
 
       const hits = await this.#vectorStore.query(embedding, {
         version,
@@ -634,6 +659,10 @@ class SemanticRetrieval extends RetrievalStrategy {
         topK: effectiveTopK
       });
       const rankedHits = Array.isArray(hits) ? hits : [];
+      this.#logger.info('DIAG: SemanticRetrieval vectorStore.query resolved', {
+        hitsLength: rankedHits.length,
+        topHashes: rankedHits.slice(0, 3).map((h) => h && h.hash)
+      });
 
       // >! Content lookup + shaping is injected (decoupling): it fetches content metadata
       // >! for the hit hashes and returns result objects in the existing shape, with each
@@ -647,6 +676,10 @@ class SemanticRetrieval extends RetrievalStrategy {
         authInfo
       });
       const results = Array.isArray(built) ? built : [];
+      this.#logger.info('DIAG: SemanticRetrieval buildResults resolved', {
+        resultsLength: results.length,
+        firstRelevanceScore: results[0] ? results[0].relevanceScore : null
+      });
 
       return {
         results,
@@ -655,6 +688,14 @@ class SemanticRetrieval extends RetrievalStrategy {
         suggestions: results.length === 0 ? SEMANTIC_EMPTY_SUGGESTIONS.slice() : []
       };
     } catch (error) {
+      // >! TEMPORARY DIAGNOSTIC: capture what actually failed before wrapping/re-throwing,
+      // >! since the wrapped RetrievalError's cause has not been consistently surfaced by
+      // >! callers in production traces gathered so far.
+      this.#logger.warn('DIAG: SemanticRetrieval.retrieve caught an error', {
+        code: (error && error.code) || null,
+        message: (error && error.message) || null,
+        name: (error && error.name) || null
+      });
       // >! Wrap ANY semantic-path failure as a typed RetrievalError so selectStrategy (6.3)
       // >! can catch it and fall back to keyword search. No fallback is performed here.
       // >! Note (Req 10.5): this strategy does NOT degrade — it re-throws — so the additional
