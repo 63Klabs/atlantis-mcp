@@ -473,6 +473,23 @@ async function search(options = {}) {
       // >! Active index version is required by the semantic path; resolved per cache-miss.
       const version = await Models.DocIndex.getActiveVersion(Config.settings().docIndexTable);
 
+      // >! TEMPORARY DIAGNOSTIC (remove after root-causing the silent keyword fallback):
+      // >! logs the exact runtime inputs selectStrategy() uses to decide wantsSemantic,
+      // >! since every downstream log line (selectStrategy/strategies) has come back empty
+      // >! despite settings/tier/layer content all checking out via static inspection.
+      DebugAndLog.info('DIAG: pre-selectStrategy snapshot', {
+        enabled: ai.enabled,
+        enabledType: typeof ai.enabled,
+        retrievalMode: ai.retrievalMode,
+        minTier: ai.minTier,
+        callerTier: authInfo?.tier,
+        version,
+        hasSemantic: Boolean(semantic),
+        semanticHasRetrieve: typeof semantic?.retrieve === 'function',
+        hasSemanticAssisted: Boolean(semanticAssisted),
+        semanticAssistedHasRetrieve: typeof semanticAssisted?.retrieve === 'function'
+      });
+
       const strategy = selectStrategy({
         config: ai,
         tier: authInfo?.tier,
