@@ -839,3 +839,110 @@ already pass `logger: DebugAndLog` correctly) — the defect is isolated entirel
    previously had no logging seam at all, and the `normalizeLogger()` fix corrects a
    real bug that was silently disabling logging for `SemanticAssistedRetrieval` and
    `FallbackRetrieval` from their original implementation, not just for this diagnostic.
+
+## MAJOR BREAKTHROUGH: Logging fix confirmed working — real fault boundary now identified
+
+Request `5ef00799-769a-4a14-ae23-da427b577f4b` (query `"atlantis bucket names region"`, tier
+`private`, full trace in `REQ5-CW-LOGS.md`; response in `REQ5-API-RESPONSE.md`; Bedrock
+invocation in `REQ5-MODEL-LOGS.md`) — submitted AFTER the `normalizeLogger()` fix was applied
+and deployed.
+
+**The fix works.** For the first time in this entire investigation, the `DIAG:
+SemanticRetrieval.*` lines actually appear, in the correct order, with real data:
+
+```
+INFO  DIAG: pre-selectStrategy snapshot | { enabled: true, retrievalMode: 'semantic-assisted', callerTier: 'private', ... }
+INFO  DIAG: SemanticRetrieval.retrieve start | { version: '20260826T005649', effectiveTopK: 25 }
+INFO  DIAG: SemanticRetrieval embedding obtained | { embeddingLength: 1024, cacheStats: { hits: 0, misses: 1, size: 1, maxSize: 128 } }
+INFO  DIAG: SemanticRetrieval filters built | { filters: {} }
+WARN  DIAG: SemanticRetrieval.retrieve caught an error | { code: 'QUERY_FAILED', message: 'Failed to query vectors for version "20260826T005649".', name: 'VectorStoreError' }
+WARN  RetrievalStrategy "semantic-assisted" failed (code=RETRIEVAL_FAILED); falling back to keyword search. Reason: Semantic retrieval failed.
+```
+
+### The actual root cause, now confirmed directly (not inferred)
+
+`SemanticRetrieval.retrieve()` proceeds correctly through query validation, active-version
+check, and embedding (Bedrock call confirmed successful in `REQ5-MODEL-LOGS.md`, matching
+query text `"atlantis bucket names region"` and timestamp `2026-08-27 12:51 UTC`). It then
+calls `this.#vectorStore.query(embedding, { version, filters: {}, topK: 25 })` —
+`S3VectorStore.query()` in `vector-store-s3.js` — which throws. The catch block there wraps
+ANY non-`VectorStoreError` exception as `VectorStoreError` with `code: 'QUERY_FAILED'` and
+sets `error.cause` to the original underlying error (`S3VectorStore.#wrap()`,
+`vector-store-s3.js` line ~833). `SemanticRetrieval` re-throws it (as designed — it never
+degrades itself), and `FallbackRetrieval` (constructed by `selectStrategy`) correctly catches
+it and degrades to keyword search — which is EXACTLY the keyword-shaped output observed in
+every test throughout this whole investigation (`REQ5-API-RESPONSE.md`: integer
+`relevanceScore` 44/44/39/34/31×6, `totalResults: 30`).
+
+**This is no longer a logging-visibility problem. This is now a real, confirmed defect: the
+S3 Vectors `QueryVectors` call itself is failing on every request**, for a reason not yet
+known, because our current diagnostic only logs the OUTER wrapper error's `code`/`message`/
+`name` — not `error.cause`, which is where `S3VectorStore.#wrap()` puts the actual original
+AWS SDK exception (e.g. `AccessDeniedException`, `ResourceNotFoundException`,
+`ValidationException`, a network/timeout error, etc.). Without seeing `error.cause`, the true
+underlying reason is still unknown.
+
+## Recommended next step: log `error.cause` from the caught `VectorStoreError`
+
+Update the existing temporary diagnostic in
+`application-infrastructure/src/lambda/layers/doc-ai-common/nodejs/retrieval-strategy.js`
+(`SemanticRetrieval.retrieve()`'s catch block) to also capture the wrapped error's `cause`:
+
+```js
+this.#logger.warn('DIAG: SemanticRetrieval.retrieve caught an error', {
+  code: (error && error.code) || null,
+  message: (error && error.message) || null,
+  name: (error && error.name) || null,
+  // >! ADD: the ORIGINAL underlying error S3VectorStore.#wrap() attached as `cause` —
+  // >! this is the actual AWS SDK exception from the failed QueryVectorsCommand call.
+  causeName: (error && error.cause && error.cause.name) || null,
+  causeMessage: (error && error.cause && error.cause.message) || null,
+  causeCode: (error && error.cause && (error.cause.code || error.cause.Code)) || null,
+  causeHttpStatus: (error && error.cause && error.cause.$metadata && error.cause.$metadata.httpStatusCode) || null
+});
+```
+
+Redeploy the layer, re-run the SAME query (`"atlantis bucket names region"` — or any query;
+the failure appears to be deterministic and version/config-related, not query-content-related,
+given it happened identically for `"github template pipeline"`, `"github pipeline template
+parameters"`, `"atlantis regional s3 buckets location"`, and now `"atlantis bucket names
+region"` — four different queries, same failure), and pull the trace once more.
+
+### Leading candidates for what `error.cause` will reveal (informed by prior investigation)
+
+1. **IAM permission issue** — `AccessDeniedException`. `ReadDocAiPolicy` in `template.yml`
+   grants `s3vectors:QueryVectors` scoped to a SPECIFIC index ARN built from
+   `HasDocAiS3VectorBucketOverride`/`HasDocAiS3VectorIndexOverride` (defaulting to
+   `${Prefix}-${ProjectId}-${StageId}-docvec`/`-docidx` when unset). If the ACTUAL bucket/index
+   the doc-indexer wrote vectors to (confirmed to exist and be populated —
+   `embedding_phase_complete`/`upserted: true` for version `20260826T005649`, per an earlier
+   update in this document) has a different resolved name than what the Read Lambda's IAM
+   policy or `DOC_AI_S3_VECTOR_BUCKET`/`DOC_AI_S3_VECTOR_INDEX` env vars resolve to, this would
+   produce exactly this symptom: the doc-indexer's role (different IAM policy,
+   `DocIndexerDocAiPolicy`) can write, but the Read Lambda's role cannot query the same
+   resource.
+2. **Bucket/index name mismatch (not an IAM issue, a resource-identity issue)** —
+   `ResourceNotFoundException` (or the S3 Vectors equivalent). If `DocAiS3VectorBucket`/
+   `DocAiS3VectorIndex` CloudFormation parameters resolve differently between the two Lambda's
+   environment variables due to a parameter drift or override applied only on one side.
+3. **Filter/query malformation** — `ValidationException`. The diagnostic shows `filters: {}`
+   (an empty object) for this particular query (no `type` filter, no `ghusers` filter
+   supplied) — worth checking whether `buildS3Filter(opts.version, {})` in `vector-store-s3.js`
+   produces a well-formed filter object that `QueryVectorsCommand` accepts, or whether an
+   empty `filters` input causes a malformed request body.
+4. **Dimension mismatch** — the embedding is confirmed 1024-dim (`embeddingLength: 1024` in
+   the DIAG line, matching `DOC_AI_EMBEDDING_DIMENSIONS=1024`), so this is less likely, but
+   worth ruling out by confirming the S3 Vectors index itself was created with `Dimension:
+   1024` (per the `DocAiVectorIndex` custom resource in `template.yml`) and hasn't drifted.
+5. **Region mismatch** — the S3 Vectors client resolves its region from the Lambda's own
+   deployment region (per `vector-store-s3.js`'s `getS3VectorsClient()` — no explicit
+   region override, unlike the embedding client which supports `DocAiEmbeddingRegion`). If S3
+   Vectors is not available/provisioned in this specific region for this account, queries
+   could fail even though vectors were successfully written (if the indexer ran with
+   different effective config, e.g. before a region-related change, or if S3 Vectors
+   regional availability is inconsistent).
+
+Once `error.cause` is visible, the fix is almost certainly a straightforward IAM policy
+correction, a bucket/index name alignment between the two Lambda functions' resolved
+`DOC_AI_S3_VECTOR_BUCKET`/`DOC_AI_S3_VECTOR_INDEX` values, or a filter-construction fix in
+`buildS3Filter()` — not a deep architectural change.

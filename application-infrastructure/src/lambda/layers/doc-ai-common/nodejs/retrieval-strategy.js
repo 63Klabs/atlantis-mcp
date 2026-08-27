@@ -690,11 +690,20 @@ class SemanticRetrieval extends RetrievalStrategy {
     } catch (error) {
       // >! TEMPORARY DIAGNOSTIC: capture what actually failed before wrapping/re-throwing,
       // >! since the wrapped RetrievalError's cause has not been consistently surfaced by
-      // >! callers in production traces gathered so far.
+      // >! callers in production traces gathered so far. Also captures error.cause — the
+      // >! ORIGINAL underlying error (e.g. the raw AWS SDK exception from a failed
+      // >! QueryVectorsCommand) that S3VectorStore.#wrap()/VectorStoreError attaches as
+      // >! `cause` when wrapping a non-VectorStoreError failure. The outer code/message/name
+      // >! alone (e.g. "QUERY_FAILED") only identifies WHICH call failed, not WHY.
+      const cause = error && error.cause;
       this.#logger.warn('DIAG: SemanticRetrieval.retrieve caught an error', {
         code: (error && error.code) || null,
         message: (error && error.message) || null,
-        name: (error && error.name) || null
+        name: (error && error.name) || null,
+        causeName: (cause && cause.name) || null,
+        causeMessage: (cause && cause.message) || null,
+        causeCode: (cause && (cause.code || cause.Code)) || null,
+        causeHttpStatus: (cause && cause.$metadata && cause.$metadata.httpStatusCode) || null
       });
       // >! Wrap ANY semantic-path failure as a typed RetrievalError so selectStrategy (6.3)
       // >! can catch it and fall back to keyword search. No fallback is performed here.
