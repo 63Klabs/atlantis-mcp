@@ -946,3 +946,119 @@ Once `error.cause` is visible, the fix is almost certainly a straightforward IAM
 correction, a bucket/index name alignment between the two Lambda functions' resolved
 `DOC_AI_S3_VECTOR_BUCKET`/`DOC_AI_S3_VECTOR_INDEX` values, or a filter-construction fix in
 `buildS3Filter()` — not a deep architectural change.
+
+## ROOT CAUSE CONFIRMED via `error.cause`: `AccessDeniedException` on `s3vectors:GetVectors`
+
+Request from `REQ6-CW-LOGS.md` (submitted after adding `error.cause` logging to the
+`SemanticRetrieval.retrieve()` catch block, tier `private`) finally surfaced the real
+underlying AWS SDK exception:
+
+```
+DIAG: SemanticRetrieval.retrieve caught an error | {
+  code: 'QUERY_FAILED',
+  message: 'Failed to query vectors for version "20260826T005649".',
+  name: 'VectorStoreError',
+  causeName: 'AccessDeniedException',
+  causeMessage: 'User: arn:aws:sts::458901159113:assumed-role/prod63k-atlantis-mcp-test-ReadExecutionRole/prod63k-atlantis-mcp-test-ReadFunction is not authorized to perform: s3vectors:GetVectors on resource: arn:aws:s3vectors:us-east-2:458901159113:bucket/prod63k-atlantis-mcp-test-docvec/index/prod63k-atlantis-mcp-test-docidx because no identity-based policy allows the s3vectors:GetVectors action',
+  causeCode: 'AccessDeniedException',
+  causeHttpStatus: 403
+}
+```
+
+This resolves candidate #1 from the previous update's list (IAM permission issue) — and
+rules out all the others (bucket/index name mismatch, filter malformation, dimension
+mismatch, region mismatch): the resource ARN named in the error message is the exact,
+correctly-resolved index ARN (`prod63k-atlantis-mcp-test-docvec/index/prod63k-atlantis-mcp-test-docidx`)
+— identical to the one the doc-indexer successfully wrote to. The failure is purely an
+IAM authorization gap, nothing else.
+
+### The actual gap: `QueryVectorsCommand` requires BOTH `QueryVectors` AND `GetVectors`
+
+`application-infrastructure/template.yml`'s `ReadDocAiPolicy` resource (`Sid:
+S3VectorsQueryDataPlane`, attached to `ReadLambdaExecutionRole`) granted ONLY
+`s3vectors:QueryVectors`, based on an incorrect assumption documented in the statement's own
+comment ("Query-only data-plane... issues QueryVectors ONLY... No Put/Get/List/Delete for the
+read role"). In reality, the AWS S3 Vectors service's `QueryVectorsCommand` internally
+requires the `s3vectors:GetVectors` action as well when the request includes
+`returnMetadata: true` / `returnDistance: true` — both of which `S3VectorStore.query()` in
+`vector-store-s3.js` always sets. Without `GetVectors`, the call is denied entirely (403
+`AccessDeniedException`), before any vectors are ever returned.
+
+Cross-checking `DocIndexerDocAiPolicy` (`Sid: S3VectorsWriteDataPlane`) confirms the
+asymmetry: the indexer role already has `PutVectors`, `GetVectors`, `ListVectors`, AND
+`DeleteVectors` — i.e., the write-side role was correctly scoped from the start, but the
+read-side role's policy was missing the one additional read action the query call actually
+needs.
+
+### THE FIX (applied)
+
+`application-infrastructure/template.yml`, `ReadDocAiPolicy` → `S3VectorsQueryDataPlane`
+statement — added `s3vectors:GetVectors` to the `Action` list (same `Resource`, unchanged),
+and corrected the stale comment:
+
+```yaml
+- Sid: S3VectorsQueryDataPlane
+  # >! Query-only data-plane: the retrieval path calls VectorStore.query() which
+  # >! issues QueryVectors AND GetVectors (layer vector-store-s3.js). The AWS SDK's
+  # >! QueryVectorsCommand internally requires s3vectors:GetVectors when the call
+  # >! requests returnMetadata/returnDistance (both true in vector-store-s3.js),
+  # >! confirmed via AccessDeniedException on GetVectors when only QueryVectors was
+  # >! granted. No Put/List/Delete for the read role. Scoped to the ONE resolved
+  # >! index ARN (not index/*).
+  Effect: Allow
+  Action:
+  - s3vectors:QueryVectors
+  - s3vectors:GetVectors
+  Resource:
+  - !Sub
+    - 'arn:aws:s3vectors:${AWS::Region}:${AWS::AccountId}:bucket/${VectorBucketName}/index/${IndexName}'
+    - VectorBucketName: !If [HasDocAiS3VectorBucketOverride, !Ref DocAiS3VectorBucket, !Sub '${Prefix}-${ProjectId}-${StageId}-docvec']
+      IndexName: !If [HasDocAiS3VectorIndexOverride, !Ref DocAiS3VectorIndex, !Sub '${Prefix}-${ProjectId}-${StageId}-docidx']
+```
+
+This is an IAM-only change — no Lambda/layer code was modified for this fix. `Put`, `List`,
+and `Delete` remain correctly excluded from the read role.
+
+### Validation performed
+
+- No unit test suite covers CloudFormation IAM policy content directly (confirmed — this is
+  infrastructure config, not application code).
+- Ran `sam validate --lint` and `sam validate` against `application-infrastructure/template.yml`
+  before and after the change (via `git stash`/`git stash pop`) — both produced the IDENTICAL
+  pre-existing findings unrelated to this edit (`nodejs24.x` runtime not yet in cfn-lint's
+  schema, two unrelated unused `Conditions`, and a `WebApi`/Swagger `DefinitionBody` validation
+  limitation with `sam validate`'s local resolution of the `Fn::Transform`-based OpenAPI spec).
+  The diff introduces no new lint/validation errors.
+- This fix requires a real deploy + re-test to confirm end-to-end (cannot be unit-tested) —
+  see next steps.
+
+## Recommended next steps
+
+1. **Deploy this IAM change** to the `test` stack via the normal `test`-branch pipeline (IAM
+   policy changes deploy the same way as any other CloudFormation resource change — no manual
+   AWS CLI IAM edits).
+2. **Re-run a `search_documentation` test** (any query, tier `private` or higher) and pull a
+   fresh unfiltered trace (REQ7). Expect to finally see:
+   - `DIAG: SemanticRetrieval vectorStore.query resolved` (or the equivalent success path) —
+     no more `caught an error` WARN line.
+   - `DOC_AI_USAGE {"strategy":"semantic-assisted","store":"s3-vectors","inputTokens":<n>,...}`
+     INFO line — the definitive confirmation the full assisted path completed successfully.
+   - `relevanceScore` values in the API response as **floats in `[0, 1]`** (cosine similarity)
+     rather than the small integers (31-49 range) seen in every prior test — this is the
+     clearest external signal of success.
+3. If REQ7 still shows a failure, capture the new `error`/`error.cause` (the DIAG line is
+   still in place) — but this specific `AccessDeniedException` is a well-understood, narrowly
+   scoped IAM gap, so a clean success on the first re-test is expected.
+4. **Once confirmed working end-to-end**, remove ALL temporary `DIAG:` diagnostic log lines:
+   - `services/documentation.js`: `DIAG: pre-selectStrategy snapshot`.
+   - `retrieval-strategy.js`'s `SemanticRetrieval.retrieve()`: all `DIAG: SemanticRetrieval.*`
+     lines (start, embedding obtained, filters built, vectorStore.query resolved, buildResults
+     resolved, caught an error).
+   - **KEEP** the `normalizeLogger()` fix (permanent bug fix, unrelated to diagnostics) and the
+     `logger` constructor parameter added to `SemanticRetrieval` (permanent capability — it
+     had no logging seam before this investigation).
+5. Consider whether `ReadDocAiPolicy`'s corrected comment/action list should be cross-checked
+   against any other IAM policy in the template that grants `s3vectors:QueryVectors` without
+   `GetVectors` (a single grep for `QueryVectors` in `template.yml` — only the one statement
+   fixed here was found during this investigation, but worth a final confirmation pass before
+   closing out the fix).

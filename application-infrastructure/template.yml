@@ -1700,11 +1700,16 @@ Resources:
 
           - Sid: S3VectorsQueryDataPlane
             # >! Query-only data-plane: the retrieval path calls VectorStore.query() which
-            # >! issues QueryVectors ONLY (layer vector-store-s3.js). No Put/Get/List/Delete
-            # >! for the read role. Scoped to the ONE resolved index ARN (not index/*).
+            # >! issues QueryVectors AND GetVectors (layer vector-store-s3.js). The AWS SDK's
+            # >! QueryVectorsCommand internally requires s3vectors:GetVectors when the call
+            # >! requests returnMetadata/returnDistance (both true in vector-store-s3.js),
+            # >! confirmed via AccessDeniedException on GetVectors when only QueryVectors was
+            # >! granted. No Put/List/Delete for the read role. Scoped to the ONE resolved
+            # >! index ARN (not index/*).
             Effect: Allow
             Action:
             - s3vectors:QueryVectors
+            - s3vectors:GetVectors
             Resource:
             - !Sub
               - 'arn:aws:s3vectors:${AWS::Region}:${AWS::AccountId}:bucket/${VectorBucketName}/index/${IndexName}'
