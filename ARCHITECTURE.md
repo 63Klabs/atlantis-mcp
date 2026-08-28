@@ -670,6 +670,36 @@ Production environments use CodeDeploy gradual deployment (`Linear10PercentEvery
 - **Structured Logging** — JSON-formatted logs with level, event, and context fields
 - **API Gateway Logging** — Access logs (JSON format) and execution logs (optional, admin-enabled)
 
+### X-Ray Downstream Tracing
+
+`Tracing: Active` (see Observability above) makes every Lambda function emit its own X-Ray segment, but that alone does not capture the calls a function makes to downstream AWS services — DynamoDB, S3, Bedrock, S3 Vectors. Downstream visibility requires explicitly wrapping each AWS SDK v3 client with `captureAWSv3Client()` from `aws-xray-sdk-core`, a package the Lambda managed Node.js runtime does not provide; it must be declared as a production dependency wherever it's used.
+
+**Helper duplication, not sharing.** A single `captureClient()` helper — it applies `captureAWSv3Client()` when tracing is enabled and the X-Ray SDK is resolvable, and otherwise returns the client unchanged — is implemented once and deliberately copied to four locations rather than consolidated into one shared module:
+
+```
+src/lambda/layers/doc-ai-common/nodejs/xray-capture.js   (embedding-provider.js, assist-provider.js, vector-store-s3.js)
+src/lambda/read-function/utils/xray-capture.js           (models/doc-index.js)
+src/lambda/doc-indexer/lib/xray-capture.js                (lib/dynamo-writer.js)
+src/lambda/auth-function/utils/xray-capture.js            (models/user.js, models/voucher.js)
+```
+
+It is duplicated because the Auth Lambda does not attach `DocAiCommonLayer` (only the Read Lambda and Doc Indexer do), so a layer-only helper can never reach it, and the `atlantis-multi-resource-src` steering forbids a shared source directory across function boundaries — code shared across functions must ship as a Lambda Layer or a published package, neither of which fits a ~20-line helper needed by a function that doesn't already consume the layer. The Bedrock and S3 Vectors instrumentation still lives once in the shared layer for its two actual consumers (Read Lambda and Doc Indexer); only the DynamoDB-facing copies in each function are replicated.
+
+**Why a layer-only install of a shared dependency doesn't work.** The `doc-ai-common` layer's `ContentUri` is `src/lambda/layers/doc-ai-common/`, and that directory holds `node_modules/` as a **sibling** of `nodejs/`, not nested inside it. At runtime this extracts to `/opt/node_modules` — **not** `/opt/nodejs/node_modules`:
+
+```
+src/lambda/layers/doc-ai-common/
+├── nodejs/            → extracts to /opt/nodejs/
+│   ├── embedding-provider.js
+│   ├── assist-provider.js
+│   └── vector-store-s3.js
+└── node_modules/      → extracts to /opt/node_modules/   (NOT /opt/nodejs/node_modules)
+```
+
+Layer code itself (running from `/opt/nodejs/`) can resolve `/opt/node_modules` through Node's normal directory walk-up (`/opt/nodejs/node_modules` → `/opt/node_modules` → `/node_modules`). But function code (running from `/var/task/`) and any dependency loaded through `/var/task/node_modules` — including `@63klabs/cache-data` — can never resolve anything under `/opt`, because Lambda only adds `/opt/nodejs/node_modules` to `NODE_PATH`, and this layer's `node_modules` directory isn't structured that way. Consequently, a layer-only install of `aws-xray-sdk-core` would instrument the Bedrock/S3 Vectors clients but leave every function-level DynamoDB client — and `@63klabs/cache-data`'s own X-Ray wrapping — uninstrumented. `aws-xray-sdk-core` is therefore declared as a **production** dependency in each of the four `package.json` files that need it (`read-function`, `auth-function`, `doc-indexer`, `layers/doc-ai-common`), not just the layer.
+
+See [Spec: 0-0-6-xray-downstream-tracing](.kiro/specs/0-0-6-xray-downstream-tracing/) for full design detail, including the `captureClient()` contract and its correctness properties.
+
 ## Resource Naming
 
 All resources follow the Atlantis naming convention:

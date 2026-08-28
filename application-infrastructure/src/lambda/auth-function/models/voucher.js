@@ -16,9 +16,44 @@ const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const { DynamoDBDocumentClient, GetCommand, UpdateCommand } = require('@aws-sdk/lib-dynamodb');
 const { tools: { DebugAndLog } } = require('@63klabs/cache-data');
 const { Config } = require('../config');
+const { captureClient } = require('../utils/xray-capture');
 
-const client = new DynamoDBClient({});
-const docClient = DynamoDBDocumentClient.from(client);
+/**
+ * Lazily initialized DynamoDB Document Client.
+ * @type {DynamoDBDocumentClient|null}
+ */
+let docClient = null;
+
+/**
+ * Get or create the DynamoDB Document Client singleton.
+ *
+ * Constructed on first use (inside an invocation) rather than at module-load time, so an
+ * X-Ray segment exists when the client is created (spec 0-0-6-xray-downstream-tracing).
+ *
+ * @returns {DynamoDBDocumentClient} The shared document client.
+ * @example
+ * const result = await getDocClient().send(new GetCommand(params));
+ */
+function getDocClient() {
+	if (!docClient) {
+		// >! Wrap the RAW DynamoDBClient, then build the document client from the wrapped
+		// >! instance, mirroring cache-data's AWS.classes.js. Do NOT also wrap the document
+		// >! client — that risks duplicate subsegments (Requirement 3.3).
+		const client = captureClient(new DynamoDBClient({}));
+		docClient = DynamoDBDocumentClient.from(client);
+	}
+	return docClient;
+}
+
+/**
+ * Override the document client (test seam).
+ *
+ * @param {DynamoDBDocumentClient|null} client - Client instance, or `null` to reset.
+ * @returns {void}
+ */
+function setDocClient(client) {
+	docClient = client;
+}
 
 /**
  * Retrieve a voucher record by code.
@@ -31,7 +66,7 @@ const docClient = DynamoDBDocumentClient.from(client);
  */
 async function getVoucher(code) {
 	try {
-		const result = await docClient.send(new GetCommand({
+		const result = await getDocClient().send(new GetCommand({
 			TableName: Config.settings().usersTable,
 			Key: { pk: `VOUCHER#${code}` }
 		}));
@@ -53,7 +88,7 @@ async function getVoucher(code) {
  */
 async function incrementVoucherUses(code) {
 	try {
-		const result = await docClient.send(new UpdateCommand({
+		const result = await getDocClient().send(new UpdateCommand({
 			TableName: Config.settings().usersTable,
 			Key: { pk: `VOUCHER#${code}` },
 			UpdateExpression: 'SET currentUses = currentUses + :inc',
@@ -87,7 +122,7 @@ class TestHarness {
 	 */
 	static getInternals() {
 		return {
-			docClient
+			docClient: getDocClient()
 		};
 	}
 }
@@ -95,5 +130,6 @@ class TestHarness {
 module.exports = {
 	getVoucher,
 	incrementVoucherUses,
+	setDocClient,
 	TestHarness
 };

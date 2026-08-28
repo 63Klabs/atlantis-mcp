@@ -7,6 +7,7 @@
 - [Documentation Indexer](./documentation-indexer.md)
 - [User Management](./user-management.md)
 - [Voucher Management](./voucher-management.md)
+- [X-Ray Downstream Tracing](./x-ray-tracing.md)
 
 Core Documents:
 

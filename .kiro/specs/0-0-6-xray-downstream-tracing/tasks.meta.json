@@ -1,0 +1,185 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "2.5 Write the property test for Property 3 in all four packages": [
+      {
+        "executionId": "0432e4f8-1442-42ff-96f2-e26bb6eef17e",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787877235107
+      },
+      {
+        "executionId": "0432e4f8-1442-42ff-96f2-e26bb6eef17e",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787877246684
+      }
+    ],
+    "3.5 Add the layer regression guards": [
+      {
+        "executionId": "0432e4f8-1442-42ff-96f2-e26bb6eef17e",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787877235296
+      },
+      {
+        "executionId": "0432e4f8-1442-42ff-96f2-e26bb6eef17e",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787877247592
+      }
+    ],
+    "3.6 Write the shared-layer structure test": [
+      {
+        "executionId": "0432e4f8-1442-42ff-96f2-e26bb6eef17e",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787877235407
+      },
+      {
+        "executionId": "0432e4f8-1442-42ff-96f2-e26bb6eef17e",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787877455542
+      }
+    ],
+    "4. Checkpoint - layer suite green": [
+      {
+        "executionId": "0432e4f8-1442-42ff-96f2-e26bb6eef17e",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787877235505
+      },
+      {
+        "executionId": "0432e4f8-1442-42ff-96f2-e26bb6eef17e",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787877619805
+      }
+    ],
+    "7.4 Write enabled-path and disabled-path unit tests for both Auth_Function DAOs": [
+      {
+        "executionId": "0432e4f8-1442-42ff-96f2-e26bb6eef17e",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787877235611
+      },
+      {
+        "executionId": "0432e4f8-1442-42ff-96f2-e26bb6eef17e",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787877248704
+      }
+    ],
+    "7.5 Run the full existing Auth_Function suite as the conversion regression guard": [
+      {
+        "executionId": "0432e4f8-1442-42ff-96f2-e26bb6eef17e",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787877235736
+      },
+      {
+        "executionId": "0432e4f8-1442-42ff-96f2-e26bb6eef17e",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787877456465
+      }
+    ],
+    "8. Checkpoint - all four function/layer suites green": [
+      {
+        "executionId": "0432e4f8-1442-42ff-96f2-e26bb6eef17e",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787877235831
+      },
+      {
+        "executionId": "0432e4f8-1442-42ff-96f2-e26bb6eef17e",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787877620909
+      }
+    ],
+    "9.1 Attach the X_Ray_Write_Policy to the two roles that lack it": [
+      {
+        "executionId": "0432e4f8-1442-42ff-96f2-e26bb6eef17e",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787877235929
+      },
+      {
+        "executionId": "0432e4f8-1442-42ff-96f2-e26bb6eef17e",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787877249425
+      }
+    ],
+    "9.2 Add the X-Ray environment variables": [
+      {
+        "executionId": "0432e4f8-1442-42ff-96f2-e26bb6eef17e",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787877236032
+      },
+      {
+        "executionId": "0432e4f8-1442-42ff-96f2-e26bb6eef17e",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787877457227
+      }
+    ],
+    "9.3 Write the table-driven template structural test": [
+      {
+        "executionId": "0432e4f8-1442-42ff-96f2-e26bb6eef17e",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787877236129
+      },
+      {
+        "executionId": "0432e4f8-1442-42ff-96f2-e26bb6eef17e",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787877621640
+      }
+    ],
+    "10. Final checkpoint - full pre-merge gate": [
+      {
+        "executionId": "0432e4f8-1442-42ff-96f2-e26bb6eef17e",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787877236226
+      },
+      {
+        "executionId": "0432e4f8-1442-42ff-96f2-e26bb6eef17e",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787877818730
+      },
+      {
+        "executionId": "0432e4f8-1442-42ff-96f2-e26bb6eef17e",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787877860152
+      }
+    ],
+    "11.1 Update `CHANGELOG.md`": [
+      {
+        "executionId": "0432e4f8-1442-42ff-96f2-e26bb6eef17e",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787877236336
+      },
+      {
+        "executionId": "0432e4f8-1442-42ff-96f2-e26bb6eef17e",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787877622735
+      }
+    ],
+    "11.2 Update `ARCHITECTURE.md`": [
+      {
+        "executionId": "0432e4f8-1442-42ff-96f2-e26bb6eef17e",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787877236433
+      },
+      {
+        "executionId": "0432e4f8-1442-42ff-96f2-e26bb6eef17e",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787877623786
+      }
+    ],
+    "11.3 Update `docs/admin-ops`": [
+      {
+        "executionId": "0432e4f8-1442-42ff-96f2-e26bb6eef17e",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787877236548
+      },
+      {
+        "executionId": "0432e4f8-1442-42ff-96f2-e26bb6eef17e",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787877624676
+      }
+    ],
+    "11.4 Post-deploy trace verification (operator-performed, not executable by a coding agent)": [
+      {
+        "executionId": "0432e4f8-1442-42ff-96f2-e26bb6eef17e",
+        "chatSessionId": "sess_917a8924-d8ec-4377-acf3-dd6090d20cf6",
+        "timestamp": 1787877236646
+      }
+    ]
+  }
+}

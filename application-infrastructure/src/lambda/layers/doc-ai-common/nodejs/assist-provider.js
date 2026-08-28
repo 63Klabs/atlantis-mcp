@@ -76,6 +76,7 @@
 
 // >! AWS SDK v3 is provided by the Lambda runtime; require it normally (do NOT bundle).
 const { BedrockRuntimeClient, InvokeModelCommand } = require('@aws-sdk/client-bedrock-runtime');
+const { captureClient } = require('./xray-capture');
 
 /** Default small assist model ID used when none is configured (`documentation.ai.assist.model`). */
 const DEFAULT_MODEL = 'amazon.nova-micro-v1:0';
@@ -412,7 +413,10 @@ class AssistProvider {
       // >! Construct the Bedrock client only on first use. The SDK default provider chain
       // >! resolves the region from the Lambda environment (AWS_REGION); do not hardcode a
       // >! region or credentials here.
-      this.#client = new BedrockRuntimeClient({});
+      // >! captureClient() wraps the CONSTRUCTED instance so X-Ray downstream subsegments
+      // >! are recorded for the assist model call (spec 0-0-6-xray-downstream-tracing,
+      // >! Requirement 1.2).
+      this.#client = captureClient(new BedrockRuntimeClient({}));
     }
     return this.#client;
   }

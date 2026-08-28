@@ -818,7 +818,13 @@ Resources:
 
           # Cache-Data Settings
           CACHE_DATA_TIME_ZONE_FOR_INTERVAL: !Ref CacheDataTimeZoneForInterval
+          # Read by BOTH @63klabs/cache-data's AWS helper and this project's xray-capture
+          # helper (spec 0-0-6); removing it silently disables downstream subsegments for
+          # DynamoDB/S3/Bedrock/S3 Vectors even though Tracing stays Active below.
           CACHE_DATA_AWS_X_RAY_ON: true
+          # >! Defensive: if tracing is ever off while the flag above is true, treat a
+          # >! missing X-Ray context as a no-op instead of an error (Requirement 7.2).
+          AWS_XRAY_CONTEXT_MISSING: IGNORE_ERROR
           CACHE_DATA_USE_TOOLS_HASH_METHOD: true
           CACHE_USE_IN_MEMORY: true
           CACHE_DATA_DYNAMO_DB_TABLE: !If 
@@ -1069,6 +1075,12 @@ Resources:
           AWS_LAMBDA_LOG_LEVEL: !If [ IsProduction, "INFO", "DEBUG"] # 'DEBUG', 'WARN', 'ERROR', 'INFO' - 'CRITICAL' and 'SILENT' are not currently recognized by Cache Data logging
           AWS_LAMBDA_LOG_FORMAT: 'text'
 
+          # X-Ray downstream tracing (spec 0-0-6). CACHE_DATA_AWS_X_RAY_ON gates the X-Ray
+          # capture wrapping in both @63klabs/cache-data and this project's xray-capture
+          # helper. AWS_XRAY_CONTEXT_MISSING: IGNORE_ERROR is defensive so a flag-true/
+          # tracing-off mismatch does not surface as an error (Requirement 7.2).
+          CACHE_DATA_AWS_X_RAY_ON: true
+          AWS_XRAY_CONTEXT_MISSING: IGNORE_ERROR
 
           # Rate limit configuration (must match Read Lambda settings)
           MCP_PUBLIC_RATE_LIMIT: 50
@@ -1132,6 +1144,11 @@ Resources:
           Principal:
             Service: [lambda.amazonaws.com]
           Action: sts:AssumeRole
+
+      # X-Ray write only. Globals.Function.Tracing: Active applies to every function in
+      # this stack, so this role needs write permission to emit its own function segment.
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess'
 
       Policies:
       - PolicyName: AuthLambdaResourceAccessPolicies
@@ -1259,6 +1276,12 @@ Resources:
             Service: [lambda.amazonaws.com]
           Action: sts:AssumeRole
 
+      # X-Ray write only. The Cleanup Lambda is out of scope for downstream-subsegment
+      # instrumentation (it calls only SSM and Cognito), but Globals.Function.Tracing:
+      # Active still applies, so it needs this to emit its own function segment.
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess'
+
       Policies:
       - PolicyName: CleanupLambdaResourceAccessPolicies
         PolicyDocument:
@@ -1331,6 +1354,13 @@ Resources:
           DOC_INDEX_TABLE: !Ref DocIndexTable
           PARAM_STORE_PATH: !Ref ParameterStoreHierarchy
           DEPLOY_ENVIRONMENT: !Ref DeployEnvironment
+
+          # X-Ray downstream tracing (spec 0-0-6). CACHE_DATA_AWS_X_RAY_ON gates the X-Ray
+          # capture wrapping in both @63klabs/cache-data and this project's xray-capture
+          # helper. AWS_XRAY_CONTEXT_MISSING: IGNORE_ERROR is defensive so a flag-true/
+          # tracing-off mismatch does not surface as an error (Requirement 7.2).
+          CACHE_DATA_AWS_X_RAY_ON: true
+          AWS_XRAY_CONTEXT_MISSING: IGNORE_ERROR
 
           # Documentation AI (Semantic Search) Settings
           # Feature defaults OFF (DOC_AI_ENABLED = "false"); parsed defensively by

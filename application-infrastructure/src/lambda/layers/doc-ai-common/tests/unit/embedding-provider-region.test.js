@@ -142,6 +142,82 @@ describe('EmbeddingProvider — cross-region', () => {
     });
   });
 
+  /**
+   * Regression guard for spec 0-0-6-xray-downstream-tracing, task 3.5: `captureClient()`
+   * wraps the BedrockRuntimeClient STRICTLY AFTER construction (design Component 2), so
+   * the region-override config object reaching the constructor must be identical whether
+   * or not X-Ray wrapping is active. The describe blocks above exercise the default
+   * (X-Ray disabled) path; this block re-confirms the same config shapes with X-Ray
+   * wrapping ENABLED, using fresh module instances since the gate is read at module load.
+   *
+   * **Validates: Requirements 7.1, 7.3**
+   */
+  describe('client construction region pass-through — unaffected by captureClient() wrapping (Req 7.1, 7.3)', () => {
+    const ORIGINAL_ENV = process.env;
+
+    beforeEach(() => {
+      jest.resetModules();
+      process.env = { ...ORIGINAL_ENV, CACHE_DATA_AWS_X_RAY_ON: 'true' };
+    });
+
+    afterEach(() => {
+      process.env = ORIGINAL_ENV;
+      jest.restoreAllMocks();
+    });
+
+    /**
+     * Load a fresh copy of EmbeddingProvider with `aws-xray-sdk-core` mocked (so
+     * `captureClient()` actually wraps) and `@aws-sdk/client-bedrock-runtime` mocked to
+     * record the config object passed to the constructor.
+     *
+     * @returns {{EmbeddingProvider: Function, constructorArgs: Array<Object>, captureAWSv3Client: jest.Mock}} Fresh module + test doubles.
+     */
+    function loadFreshProviderWithXrayEnabled() {
+      const captureAWSv3Client = jest.fn((client) => client);
+      jest.doMock('aws-xray-sdk-core', () => ({ captureAWSv3Client }));
+
+      const constructorArgs = [];
+      const send = jest.fn().mockResolvedValue(titanResponse([0, 0.1, 0.2, 0.3]));
+      jest.doMock('@aws-sdk/client-bedrock-runtime', () => {
+        const actual = jest.requireActual('@aws-sdk/client-bedrock-runtime');
+        return {
+          ...actual,
+          BedrockRuntimeClient: jest.fn().mockImplementation((config) => {
+            constructorArgs.push(config);
+            return { send };
+          })
+        };
+      });
+
+      const { EmbeddingProvider: FreshEmbeddingProvider } = require('../../nodejs/embedding-provider');
+      return { EmbeddingProvider: FreshEmbeddingProvider, constructorArgs, captureAWSv3Client };
+    }
+
+    it('still constructs the client with { region } when a region is configured, even though captureClient() wraps it', async () => {
+      const { EmbeddingProvider: FreshEmbeddingProvider, constructorArgs, captureAWSv3Client } =
+        loadFreshProviderWithXrayEnabled();
+      const provider = new FreshEmbeddingProvider({ dimensions: 4, region: 'us-east-1' });
+
+      await provider.embed('hello');
+
+      // >! Wrapping happens strictly AFTER construction, so the config object passed to
+      // >! the constructor is byte-identical to the X-Ray-disabled case.
+      expect(constructorArgs).toEqual([{ region: 'us-east-1' }]);
+      expect(captureAWSv3Client).toHaveBeenCalledTimes(1);
+    });
+
+    it('still constructs the client with {} (no region) when region is unset, even though captureClient() wraps it', async () => {
+      const { EmbeddingProvider: FreshEmbeddingProvider, constructorArgs, captureAWSv3Client } =
+        loadFreshProviderWithXrayEnabled();
+      const provider = new FreshEmbeddingProvider({ dimensions: 4 });
+
+      await provider.embed('hello');
+
+      expect(constructorArgs).toEqual([{}]);
+      expect(captureAWSv3Client).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe('error classification (Req 10.5)', () => {
     const modelUnavailableNames = [
       'ResourceNotFoundException',

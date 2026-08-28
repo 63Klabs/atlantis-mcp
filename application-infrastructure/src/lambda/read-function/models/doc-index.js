@@ -4,6 +4,7 @@ const { tools: { DebugAndLog } } = require('@63klabs/cache-data');
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const { DynamoDBDocumentClient, GetCommand, QueryCommand, BatchGetCommand } = require('@aws-sdk/lib-dynamodb');
 const { Config } = require('../config');
+const { captureClient } = require('../utils/xray-capture');
 
 /**
  * Maximum keys per DynamoDB BatchGetItem request.
@@ -83,7 +84,12 @@ let docClient = null;
  */
 function getDocClient() {
 	if (!docClient) {
-		const client = new DynamoDBClient({});
+		// >! Wrap the RAW DynamoDBClient, then build the document client from the wrapped
+		// >! instance. The document client delegates transmission to this client, so the
+		// >! X-Ray middleware is in the stack that issues the request. Mirrors cache-data's
+		// >! AWS.classes.js. Do NOT also wrap the document client — that risks duplicate
+		// >! subsegments (spec 0-0-6-xray-downstream-tracing, Requirement 3.1).
+		const client = captureClient(new DynamoDBClient({}));
 		docClient = DynamoDBDocumentClient.from(client, {
 			marshallOptions: { removeUndefinedValues: true }
 		});

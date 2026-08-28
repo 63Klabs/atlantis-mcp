@@ -18,9 +18,10 @@
   ],
   "author": "63Klabs",
   "license": "MIT",
-  "//": ">! RUNTIME/SECURITY NOTE: @aws-sdk/client-s3vectors is intentionally the SINGLE bundled PRODUCTION dependency. Per AGENTS.md the AWS SDK is normally provided by the Lambda runtime and must NOT be bundled (that is why the other @aws-sdk clients below stay in devDependencies, used only by tests). The S3 Vectors client is too new to be guaranteed present in the nodejs24.x runtime; vector-store-s3.js requires it at runtime on the DOC_AI_VECTOR_STORE=s3-vectors path, and the buildspec builds layers with `npm ci --omit=dev`, so leaving it in devDependencies would omit it from the deployed layer and crash the s3-vectors path at runtime. Bundling it here mirrors the s3-vectors-provisioner precedent.",
+  "//": ">! RUNTIME/SECURITY NOTE: @aws-sdk/client-s3vectors and aws-xray-sdk-core are intentionally the bundled PRODUCTION dependencies. Per AGENTS.md the AWS SDK is normally provided by the Lambda runtime and must NOT be bundled (that is why the other @aws-sdk clients below stay in devDependencies, used only by tests). The S3 Vectors client is too new to be guaranteed present in the nodejs24.x runtime; vector-store-s3.js requires it at runtime on the DOC_AI_VECTOR_STORE=s3-vectors path, and the buildspec builds layers with `npm ci --omit=dev`, so leaving it in devDependencies would omit it from the deployed layer and crash the s3-vectors path at runtime. Bundling it here mirrors the s3-vectors-provisioner precedent. aws-xray-sdk-core is bundled for the same reason: the Lambda managed Node.js runtime does NOT provide it, xray-capture.js requires it at runtime to instrument the Bedrock/S3 Vectors clients (spec 0-0-6-xray-downstream-tracing), and a devDependencies placement would be silently omitted from the deployed layer, disabling X-Ray downstream subsegments without any error.",
   "dependencies": {
-    "@aws-sdk/client-s3vectors": "^3.1000.0"
+    "@aws-sdk/client-s3vectors": "^3.1000.0",
+    "aws-xray-sdk-core": "3.12.0"
   },
   "devDependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.1000.0",

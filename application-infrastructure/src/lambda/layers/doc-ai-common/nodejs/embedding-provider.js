@@ -46,6 +46,7 @@
 
 // >! AWS SDK v3 is provided by the Lambda runtime; require it normally (do NOT bundle).
 const { BedrockRuntimeClient, InvokeModelCommand } = require('@aws-sdk/client-bedrock-runtime');
+const { captureClient } = require('./xray-capture');
 
 /**
  * Approximate characters-per-token ratio used to derive a character budget from a
@@ -281,7 +282,12 @@ class EmbeddingProvider {
       // >! (Requirement 10.1) pin the client to it; otherwise pass no region so the SDK
       // >! default provider chain resolves it from the Lambda environment (AWS_REGION) —
       // >! byte-identical to prior behavior. Never hardcode a region or credentials here.
-      this.#client = new BedrockRuntimeClient(this.region ? { region: this.region } : {});
+      // >! captureClient() wraps the CONSTRUCTED instance (never the config), so mocks of
+      // >! the constructor still observe the same config argument passed here (spec
+      // >! 0-0-6-xray-downstream-tracing, Requirement 1.1).
+      this.#client = captureClient(
+        new BedrockRuntimeClient(this.region ? { region: this.region } : {})
+      );
     }
     return this.#client;
   }

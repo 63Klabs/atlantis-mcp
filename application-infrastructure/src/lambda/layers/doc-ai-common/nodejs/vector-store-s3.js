@@ -90,6 +90,7 @@ const {
 } = require('@aws-sdk/client-s3vectors');
 
 const { VectorStore, VectorStoreError } = require('./vector-store');
+const { captureClient } = require('./xray-capture');
 
 /**
  * Separator between the version prefix and the content hash in an S3 Vectors key
@@ -176,7 +177,9 @@ function getS3VectorsClient() {
   if (!s3VectorsClient) {
     // >! The SDK default provider chain resolves the region from the Lambda environment
     // >! (AWS_REGION); do not hardcode a region or credentials.
-    s3VectorsClient = new S3VectorsClient({});
+    // >! captureClient() wraps the CONSTRUCTED instance so S3 Vectors calls are recorded as
+    // >! X-Ray downstream subsegments (spec 0-0-6-xray-downstream-tracing, Requirement 2.1).
+    s3VectorsClient = captureClient(new S3VectorsClient({}));
   }
   return s3VectorsClient;
 }

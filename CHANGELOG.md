@@ -31,6 +31,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`search_documentation`: `availableFilters` facets and refine-by-filter suggestions** [Spec: 0-0-6-documentation-index-enhancement](../.kiro/specs/0-0-6-documentation-index-enhancement/) — Additive, optional `availableFilters` block listing the distinct `type`/`subType` values (with counts) present in a result set; when `totalResults` is large the existing `suggestions` field is populated with a "narrow by type/subType" hint
 - **`search_documentation`: exact-phrase ranking boost** [Spec: 0-0-6-documentation-index-enhancement](../.kiro/specs/0-0-6-documentation-index-enhancement/) — Keyword-mode results whose title or excerpt contain the full query phrase are boosted and re-sorted to the top of the relevance ordering; semantic/semantic-assisted ranking is unaffected
 - **doc-indexer: boundary-aware excerpts** [Spec: 0-0-6-documentation-index-enhancement](../.kiro/specs/0-0-6-documentation-index-enhancement/) — Excerpts now prefer the first prose paragraph over leading markdown tables/code fences and trim at a sentence or word boundary, replacing the previous hard character cut that could end mid-word or mid-table row
+- **X-Ray Downstream Tracing** [Spec: 0-0-6-xray-downstream-tracing](../.kiro/specs/0-0-6-xray-downstream-tracing/) — Closed the gap where AWS X-Ray traces stopped at the Lambda node and never showed downstream calls, despite active tracing being enabled stack-wide
+  - Downstream X-Ray subsegments are now recorded for DynamoDB, S3, Bedrock, and S3 Vectors calls across the Read_Function, Auth_Function, Doc_Indexer, and the shared `doc-ai-common` Lambda Layer, via a new conditional `captureClient()` helper (gated on `CACHE_DATA_AWS_X_RAY_ON`/`CacheData_AWSXRayOn`, degrading to an unwrapped client when tracing is disabled or `aws-xray-sdk-core` is unavailable)
+  - Activated `@63klabs/cache-data`'s existing (previously inert) X-Ray wrapping for the Read_Function's DynamoDB/S3 calls by declaring `aws-xray-sdk-core` as a production dependency
+  - Fixed a pre-existing IAM gap: `AuthLambdaExecutionRole` and `CleanupExecutionRole` now attach the `AWSXRayDaemonWriteAccess` managed policy (previously missing despite `Globals.Function.Tracing: Active` applying stack-wide), so both functions can emit their own function segments
+  - AWS SDK v3 X-Ray subsegments carry no resource names, so operators should expect generic per-service nodes (e.g. "DynamoDB", "Bedrock Runtime") rather than per-table or per-bucket nodes in the X-Ray service map
 
 ### Changed
 - **Source Restructure: Single-Src to Multi-Src** [Spec: 0-0-6-update-to-multi-resource-spec](../.kiro/specs/0-0-6-update-to-multi-resource-spec/) — Reorganized `application-infrastructure/src/` into the Atlantis multi-resource layout so each deployable resource is fully self-contained
@@ -48,6 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Dependencies
 - **`doc-ai-common` Lambda Layer** [Spec: 0-0-6-bedrock-documentation-semantic-search](../.kiro/specs/0-0-6-bedrock-documentation-semantic-search/) — Bundles `@aws-sdk/client-s3vectors` as its single production dependency for the `s3-vectors` path (that client is not yet guaranteed in the Lambda runtime); all other AWS SDK clients remain dev-only and are provided by the runtime
+- **`aws-xray-sdk-core@3.12.0`** [Spec: 0-0-6-xray-downstream-tracing](../.kiro/specs/0-0-6-xray-downstream-tracing/) — Added as a pinned production dependency to `read-function`, `auth-function`, `doc-indexer`, and the `doc-ai-common` layer, because the AWS Lambda managed Node.js runtime does not provide it
 
 ## [v0.0.5] (2026-05-07)
 
