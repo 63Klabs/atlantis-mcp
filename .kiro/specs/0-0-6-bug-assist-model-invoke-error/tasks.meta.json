@@ -1,0 +1,60 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "4.1 Run `sam validate` (and cfn-lint if configured) on": [
+      {
+        "executionId": "eac797e2-3e14-460a-8ded-a0ca0ae06f79",
+        "chatSessionId": "sess_de8ac8c3-c081-4db9-a665-f7ed2e9cbd66",
+        "timestamp": 1788198758680
+      },
+      {
+        "executionId": "eac797e2-3e14-460a-8ded-a0ca0ae06f79",
+        "chatSessionId": "sess_de8ac8c3-c081-4db9-a665-f7ed2e9cbd66",
+        "timestamp": 1788199124545
+      }
+    ],
+    "4.2 With default parameters, confirm `ReadDocAiPolicy` renders an": [
+      {
+        "executionId": "eac797e2-3e14-460a-8ded-a0ca0ae06f79",
+        "chatSessionId": "sess_de8ac8c3-c081-4db9-a665-f7ed2e9cbd66",
+        "timestamp": 1788198759834
+      },
+      {
+        "executionId": "eac797e2-3e14-460a-8ded-a0ca0ae06f79",
+        "chatSessionId": "sess_de8ac8c3-c081-4db9-a665-f7ed2e9cbd66",
+        "timestamp": 1788199125581
+      }
+    ],
+    "4.3 With `DocAiAssistProfileRegions=\"\"`, confirm the empty branch renders": [
+      {
+        "executionId": "eac797e2-3e14-460a-8ded-a0ca0ae06f79",
+        "chatSessionId": "sess_de8ac8c3-c081-4db9-a665-f7ed2e9cbd66",
+        "timestamp": 1788198761023
+      },
+      {
+        "executionId": "eac797e2-3e14-460a-8ded-a0ca0ae06f79",
+        "chatSessionId": "sess_de8ac8c3-c081-4db9-a665-f7ed2e9cbd66",
+        "timestamp": 1788199126733
+      }
+    ],
+    "4.4 Confirm `DOC_AI_ASSIST_MODEL` on the read-function resolves to": [
+      {
+        "executionId": "eac797e2-3e14-460a-8ded-a0ca0ae06f79",
+        "chatSessionId": "sess_de8ac8c3-c081-4db9-a665-f7ed2e9cbd66",
+        "timestamp": 1788198762074
+      },
+      {
+        "executionId": "eac797e2-3e14-460a-8ded-a0ca0ae06f79",
+        "chatSessionId": "sess_de8ac8c3-c081-4db9-a665-f7ed2e9cbd66",
+        "timestamp": 1788199127859
+      }
+    ],
+    "4. Verify the rendered template": [
+      {
+        "executionId": "eac797e2-3e14-460a-8ded-a0ca0ae06f79",
+        "chatSessionId": "sess_de8ac8c3-c081-4db9-a665-f7ed2e9cbd66",
+        "timestamp": 1788199128062
+      }
+    ]
+  }
+}

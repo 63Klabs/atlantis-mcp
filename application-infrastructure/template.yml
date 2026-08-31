@@ -112,6 +112,7 @@ Metadata:
           - DocAiEmbeddingDimensions
           - DocAiEmbeddingMaxInputTokens
           - DocAiAssistModel
+          - DocAiAssistFoundationModel
           - DocAiAssistMaxCandidates
           - DocAiTopK
           - DocAiCandidateMultiplier
@@ -476,7 +477,14 @@ Parameters:
 
   DocAiAssistModel:
     Type: String
-    Description: "Bedrock small model ID used only in 'semantic-assisted' mode for query expansion / re-ranking (DOC_AI_ASSIST_MODEL). Public model identifier, not a secret."
+    Description: "Bedrock invoke ID used only in 'semantic-assisted' mode for query expansion / re-ranking (DOC_AI_ASSIST_MODEL and the inference-profile ARN). Defaults to the Geo (US) cross-region inference profile for Amazon Nova Micro so the stack works out of the box in us-east-1, us-east-2, and us-west-2; may also be set to a plain on-demand foundation-model ID. Public model identifier, not a secret."
+    Default: "us.amazon.nova-micro-v1:0"
+    AllowedPattern: "^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$"
+    ConstraintDescription: "Must be a Bedrock model identifier (letters, numbers, and . _ : - characters)."
+
+  DocAiAssistFoundationModel:
+    Type: String
+    Description: "Plain Bedrock foundation-model ID that the DocAiAssistModel inference profile routes to. Used only to build the destination-region IAM grant when DocAiAssistProfileRegions is non-empty; ignored (and the assist model is invoked directly) when DocAiAssistProfileRegions is empty. Public model identifier, not a secret."
     Default: "amazon.nova-micro-v1:0"
     AllowedPattern: "^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$"
     ConstraintDescription: "Must be a Bedrock model identifier (letters, numbers, and . _ : - characters)."
@@ -528,8 +536,8 @@ Parameters:
 
   DocAiAssistProfileRegions:
     Type: CommaDelimitedList
-    Description: "Optional comma-delimited list of AWS regions a cross-region ASSIST inference profile may route to (used only for IAM Resource scoping; not passed to the Lambda runtime). Leave empty (default) to grant only the single plain foundation-model ARN. When non-empty, set DocAiAssistModel to an inference-profile id: the assist IAM policy then grants the inference-profile ARN plus the assist foundation model restricted to exactly these regions via the aws:RequestedRegion condition key (AWS's documented cross-region inference pattern - still model-pinned and least-privilege)."
-    Default: ""
+    Description: "Comma-delimited list of AWS regions the DocAiAssistModel cross-region inference profile may route to (used only for IAM Resource scoping; not passed to the Lambda runtime). Defaults to the Geo (US) destination regions for the default Nova Micro inference profile. When non-empty, DocAiAssistModel must be an inference-profile id: the assist IAM policy grants the inference-profile ARN plus the plain foundation model named by DocAiAssistFoundationModel, restricted to exactly these regions via the aws:RequestedRegion condition key (AWS's documented cross-region inference pattern - still model-pinned and least-privilege). Set to empty to fall back to a single in-region plain foundation-model ARN (requires DocAiAssistModel to be a plain foundation-model id, e.g. for strict in-region us-east-1 on-demand invocation)."
+    Default: "us-east-1,us-east-2,us-west-2"
 
 # =============================================================================
 # MAPPINGS
@@ -1634,13 +1642,14 @@ Resources:
   # >!     layer nodejs/vector-store-s3.js): the read role gets Query only; the indexer gets
   # >!     write/reuse/cleanup only. Neither gets the other's actions.
   # >! Inference-profile handling:
-  # >!   - ASSIST (cross-region IS supported): when an operator sets DocAiAssistProfileRegions
-  # >!     and points DocAiAssistModel at a cross-region INFERENCE-PROFILE id, the assist grant
-  # >!     in ReadDocAiPolicy broadens to the inference-profile ARN PLUS the underlying assist
-  # >!     foundation model, clamped to exactly the listed regions via the aws:RequestedRegion
-  # >!     condition key (AWS's documented cross-region inference IAM pattern - still model-pinned,
-  # >!     no model wildcard). When DocAiAssistProfileRegions is empty (default), the assist grant
-  # >!     stays a single on-demand foundation-model ARN, unchanged from the original behavior.
+  # >!   - ASSIST (cross-region IS supported): by default DocAiAssistProfileRegions is
+  # >!     non-empty and DocAiAssistModel points at a cross-region INFERENCE-PROFILE id, so the
+  # >!     assist grant in ReadDocAiPolicy broadens to the inference-profile ARN PLUS the
+  # >!     underlying plain assist foundation model (DocAiAssistFoundationModel), clamped to
+  # >!     exactly the listed regions via the aws:RequestedRegion condition key (AWS's documented
+  # >!     cross-region inference IAM pattern - still model-pinned, no model wildcard). Setting
+  # >!     DocAiAssistProfileRegions to empty reverts DocAiAssistModel to a plain on-demand
+  # >!     foundation-model ARN with no condition (byte-identical to the pre-cross-region grant).
   # >!   - EMBEDDING still assumes an on-demand FOUNDATION model. Embedding models cannot use
   # >!     inference profiles, so cross-region embedding is handled by pointing the embedding
   # >!     client at DocAiEmbeddingRegion (a hard region pin), not by broadening this ARN.
@@ -1680,18 +1689,23 @@ Resources:
           # -- Assist-model invoke (semantic-assisted re-rank), cross-region aware --
           # >! Cross-region assist scoping via AWS's documented aws:RequestedRegion pattern
           # >! (no Fn::ForEach, no AWS::LanguageExtensions transform - see the section header):
-          # >!   - DocAiAssistProfileRegions EMPTY (default): a single plain assist
-          # >!     foundation-model ARN, no condition - byte-identical to the original grant.
-          # >!   - DocAiAssistProfileRegions NON-EMPTY: DocAiAssistModel is expected to be an
-          # >!     INFERENCE-PROFILE id, and the grant becomes two statements - (1) the
-          # >!     inference-profile ARN and (2) the underlying assist foundation model via a
-          # >!     region-wildcard ARN CLAMPED by aws:RequestedRegion to exactly the listed
-          # >!     regions. Still model-pinned and least-privilege: no model wildcard, and the
-          # >!     region wildcard is constrained by the condition to the operator-listed regions.
+          # >!   - DocAiAssistProfileRegions EMPTY: a single plain assist foundation-model ARN
+          # >!     keyed on DocAiAssistModel, no condition - byte-identical to the original
+          # >!     grant (DocAiAssistModel is expected to be a plain foundation-model id here).
+          # >!   - DocAiAssistProfileRegions NON-EMPTY (default): DocAiAssistModel is expected to
+          # >!     be an INFERENCE-PROFILE id (e.g. the Geo-US default us.amazon.nova-micro-v1:0),
+          # >!     and the grant becomes two statements - (1) the inference-profile ARN (keyed on
+          # >!     DocAiAssistModel, the invoke id) and (2) the underlying plain assist foundation
+          # >!     model (keyed on DocAiAssistFoundationModel, NOT DocAiAssistModel - the profile
+          # >!     id is not a valid foundation-model ARN segment) via a region-wildcard ARN
+          # >!     CLAMPED by aws:RequestedRegion to exactly the listed regions. Still model-pinned
+          # >!     and least-privilege: no model wildcard, and the region wildcard is constrained
+          # >!     by the condition to the operator-listed regions.
           # >! The two shapes are toggled by the existing HasDocAiAssistProfileRegions condition.
           - !If
             - HasDocAiAssistProfileRegions
-            # Non-empty branch, statement 1 of 2: the inference-profile ARN itself.
+            # Non-empty branch, statement 1 of 2: the inference-profile ARN itself, keyed on the
+            # invoke id (DocAiAssistModel).
             # >! Unlike a foundation-model ARN, an inference-profile ARN carries BOTH region AND
             # >! account id (single colons around ${AWS::AccountId}) - it is an account-scoped,
             # >! regional resource. Model-pinned to the specific profile id, no wildcard.
@@ -1701,7 +1715,8 @@ Resources:
               - bedrock:InvokeModel
               Resource:
               - !Sub 'arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/${DocAiAssistModel}'
-            # Empty (default) branch: single plain assist foundation-model ARN, no condition.
+            # Empty branch: single plain assist foundation-model ARN, keyed on DocAiAssistModel
+            # (expected to be a plain foundation-model id in this branch), no condition.
             # >! No account id (double colon). Byte-identical assist grant to the original behavior.
             - Sid: BedrockInvokeAssistModel
               Effect: Allow
@@ -1712,16 +1727,18 @@ Resources:
 
           - !If
             - HasDocAiAssistProfileRegions
-            # Non-empty branch, statement 2 of 2: the assist foundation model the profile routes
-            # >! to, region-wildcarded but CLAMPED by aws:RequestedRegion to exactly the
-            # >! operator-listed DocAiAssistProfileRegions (a CommaDelimitedList renders as the
-            # >! JSON array the condition value expects). Omitted entirely in the empty branch.
+            # Non-empty branch, statement 2 of 2: the plain assist foundation model the profile
+            # routes to, keyed on DocAiAssistFoundationModel (NOT the invoke/profile id
+            # DocAiAssistModel - a foundation-model ARN cannot resolve a profile id), region-
+            # >! wildcarded but CLAMPED by aws:RequestedRegion to exactly the operator-listed
+            # >! DocAiAssistProfileRegions (a CommaDelimitedList renders as the JSON array the
+            # >! condition value expects). Omitted entirely in the empty branch.
             - Sid: BedrockInvokeAssistModelRegionClamped
               Effect: Allow
               Action:
               - bedrock:InvokeModel
               Resource:
-              - !Sub 'arn:aws:bedrock:*::foundation-model/${DocAiAssistModel}'
+              - !Sub 'arn:aws:bedrock:*::foundation-model/${DocAiAssistFoundationModel}'
               Condition:
                 StringEquals:
                   aws:RequestedRegion: !Ref DocAiAssistProfileRegions
