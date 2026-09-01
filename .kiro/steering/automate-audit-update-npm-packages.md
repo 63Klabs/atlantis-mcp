@@ -11,28 +11,37 @@ Steps:
 
 2. **For each package.json found**, perform the following in its directory:
 
-   a. **Run `npm audit --json`** to identify known vulnerabilities. Parse the JSON output to understand which packages are affected, severity levels (critical, high, moderate, low), and whether they are direct or transitive dependencies.
+   a. **Run `npm audit --json`** to identify known vulnerabilities. Parse the JSON output to understand which packages are affected, severity levels (critical, high, moderate, low), and — critically — check the `isDirect` field on each vulnerability entry to determine whether the package is a **direct** dependency (listed in this `package.json`'s `dependencies`/`devDependencies`) or a **transitive** dependency (pulled in only by another package, with no entry of its own in `package.json`).
 
    b. **Categorize findings**:
       - Production dependencies (`dependencies`) are the highest priority — these MUST be updated if a fix is available.
       - Dev dependencies (`devDependencies`) should also be updated if a fix is available, but are lower priority.
 
-   c. **Respect version pinning conventions**:
-      - If a package uses an exact pin (e.g., `"1.2.3"` with no prefix), keep it as an exact pin but update to the fixed version.
-      - If a package uses a caret range (`^1.2.3`), update the caret range to the minimum version that includes the fix (e.g., `^1.2.5`).
-      - If a package uses a tilde range (`~1.2.3`), update the tilde range similarly.
+   c. **Direct dependencies: edit `package.json` explicitly. Never rely on `npm audit fix` alone.**
+      - For every vulnerable package where `isDirect: true`, you MUST edit the version string in `package.json` directly to the minimum fixed version, even if the *existing* range would already technically permit resolving to a patched version (e.g. `^4.1.0` may already satisfy a fix at `4.3.1` — bump it anyway to `^4.3.1`). Do not leave a stale-looking floor and rely on the installer's implicit resolution; the `package.json` version string is the audit trail of what was actually done and why.
+      - Respect the existing pinning convention when writing the new version:
+        - Exact pin (`"1.2.3"`) → exact pin at the fixed version.
+        - Caret range (`^1.2.3`) → caret range at the fixed version (e.g., `^1.2.5`).
+        - Tilde range (`~1.2.3`) → tilde range at the fixed version.
       - Do NOT change the pinning strategy (e.g., don't switch from exact to caret, or from caret to tilde).
       - If a major version bump is required to fix a vulnerability, flag it clearly in the report but still apply the update with the same range prefix. Note any potential breaking changes.
+      - After editing, verify with `npm ls <package>` that the installed version actually resolves to the new floor (not just that the range permits it).
 
-   d. **Run `npm install`** after updating package.json to regenerate the lock file.
+   d. **Transitive-only dependencies: use `npm audit fix` or `npm install`, and say so in the report.**
+      - For vulnerabilities where `isDirect: false` and the package has no entry in this `package.json`, there is no version string for you to edit — the fix can only come from re-resolving the lock file (a newer transitive version satisfies the parent package's declared range) or, if unresolved, from `npm audit fix --force` (which may bump a direct parent's version) or manual `overrides`/`resolutions` (only if the user explicitly authorizes adding those, since step 4 forbids adding new dependency entries without approval).
+      - Explicitly note in the report which vulnerabilities were transitive-only and were resolved via lock-file re-resolution rather than a `package.json` edit, so this is never mistaken for a direct-dependency fix.
 
-   e. **Run `npm audit`** again to confirm vulnerabilities have been resolved. If any remain, report them with details on why they couldn't be fixed (e.g., no patched version available, transitive dependency issue).
+   e. **Run `npm install`** after any `package.json` edits to regenerate the lock file, and re-run it even if no `package.json` edits were made (to pick up transitive fixes).
 
-   f. **Run `npm test`** to verify nothing is broken by the updates. Report test results.
+   f. **Run `npm audit`** again to confirm vulnerabilities have been resolved. If any remain, report them with details on why they couldn't be fixed (e.g., no patched version available, transitive dependency issue).
+
+   g. **Run `npm test`** to verify nothing is broken by the updates. Report test results.
 
 3. **Generate a summary report** that includes:
    - Each package.json file processed
-   - For each: packages updated (old version → new version), whether prod or dev, vulnerability severity addressed
+   - For each: packages updated (old version → new version), whether prod or dev, whether direct or transitive, vulnerability severity addressed
+   - For direct dependencies: confirm the `package.json` version string was edited (not just the lock file)
+   - For transitive-only dependencies: state explicitly that no `package.json` edit was possible/made and the fix came from lock-file re-resolution
    - Any vulnerabilities that could NOT be remediated and why
    - Any major version bumps that were applied (potential breaking changes)
    - Test results (pass/fail)
