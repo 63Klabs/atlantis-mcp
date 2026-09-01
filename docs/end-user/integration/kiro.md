@@ -98,22 +98,23 @@ Configure which tools run without confirmation:
       "url": "https://mcp.atlantis.63klabs.net/mcp/v1",
       "disabled": false,
       "autoApprove": [
-        "validate_naming",
-        "list_categories",
+        "list_tools",
         "list_templates",
         "get_template",
         "list_template_versions",
-        "list_tools",
+        "list_categories",
         "list_starters",
         "get_starter_info",
         "search_documentation",
         "get_document",
         "get_document_chunk",
+        "validate_naming",
         "check_template_updates",
         "get_template_chunk",
         "list_agent_assets",
         "get_agent_asset",
-        "list_agent_asset_types"
+        "list_agent_asset_types",
+        "get_agent_asset_chunk"
       ]
     }
   }
