@@ -60,25 +60,25 @@ This is a configuration + IAM-only fix. No application code (`assist-provider.js
         `us.amazon.nova-micro-v1:0` under default parameters.
   - _Requirements: bugfix.md 2.1, 3.2, 3.3; Design: Verification Plan_
 
-- [ ] 5. Confirm no behavioral regression in the doc-ai-common layer
+- [x] 5. Confirm no behavioral regression in the doc-ai-common layer
   - Run the existing Jest suites for the `doc-ai-common` layer (assist-provider,
     retrieval-strategy, embedding-provider) with `npm run test:all` per the
     project's test rules. No code changed, so all must pass unchanged; the
     graceful-degrade tests confirm bugfix.md 3.1 is preserved.
   - _Requirements: bugfix.md 3.1, 3.2, 3.3_
 
-- [ ] 6. Documentation and changelog
-  - [ ] 6.1 Ensure the three assist parameter descriptions in `template.yml` are
+- [x] 6. Documentation and changelog
+  - [x] 6.1 Ensure the three assist parameter descriptions in `template.yml` are
         accurate and mutually consistent (invoke ID vs plain FM vs profile
         regions).
-  - [ ] 6.2 Add a `Fixed` entry under `v0.0.6 (unreleased)` in `CHANGELOG.md`
+  - [x] 6.2 Add a `Fixed` entry under `v0.0.6 (unreleased)` in `CHANGELOG.md`
         referencing this spec, noting the new Geo-US inference-profile default
         for the assist model and the corrected cross-region assist IAM grant.
-  - [ ] 6.3 If DEPLOYMENT.md / docs document `DocAi*` parameters, update them for
+  - [x] 6.3 If DEPLOYMENT.md / docs document `DocAi*` parameters, update them for
         the new `DocAiAssistFoundationModel` parameter and changed defaults.
   - _Design: Documentation / Changelog_
 
-- [ ] 7. Post-deploy validation (us-east-2)
+- [x] 7. Post-deploy validation (us-east-2)
   - After deploy, issue a `semantic-assisted` `search_documentation` request and
     confirm re-ranked results are returned with no `doc_ai_bedrock_model_unavailable`
     ERROR line and no assist re-rank WARN degrade in the read-function logs.

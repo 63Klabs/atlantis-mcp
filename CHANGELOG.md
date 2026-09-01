@@ -5,7 +5,14 @@ All notable changes to the Atlantis MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## v0.0.6 (unreleased)
+## v0.0.6 (2026-09-01)
+
+Big enhancements:
+
+- AI assisted documentation search
+- Access to Agent Asset Tools (such as steering documents)
+
+> Learn more about the AI-assisted documentation search below. Note, this is currently enabled by default for a limited time. It will be disabled by default when moving to v0.1.0. It is also currently enabled only for users of the paid or private tier.
 
 ### Added
 - **Agent Asset Tools** [Spec: 0-0-6-agent-asset-tools](../.kiro/specs/0-0-6-agent-asset-tools/) — New registry-driven MCP tools (`list_agent_assets`, `get_agent_asset`, `list_agent_asset_types`, `get_agent_asset_chunk`) that serve example Kiro agent assets — steering documents, hooks, and AGENTS.md files — from the existing S3 buckets and namespaces already used for templates and starters, under a new `{namespace}/utilities/v2/agent_assets/{type}/` prefix; no new AWS infrastructure or bucket tags required

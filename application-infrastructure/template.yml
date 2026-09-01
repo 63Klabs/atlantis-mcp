@@ -477,7 +477,7 @@ Parameters:
 
   DocAiAssistModel:
     Type: String
-    Description: "Bedrock invoke ID used only in 'semantic-assisted' mode for query expansion / re-ranking (DOC_AI_ASSIST_MODEL and the inference-profile ARN). Defaults to the Geo (US) cross-region inference profile for Amazon Nova Micro so the stack works out of the box in us-east-1, us-east-2, and us-west-2; may also be set to a plain on-demand foundation-model ID. Public model identifier, not a secret."
+    Description: "Bedrock invoke ID used only in 'semantic-assisted' mode for query expansion / re-ranking (DOC_AI_ASSIST_MODEL and the source-region inference-profile ARN). Defaults to the Geo (US) cross-region inference profile for Amazon Nova Micro so the stack works out of the box in us-east-1, us-east-2, and us-west-2; may also be set to a plain on-demand foundation-model ID. The underlying plain foundation-model ID used for the destination-region IAM grant lives in DocAiAssistFoundationModel. Public model identifier, not a secret."
     Default: "us.amazon.nova-micro-v1:0"
     AllowedPattern: "^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$"
     ConstraintDescription: "Must be a Bedrock model identifier (letters, numbers, and . _ : - characters)."

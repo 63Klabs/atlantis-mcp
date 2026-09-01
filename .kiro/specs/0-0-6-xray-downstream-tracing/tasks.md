@@ -235,7 +235,7 @@ All four packages resolve tests with `testMatch: ['**/tests/**/*.test.js']` and 
     - No `docs/end-user` change — there is no user-visible behavior change
     - _Requirements: 4.2, 7.1_
 
-  - [~] 11.4 Post-deploy trace verification (operator-performed, not executable by a coding agent)
+  - [x] 11.4 Post-deploy trace verification (operator-performed, not executable by a coding agent)
     - This is the only way to confirm the IAM attachments and template environment variables took effect, and the only verification available for acceptance criterion 4.2
     - Exercise a documentation search (Read_Function) and an indexer run (Doc_Indexer), then confirm DynamoDB, S3, Bedrock, and S3 Vectors nodes appear in the X-Ray trace map and timeline
     - Confirm cache-data-mediated DynamoDB and S3 calls produce subsegments (criterion 4.2); cache-data's internal wrapping is third-party and tested upstream, so only its two enabling conditions are guaranteed here

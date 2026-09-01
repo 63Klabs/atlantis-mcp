@@ -55,6 +55,61 @@
         "chatSessionId": "sess_de8ac8c3-c081-4db9-a665-f7ed2e9cbd66",
         "timestamp": 1788199128062
       }
+    ],
+    "5. Confirm no behavioral regression in the doc-ai-common layer": [
+      {
+        "executionId": "e8c58a19-0ba5-4b84-8432-b5403b537b93",
+        "chatSessionId": "sess_40db4fdd-7a2a-469c-af46-8bc51929c498",
+        "timestamp": 1788225086286
+      },
+      {
+        "executionId": "e8c58a19-0ba5-4b84-8432-b5403b537b93",
+        "chatSessionId": "sess_40db4fdd-7a2a-469c-af46-8bc51929c498",
+        "timestamp": 1788225214549
+      }
+    ],
+    "6.1 Ensure the three assist parameter descriptions in `template.yml` are": [
+      {
+        "executionId": "beb78ca2-f12f-4540-952b-f3e303da2efb",
+        "chatSessionId": "sess_f992ed61-420d-457f-a5b9-ce1408913ae7",
+        "timestamp": 1788225272409
+      },
+      {
+        "executionId": "beb78ca2-f12f-4540-952b-f3e303da2efb",
+        "chatSessionId": "sess_f992ed61-420d-457f-a5b9-ce1408913ae7",
+        "timestamp": 1788225441183
+      }
+    ],
+    "6.2 Add a `Fixed` entry under `v0.0.6 (unreleased)` in `CHANGELOG.md`": [
+      {
+        "executionId": "beb78ca2-f12f-4540-952b-f3e303da2efb",
+        "chatSessionId": "sess_f992ed61-420d-457f-a5b9-ce1408913ae7",
+        "timestamp": 1788225273350
+      },
+      {
+        "executionId": "beb78ca2-f12f-4540-952b-f3e303da2efb",
+        "chatSessionId": "sess_f992ed61-420d-457f-a5b9-ce1408913ae7",
+        "timestamp": 1788225442452
+      }
+    ],
+    "6.3 If DEPLOYMENT.md / docs document `DocAi*` parameters, update them for": [
+      {
+        "executionId": "beb78ca2-f12f-4540-952b-f3e303da2efb",
+        "chatSessionId": "sess_f992ed61-420d-457f-a5b9-ce1408913ae7",
+        "timestamp": 1788225274111
+      },
+      {
+        "executionId": "beb78ca2-f12f-4540-952b-f3e303da2efb",
+        "chatSessionId": "sess_f992ed61-420d-457f-a5b9-ce1408913ae7",
+        "timestamp": 1788225443350
+      }
+    ],
+    "6. Documentation and changelog": [
+      {
+        "executionId": "beb78ca2-f12f-4540-952b-f3e303da2efb",
+        "chatSessionId": "sess_f992ed61-420d-457f-a5b9-ce1408913ae7",
+        "timestamp": 1788225443429
+      }
     ]
   }
 }
