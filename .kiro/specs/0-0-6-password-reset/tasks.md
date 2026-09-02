@@ -305,3 +305,32 @@ No new AWS resources, IAM permissions, API routes, or buildspec steps.
     - Note the `assetVersion` settings key and the shared validator asset under `### Changed`
     - Modify no existing changelog text
     - _Requirements: 13.4, 13.5_
+
+## Notes
+
+- Task 1 is a true prerequisite, not a convenience ordering: without the trigger-source fix, a successful `ConfirmForgotPassword` returns an API Gateway shaped response to Cognito and surfaces as `InvalidLambdaResponseException`. Verify it at checkpoint 2 before starting any UI work.
+- Task 3 and 4 (validator extraction and harness consolidation) are the highest-risk steps because they touch six currently-passing test files. No assertion may change; only page loading and asset resolution change. Checkpoint 5 exists solely to prove no regression.
+- `public/js/password-validator.js` must stay behaviorally identical to `src/lambda/auth-function/utils/password-validator.js`. Drift detection is the existing Property 1 in `registration-validation.property.jest.mjs` — no new drift test is added.
+- `apply-settings.js` processes only `.html` and `.json`, so the shared `.js` asset cannot carry `{{{settings.*}}}` tokens. Cache busting is done by the `?v={{{settings.assetVersion}}}` query on the referencing HTML pages.
+- Auth Lambda tests use `.test.js` (CommonJS); static-site tests use `.jest.mjs`. `tests/helpers/load-page.mjs` sits under `tests/` but is not collected as a suite because `testMatch` requires `.jest.mjs`.
+- No test in this feature spawns a child process or invokes an npm script. Property tests run at the 100-run `fast-check` default; resend timing tests use Jest fake timers with no real delays. Every suite restores mocks and clears pending timers in `afterEach`.
+- Error text is always assigned with `textContent`. `err.message` is never interpolated into markup, and no rendered message distinguishes an existing account from a non-existent one.
+- Scope exclusions verified by review rather than by test: no new AWS resources, IAM permissions, API Gateway paths, `EmailConfiguration`, custom message templates, or buildspec steps. A "no other change" constraint cannot be expressed as an assertion.
+- Checkpoint tasks (2, 5, 13, 17) are verification gates with no code deliverable and are therefore omitted from the dependency graph below.
+
+## Task Dependency Graph
+
+```json
+{
+  "waves": [
+    { "id": 0, "tasks": ["1.1", "3.1", "3.2", "12.1"] },
+    { "id": 1, "tasks": ["1.2", "1.3", "3.3", "4.1"] },
+    { "id": 2, "tasks": ["4.2", "6.1", "10.1", "11.1"] },
+    { "id": 3, "tasks": ["4.3", "7.1", "8.1", "9.1", "16.1"] },
+    { "id": 4, "tasks": ["7.2", "8.2", "8.4", "11.2"] },
+    { "id": 5, "tasks": ["8.3", "11.3", "14.3", "14.5"] },
+    { "id": 6, "tasks": ["14.1", "14.2", "14.4", "15.1"] },
+    { "id": 7, "tasks": ["18.1", "18.2", "18.3"] }
+  ]
+}
+```
