@@ -415,6 +415,13 @@ footer {
   color: #1e40af;
 }
 
+.alert-warning {
+  display: block;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  color: #92400e;
+}
+
 /* API Key Display */
 
 .api-key-display {

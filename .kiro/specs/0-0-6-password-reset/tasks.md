@@ -224,7 +224,7 @@ No new AWS resources, IAM permissions, API routes, or buildspec steps.
     - Make no `template-openapi-spec.yml` change; this feature adds no API Gateway paths
     - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5, 10.6_
 
-- [-] 13. Checkpoint - Manual verification of both flows
+- [x] 13. Checkpoint - Manual verification of both flows
   - Confirm the reset wizard advances correctly, the resend cooldown behaves, and the change-password section works while signed in.
   - Ensure all tests pass, ask the user if questions arise.
 
@@ -282,7 +282,7 @@ No new AWS resources, IAM permissions, API routes, or buildspec steps.
     - Scope the `#resend-btn` `aria-label` assertion per page, since the reset page uses "Resend reset code to your email" while register uses "Resend verification code to your email"
     - _Requirements: 12.10, 11.1, 11.2, 11.3, 11.4, 11.5, 11.7_
 
-- [~] 17. Checkpoint - Full suite green
+- [x] 17. Checkpoint - Full suite green
   - Run the auth-function suite and the static-site suite. Confirm no test invokes an npm script, all timing tests use fake timers, and every suite restores mocks and clears timers.
   - Ensure all tests pass, ask the user if questions arise.
 
