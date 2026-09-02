@@ -7,6 +7,6 @@
 
 - [ ] Review all documentation
 
+- [ ] Add SES and connect to Cognito
 - [ ] Subscriptions
 - [ ] Show stats including ip history on user profile
-- [ ] Refactor documentation indexer and auth to use CacheData, and XRay

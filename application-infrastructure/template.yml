@@ -549,17 +549,20 @@ Mappings:
 
   # Add/Change to your regions as needed
   # These accounts and layers are AWS Managed so you can trust them - They are not some random accounts
-  # https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Lambda-Insights-extension-versions.html
+  # Source: https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Lambda-Insights-extension-versionsx86-64.html
   LambdaInsightsX86:
     us-east-1:
-      ExtArn: "arn:aws:lambda:us-east-1:580247275435:layer:LambdaInsightsExtension:64"
+      ExtArn: "arn:aws:lambda:us-east-1:580247275435:layer:LambdaInsightsExtension:66"
     us-east-2:
-      ExtArn: "arn:aws:lambda:us-east-2:580247275435:layer:LambdaInsightsExtension:64"
+      ExtArn: "arn:aws:lambda:us-east-2:580247275435:layer:LambdaInsightsExtension:71"
     us-west-1:
-      ExtArn: "arn:aws:lambda:us-west-1:580247275435:layer:LambdaInsightsExtension:64"
+      ExtArn: "arn:aws:lambda:us-west-1:580247275435:layer:LambdaInsightsExtension:66"
     us-west-2:
-      ExtArn: "arn:aws:lambda:us-west-2:580247275435:layer:LambdaInsightsExtension:64"
+      ExtArn: "arn:aws:lambda:us-west-2:580247275435:layer:LambdaInsightsExtension:66"
 
+  # Add/Change to your regions as needed
+  # These accounts and layers are AWS Managed so you can trust them - They are not some random accounts
+  # Source: https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Lambda-Insights-extension-versionsARM.html
   LambdaInsightsArm:
     us-east-1:
       ExtArn: "arn:aws:lambda:us-east-1:580247275435:layer:LambdaInsightsExtension-Arm64:31"
