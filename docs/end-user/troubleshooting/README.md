@@ -9,6 +9,8 @@ This guide helps you diagnose and resolve common issues when using the Atlantis 
 - [Tool Errors](#tool-errors)
 - [Performance Issues](#performance-issues)
 - [Authentication Problems](#authentication-problems)
+  - [Forgot your password](#problem-forgot-your-password)
+  - [Change your password while signed in](#problem-want-to-change-your-password-while-signed-in)
 - [Data Quality Issues](#data-quality-issues)
 - [Integration-Specific Issues](#integration-specific-issues)
 
@@ -346,6 +348,35 @@ If you see authentication errors:
 1. **Verify URL**
    - Ensure using public endpoint
    - Check for typos
+
+---
+
+### Problem: Forgot your password
+
+If you can't sign in because you've forgotten your password, use the self-service reset flow:
+
+1. Go to [/forgot-password/](https://mcp.atlantis.63klabs.net/forgot-password/) or click **Forgot your password?** on the login page.
+2. Enter the email address for your account and submit.
+3. Check your inbox for a reset code. If it doesn't arrive within a few minutes, check your spam or junk folder.
+4. Enter the code and choose a new password that meets the policy requirements shown on the page.
+5. Once the reset succeeds, sign in at [/login/](https://mcp.atlantis.63klabs.net/login/) with your new password.
+
+> **Note**: If your account hasn't been verified yet, you'll be redirected to complete verification before you can reset your password.
+
+> **Note**: Resetting your password does **not** change your API key. Your existing API key continues to work after the reset. To regenerate your API key, use the **Regenerate API Key** button on your [profile page](https://mcp.atlantis.63klabs.net/profile/) after signing in.
+
+---
+
+### Problem: Want to change your password while signed in
+
+You can change your password from your profile page without going through the reset flow:
+
+1. Sign in and go to your [profile page](https://mcp.atlantis.63klabs.net/profile/).
+2. Scroll to the **Password** section at the bottom of the page.
+3. Enter your current password, then enter and confirm your new password.
+4. Submit the form. You'll stay signed in after the change.
+
+> **Note**: Changing your password does **not** affect your API key.
 
 ---
 

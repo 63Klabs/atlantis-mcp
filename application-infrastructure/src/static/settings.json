@@ -1,6 +1,7 @@
 {
   "default": {
     "footer": "<p>&copy; <span id=\"copyright-year\"></span> Chad Kluck / 63Klabs. All rights reserved.</p><p><a href=\"https://github.com/63Klabs/atlantis-mcp/blob/main/PRIVACY.md\">Data Privacy</a></p>",
+    "assetVersion": "0-0-6",
     "rateLimitPublic": "50",
     "rateLimitPublicWindow": "60",
     "rateLimitRegistered": "100",

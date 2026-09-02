@@ -1,9 +1,9 @@
 /** @jest-environment jsdom */
 
 import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
-import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import fc from 'fast-check';
+import { loadPage, setupCognitoMock, executePageScripts } from '../helpers/load-page.mjs';
 
 /**
  * Property-based tests for registration form validation integration.
@@ -57,58 +57,18 @@ const nonEmptyString = fc.string({ minLength: 1, maxLength: 100 });
 /** Arbitrary string for password field (any input) */
 const anyString = fc.string({ minLength: 0, maxLength: 100 });
 
-// --- Page Setup Helpers ---
+// --- Page Setup Helper ---
 
-function loadPage() {
-  let html = readFileSync(HTML_PATH, 'utf8');
-  html = html.replace(/\{\{\{settings\.cognitoUserPoolId\}\}\}/g, 'us-east-1_TestPool');
-  html = html.replace(/\{\{\{settings\.cognitoClientId\}\}\}/g, 'testclientid123');
-  html = html.replace(/\{\{\{settings\.apiBaseUrl\}\}\}/g, 'https://api.test.com');
-  html = html.replace(/\{\{\{settings\.footer\}\}\}/g, '<span id="copyright-year"></span>');
-  return html;
-}
-
-function setupCognitoMock() {
-  window.AmazonCognitoIdentity = {
-    CognitoUserPool: jest.fn(() => ({
-      signUp: jest.fn()
-    })),
-    CognitoUser: jest.fn(() => ({
-      resendConfirmationCode: jest.fn(),
-      confirmRegistration: jest.fn(),
-      authenticateUser: jest.fn()
-    })),
-    CognitoUserAttribute: jest.fn((data) => data),
-    AuthenticationDetails: jest.fn((data) => data)
-  };
-}
-
-function executePageScript(html) {
-  const scriptMatches = html.match(/<script>([\s\S]*?)<\/script>/g);
-  if (scriptMatches) {
-    for (const scriptTag of scriptMatches) {
-      const code = scriptTag.replace(/<\/?script>/g, '');
-      if (code.includes('amazon-cognito-identity')) continue;
-      try {
-        const fn = new Function(code);
-        fn();
-      } catch (e) {
-        if (!e.message.includes('Cannot set properties of null')) {
-          throw e;
-        }
-      }
-    }
-  }
-}
-
+/**
+ * Set up jsdom for a property test run: load the register page, install the
+ * Cognito mock, populate the DOM body, and execute all page scripts (including
+ * the shared validator asset).
+ */
 function setupPage() {
-  const html = loadPage();
+  const html = loadPage(HTML_PATH);
   setupCognitoMock();
   document.body.innerHTML = html.match(/<body>([\s\S]*?)<\/body>/)[1];
-  const cdnScript = document.querySelector('script[src*="amazon-cognito"]');
-  if (cdnScript) cdnScript.remove();
-  executePageScript(html);
-  return html;
+  executePageScripts(html, HTML_PATH);
 }
 
 /**

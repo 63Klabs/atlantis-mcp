@@ -1,8 +1,8 @@
 /** @jest-environment jsdom */
 
 import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
-import { readFileSync } from 'fs';
 import { resolve } from 'path';
+import { loadPage, executePageScripts } from './helpers/load-page.mjs';
 
 /**
  * Tests for spam advisory display and resend button behavior on the registration page.
@@ -15,76 +15,37 @@ const HTML_PATH = resolve(
   '../public/register/index.html'
 );
 
-function loadPage() {
-  let html = readFileSync(HTML_PATH, 'utf8');
-  // Replace template tokens with test values
-  html = html.replace(/\{\{\{settings\.cognitoUserPoolId\}\}\}/g, 'us-east-1_TestPool');
-  html = html.replace(/\{\{\{settings\.cognitoClientId\}\}\}/g, 'testclientid123');
-  html = html.replace(/\{\{\{settings\.apiBaseUrl\}\}\}/g, 'https://api.test.com');
-  html = html.replace(/\{\{\{settings\.footer\}\}\}/g, '<span id="copyright-year"></span>');
-  return html;
-}
-
-function setupCognitoMock() {
-  const mockResendConfirmationCode = jest.fn();
-  const mockConfirmRegistration = jest.fn();
-  const mockAuthenticateUser = jest.fn();
-
-  const mockCognitoUser = {
-    resendConfirmationCode: mockResendConfirmationCode,
-    confirmRegistration: mockConfirmRegistration,
-    authenticateUser: mockAuthenticateUser
-  };
-
-  const mockSignUp = jest.fn();
-
-  window.AmazonCognitoIdentity = {
-    CognitoUserPool: jest.fn().mockImplementation(() => ({
-      signUp: mockSignUp
-    })),
-    CognitoUser: jest.fn().mockImplementation(() => mockCognitoUser),
-    CognitoUserAttribute: jest.fn().mockImplementation((data) => data),
-    AuthenticationDetails: jest.fn().mockImplementation((data) => data)
-  };
-
-  return { mockResendConfirmationCode, mockSignUp, mockCognitoUser };
-}
-
-function executePageScript(html) {
-  // Extract and execute the inline scripts
-  const scriptMatches = html.match(/<script>([\s\S]*?)<\/script>/g);
-  if (scriptMatches) {
-    for (const scriptTag of scriptMatches) {
-      const code = scriptTag.replace(/<\/?script>/g, '');
-      // Skip the CDN script tag reference
-      if (code.includes('amazon-cognito-identity')) continue;
-      try {
-        // eslint-disable-next-line no-eval
-        const fn = new Function(code);
-        fn();
-      } catch (e) {
-        // The copyright-year script may fail if element doesn't exist yet, that's fine
-        if (!e.message.includes('Cannot set properties of null')) {
-          throw e;
-        }
-      }
-    }
-  }
-}
-
 describe('Registration Page - Spam Advisory and Resend Button', () => {
   let html;
   let mocks;
 
   beforeEach(() => {
     jest.useFakeTimers();
-    html = loadPage();
-    mocks = setupCognitoMock();
+
+    // Set up Cognito mock with stable mock function references so tests can
+    // configure and assert on resendConfirmationCode and signUp across calls.
+    const mockResendConfirmationCode = jest.fn();
+    const mockConfirmRegistration = jest.fn();
+    const mockAuthenticateUser = jest.fn();
+    const mockCognitoUser = {
+      resendConfirmationCode: mockResendConfirmationCode,
+      confirmRegistration: mockConfirmRegistration,
+      authenticateUser: mockAuthenticateUser,
+    };
+    const mockSignUp = jest.fn();
+
+    window.AmazonCognitoIdentity = {
+      CognitoUserPool: jest.fn().mockImplementation(() => ({ signUp: mockSignUp })),
+      CognitoUser: jest.fn().mockImplementation(() => mockCognitoUser),
+      CognitoUserAttribute: jest.fn().mockImplementation((data) => data),
+      AuthenticationDetails: jest.fn().mockImplementation((data) => data),
+    };
+
+    mocks = { mockResendConfirmationCode, mockSignUp, mockCognitoUser };
+
+    html = loadPage(HTML_PATH);
     document.body.innerHTML = html.match(/<body>([\s\S]*?)<\/body>/)[1];
-    // Remove the CDN script tag to avoid loading issues
-    const cdnScript = document.querySelector('script[src*="amazon-cognito"]');
-    if (cdnScript) cdnScript.remove();
-    executePageScript(html);
+    executePageScripts(html, HTML_PATH);
   });
 
   afterEach(() => {

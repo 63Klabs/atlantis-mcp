@@ -1,8 +1,8 @@
 /** @jest-environment jsdom */
 
 import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
-import { readFileSync } from 'fs';
 import { resolve } from 'path';
+import { loadPage, setupCognitoMock, executePageScripts } from './helpers/load-page.mjs';
 
 const HTML_PATH = resolve(
   import.meta.dirname,
@@ -33,7 +33,7 @@ describe('Registration Page - Re-registration of Unverified Accounts', () => {
     mockSignUp = jest.fn();
     mockCognitoUserConstructor = jest.fn();
 
-    // Mock AmazonCognitoIdentity on window
+    // Mock AmazonCognitoIdentity on window with test-specific spies
     window.AmazonCognitoIdentity = {
       CognitoUserPool: jest.fn().mockImplementation(() => ({
         signUp: mockSignUp
@@ -49,31 +49,10 @@ describe('Registration Page - Re-registration of Unverified Accounts', () => {
       AuthenticationDetails: jest.fn().mockImplementation((data) => data)
     };
 
-    // Load the HTML
-    const html = readFileSync(HTML_PATH, 'utf8');
-
-    // Replace template tokens so the script doesn't break
-    const processedHtml = html
-      .replace(/\{\{\{settings\.cognitoUserPoolId\}\}\}/g, 'us-east-1_TestPool')
-      .replace(/\{\{\{settings\.cognitoClientId\}\}\}/g, 'testClientId123')
-      .replace(/\{\{\{settings\.apiBaseUrl\}\}\}/g, 'https://api.test.com')
-      .replace(/\{\{\{settings\.footer\}\}\}/g, '<span id="copyright-year"></span>');
-
-    document.documentElement.innerHTML = processedHtml;
-
-    // Add copyright-year element if missing
-    if (!document.getElementById('copyright-year')) {
-      const span = document.createElement('span');
-      span.id = 'copyright-year';
-      document.body.appendChild(span);
-    }
-
-    // Execute the inline scripts
-    const scripts = document.querySelectorAll('script:not([src])');
-    scripts.forEach((script) => {
-      const fn = new Function(script.textContent);
-      fn();
-    });
+    // Load and execute the page using the shared helper
+    const html = loadPage(HTML_PATH);
+    document.body.innerHTML = html.match(/<body>([\s\S]*?)<\/body>/)[1];
+    executePageScripts(html, HTML_PATH);
   });
 
   afterEach(() => {

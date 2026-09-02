@@ -3,6 +3,7 @@
 import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
+import { loadPage, setupCognitoMock, executePageScripts } from '../helpers/load-page.mjs';
 
 /**
  * Unit tests for registration form HTML structure, ARIA attributes,
@@ -16,59 +17,21 @@ const HTML_PATH = resolve(
   '../../public/register/index.html'
 );
 
-function loadPage() {
-  let html = readFileSync(HTML_PATH, 'utf8');
-  html = html.replace(/\{\{\{settings\.cognitoUserPoolId\}\}\}/g, 'us-east-1_TestPool');
-  html = html.replace(/\{\{\{settings\.cognitoClientId\}\}\}/g, 'testclientid123');
-  html = html.replace(/\{\{\{settings\.apiBaseUrl\}\}\}/g, 'https://api.test.com');
-  html = html.replace(/\{\{\{settings\.footer\}\}\}/g, '<span id="copyright-year"></span>');
-  return html;
-}
-
-function setupCognitoMock() {
-  window.AmazonCognitoIdentity = {
-    CognitoUserPool: jest.fn(() => ({
-      signUp: jest.fn()
-    })),
-    CognitoUser: jest.fn(() => ({
-      resendConfirmationCode: jest.fn(),
-      confirmRegistration: jest.fn(),
-      authenticateUser: jest.fn()
-    })),
-    CognitoUserAttribute: jest.fn((data) => data),
-    AuthenticationDetails: jest.fn((data) => data)
-  };
-}
-
-function executePageScript(html) {
-  const scriptMatches = html.match(/<script>([\s\S]*?)<\/script>/g);
-  if (scriptMatches) {
-    for (const scriptTag of scriptMatches) {
-      const code = scriptTag.replace(/<\/?script>/g, '');
-      if (code.includes('amazon-cognito-identity')) continue;
-      try {
-        const fn = new Function(code);
-        fn();
-      } catch (e) {
-        if (!e.message.includes('Cannot set properties of null')) {
-          throw e;
-        }
-      }
-    }
-  }
-}
+/** Path to the shared password validator asset (used by getIifeScriptContent). */
+const VALIDATOR_ASSET_PATH = resolve(
+  import.meta.dirname,
+  '../../public/js/password-validator.js'
+);
 
 describe('Registration Form - HTML Structure and IIFE Namespace', () => {
   let html;
 
   beforeEach(() => {
     jest.useFakeTimers();
-    html = loadPage();
+    html = loadPage(HTML_PATH);
     setupCognitoMock();
     document.body.innerHTML = html.match(/<body>([\s\S]*?)<\/body>/)[1];
-    const cdnScript = document.querySelector('script[src*="amazon-cognito"]');
-    if (cdnScript) cdnScript.remove();
-    executePageScript(html);
+    executePageScripts(html, HTML_PATH);
   });
 
   afterEach(() => {
@@ -231,29 +194,26 @@ describe('Registration Form - HTML Structure and IIFE Namespace', () => {
     });
   });
 
-  /**
-   * Validates: Requirements 3.2
-   */
   describe('No CommonJS/ESM Artifacts in IIFE', () => {
     it('inline IIFE script does not contain "require"', () => {
-      // Get the IIFE script content (the one containing PasswordValidator)
-      const iifeScript = getIifeScriptContent(html);
+      // Get the shared validator asset content (was formerly inlined in register/index.html)
+      const iifeScript = getIifeScriptContent();
       expect(iifeScript).not.toMatch(/\brequire\s*\(/);
     });
 
     it('inline IIFE script does not contain "module.exports"', () => {
-      const iifeScript = getIifeScriptContent(html);
+      const iifeScript = getIifeScriptContent();
       expect(iifeScript).not.toMatch(/\bmodule\.exports\b/);
     });
 
     it('inline IIFE script does not contain "import" statement', () => {
-      const iifeScript = getIifeScriptContent(html);
+      const iifeScript = getIifeScriptContent();
       // Match ES module import syntax, not the word "import" in comments
       expect(iifeScript).not.toMatch(/^\s*import\s+/m);
     });
 
     it('inline IIFE script does not contain "export" statement', () => {
-      const iifeScript = getIifeScriptContent(html);
+      const iifeScript = getIifeScriptContent();
       expect(iifeScript).not.toMatch(/^\s*export\s+/m);
     });
   });
@@ -300,17 +260,13 @@ describe('Registration Form - HTML Structure and IIFE Namespace', () => {
 });
 
 /**
- * Extract the IIFE script content that contains PasswordValidator.
- * This is the script block that contains "window.PasswordValidator".
+ * Read the shared password validator asset from disk.
+ * The IIFE was moved out of register/index.html into public/js/password-validator.js
+ * (task 3.1).  Reading the file directly ensures the no-CommonJS-artifacts assertions
+ * test the real asset rather than passing vacuously against an empty string.
+ *
+ * @returns {string} The full source of the shared validator asset.
  */
-function getIifeScriptContent(html) {
-  const scriptMatches = html.match(/<script>([\s\S]*?)<\/script>/g);
-  if (!scriptMatches) return '';
-  for (const scriptTag of scriptMatches) {
-    const code = scriptTag.replace(/<\/?script>/g, '');
-    if (code.includes('window.PasswordValidator')) {
-      return code;
-    }
-  }
-  return '';
+function getIifeScriptContent() {
+  return readFileSync(VALIDATOR_ASSET_PATH, 'utf8');
 }

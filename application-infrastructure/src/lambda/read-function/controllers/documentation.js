@@ -20,6 +20,30 @@ const { cache: { CacheableDataAccess }, tools: { DebugAndLog, ApiRequest } } = r
 const { Config } = require('../config');
 
 /**
+ * Validate that exactly one of filePath or hash is provided.
+ *
+ * The MCP protocol does not support oneOf at the schema root level, so this
+ * validation must be done programmatically in the controller.
+ *
+ * @param {string|undefined} filePath - File path lookup key
+ * @param {string|undefined} hash - Hash lookup key
+ * @throws {Error} When neither or both parameters are provided
+ * @private
+ */
+function validateLookupKey(filePath, hash) {
+  const hasFilePath = filePath !== undefined && filePath !== null && filePath !== '';
+  const hasHash = hash !== undefined && hash !== null && hash !== '';
+
+  if (!hasFilePath && !hasHash) {
+    throw new Error('Exactly one of filePath or hash is required');
+  }
+
+  if (hasFilePath && hasHash) {
+    throw new Error('Cannot specify both filePath and hash - provide exactly one');
+  }
+}
+
+/**
  * Search Atlantis documentation and code patterns
  *
  * @param {Object} props - Request properties from ClientRequest
@@ -185,6 +209,22 @@ async function getDocument(props) {
     }
 
     const { filePath, hash } = input;
+
+    // >! Validate exactly-one-of constraint (MCP schema cannot enforce this with oneOf)
+    try {
+      validateLookupKey(filePath, hash);
+    } catch (validationError) {
+      DebugAndLog.warn('get_document lookup key validation failed', {
+        error: validationError.message,
+        hasFilePath: Boolean(filePath),
+        hasHash: Boolean(hash)
+      });
+      return MCPProtocol.errorResponse('INVALID_INPUT', {
+        message: validationError.message,
+        errors: [validationError.message]
+      }, 'get_document');
+    }
+
     const authInfo = props.authInfo || { tier: 'public', isAuthenticated: false };
 
     DebugAndLog.info('get_document request', {
@@ -273,6 +313,22 @@ async function getDocumentChunk(props) {
     }
 
     const { filePath, hash, chunkIndex } = input;
+
+    // >! Validate exactly-one-of constraint (MCP schema cannot enforce this with oneOf)
+    try {
+      validateLookupKey(filePath, hash);
+    } catch (validationError) {
+      DebugAndLog.warn('get_document_chunk lookup key validation failed', {
+        error: validationError.message,
+        hasFilePath: Boolean(filePath),
+        hasHash: Boolean(hash)
+      });
+      return MCPProtocol.errorResponse('INVALID_INPUT', {
+        message: validationError.message,
+        errors: [validationError.message]
+      }, 'get_document_chunk');
+    }
+
     const authInfo = props.authInfo || { tier: 'public', isAuthenticated: false };
 
     DebugAndLog.info('get_document_chunk request', {

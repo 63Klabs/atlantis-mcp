@@ -1,0 +1,276 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1. Update config/settings.js - Remove oneOf from get_document schema": [
+      {
+        "executionId": "6e822b9d-579b-443a-b0af-9a5a47573261",
+        "chatSessionId": "sess_ea9483dd-10c3-48dd-91b5-87d5a02d4b57",
+        "timestamp": 1788360745201
+      },
+      {
+        "executionId": "6e822b9d-579b-443a-b0af-9a5a47573261",
+        "chatSessionId": "sess_ea9483dd-10c3-48dd-91b5-87d5a02d4b57",
+        "timestamp": 1788360752335
+      },
+      {
+        "executionId": "6e822b9d-579b-443a-b0af-9a5a47573261",
+        "chatSessionId": "sess_ea9483dd-10c3-48dd-91b5-87d5a02d4b57",
+        "timestamp": 1788360785472
+      }
+    ],
+    "2. Update config/settings.js - Remove oneOf from get_document_chunk schema": [
+      {
+        "executionId": "6e822b9d-579b-443a-b0af-9a5a47573261",
+        "chatSessionId": "sess_ea9483dd-10c3-48dd-91b5-87d5a02d4b57",
+        "timestamp": 1788360745446
+      },
+      {
+        "executionId": "6e822b9d-579b-443a-b0af-9a5a47573261",
+        "chatSessionId": "sess_ea9483dd-10c3-48dd-91b5-87d5a02d4b57",
+        "timestamp": 1788360790709
+      },
+      {
+        "executionId": "6e822b9d-579b-443a-b0af-9a5a47573261",
+        "chatSessionId": "sess_ea9483dd-10c3-48dd-91b5-87d5a02d4b57",
+        "timestamp": 1788360822749
+      }
+    ],
+    "3. Verify schema-validator.js doesn't have oneOf-specific logic": [
+      {
+        "executionId": "6e822b9d-579b-443a-b0af-9a5a47573261",
+        "chatSessionId": "sess_ea9483dd-10c3-48dd-91b5-87d5a02d4b57",
+        "timestamp": 1788360745563
+      },
+      {
+        "executionId": "6e822b9d-579b-443a-b0af-9a5a47573261",
+        "chatSessionId": "sess_ea9483dd-10c3-48dd-91b5-87d5a02d4b57",
+        "timestamp": 1788360825070
+      },
+      {
+        "executionId": "6e822b9d-579b-443a-b0af-9a5a47573261",
+        "chatSessionId": "sess_ea9483dd-10c3-48dd-91b5-87d5a02d4b57",
+        "timestamp": 1788360879923
+      }
+    ],
+    "4. Add validateLookupKey helper function to controllers/documentation.js": [
+      {
+        "executionId": "6e822b9d-579b-443a-b0af-9a5a47573261",
+        "chatSessionId": "sess_ea9483dd-10c3-48dd-91b5-87d5a02d4b57",
+        "timestamp": 1788360745661
+      },
+      {
+        "executionId": "6e822b9d-579b-443a-b0af-9a5a47573261",
+        "chatSessionId": "sess_ea9483dd-10c3-48dd-91b5-87d5a02d4b57",
+        "timestamp": 1788360882424
+      },
+      {
+        "executionId": "6e822b9d-579b-443a-b0af-9a5a47573261",
+        "chatSessionId": "sess_ea9483dd-10c3-48dd-91b5-87d5a02d4b57",
+        "timestamp": 1788360908356
+      }
+    ],
+    "5. Update DocumentationController.getDocument to use validateLookupKey": [
+      {
+        "executionId": "6e822b9d-579b-443a-b0af-9a5a47573261",
+        "chatSessionId": "sess_ea9483dd-10c3-48dd-91b5-87d5a02d4b57",
+        "timestamp": 1788360745759
+      },
+      {
+        "executionId": "6e822b9d-579b-443a-b0af-9a5a47573261",
+        "chatSessionId": "sess_ea9483dd-10c3-48dd-91b5-87d5a02d4b57",
+        "timestamp": 1788360913934
+      },
+      {
+        "executionId": "6e822b9d-579b-443a-b0af-9a5a47573261",
+        "chatSessionId": "sess_ea9483dd-10c3-48dd-91b5-87d5a02d4b57",
+        "timestamp": 1788360954691
+      }
+    ],
+    "6. Update DocumentationController.getDocumentChunk to use validateLookupKey": [
+      {
+        "executionId": "6e822b9d-579b-443a-b0af-9a5a47573261",
+        "chatSessionId": "sess_ea9483dd-10c3-48dd-91b5-87d5a02d4b57",
+        "timestamp": 1788360745851
+      },
+      {
+        "executionId": "6e822b9d-579b-443a-b0af-9a5a47573261",
+        "chatSessionId": "sess_ea9483dd-10c3-48dd-91b5-87d5a02d4b57",
+        "timestamp": 1788360920680
+      },
+      {
+        "executionId": "6e822b9d-579b-443a-b0af-9a5a47573261",
+        "chatSessionId": "sess_ea9483dd-10c3-48dd-91b5-87d5a02d4b57",
+        "timestamp": 1788360957154
+      }
+    ],
+    "7. Create unit tests for lookup key validation": [
+      {
+        "executionId": "6e822b9d-579b-443a-b0af-9a5a47573261",
+        "chatSessionId": "sess_ea9483dd-10c3-48dd-91b5-87d5a02d4b57",
+        "timestamp": 1788360745941
+      },
+      {
+        "executionId": "6e822b9d-579b-443a-b0af-9a5a47573261",
+        "chatSessionId": "sess_ea9483dd-10c3-48dd-91b5-87d5a02d4b57",
+        "timestamp": 1788360962240
+      },
+      {
+        "executionId": "6e822b9d-579b-443a-b0af-9a5a47573261",
+        "chatSessionId": "sess_ea9483dd-10c3-48dd-91b5-87d5a02d4b57",
+        "timestamp": 1788361056559
+      }
+    ],
+    "8. Create MCP schema compliance test": [
+      {
+        "executionId": "6e822b9d-579b-443a-b0af-9a5a47573261",
+        "chatSessionId": "sess_ea9483dd-10c3-48dd-91b5-87d5a02d4b57",
+        "timestamp": 1788360746030
+      },
+      {
+        "executionId": "6e822b9d-579b-443a-b0af-9a5a47573261",
+        "chatSessionId": "sess_ea9483dd-10c3-48dd-91b5-87d5a02d4b57",
+        "timestamp": 1788360964833
+      },
+      {
+        "executionId": "6e822b9d-579b-443a-b0af-9a5a47573261",
+        "chatSessionId": "sess_ea9483dd-10c3-48dd-91b5-87d5a02d4b57",
+        "timestamp": 1788361058930
+      }
+    ],
+    "9. Run all existing tests to verify backward compatibility": [
+      {
+        "executionId": "6e822b9d-579b-443a-b0af-9a5a47573261",
+        "chatSessionId": "sess_ea9483dd-10c3-48dd-91b5-87d5a02d4b57",
+        "timestamp": 1788360746128
+      },
+      {
+        "executionId": "6e822b9d-579b-443a-b0af-9a5a47573261",
+        "chatSessionId": "sess_ea9483dd-10c3-48dd-91b5-87d5a02d4b57",
+        "timestamp": 1788361061808
+      },
+      {
+        "executionId": "6e822b9d-579b-443a-b0af-9a5a47573261",
+        "chatSessionId": "sess_ea9483dd-10c3-48dd-91b5-87d5a02d4b57",
+        "timestamp": 1788361196530
+      }
+    ],
+    "10. Update CHANGELOG.md": [
+      {
+        "executionId": "6e822b9d-579b-443a-b0af-9a5a47573261",
+        "chatSessionId": "sess_ea9483dd-10c3-48dd-91b5-87d5a02d4b57",
+        "timestamp": 1788360746224
+      },
+      {
+        "executionId": "6e822b9d-579b-443a-b0af-9a5a47573261",
+        "chatSessionId": "sess_ea9483dd-10c3-48dd-91b5-87d5a02d4b57",
+        "timestamp": 1788361200102
+      },
+      {
+        "executionId": "6e822b9d-579b-443a-b0af-9a5a47573261",
+        "chatSessionId": "sess_ea9483dd-10c3-48dd-91b5-87d5a02d4b57",
+        "timestamp": 1788361222615
+      }
+    ],
+    "11. Manual testing - verify MCP server starts without errors": [
+      {
+        "executionId": "6e822b9d-579b-443a-b0af-9a5a47573261",
+        "chatSessionId": "sess_ea9483dd-10c3-48dd-91b5-87d5a02d4b57",
+        "timestamp": 1788360746308
+      },
+      {
+        "executionId": "6e822b9d-579b-443a-b0af-9a5a47573261",
+        "chatSessionId": "sess_ea9483dd-10c3-48dd-91b5-87d5a02d4b57",
+        "timestamp": 1788361225954
+      },
+      {
+        "executionId": "6e822b9d-579b-443a-b0af-9a5a47573261",
+        "chatSessionId": "sess_ea9483dd-10c3-48dd-91b5-87d5a02d4b57",
+        "timestamp": 1788361266228
+      }
+    ],
+    "MCP server starts without \"oneOf/allOf/anyOf at the top level\" error": [
+      {
+        "executionId": "6e822b9d-579b-443a-b0af-9a5a47573261",
+        "chatSessionId": "sess_ea9483dd-10c3-48dd-91b5-87d5a02d4b57",
+        "timestamp": 1788360746396
+      },
+      {
+        "executionId": "6e822b9d-579b-443a-b0af-9a5a47573261",
+        "chatSessionId": "sess_ea9483dd-10c3-48dd-91b5-87d5a02d4b57",
+        "timestamp": 1788361271615
+      }
+    ],
+    "`get_document` validates exactly-one-of constraint correctly": [
+      {
+        "executionId": "6e822b9d-579b-443a-b0af-9a5a47573261",
+        "chatSessionId": "sess_ea9483dd-10c3-48dd-91b5-87d5a02d4b57",
+        "timestamp": 1788360746489
+      },
+      {
+        "executionId": "6e822b9d-579b-443a-b0af-9a5a47573261",
+        "chatSessionId": "sess_ea9483dd-10c3-48dd-91b5-87d5a02d4b57",
+        "timestamp": 1788361274129
+      }
+    ],
+    "`get_document_chunk` validates exactly-one-of constraint correctly": [
+      {
+        "executionId": "6e822b9d-579b-443a-b0af-9a5a47573261",
+        "chatSessionId": "sess_ea9483dd-10c3-48dd-91b5-87d5a02d4b57",
+        "timestamp": 1788360746580
+      },
+      {
+        "executionId": "6e822b9d-579b-443a-b0af-9a5a47573261",
+        "chatSessionId": "sess_ea9483dd-10c3-48dd-91b5-87d5a02d4b57",
+        "timestamp": 1788361276716
+      }
+    ],
+    "All existing tests pass": [
+      {
+        "executionId": "6e822b9d-579b-443a-b0af-9a5a47573261",
+        "chatSessionId": "sess_ea9483dd-10c3-48dd-91b5-87d5a02d4b57",
+        "timestamp": 1788360746669
+      },
+      {
+        "executionId": "6e822b9d-579b-443a-b0af-9a5a47573261",
+        "chatSessionId": "sess_ea9483dd-10c3-48dd-91b5-87d5a02d4b57",
+        "timestamp": 1788361279227
+      }
+    ],
+    "New validation tests pass": [
+      {
+        "executionId": "6e822b9d-579b-443a-b0af-9a5a47573261",
+        "chatSessionId": "sess_ea9483dd-10c3-48dd-91b5-87d5a02d4b57",
+        "timestamp": 1788360746754
+      },
+      {
+        "executionId": "6e822b9d-579b-443a-b0af-9a5a47573261",
+        "chatSessionId": "sess_ea9483dd-10c3-48dd-91b5-87d5a02d4b57",
+        "timestamp": 1788361284146
+      }
+    ],
+    "CHANGELOG.md updated": [
+      {
+        "executionId": "6e822b9d-579b-443a-b0af-9a5a47573261",
+        "chatSessionId": "sess_ea9483dd-10c3-48dd-91b5-87d5a02d4b57",
+        "timestamp": 1788360746844
+      },
+      {
+        "executionId": "6e822b9d-579b-443a-b0af-9a5a47573261",
+        "chatSessionId": "sess_ea9483dd-10c3-48dd-91b5-87d5a02d4b57",
+        "timestamp": 1788361286735
+      }
+    ],
+    "No breaking changes to API behavior": [
+      {
+        "executionId": "6e822b9d-579b-443a-b0af-9a5a47573261",
+        "chatSessionId": "sess_ea9483dd-10c3-48dd-91b5-87d5a02d4b57",
+        "timestamp": 1788360746953
+      },
+      {
+        "executionId": "6e822b9d-579b-443a-b0af-9a5a47573261",
+        "chatSessionId": "sess_ea9483dd-10c3-48dd-91b5-87d5a02d4b57",
+        "timestamp": 1788361290898
+      }
+    ]
+  }
+}

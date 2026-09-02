@@ -15,6 +15,10 @@ Big enhancements:
 > Learn more about the AI-assisted documentation search below. Note, this is currently enabled by default for a limited time. It will be disabled by default when moving to v0.1.0. It is also currently enabled only for users of the paid or private tier.
 
 ### Added
+- **Password Reset and Change Password** [Spec: 0-0-6-password-reset](../.kiro/specs/0-0-6-password-reset/) — Self-service password management for registered users
+  - Self-service **forgot password** flow at `/forgot-password/` — request a reset code via email, enter the code and a new password, confirm the reset. Includes spam-folder advisory, resend cooldown (3 attempts, 30s initial delay, 30s cooldown), and an unconfirmed-account redirect to the registration verify flow
+  - Authenticated **change password** section on `/profile/` — change the current password without email delivery; session stays valid after a successful change
+  - `forgot-password/` page added to the static site
 - **Agent Asset Tools** [Spec: 0-0-6-agent-asset-tools](../.kiro/specs/0-0-6-agent-asset-tools/) — New registry-driven MCP tools (`list_agent_assets`, `get_agent_asset`, `list_agent_asset_types`, `get_agent_asset_chunk`) that serve example Kiro agent assets — steering documents, hooks, and AGENTS.md files — from the existing S3 buckets and namespaces already used for templates and starters, under a new `{namespace}/utilities/v2/agent_assets/{type}/` prefix; no new AWS infrastructure or bucket tags required
   - Single-registry design (`config/agent-asset-types.js`): adding a new asset type, or enabling the shipped-but-disabled `skills` type, requires only a new/edited registry entry — no changes to the generic controller, service, or S3 data-access logic
   - Content-identity metadata (`size`, `etag`, and `sha256` for `get_agent_asset`) lets a caller detect a changed asset without re-downloading its content
@@ -45,6 +49,8 @@ Big enhancements:
   - AWS SDK v3 X-Ray subsegments carry no resource names, so operators should expect generic per-service nodes (e.g. "DynamoDB", "Bedrock Runtime") rather than per-table or per-bucket nodes in the X-Ray service map
 
 ### Changed
+- **Password validator extracted to shared asset** [Spec: 0-0-6-password-reset](../.kiro/specs/0-0-6-password-reset/) — Moved from inline in `register/index.html` to `public/js/password-validator.js`; consumed by the register, forgot-password, and profile pages
+- **`assetVersion` settings key** [Spec: 0-0-6-password-reset](../.kiro/specs/0-0-6-password-reset/) — Added to `settings.json` for cache-busting the shared validator asset via `?v={{{settings.assetVersion}}}` query strings on referencing pages
 - **Source Restructure: Single-Src to Multi-Src** [Spec: 0-0-6-update-to-multi-resource-spec](../.kiro/specs/0-0-6-update-to-multi-resource-spec/) — Reorganized `application-infrastructure/src/` into the Atlantis multi-resource layout so each deployable resource is fully self-contained
   - Renamed Lambda function directories: `src/lambda/read/` → `read-function/`, `auth/` → `auth-function/`, `cleanup/` → `cleanup-function/`, `indexer/` → `doc-indexer/` (CloudFormation logical IDs and `FunctionName` values unchanged; only `CodeUri` paths updated, so functions are updated in place rather than replaced)
   - Each Lambda function now owns its `.nvmrc`, `package.json` test/lint scripts, `jest.config.js`, `jest.setup.js`, and `eslint.config.js`; tests run per function
@@ -53,6 +59,9 @@ Big enhancements:
   - Added a `pre_build` static-site install/test/audit step to `buildspec-postdeploy.yml`
   - Scoped the buildspec `npm audit` gate to production dependencies (`npm audit --omit=dev --audit-level=high`) in both buildspecs so advisories in dev-only test tooling (jest/babel toolchain), which is never deployed, do not fail the build; this matches the existing `--omit=dev` scope of the preceding `npm audit fix`
 - **doc-indexer/read-function: hash-keyed document storage and batched metadata reads** [Spec: 0-0-6-documentation-index-enhancement](../.kiro/specs/0-0-6-documentation-index-enhancement/) — Replaced the per-section, per-version content body item with a single per-file `document:{fileHash}` item (version-less, de-duplicated across a file's sections, refreshed 7-day TTL each build); `search_documentation` and the semantic/assisted enrichment paths now fetch result metadata via chunked `BatchGetItem` requests (bounded `UnprocessedKeys` retry) instead of a serial `GetItem` per hit, reducing read amplification without changing result ordering
+
+### Fixed
+- **Auth Lambda: trigger-source dispatcher** [Spec: 0-0-6-password-reset](../.kiro/specs/0-0-6-password-reset/) — Cognito trigger events (e.g., `PostConfirmation_ConfirmForgotPassword`) are now echoed back unmodified instead of returning an API Gateway-shaped response, which previously caused `InvalidLambdaResponseException` on `ConfirmForgotPassword` after the password had already been changed
 
 ### Removed
 - **Central `src/` root tooling** — Deleted the shared `src/package.json`, `src/package-lock.json`, `src/jest.config.js`, `src/jest.setup.js`, `src/eslint.config.js`, and `src/.nvmrc` now that each function and the static site are self-contained; the `src/` root contains only `lambda/` and `static/`

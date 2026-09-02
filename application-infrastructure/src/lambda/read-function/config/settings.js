@@ -390,11 +390,7 @@ const settings = {
               pattern: '^[0-9a-f]{16}$'
             }
           },
-          // >! Exactly one lookup key: supplying both is ambiguous and is rejected.
-          oneOf: [
-            { required: ['filePath'] },
-            { required: ['hash'] }
-          ]
+          additionalProperties: false
         }
       },
       {
@@ -419,11 +415,7 @@ const settings = {
             }
           },
           required: ['chunkIndex'],
-          // >! Same exactly-one lookup key rule as get_document.
-          oneOf: [
-            { required: ['filePath'] },
-            { required: ['hash'] }
-          ]
+          additionalProperties: false
         }
       },
       {

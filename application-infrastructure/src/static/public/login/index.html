@@ -39,6 +39,7 @@
 
       <div class="form-footer">
         <p>Don't have an account? <a href="/register/">Register</a></p>
+        <p><a href="/forgot-password/">Forgot your password?</a></p>
         <p>Registered users receive increased <a href="/docs/rate-limits/">rate limits</a>.</p>
       </div>
     </div>
@@ -145,13 +146,21 @@
         loginBtn.disabled = false;
         loginBtn.textContent = 'Log In';
 
-        var msg = err.message || 'Login failed.';
-        if (err.code === 'NotAuthorizedException') {
-          msg = 'Incorrect email or password.';
-        } else if (err.code === 'UserNotFoundException') {
-          msg = 'Incorrect email or password.';
+        if (err.code === 'NotAuthorizedException' || err.code === 'UserNotFoundException') {
+          // >! Error messages for failed credentials are constructed from page-owned literals only.
+          // >! err.message is never interpolated into markup — no server-supplied text can reach the DOM.
+          // >! Both codes map to the same message, preserving the PreventUserExistenceErrors posture.
+          loginError.textContent = '';
+          loginError.classList.add('visible');
+          loginError.appendChild(document.createTextNode('Incorrect email or password. '));
+          var forgotLink = document.createElement('a');
+          forgotLink.href = '/forgot-password/';
+          forgotLink.textContent = 'Forgot your password?';
+          loginError.appendChild(forgotLink);
+        } else {
+          var msg = err.message || 'Login failed.';
+          showError(msg);
         }
-        showError(msg);
       }
     });
   });

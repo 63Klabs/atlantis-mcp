@@ -104,6 +104,32 @@
         </p>
       </section>
 
+      <!-- Change password -->
+      <section class="profile-section" aria-labelledby="password-heading">
+        <h2 id="password-heading">Password</h2>
+        <div id="change-password-error" class="alert alert-error" role="alert" aria-live="polite"></div>
+        <div id="change-password-success" class="alert alert-success" role="status" aria-live="polite"></div>
+        <form id="change-password-form" novalidate>
+          <div class="form-group">
+            <label for="current-password">Current password</label>
+            <input id="current-password" type="password" autocomplete="current-password" aria-required="true">
+          </div>
+          <div class="form-group">
+            <label for="password-input">New password</label>
+            <input id="password-input" type="password" autocomplete="new-password" aria-required="true" aria-describedby="password-requirements">
+            <div id="password-requirements"></div>
+          </div>
+          <div class="form-group">
+            <label for="confirm-password-input">Confirm new password</label>
+            <input id="confirm-password-input" type="password" autocomplete="new-password" aria-required="true" aria-describedby="password-match-status">
+            <div id="password-match-status"></div>
+          </div>
+          <div id="validation-announcements" class="visually-hidden" aria-live="polite" aria-atomic="true"></div>
+          <p class="form-note">Changing your password does not affect your API key.</p>
+          <button id="change-password-btn" type="submit" class="btn">Change password</button>
+        </form>
+      </section>
+
       <!-- Logout -->
       <div style="margin-top:1.5rem;">
         <button class="btn btn-secondary" id="logout-btn">Log Out</button>
@@ -127,6 +153,7 @@
   })();
 </script>
 <script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6/dist/amazon-cognito-identity.min.js"></script>
+<script src="/js/password-validator.js?v={{{settings.assetVersion}}}"></script>
 <script>
 (function() {
   'use strict';
@@ -447,6 +474,178 @@
       voucherBtn.disabled = false;
       voucherBtn.textContent = 'Redeem';
       showError('voucher-error', 'Network error. Please try again.');
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Change password
+  // -------------------------------------------------------------------------
+
+  var changePasswordForm = document.getElementById('change-password-form');
+  var changePasswordBtn = document.getElementById('change-password-btn');
+  var cpPasswordInput = document.getElementById('password-input');
+  var cpConfirmPasswordInput = document.getElementById('confirm-password-input');
+  var cpPasswordRequirements = document.getElementById('password-requirements');
+  var cpPasswordMatchStatus = document.getElementById('password-match-status');
+  var cpValidationAnnouncements = document.getElementById('validation-announcements');
+
+  /**
+   * Update real-time validation UI for the change-password fields.
+   * Mirrors the same logic used on the forgot-password page.
+   *
+   * @param {Object} result - Validator result from window.PasswordValidator.validateForm()
+   */
+  function updateChangePasswordValidationUI(result) {
+    var liveRegion = window.PasswordValidator.getAriaLiveRegion(result);
+
+    // Update password policy requirements display
+    var policyErrors = result.fieldErrors.password;
+    if (policyErrors && policyErrors.length > 0) {
+      cpPasswordRequirements.textContent = policyErrors.join('\n');
+      cpPasswordRequirements.classList.add('field-error');
+      cpPasswordRequirements.classList.remove('field-success');
+    } else {
+      cpPasswordRequirements.textContent = '';
+      cpPasswordRequirements.classList.remove('field-error', 'field-success');
+    }
+
+    // Update aria-invalid on the new-password field
+    var passwordHasErrors = policyErrors && policyErrors.length > 0;
+    cpPasswordInput.setAttribute('aria-invalid', passwordHasErrors ? 'true' : 'false');
+
+    // Update match status (suppress mismatch message when confirm is empty)
+    var confirmValue = cpConfirmPasswordInput.value;
+    if (confirmValue === '') {
+      cpPasswordMatchStatus.textContent = '';
+      cpPasswordMatchStatus.classList.remove('field-error', 'field-success');
+      cpConfirmPasswordInput.setAttribute('aria-invalid', 'false');
+    } else {
+      var confirmErrors = result.fieldErrors['confirm-password'];
+      if (confirmErrors && confirmErrors.length > 0) {
+        cpPasswordMatchStatus.textContent = confirmErrors.join('\n');
+        cpPasswordMatchStatus.classList.add('field-error');
+        cpPasswordMatchStatus.classList.remove('field-success');
+        cpConfirmPasswordInput.setAttribute('aria-invalid', 'true');
+      } else if (!passwordHasErrors) {
+        // Passwords match and policy is satisfied — show confirmation
+        cpPasswordMatchStatus.textContent = 'Passwords match';
+        cpPasswordMatchStatus.classList.add('field-success');
+        cpPasswordMatchStatus.classList.remove('field-error');
+        cpConfirmPasswordInput.setAttribute('aria-invalid', 'false');
+      } else {
+        // Passwords match but policy errors still exist — withhold success indicator
+        cpPasswordMatchStatus.textContent = '';
+        cpPasswordMatchStatus.classList.remove('field-error', 'field-success');
+        cpConfirmPasswordInput.setAttribute('aria-invalid', 'false');
+      }
+    }
+
+    // Update ARIA live region for screen readers
+    cpValidationAnnouncements.textContent = liveRegion.content;
+  }
+
+  // Real-time validation listeners on the new-password and confirm fields (Req 4.3)
+  cpPasswordInput.addEventListener('input', function() {
+    var result = window.PasswordValidator.validateForm(
+      cpPasswordInput.value,
+      cpConfirmPasswordInput.value
+    );
+    updateChangePasswordValidationUI(result);
+  });
+
+  cpConfirmPasswordInput.addEventListener('input', function() {
+    var result = window.PasswordValidator.validateForm(
+      cpPasswordInput.value,
+      cpConfirmPasswordInput.value
+    );
+    updateChangePasswordValidationUI(result);
+  });
+
+  changePasswordForm.addEventListener('submit', function(e) {
+    e.preventDefault();
+    hideError('change-password-error');
+    hideError('change-password-success');
+
+    var currentPassword = document.getElementById('current-password').value;
+    var newPassword = cpPasswordInput.value;
+    var confirmNewPassword = cpConfirmPasswordInput.value;
+
+    // Validate current-password for non-emptiness only — never passed to the validator (Req 4.10, 9.4)
+    if (!currentPassword) {
+      showError('change-password-error', 'Please enter your current password.');
+      document.getElementById('current-password').focus();
+      return;
+    }
+
+    // Validator submission gate: check new password + confirm field (Req 9.3)
+    var validationResult = window.PasswordValidator.validateForm(newPassword, confirmNewPassword);
+    if (!window.PasswordValidator.isReadyForSubmission(newPassword, confirmNewPassword)) {
+      updateChangePasswordValidationUI(validationResult);
+      var firstErrorFieldId = window.PasswordValidator.getFirstErrorField(validationResult);
+      if (firstErrorFieldId) {
+        var firstErrorField = document.getElementById(firstErrorFieldId);
+        if (firstErrorField) {
+          firstErrorField.focus();
+        }
+      }
+      return;
+    }
+
+    // Disable button and show progress while in flight (Req 9.2)
+    changePasswordBtn.disabled = true;
+    changePasswordBtn.textContent = 'Changing\u2026';
+
+    // Verify session before calling the SDK (Req 9.9)
+    cognitoUser.getSession(function(sessionErr, session) {
+      if (sessionErr || !session || !session.isValid()) {
+        // Session absent or invalid — redirect to login (Req 9.9)
+        window.location.href = '/login/';
+        return;
+      }
+
+      // >! changePassword() takes the current and new passwords; it does not produce a
+      // >! trigger event. The session stays valid after a successful call (Req 9.10).
+      cognitoUser.changePassword(currentPassword, newPassword, function(err) {
+        changePasswordBtn.disabled = false;
+        changePasswordBtn.textContent = 'Change password';
+
+        if (err) {
+          var msg;
+          if (err.code === 'NotAuthorizedException') {
+            // Req 9.6: Current password is wrong
+            msg = 'Your current password is incorrect.';
+          } else if (err.code === 'InvalidPasswordException') {
+            // Req 9.7: New password does not satisfy the pool policy
+            msg = 'Your new password does not meet the requirements: at least 8 characters, one uppercase letter, one lowercase letter, one number, and one symbol.';
+          } else if (err.code === 'LimitExceededException' || err.code === 'TooManyRequestsException') {
+            // Req 9.8: Throttling
+            msg = 'Too many attempts. Please wait before trying again.';
+          } else {
+            // >! err.message is assigned via textContent only — never interpolated into markup.
+            msg = (err && err.message) ? err.message : 'Failed to change password.';
+          }
+          showError('change-password-error', msg);
+          return;
+        }
+
+        // Success: clear all three inputs and show the success message (Req 9.5, 9.10)
+        document.getElementById('current-password').value = '';
+        cpPasswordInput.value = '';
+        cpConfirmPasswordInput.value = '';
+
+        // Clear validation UI after clearing the fields
+        cpPasswordRequirements.textContent = '';
+        cpPasswordRequirements.classList.remove('field-error', 'field-success');
+        cpPasswordMatchStatus.textContent = '';
+        cpPasswordMatchStatus.classList.remove('field-error', 'field-success');
+        cpValidationAnnouncements.textContent = '';
+        cpPasswordInput.setAttribute('aria-invalid', 'false');
+        cpConfirmPasswordInput.setAttribute('aria-invalid', 'false');
+
+        // Show success — stay on the page, do not redirect (Req 9.10)
+        showError('change-password-success', 'Your password has been changed successfully.');
+        document.getElementById('change-password-success').classList.remove('alert-error');
+      });
     });
   });
 

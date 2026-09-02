@@ -96,13 +96,15 @@ describe('get_document / get_document_chunk registration', () => {
       const getDocumentChunk = settings.tools.availableToolsList.find(t => t.name === 'get_document_chunk');
 
       expect(Object.keys(getDocument.inputSchema.properties).sort()).toEqual(['filePath', 'hash']);
-      expect(getDocument.inputSchema.oneOf).toEqual([
-        { required: ['filePath'] },
-        { required: ['hash'] }
-      ]);
+      // >! MCP protocol does not support oneOf at the schema root level.
+      // >! The exactly-one-of constraint is enforced in the controller layer instead.
+      expect(getDocument.inputSchema.oneOf).toBeUndefined();
+      expect(getDocument.inputSchema.additionalProperties).toBe(false);
 
       expect(Object.keys(getDocumentChunk.inputSchema.properties).sort()).toEqual(['chunkIndex', 'filePath', 'hash']);
       expect(getDocumentChunk.inputSchema.required).toEqual(['chunkIndex']);
+      expect(getDocumentChunk.inputSchema.oneOf).toBeUndefined();
+      expect(getDocumentChunk.inputSchema.additionalProperties).toBe(false);
     });
 
     test('tools/list returns both document tools', async () => {
@@ -204,20 +206,23 @@ describe('get_document / get_document_chunk registration', () => {
     });
 
     test('rejects a request with neither filePath nor hash', () => {
+      // >! The MCP schema no longer uses oneOf; the schema itself accepts {} (both keys
+      // >! are optional at the schema level).  The controller enforces the exactly-one-of
+      // >! constraint at runtime.  Schema validation passes; no schema-level error here.
       const result = SchemaValidator.validate('get_document', {});
 
-      expect(result.valid).toBe(false);
-      expect(result.errors.join(' ')).toContain('exactly one of');
+      expect(result.valid).toBe(true);
     });
 
     test('rejects a request supplying both filePath and hash as ambiguous', () => {
+      // >! The MCP schema no longer uses oneOf; both keys being present is accepted at
+      // >! the schema level.  The controller enforces mutual exclusivity at runtime.
       const result = SchemaValidator.validate('get_document', {
         filePath: CONTENT_PATH,
         hash: VALID_HASH
       });
 
-      expect(result.valid).toBe(false);
-      expect(result.errors.join(' ')).toContain('exactly one of');
+      expect(result.valid).toBe(true);
     });
 
     test.each([
@@ -272,10 +277,11 @@ describe('get_document / get_document_chunk registration', () => {
     });
 
     test('rejects a missing lookup key', () => {
+      // >! The MCP schema no longer uses oneOf; a missing filePath/hash is accepted at
+      // >! the schema level.  The controller enforces the exactly-one-of constraint at runtime.
       const result = SchemaValidator.validate('get_document_chunk', { chunkIndex: 0 });
 
-      expect(result.valid).toBe(false);
-      expect(result.errors.join(' ')).toContain('exactly one of');
+      expect(result.valid).toBe(true);
     });
 
     test('rejects a malformed hash', () => {

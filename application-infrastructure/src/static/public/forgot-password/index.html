@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reset Password - Atlantis MCP Server</title>
+  <link rel="stylesheet" href="/css/index.css">
+</head>
+<body>
+  <div class="container">
+    <nav aria-label="Breadcrumb" class="breadcrumb-nav">
+      <ol>
+        <li><a href="/">Home</a></li>
+        <li aria-current="page">Reset Password</li>
+      </ol>
+    </nav>
+
+    <header>
+      <h1>Reset Your Password</h1>
+      <p class="description">Enter your email address to receive a reset code.</p>
+    </header>
+
+    <!-- Step 1: Request reset code -->
+    <div id="request-step" class="auth-form">
+      <div id="reset-error" class="alert alert-error" role="alert" aria-live="polite"></div>
+
+      <form id="reset-form" novalidate>
+        <div class="form-group">
+          <label for="email">Email address</label>
+          <input type="email" id="email" name="email" required autocomplete="email"
+                 aria-required="true" aria-describedby="reset-error">
+        </div>
+        <button type="submit" class="btn" id="reset-btn">Send Reset Code</button>
+      </form>
+
+      <div class="form-footer">
+        <p>Remembered your password? <a href="/login/">Log in</a></p>
+        <p>Don't have an account? <a href="/register/">Register</a></p>
+      </div>
+    </div>
+
+    <!-- Step 2: Enter code and new password -->
+    <div id="confirm-step" class="auth-form hidden">
+      <div id="confirm-error" class="alert alert-error" role="alert" aria-live="polite"></div>
+      <div id="confirm-info" class="alert alert-info" role="status"></div>
+      <div id="spam-advisory" class="alert alert-info" role="note" aria-live="polite">
+        If you don't see the reset email in your inbox, please check your spam or junk folder.
+      </div>
+
+      <form id="confirm-form" novalidate>
+        <div class="form-group">
+          <label for="verification-code">Reset code</label>
+          <input type="text" id="verification-code" name="code" required autocomplete="one-time-code"
+                 aria-required="true" aria-describedby="confirm-error"
+                 inputmode="numeric" pattern="[0-9]*">
+        </div>
+        <div class="form-group">
+          <label for="password-input">New password</label>
+          <input type="password" id="password-input" name="password" required autocomplete="new-password"
+                 aria-required="true" aria-describedby="password-requirements">
+          <div id="password-requirements"></div>
+        </div>
+        <div class="form-group">
+          <label for="confirm-password-input">Confirm new password</label>
+          <input type="password" id="confirm-password-input" name="confirm-password" autocomplete="new-password"
+                 aria-required="true" aria-describedby="password-match-status">
+          <div id="password-match-status"></div>
+        </div>
+        <div id="validation-announcements" class="visually-hidden" aria-live="polite" aria-atomic="true"></div>
+        <button type="submit" class="btn" id="confirm-btn">Reset Password</button>
+      </form>
+
+      <div id="resend-container" class="hidden" style="margin-top: 1.5rem;">
+        <button type="button" id="resend-btn" class="btn btn-secondary"
+                aria-label="Resend reset code to your email">
+          Resend Code
+        </button>
+        <div id="resend-status" class="alert" role="status" aria-live="polite"></div>
+      </div>
+    </div>
+
+    <!-- Step 3: Success -->
+    <div id="success-step" class="auth-form hidden">
+      <div class="alert alert-success" role="status">
+        <p>Your password has been successfully reset.</p>
+      </div>
+      <p>Your API key was not changed by this reset. Visit your <a href="/profile/">profile</a> to regenerate your API key if needed.</p>
+      <p><a href="/login/">Sign in with your new password</a></p>
+    </div>
+
+    <footer>
+      {{{settings.footer}}}
+    </footer>
+  </div>
+
+<script>
+  document.getElementById('copyright-year').textContent = new Date().getFullYear();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6/dist/amazon-cognito-identity.min.js"></script>
+<script src="/js/password-validator.js?v={{{settings.assetVersion}}}"></script>
+<script>
+(function() {
+  'use strict';
+
+  var USER_POOL_ID = '{{{settings.cognitoUserPoolId}}}';
+  var CLIENT_ID = '{{{settings.cognitoClientId}}}';
+
+  var poolData = {
+    UserPoolId: USER_POOL_ID,
+    ClientId: CLIENT_ID
+  };
+  var userPool = new AmazonCognitoIdentity.CognitoUserPool(poolData);
+
+  // Retained in closure for the confirm step and resend controller (Req 2.9)
+  var submittedEmail = '';
+
+  // Resend controller state — identical values to register/index.html (Req 5.x)
+  var resendState = {
+    count: 0,
+    maxResends: 3,
+    cooldownMs: 30000,
+    initialDelayMs: 30000,
+    timerId: null
+  };
+
+  // -------------------------------------------------------------------------
+  // DOM references — request step
+  // -------------------------------------------------------------------------
+  var requestStep = document.getElementById('request-step');
+  var resetForm = document.getElementById('reset-form');
+  var resetError = document.getElementById('reset-error');
+  var resetBtn = document.getElementById('reset-btn');
+
+  // -------------------------------------------------------------------------
+  // DOM references — confirm step
+  // -------------------------------------------------------------------------
+  var confirmStep = document.getElementById('confirm-step');
+  var confirmForm = document.getElementById('confirm-form');
+  var confirmError = document.getElementById('confirm-error');
+  var confirmBtn = document.getElementById('confirm-btn');
+  var confirmInfo = document.getElementById('confirm-info');
+  var spamAdvisory = document.getElementById('spam-advisory');
+  var verificationCodeInput = document.getElementById('verification-code');
+
+  // -------------------------------------------------------------------------
+  // DOM references — success step
+  // -------------------------------------------------------------------------
+  var successStep = document.getElementById('success-step');
+
+  // -------------------------------------------------------------------------
+  // DOM references — resend
+  // -------------------------------------------------------------------------
+  var resendContainer = document.getElementById('resend-container');
+  var resendBtn = document.getElementById('resend-btn');
+  var resendStatus = document.getElementById('resend-status');
+
+  // -------------------------------------------------------------------------
+  // DOM references — real-time password validation (confirm step)
+  // -------------------------------------------------------------------------
+  var passwordInput = document.getElementById('password-input');
+  var confirmPasswordInput = document.getElementById('confirm-password-input');
+  var passwordRequirements = document.getElementById('password-requirements');
+  var passwordMatchStatus = document.getElementById('password-match-status');
+  var validationAnnouncements = document.getElementById('validation-announcements');
+
+  // -------------------------------------------------------------------------
+  // Helpers
+  // -------------------------------------------------------------------------
+
+  function showError(el, msg) {
+    el.textContent = msg;
+    el.classList.add('visible');
+  }
+
+  function hideError(el) {
+    el.textContent = '';
+    el.classList.remove('visible');
+  }
+
+  /**
+   * Update the real-time validation UI elements based on the current validator result.
+   * Renders policy violations into #password-requirements and match status into
+   * #password-match-status. Suppresses the mismatch message while #confirm-password-input
+   * is empty. Shows the match confirmation only when values match AND the password passes
+   * all policy rules. Maintains aria-invalid on both fields and writes the ARIA live
+   * region content into #validation-announcements.
+   *
+   * @param {Object} result - Validator result from window.PasswordValidator.validateForm()
+   */
+  function updateValidationUI(result) {
+    var liveRegion = window.PasswordValidator.getAriaLiveRegion(result);
+
+    // Update password requirements
+    var policyErrors = result.fieldErrors.password;
+    if (policyErrors && policyErrors.length > 0) {
+      passwordRequirements.textContent = policyErrors.join('\n');
+      passwordRequirements.classList.add('field-error');
+      passwordRequirements.classList.remove('field-success');
+    } else {
+      passwordRequirements.textContent = '';
+      passwordRequirements.classList.remove('field-error', 'field-success');
+    }
+
+    // Update aria-invalid on password field
+    var passwordHasErrors = policyErrors && policyErrors.length > 0;
+    passwordInput.setAttribute('aria-invalid', passwordHasErrors ? 'true' : 'false');
+
+    // Update match status (with suppression when confirm is empty)
+    var confirmPassword = confirmPasswordInput.value;
+    if (confirmPassword === '') {
+      passwordMatchStatus.textContent = '';
+      passwordMatchStatus.classList.remove('field-error', 'field-success');
+      confirmPasswordInput.setAttribute('aria-invalid', 'false');
+    } else {
+      var confirmErrors = result.fieldErrors['confirm-password'];
+      if (confirmErrors && confirmErrors.length > 0) {
+        passwordMatchStatus.textContent = confirmErrors.join('\n');
+        passwordMatchStatus.classList.add('field-error');
+        passwordMatchStatus.classList.remove('field-success');
+        confirmPasswordInput.setAttribute('aria-invalid', 'true');
+      } else if (!passwordHasErrors) {
+        // No confirm errors, no policy errors, and confirm is non-empty means passwords match
+        passwordMatchStatus.textContent = 'Passwords match';
+        passwordMatchStatus.classList.add('field-success');
+        passwordMatchStatus.classList.remove('field-error');
+        confirmPasswordInput.setAttribute('aria-invalid', 'false');
+      } else {
+        // Passwords match but policy errors exist — don't show success yet
+        passwordMatchStatus.textContent = '';
+        passwordMatchStatus.classList.remove('field-error', 'field-success');
+        confirmPasswordInput.setAttribute('aria-invalid', 'false');
+      }
+    }
+
+    // Update ARIA live region
+    validationAnnouncements.textContent = liveRegion.content;
+  }
+
+  // Schedule the resend container to appear after the initial delay.
+  // Clears any previously scheduled timer before setting a new one (Req 5.7).
+  function startResendTimer() {
+    if (resendState.timerId) {
+      clearTimeout(resendState.timerId);
+    }
+    resendState.timerId = setTimeout(function() {
+      resendContainer.classList.remove('hidden');
+      resendState.timerId = null;
+    }, resendState.initialDelayMs);
+  }
+
+  // Transition from the request step to the confirm step (Req 2.6)
+  function showConfirmStep() {
+    requestStep.classList.add('hidden');
+    confirmStep.classList.remove('hidden');
+
+    // Neutral copy — does not reveal whether the account exists (Req 2.7, 6.9)
+    confirmInfo.textContent = 'A reset code has been sent if an account exists for this address.';
+    confirmInfo.classList.add('visible');
+
+    spamAdvisory.classList.add('visible');
+
+    // Move focus to the code input so screen readers announce the new step (Req 11.6)
+    verificationCodeInput.focus();
+
+    // Start the initial delay before the resend button becomes available
+    startResendTimer();
+  }
+
+  // -------------------------------------------------------------------------
+  // Step 1: Request reset code
+  // -------------------------------------------------------------------------
+
+  resetForm.addEventListener('submit', function(e) {
+    e.preventDefault();
+    hideError(resetError);
+
+    var email = document.getElementById('email').value.trim();
+
+    // Reject an empty email without calling the SDK (Req 2.2)
+    if (!email) {
+      showError(resetError, 'Please enter your email address.');
+      return;
+    }
+
+    // Disable button and show progress text while in flight (Req 2.3)
+    resetBtn.disabled = true;
+    resetBtn.textContent = 'Sending\u2026';
+
+    // Retain the submitted email in closure state for confirm step and resend (Req 2.9)
+    submittedEmail = email;
+
+    var userData = {
+      Username: email,
+      Pool: userPool
+    };
+    var cognitoUser = new AmazonCognitoIdentity.CognitoUser(userData);
+
+    cognitoUser.forgotPassword({
+      // inputVerificationCode fires when Cognito has dispatched the code email (Req 2.4, 2.5)
+      inputVerificationCode: function() {
+        // Re-enable the button for any future use (e.g. returning to this step via reload)
+        resetBtn.disabled = false;
+        resetBtn.textContent = 'Send Reset Code';
+
+        // Advance to the confirm step (Req 2.6)
+        showConfirmStep();
+      },
+
+      onSuccess: function() {
+        // Some Cognito SDK versions call onSuccess instead of inputVerificationCode
+        // for the forgot-password flow; treat it identically.
+        resetBtn.disabled = false;
+        resetBtn.textContent = 'Send Reset Code';
+        showConfirmStep();
+      },
+
+      onFailure: function(err) {
+        var code = err && err.code;
+
+        if (code === 'InvalidParameterException') {
+          // Account exists but is not yet confirmed. Resend the confirmation code and
+          // redirect to the registration verify step, mirroring login/index.html (Req 6.1).
+          // Disable controls while the resend is in flight.
+          resetBtn.disabled = true;
+          document.getElementById('email').disabled = true;
+
+          var resendUserData = { Username: submittedEmail, Pool: userPool };
+          var resendUser = new AmazonCognitoIdentity.CognitoUser(resendUserData);
+
+          resendUser.resendConfirmationCode(function(resendErr) {
+            if (resendErr) {
+              // Resend failed — re-enable controls and advise the user (Req 6.2)
+              resetBtn.disabled = false;
+              resetBtn.textContent = 'Send Reset Code';
+              document.getElementById('email').disabled = false;
+              // >! Error text is assigned via textContent only — no server-supplied text
+              // >! can reach the DOM through innerHTML or template interpolation.
+              showError(resetError, 'Could not send verification code. Please try again or contact support.');
+            } else {
+              // Show informational copy (not an error) then redirect to the verify step.
+              // The same neutral info-style treatment used in login/index.html (Req 6.1).
+              hideError(resetError);
+              resetError.classList.remove('alert-error');
+              resetError.classList.add('alert-info', 'visible');
+              // >! Message is a page-owned literal — err.message is never interpolated.
+              resetError.textContent = 'A new verification code has been sent. Redirecting to verification...';
+
+              setTimeout(function() {
+                window.location.href = '/register/?verify=' + encodeURIComponent(submittedEmail);
+              }, 2000);
+            }
+          });
+          return;
+        }
+
+        // Re-enable controls for all remaining error paths (Req 6.7, 6.8)
+        resetBtn.disabled = false;
+        resetBtn.textContent = 'Send Reset Code';
+
+        if (code === 'LimitExceededException' || code === 'TooManyRequestsException') {
+          // >! Message is a page-owned literal — err.message is never used here (Req 6.7).
+          showError(resetError, 'Too many attempts. Please wait a moment before trying again.');
+        } else {
+          // >! err.message is assigned via textContent only, never via innerHTML (Req 6.8, 6.9).
+          var msg = (err && err.message) ? err.message : 'Unable to send reset code. Please try again.';
+          showError(resetError, msg);
+        }
+      }
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Step 2: Confirm reset code and new password
+  // -------------------------------------------------------------------------
+
+  confirmForm.addEventListener('submit', function(e) {
+    e.preventDefault();
+    hideError(confirmError);
+
+    var code = verificationCodeInput.value.trim();
+
+    // Reject an empty verification code without calling the SDK (Req 3.5)
+    if (!code) {
+      showError(confirmError, 'Please enter the reset code sent to your email.');
+      return;
+    }
+
+    var password = passwordInput.value;
+    var confirmPassword = confirmPasswordInput.value;
+
+    // Gate on isReadyForSubmission — show errors and focus the first error field (Req 3.4)
+    var result = window.PasswordValidator.validateForm(password, confirmPassword);
+    if (!window.PasswordValidator.isReadyForSubmission(password, confirmPassword)) {
+      updateValidationUI(result);
+      var firstErrorField = window.PasswordValidator.getFirstErrorField(result);
+      if (firstErrorField) {
+        var fieldEl = document.getElementById(firstErrorField);
+        if (fieldEl) {
+          fieldEl.focus();
+        }
+      }
+      return;
+    }
+
+    // Disable button and show progress text while in flight (Req 3.6)
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = 'Resetting\u2026';
+
+    // Use the retained submittedEmail — the email input is on the request step,
+    // which is hidden at this point (Req 2.9)
+    var userData = {
+      Username: submittedEmail,
+      Pool: userPool
+    };
+    var cognitoUser = new AmazonCognitoIdentity.CognitoUser(userData);
+
+    cognitoUser.confirmPassword(code, password, {
+      onSuccess: function() {
+        // Hide confirm step and reveal success step (Req 3.3)
+        confirmStep.classList.add('hidden');
+        successStep.classList.remove('hidden');
+      },
+
+      onFailure: function(err) {
+        // Re-enable the button on every failure path (Req 3.7)
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = 'Reset Password';
+
+        var code = err && err.code;
+        var msg;
+
+        if (code === 'CodeMismatchException') {
+          // Req 6.3: code entered was incorrect
+          msg = 'The reset code is incorrect. Please check the code and try again.';
+        } else if (code === 'ExpiredCodeException') {
+          // Req 6.4: code has passed its validity window
+          msg = 'The reset code has expired. Please request a new one.';
+        } else if (code === 'InvalidPasswordException') {
+          // Req 6.5: Cognito rejected the new password against the pool policy
+          msg = 'The new password does not meet the requirements. It must be at least 8 characters and include uppercase, lowercase, a number, and a special character.';
+        } else if (
+          code === 'LimitExceededException' ||
+          code === 'TooManyRequestsException' ||
+          code === 'TooManyFailedAttemptsException'
+        ) {
+          // Req 6.6: rate-limit or failed-attempt cap reached
+          msg = 'Too many attempts. Please wait before trying again.';
+        } else {
+          // Req 6.8: unexpected error — surface SDK message when available via textContent only
+          // >! err.message is assigned via textContent only — never interpolated into markup.
+          msg = (err && err.message) ? err.message : 'Failed to reset password. Please try again.';
+        }
+
+        showError(confirmError, msg);
+      }
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Real-time validation listeners (confirm step — password fields)
+  // Wired here so the DOM references are already in scope.
+  // -------------------------------------------------------------------------
+
+  passwordInput.addEventListener('input', function() {
+    var result = window.PasswordValidator.validateForm(
+      passwordInput.value,
+      confirmPasswordInput.value
+    );
+    updateValidationUI(result);
+  });
+
+  confirmPasswordInput.addEventListener('input', function() {
+    var result = window.PasswordValidator.validateForm(
+      passwordInput.value,
+      confirmPasswordInput.value
+    );
+    updateValidationUI(result);
+  });
+
+  // -------------------------------------------------------------------------
+  // Resend button click handler stub
+  // Full resend logic (cooldown, cap, etc.) is implemented in task 8.4.
+  // The resendState object and startResendTimer are already defined above so
+  // the initial delay timer can be started when the confirm step opens.
+  // -------------------------------------------------------------------------
+
+  resendBtn.addEventListener('click', function() {
+    if (resendState.count >= resendState.maxResends) {
+      return;
+    }
+
+    resendBtn.disabled = true;
+    resendStatus.textContent = '';
+    resendStatus.classList.remove('visible', 'alert-info', 'alert-error');
+
+    var userData = { Username: submittedEmail, Pool: userPool };
+    var cognitoUser = new AmazonCognitoIdentity.CognitoUser(userData);
+
+    cognitoUser.forgotPassword({
+      inputVerificationCode: function() {
+        resendState.count++;
+
+        if (resendState.count >= resendState.maxResends) {
+          resendBtn.disabled = true;
+          resendStatus.textContent = 'Maximum resend attempts reached. Please check your email or try again later.';
+          resendStatus.classList.add('visible', 'alert-info');
+          return;
+        }
+
+        resendStatus.textContent = 'A new reset code has been sent.';
+        resendStatus.classList.add('visible', 'alert-info');
+
+        resendContainer.classList.add('hidden');
+
+        if (resendState.timerId) {
+          clearTimeout(resendState.timerId);
+        }
+        resendState.timerId = setTimeout(function() {
+          resendContainer.classList.remove('hidden');
+          resendBtn.disabled = false;
+          resendState.timerId = null;
+        }, resendState.cooldownMs);
+      },
+
+      onSuccess: function() {
+        // Some SDK versions call onSuccess; treat identically to inputVerificationCode
+        resendState.count++;
+
+        if (resendState.count >= resendState.maxResends) {
+          resendBtn.disabled = true;
+          resendStatus.textContent = 'Maximum resend attempts reached. Please check your email or try again later.';
+          resendStatus.classList.add('visible', 'alert-info');
+          return;
+        }
+
+        resendStatus.textContent = 'A new reset code has been sent.';
+        resendStatus.classList.add('visible', 'alert-info');
+
+        resendContainer.classList.add('hidden');
+
+        if (resendState.timerId) {
+          clearTimeout(resendState.timerId);
+        }
+        resendState.timerId = setTimeout(function() {
+          resendContainer.classList.remove('hidden');
+          resendBtn.disabled = false;
+          resendState.timerId = null;
+        }, resendState.cooldownMs);
+      },
+
+      onFailure: function(err) {
+        // On failure: show error, re-enable button, do NOT increment count (Req 5.4)
+        var msg = (err && err.message) ? err.message : 'Failed to resend reset code.';
+        resendStatus.textContent = msg;
+        resendStatus.classList.add('visible', 'alert-error');
+        resendBtn.disabled = false;
+      }
+    });
+  });
+
+})();
+</script>
+</body>
+</html>

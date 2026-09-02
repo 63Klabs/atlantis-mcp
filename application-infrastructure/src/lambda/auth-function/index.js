@@ -2,8 +2,10 @@
  * Auth Lambda Entry Point (cache-data MVC pattern)
  *
  * Thin handler that detects the event type and branches:
- * - Cognito PostConfirmation_ConfirmSignUp → delegates directly to
- *   handlers/post-confirmation.js without cache-data classes
+ * - Cognito trigger (triggerSource present) → handled before any cache-data
+ *   initialization; PostConfirmation_ConfirmSignUp delegates to
+ *   handlers/post-confirmation.js; any other trigger source is echoed back
+ *   unmodified so Cognito can complete the operation (e.g. ConfirmForgotPassword)
  * - API Gateway proxy → Config.promise/prime, ClientRequest/Response,
  *   Routes.process, response.finalize()
  * - Unrecognized event → 400 error via response.finalize()
@@ -30,6 +32,7 @@ Config.init();
  *
  * Detects the event type and delegates to the appropriate handler:
  * - Cognito PostConfirmation_ConfirmSignUp → post-confirmation handler
+ * - Any other Cognito trigger → echoed back unmodified
  * - API Gateway proxy (httpMethod + path) → cache-data MVC pattern
  * - Unrecognized events → 400 error response
  *
@@ -39,8 +42,12 @@ Config.init();
  * @returns {Promise<Object>} Cognito event (for triggers) or API Gateway proxy response
  * @throws {Error} Re-throws Cognito trigger errors to reject confirmation
  * @example
- * // Cognito trigger invocation
+ * // Cognito PostConfirmation_ConfirmSignUp trigger
  * const result = await handler(cognitoEvent, context);
+ *
+ * @example
+ * // Cognito PostConfirmation_ConfirmForgotPassword trigger — echoed back
+ * const result = await handler({ triggerSource: 'PostConfirmation_ConfirmForgotPassword', ... }, context);
  *
  * @example
  * // API Gateway invocation
@@ -48,15 +55,25 @@ Config.init();
  * // Returns finalized response with CORS headers
  */
 async function handler(event, context) {
-	// >! Cognito PostConfirmation trigger — no cache-data classes
-	if (event.triggerSource === 'PostConfirmation_ConfirmSignUp') {
-		try {
-			return await postConfirmationHandler.handler(event);
-		} catch (error) {
-			console.error('Post-Confirmation trigger error:', error);
-			// >! Re-throw to reject the Cognito confirmation
-			throw error;
+	// >! Cognito user pool trigger events are identified by triggerSource and have no
+	// >! httpMethod/path. They MUST be echoed back unmodified — returning an API Gateway
+	// >! shaped response causes Cognito to raise InvalidLambdaResponseException on
+	// >! operations such as ConfirmForgotPassword, after the password has already changed.
+	if (typeof event.triggerSource === 'string') {
+		if (event.triggerSource === 'PostConfirmation_ConfirmSignUp') {
+			try {
+				return await postConfirmationHandler.handler(event);
+			} catch (error) {
+				console.error('Post-Confirmation trigger error:', error);
+				// >! Re-throw to reject the Cognito confirmation
+				throw error;
+			}
 		}
+
+		// >! Any other trigger source (e.g. PostConfirmation_ConfirmForgotPassword) is not
+		// >! handled by this function. Echo the event so Cognito completes the operation.
+		console.log(`Unhandled Cognito trigger source: ${event.triggerSource}`);
+		return event;
 	}
 
 	// >! API Gateway path — full MVC pattern

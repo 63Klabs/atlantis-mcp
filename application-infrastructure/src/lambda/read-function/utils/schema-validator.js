@@ -239,9 +239,9 @@ const baseSchemas = {
    * Schema for get_document tool input
    * Retrieves the full stored source file behind a search result.
    *
-   * `oneOf` enforces exactly one lookup key: `filePath` (a section contentPath) or `hash`
-   * (a section content hash). Both keys resolve to the same document, so supplying both is
-   * ambiguous and rejected rather than silently preferring one.
+   * Exactly one of `filePath` or `hash` must be provided. This constraint is enforced
+   * programmatically in the controller layer because the MCP protocol does not support
+   * `oneOf` at the schema root level.
    */
   get_document: {
     type: 'object',
@@ -259,10 +259,6 @@ const baseSchemas = {
         description: 'Section content hash (16 hexadecimal characters)'
       }
     },
-    oneOf: [
-      { required: ['filePath'] },
-      { required: ['hash'] }
-    ],
     additionalProperties: false
   },
 
@@ -270,6 +266,7 @@ const baseSchemas = {
    * Schema for get_document_chunk tool input
    * Retrieves one chunk of a document too large for a single get_document response.
    * Same lookup key rule as get_document, plus a required zero-based chunkIndex.
+   * Exactly one of `filePath` or `hash` must be provided, enforced in the controller.
    */
   get_document_chunk: {
     type: 'object',
@@ -291,10 +288,6 @@ const baseSchemas = {
       }
     },
     required: ['chunkIndex'],
-    oneOf: [
-      { required: ['filePath'] },
-      { required: ['hash'] }
-    ],
     additionalProperties: false
   },
 
@@ -494,21 +487,6 @@ const validate = (toolName, input) => {
       if (!(requiredProp in input)) {
         errors.push(`Missing required property: ${requiredProp}`);
       }
-    }
-  }
-
-  // >! Check oneOf branches (exactly one must be satisfied). Only `required` branches are
-  // >! supported, which is all the tool schemas use: mutually exclusive lookup keys. Matching
-  // >! zero branches means the caller supplied no key; matching more than one means the input
-  // >! is ambiguous. Both are rejected rather than resolved by preference.
-  if (Array.isArray(schema.oneOf)) {
-    const branchLabels = schema.oneOf.map(branch => (branch.required || []).join(' + '));
-    const matchCount = schema.oneOf.filter(
-      branch => (branch.required || []).every(prop => prop in input)
-    ).length;
-
-    if (matchCount !== 1) {
-      errors.push(`Input must include exactly one of: ${branchLabels.join(' | ')} (matched ${matchCount})`);
     }
   }
 

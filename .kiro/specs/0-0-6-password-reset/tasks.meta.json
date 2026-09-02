@@ -1,0 +1,704 @@
+{
+  "pbtResults": {
+    "14.5 Write property test: resend cap (Property 5)": {
+      "status": "passed",
+      "lastRunTimestamp": 1788362620894
+    },
+    "14.4 Write property test: submission gate (Property 6)": {
+      "status": "passed",
+      "lastRunTimestamp": 1788362779900
+    }
+  },
+  "executionHistory": {
+    "1.2 Create unit tests for the dispatcher in `tests/unit/handler-event-dispatch.test.js`": [
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361438763
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361544271
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361768428
+      }
+    ],
+    "1.3 Write property test: trigger echo identity (Property 2)": [
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361438887
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361546707
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361771532
+      }
+    ],
+    "2. Checkpoint - Verify the prerequisite fix in isolation": [
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361438978
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788363321218
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788363381551
+      }
+    ],
+    "3.1 Create `public/js/password-validator.js`": [
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361439090
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361450271
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361535230
+      }
+    ],
+    "3.2 Add `assetVersion` to `settings.json`": [
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361439195
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361452511
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361537970
+      }
+    ],
+    "3.3 Reference the shared asset from `register/index.html`": [
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361439289
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361549157
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361774494
+      }
+    ],
+    "4.1 Create `tests/helpers/load-page.mjs`": [
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361439378
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361551611
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361777279
+      }
+    ],
+    "4.2 Migrate existing static test files to the shared helper": [
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361439462
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361780405
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788362106733
+      }
+    ],
+    "4.3 Confirm drift detection still holds": [
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361439552
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788362118679
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788362267648
+      }
+    ],
+    "5. Checkpoint - Verify the extraction caused no regression": [
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361439638
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788363384733
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788363427190
+      }
+    ],
+    "6.1 Create `public/forgot-password/index.html` structure": [
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361439726
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361783055
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788362109506
+      }
+    ],
+    "7.1 Wire `#request-step` to `ForgotPassword`": [
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361439815
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788362121385
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788362270713
+      }
+    ],
+    "7.2 Map request-step errors": [
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361439899
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788362352081
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788362479390
+      }
+    ],
+    "8.1 Wire real-time validation on the new-password fields": [
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361439986
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788362124267
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788362274733
+      }
+    ],
+    "8.2 Wire `#confirm-step` to `ConfirmForgotPassword`": [
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361440079
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788362354847
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788362482507
+      }
+    ],
+    "8.3 Map confirm-step errors": [
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361440172
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788362491883
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788362633614
+      }
+    ],
+    "8.4 Implement the resend controller": [
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361440270
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788362357271
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788362485469
+      }
+    ],
+    "9.1 Populate `#success-step`": [
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361440406
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788362128739
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788362277848
+      }
+    ],
+    "10.1 Update `public/login/index.html`": [
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361440499
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361790802
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788362112262
+      }
+    ],
+    "11.1 Add markup to `public/profile/index.html`": [
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361440597
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361793499
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788362115133
+      }
+    ],
+    "11.2 Wire the change-password handler": [
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361440689
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788362359898
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788362488402
+      }
+    ],
+    "11.3 Map change-password errors": [
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361440781
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788362494694
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788362636625
+      }
+    ],
+    "12.1 Add `AccountRecoverySetting` to `CognitoUserPool` in `template.yml`": [
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361440876
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361455075
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361541048
+      }
+    ],
+    "13. Checkpoint - Manual verification of both flows": [
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361440998
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788363430172
+      }
+    ],
+    "14.1 Create `tests/forgot-password/forgot-password-form.jest.mjs`": [
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361441098
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788362646238
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788363211013
+      }
+    ],
+    "14.2 Create `tests/forgot-password/forgot-password-errors.jest.mjs`": [
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361441189
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788362649239
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788363214032
+      }
+    ],
+    "14.3 Create `tests/forgot-password/forgot-password-resend.jest.mjs`": [
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361441279
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788362499037
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788362639585
+      }
+    ],
+    "14.4 Write property test: submission gate (Property 6)": [
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361441372
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788362652549
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788363218186
+      }
+    ],
+    "14.5 Write property test: resend cap (Property 5)": [
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361441464
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788362501851
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788362642522
+      }
+    ],
+    "15.1 Create `tests/profile/change-password.jest.mjs`": [
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361441557
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788362656062
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788363221404
+      }
+    ],
+    "16.1 Add the forgot-password page to `tests/accessibility-tests.jest.mjs`": [
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361441652
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788362131528
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788362347999
+      }
+    ],
+    "17. Checkpoint - Full suite green": [
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361441747
+      }
+    ],
+    "18.1 Update `ARCHITECTURE.md`": [
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361441837
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788363225027
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788363300253
+      }
+    ],
+    "18.2 Update `docs/end-user/troubleshooting/README.md`": [
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361441931
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788363227971
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788363307879
+      }
+    ],
+    "18.3 Update `CHANGELOG.md`": [
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361442020
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788363231005
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788363310763
+      }
+    ],
+    "1.1 Branch on trigger-source presence in `auth-function/index.js`": [
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361447909
+      },
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361532348
+      }
+    ],
+    "12. Declare account recovery in CloudFormation": [
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361541255
+      }
+    ],
+    "1. Fix Auth Lambda trigger-source dispatch (prerequisite)": [
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361771675
+      }
+    ],
+    "3. Extract the shared password validator asset": [
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788361774597
+      }
+    ],
+    "6. Build the forgot-password page markup": [
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788362109595
+      }
+    ],
+    "10. Add login page entry points": [
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788362112379
+      }
+    ],
+    "4. Consolidate the jsdom test harness": [
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788362267810
+      }
+    ],
+    "9. Implement the forgot-password success step": [
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788362277965
+      }
+    ],
+    "16. Extend the accessibility test suite": [
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788362348149
+      }
+    ],
+    "7. Implement the forgot-password request step": [
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788362479493
+      }
+    ],
+    "8. Implement the forgot-password confirm step": [
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788362633757
+      }
+    ],
+    "11. Add the profile change-password section": [
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788362636730
+      }
+    ],
+    "14. Write forgot-password page tests": [
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788363218318
+      }
+    ],
+    "15. Write profile change-password tests": [
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788363221512
+      }
+    ],
+    "18. Update documentation": [
+      {
+        "executionId": "58a0577e-f987-4881-814f-1325d8342520",
+        "chatSessionId": "sess_57641ec3-36cc-4fec-8008-0b79bcaca028",
+        "timestamp": 1788363310914
+      }
+    ]
+  }
+}

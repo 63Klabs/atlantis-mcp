@@ -186,15 +186,18 @@ Handles server-side authentication operations. Dual-purpose: responds to Cognito
 │                        Auth Lambda Handler                          │
 │                                                                     │
 │  Event Detection:                                                   │
-│  ├─ triggerSource === 'PostConfirmation_ConfirmSignUp'              │
-│  │   └─ handlers/post-confirmation.js                               │
-│  │       ├─ Check blocked/allowed email domains                     │
-│  │       ├─ Check blocked/allowed countries                         │
-│  │       ├─ Generate API key (atl_ + 32 hex chars)                  │
-│  │       ├─ HMAC-SHA256 hash with salt from SSM                     │
-│  │       ├─ Store KEY#<hash> record in Users table                  │
-│  │       ├─ Update Cognito custom:tier and custom:api_key           │
-│  │       └─ Return raw key (displayed once to user)                 │
+│  ├─ triggerSource present (any Cognito trigger)                     │
+│  │   ├─ triggerSource === 'PostConfirmation_ConfirmSignUp'          │
+│  │   │   └─ handlers/post-confirmation.js                           │
+│  │   │       ├─ Check blocked/allowed email domains                 │
+│  │   │       ├─ Check blocked/allowed countries                     │
+│  │   │       ├─ Generate API key (atl_ + 32 hex chars)              │
+│  │   │       ├─ HMAC-SHA256 hash with salt from SSM                 │
+│  │   │       ├─ Store KEY#<hash> record in Users table              │
+│  │   │       ├─ Update Cognito custom:tier and custom:api_key       │
+│  │   │       └─ Return raw key (displayed once to user)             │
+│  │   └─ any other triggerSource (e.g. PostConfirmation_ConfirmForgotPassword)
+│  │       └─ return event unmodified (prevents InvalidLambdaResponseException)
 │  │                                                                  │
 │  ├─ httpMethod + path (API Gateway proxy)                           │
 │  │   └─ routes/index.js → route dispatcher                          │
@@ -576,9 +579,12 @@ The static documentation site is hosted on S3 and includes both generated API do
 Static Site Structure:
 ├── index.html                    # Landing page with "Manage Account" link
 ├── css/index.css                 # Shared styles
-├── register/index.html           # Cognito sign-up form
+├── js/
+│   └── password-validator.js     # Shared password validator (register, forgot-password, profile)
+├── forgot-password/index.html    # Self-service password reset wizard (request → confirm → success)
 ├── login/index.html              # Cognito sign-in form
-├── profile/index.html            # User profile, API key display, voucher redemption
+├── profile/index.html            # User profile, API key display, voucher redemption, change password
+├── register/index.html           # Cognito sign-up form
 ├── docs/
 │   ├── index.html                # Documentation index
 │   └── rate-limits/index.html    # Rate limit tiers documentation
@@ -587,6 +593,8 @@ Static Site Structure:
 ```
 
 The authentication pages use the `amazon-cognito-identity-js` browser SDK loaded from CDN. Rate limit values and other configuration are injected at deploy time from `settings.json` via token replacement in the post-deploy scripts.
+
+`public/js/password-validator.js` is a shared asset referenced by the register, forgot-password, and profile pages. It exposes `window.PasswordValidator` and must stay behaviorally identical to `src/lambda/auth-function/utils/password-validator.js`; drift between the two is detected by Property 1 in `tests/register/registration-validation.property.jest.mjs`. Because `apply-settings.js` processes only `.html` and `.json` files, the shared `.js` asset cannot carry `{{{settings.*}}}` tokens — cache-busting is handled by the `?v={{{settings.assetVersion}}}` query string on each referencing `<script src>` tag.
 
 ## Post-Deploy Pipeline
 

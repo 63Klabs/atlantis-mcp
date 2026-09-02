@@ -1004,6 +1004,10 @@ Resources:
         - email
       AutoVerifiedAttributes:
         - email
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - Name: verified_email
+            Priority: 1
       Schema:
         - Name: email
           Required: true

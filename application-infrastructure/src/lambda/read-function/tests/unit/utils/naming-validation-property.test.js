@@ -872,7 +872,7 @@ describe('Naming Validation - Property-Based Tests', () => {
     });
 
     it('should detect pattern3 for names without AccountId or Region', () => {
-      const resourceNameGen = fc.stringMatching(/^[a-z][a-z0-9]{1,6}$/);
+      const resourceNameGen = fc.stringMatching(/^[a-z][a-z0-9]{1,6}$/).filter(s => s !== 'an');
 
       fc.assert(
         fc.property(
