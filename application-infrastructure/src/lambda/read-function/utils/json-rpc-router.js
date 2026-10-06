@@ -18,7 +18,8 @@ const ContentSizer = require('./content-sizer');
 const ContentChunker = require('./content-chunker');
 const Controllers = require('../controllers');
 const AgentAssetTypes = require('../config/agent-asset-types');
-const { extendedDescriptions } = require('../config/tool-descriptions');
+const { buildToolCatalog } = require('./tool-catalog');
+const { tools: { DebugAndLog } } = require('@63klabs/cache-data');
 
 /**
  * Standard CORS and MCP headers included on every response.
@@ -74,6 +75,50 @@ const TOOL_DISPATCH = {
   ...baseDispatch,
   ...AgentAssetTypes.getToolDispatch(Controllers.AgentAssets)
 };
+
+/**
+ * Stable, machine-parseable prefix for the discovery-observability `discovery_tool_call` log
+ * line (spec 0-0-7-tool-discovery-enhancement, Requirement 12.2/12.3), following the existing
+ * `DOC_AI_USAGE` convention (fixed token, one space, then compact JSON).
+ *
+ * @constant {string}
+ */
+const DISCOVERY_TOOL_CALL_EVENT = 'DISCOVERY_TOOL_CALL';
+
+/**
+ * Per-container (per warm Lambda execution environment) flag tracking whether a tool call
+ * has been observed yet. The MCP server is stateless across requests/clients, so this is NOT
+ * a true per-client-session signal — it is "the first tool call this container has observed
+ * since its last cold start", a sampled proxy for whether the `instructions` string is
+ * steering agent behavior (design section 13, Requirement 12.3). Resets naturally on cold
+ * start since it is plain module-level state; a warm container legitimately reuses it across
+ * invocations, which is the per-container semantics this field documents.
+ *
+ * @type {boolean}
+ */
+let hasObservedToolCallInContainer = false;
+
+/**
+ * Emit the structured `discovery_tool_call` observability log event (Requirement 12.2, 12.3)
+ * from the single shared `tools/call` dispatch point, so tool-selection frequency and
+ * first-tool-in-session are derivable from one log line per call regardless of which tool
+ * controller handled it. Never logs caller identity/PII — only the tool name and the boolean
+ * first-call flag (Requirement 12.5). Emitted at INFO so it is visible in PROD.
+ *
+ * @param {string} toolName - Invoked tool name.
+ * @returns {void}
+ * @example
+ * logDiscoveryToolCall('search_documentation');
+ */
+function logDiscoveryToolCall(toolName) {
+  try {
+    const firstInSession = !hasObservedToolCallInContainer;
+    hasObservedToolCallInContainer = true;
+    DebugAndLog.info(`${DISCOVERY_TOOL_CALL_EVENT} ${JSON.stringify({ toolName, firstInSession })}`);
+  } catch {
+    // >! Best-effort telemetry: swallow any logging error so it can never fail the request.
+  }
+}
 
 /**
  * Build an API Gateway–compatible response object.
@@ -193,12 +238,8 @@ async function handleJsonRpc(clientRequest, authInfo) {
         return buildResponse(200, MCPProtocol.initializeResponse(id));
 
       case 'tools/list': {
-        // Merge extended descriptions at response time
-        const mergedTools = MCPProtocol.MCP_TOOLS.map(tool => {
-          const extended = extendedDescriptions[tool.name];
-          return extended ? { ...tool, description: extended } : tool;
-        });
-        return buildResponse(200, MCPProtocol.toolsListResponse(id, mergedTools));
+        const catalog = buildToolCatalog();
+        return buildResponse(200, MCPProtocol.toolsListResponse(id, catalog));
       }
 
       case 'tools/call':
@@ -282,6 +323,11 @@ async function handleToolsCall(id, params, clientRequest, authInfo) {
 
   // log the tool name
   clientRequest.addQueryLog(`t:${toolName}`);
+
+  // >! Discovery observability (Requirement 12.2, 12.3): single shared injection point for
+  // >! EVERY tool call (including list_tools), so tool-selection frequency and
+  // >! first-tool-in-session are derivable without duplicating this per controller.
+  logDiscoveryToolCall(toolName);
 
   // >! Default to a safe public-tier context so callers/tests that omit authInfo keep working.
   // >! Only the tier is consumed downstream; identity/PII is never logged here.
@@ -492,6 +538,19 @@ function buildDocumentSummary(documentData, serializedContent) {
   };
 }
 
+/**
+ * Reset the per-container `discovery_tool_call` first-call flag.
+ * WARNING: For testing only; never use in production code. Lets a test exercise multiple
+ * "first call in a container" scenarios in one file without state leaking across cases,
+ * mirroring the `TestHarness.resetDocAiComponents()` convention in `services/documentation.js`.
+ *
+ * @private
+ * @returns {void}
+ */
+function resetDiscoveryToolCallState() {
+  hasObservedToolCallInContainer = false;
+}
+
 module.exports = {
   handleJsonRpc,
   // Exported for testing
@@ -501,5 +560,6 @@ module.exports = {
   buildAgentAssetSummary,
   buildDocumentSummary,
   TOOL_DISPATCH,
-  STANDARD_HEADERS
+  STANDARD_HEADERS,
+  resetDiscoveryToolCallState
 };

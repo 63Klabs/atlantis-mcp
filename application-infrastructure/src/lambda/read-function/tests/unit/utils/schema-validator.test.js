@@ -316,6 +316,58 @@ describe('JSON Schema Validator', () => {
       expect(result.valid).toBe(false);
       expect(result.errors.some(e => e.includes('must be one of'))).toBe(true);
     });
+
+    // spec 0-0-7-tool-discovery-enhancement, task 12.1 (Requirements 5.1, 5.2)
+    test('should accept an optional repository filter', () => {
+      const result = validate('search_documentation', { query: 'test', repository: 'cache-data' });
+
+      expect(result.valid).toBe(true);
+    });
+
+    test('should reject an empty repository filter', () => {
+      const result = validate('search_documentation', { query: 'test', repository: '' });
+
+      expect(result.valid).toBe(false);
+    });
+
+    test.each(['documentation', 'app-starter', 'templates', 'management', 'package', 'mcp'])(
+      'should accept repositoryType value "%s"', (repositoryType) => {
+        const result = validate('search_documentation', { query: 'test', repositoryType });
+
+        expect(result.valid).toBe(true);
+      }
+    );
+
+    test('should reject an unknown repositoryType value', () => {
+      const result = validate('search_documentation', { query: 'test', repositoryType: 'not-a-type' });
+
+      expect(result.valid).toBe(false);
+      expect(result.errors.some(e => e.includes('must be one of'))).toBe(true);
+    });
+
+    test('should accept an optional namespace filter matching the standard namespace pattern', () => {
+      const result = validate('search_documentation', { query: 'test', namespace: 'cache-data-v2' });
+
+      expect(result.valid).toBe(true);
+    });
+
+    test('should reject a namespace filter that does not match the standard pattern', () => {
+      const result = validate('search_documentation', { query: 'test', namespace: 'Not_Valid' });
+
+      expect(result.valid).toBe(false);
+    });
+
+    test('should accept repository, repositoryType, and namespace together with ghusers', () => {
+      const result = validate('search_documentation', {
+        query: 'cache-data',
+        repository: 'cache-data',
+        repositoryType: 'package',
+        namespace: 'v2',
+        ghusers: ['63klabs']
+      });
+
+      expect(result.valid).toBe(true);
+    });
   });
 
   describe('validate() - validate_naming', () => {

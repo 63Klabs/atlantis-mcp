@@ -15,7 +15,7 @@
  * - `ASSET_NOT_FOUND` includes available names, and the empty-names case (Requirement 2.4)
  * - `listTypes` per-type asset counts (Requirement 6.3)
  * - An `s3Buckets` filter naming an unconfigured bucket is rejected with no S3 read (Requirement 4.6)
- * - An unknown/disabled `assetType` is rejected before any S3 read (Requirement 7.8)
+ * - An unknown `assetType` is rejected before any S3 read (Requirement 7.8)
  */
 
 // Mock @63klabs/cache-data at module level, mirroring templates-service.test.js
@@ -136,7 +136,7 @@ describe('AgentAssets Service', () => {
 
       // Matches the real registry's enabled-type order (Requirement 1.1)
       expect(requestedTypeNames).toEqual(AgentAssetTypes.getEnabledTypeNames());
-      expect(requestedTypeNames).toEqual(['steering', 'hooks', 'agents-md']);
+      expect(requestedTypeNames).toEqual(['steering', 'hooks', 'agents-md', 'skills']);
     });
   });
 
@@ -229,9 +229,9 @@ describe('AgentAssets Service', () => {
     });
   });
 
-  describe('Unknown/disabled assetType rejected before any S3 read (Requirement 7.8)', () => {
-    it('rejects list() when assetType names a disabled type (skills)', async () => {
-      await expect(AgentAssets.list({ assetType: 'skills' }))
+  describe('Unknown assetType rejected before any S3 read (Requirement 7.8)', () => {
+    it('rejects list() when assetType is unknown', async () => {
+      await expect(AgentAssets.list({ assetType: 'bogus' }))
         .rejects.toMatchObject({ code: 'INVALID_INPUT' });
 
       expect(Models.S3AgentAssets.list).not.toHaveBeenCalled();

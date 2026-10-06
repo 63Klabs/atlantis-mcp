@@ -68,6 +68,16 @@ jest.mock('../../../config/tool-descriptions', () => ({
   }
 }));
 
+// Mock tool-metadata so buildToolCatalog() (now the single source for list_tools,
+// task 6.3) composes no registry discovery block into the description. This test
+// file is only concerned with the extended-description merge behavior (Req 3.1-3.5),
+// which tool-metadata.test.js and tool-catalog tests cover separately.
+jest.mock('../../../config/tool-metadata', () => ({
+  generateAnnotations: jest.fn().mockReturnValue(undefined),
+  generateTitles: jest.fn().mockReturnValue(undefined),
+  getDiscoveryBlock: jest.fn().mockReturnValue(undefined)
+}));
+
 const ToolsController = require('../../../controllers/tools');
 const SchemaValidator = require('../../../utils/schema-validator');
 const settings = require('../../../config/settings');

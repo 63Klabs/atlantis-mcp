@@ -49,6 +49,10 @@ jest.mock('../../../models', () => ({
     queryIndex: jest.fn(),
     getActiveVersion: jest.fn(),
     getContentMetadataByHashes: jest.fn()
+  },
+  Corpus: {
+    getCorpusManifest: jest.fn(),
+    MANIFEST_SOURCE: { INDEXER: 'indexer', DERIVED: 'derived', UNAVAILABLE: 'unavailable' }
   }
 }));
 
@@ -68,7 +72,7 @@ const NARROW_SUGGESTION_THRESHOLD = 25;
  * @param {number} [index=0] - Used to make titles/paths unique.
  * @returns {Object} Search result object.
  */
-const makeResult = (type, subType, index = 0) => ({
+const makeResult = (type, subType, index = 0, repository = null) => ({
   title: `Result ${index}`,
   excerpt: 'excerpt',
   filePath: `docs/file-${index}.md`,
@@ -76,7 +80,7 @@ const makeResult = (type, subType, index = 0) => ({
   type,
   subType,
   relevanceScore: 100 - index,
-  repository: null,
+  repository,
   repositoryType: null,
   namespace: null
 });
@@ -104,10 +108,20 @@ describe('Documentation service availableFilters and suggestions nudge', () => {
       github: { userOrgs: ['63klabs'] },
       docIndexTable: 'test-doc-index-table',
       documentation: {
-        ai: { enabled: false, minTier: 'paid', retrievalMode: 'semantic' }
+        ai: { enabled: false, minTier: 'paid', retrievalMode: 'semantic' },
+        corpusManifestMaxBytes: 4096
       }
     });
     Config.getConnCacheProfile.mockImplementation(() => createMockConnCacheProfile());
+
+    // spec 0-0-7-tool-discovery-enhancement, task 13.1: this file is scoped to
+    // `availableFilters`/`suggestions`; the corpus manifest is unavailable here so
+    // `indexedRepositories` stays absent and does not interact with those assertions.
+    Models.Corpus.getCorpusManifest.mockResolvedValue({
+      repositories: null,
+      source: 'unavailable',
+      version: null
+    });
 
     // Cache miss on every call so the assembled envelope is what search() returns.
     CacheableDataAccess.getData.mockImplementation(async (profile, fetchFn, conn) => fetchFn(conn, {}));
@@ -181,6 +195,40 @@ describe('Documentation service availableFilters and suggestions nudge', () => {
         type: [{ value: 'documentation', count: 1 }],
         subType: [{ value: 'guide', count: 1 }]
       });
+    });
+
+    // spec 0-0-7-tool-discovery-enhancement, task 12.5 (Requirement 5.5)
+    it('should count each distinct repository value in the matched set, alongside type/subType', async () => {
+      const results = [
+        makeResult('documentation', 'guide', 0, 'cache-data'),
+        makeResult('documentation', 'reference', 1, 'cache-data'),
+        makeResult('documentation', 'guide', 2, 'atlantis-mcp')
+      ];
+      Models.DocIndex.queryIndex.mockResolvedValue({
+        results, totalResults: results.length, query: 'cache', suggestions: []
+      });
+
+      const result = await Documentation.search({ query: 'cache' });
+
+      expect(result.availableFilters.repository).toEqual([
+        { value: 'cache-data', count: 2 },
+        { value: 'atlantis-mcp', count: 1 }
+      ]);
+      // type/subType facets are still reported alongside repository (R8.1 unaffected by R5.5).
+      expect(result.availableFilters.type).toEqual([{ value: 'documentation', count: 3 }]);
+    });
+
+    // spec 0-0-7-tool-discovery-enhancement, task 12.5 (Requirement 5.5)
+    it('should omit the repository facet when no result carries a repository value', async () => {
+      const results = [makeResult('documentation', 'guide', 0, null)];
+      Models.DocIndex.queryIndex.mockResolvedValue({
+        results, totalResults: 1, query: 'q', suggestions: []
+      });
+
+      const result = await Documentation.search({ query: 'q' });
+
+      expect(result.availableFilters.repository).toBeUndefined();
+      expect(result.availableFilters.type).toEqual([{ value: 'documentation', count: 1 }]);
     });
 
     it('should omit a facet field that has no values while keeping the other', async () => {

@@ -77,8 +77,8 @@ function resolveBucketsStrict(s3Buckets, logName) {
  * names a currently ENABLED type before any S3 read.
  *
  * This is defense-in-depth beyond the controller/schema `enum` check: an
- * unknown `assetType`, or one that names a disabled entry (e.g. `skills`),
- * throws rather than resolving (Requirements 5.5, 7.8).
+ * unknown `assetType`, or one that names a disabled registry entry, throws
+ * rather than resolving (Requirements 5.5, 7.8).
  *
  * @private
  * @param {string} assetType - The `assetType` value supplied by a caller

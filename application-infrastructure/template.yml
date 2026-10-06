@@ -746,6 +746,31 @@ Resources:
       # not accumulate; both functions always !Ref the latest published version.
       RetentionPolicy: Delete
 
+  # -- search-common Layer --
+  # Shared normalization (tokenize/normalize, stop words, length policy) for
+  # keyword-path search (spec 0-0-7-tool-discovery-enhancement, R6). Attached
+  # to the Read Function here (task 2.1); the Doc Indexer attaches it in a
+  # later task (18.1) once its extractors delegate to the layer. Loaded via a
+  # `loadLayerModule`-style indirection at `/opt/nodejs/normalize` (design.md
+  # section 1), with an env-var path override for tests. Code only, no
+  # standing cost and no additional IAM, so it is attached unconditionally.
+  SearchCommonLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: !Sub '${Prefix}-${ProjectId}-${StageId}-SearchCommon'
+      Description: "Shared normalization for keyword-path documentation search (read-function + doc-indexer)."
+      ContentUri: src/lambda/layers/search-common/
+      CompatibleRuntimes:
+        - nodejs24.x
+      # Pure-JavaScript layer (no native binaries), so it is compatible with both
+      # architectures; listing both avoids coupling to FunctionArchitecture.
+      CompatibleArchitectures:
+        - arm64
+        - x86_64
+      # Delete superseded versions on stack update so orphaned layer versions do
+      # not accumulate; both functions always !Ref the latest published version.
+      RetentionPolicy: Delete
+
   # ---------------------------------------------------------------------------
   # Lambda Functions
   # https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-resource-function.html
@@ -796,6 +821,10 @@ Resources:
 
         # doc-ai-common shared-code layer (spec 0-0-6); code only, attached unconditionally
         - !Ref DocAiCommonLayer
+
+        # search-common shared-code layer (spec 0-0-7-tool-discovery-enhancement, task 2.1);
+        # code only, attached unconditionally
+        - !Ref SearchCommonLayer
 
       Environment:
         Variables:
@@ -1363,6 +1392,11 @@ Resources:
         # doc-ai-common shared-code layer (spec 0-0-6); code only, attached unconditionally
         - !Ref DocAiCommonLayer
 
+        # search-common shared-code layer (spec 0-0-7-tool-discovery-enhancement, task 18.1);
+        # delegates the four extractor extractKeywords() copies to the shared normalize.js;
+        # code only, attached unconditionally
+        - !Ref SearchCommonLayer
+
       Environment:
         Variables:
           ATLANTIS_GITHUB_USER_ORGS: !Join [',', !Ref AtlantisGitHubUserOrgs]
@@ -1602,11 +1636,14 @@ Resources:
   # resolved expressions wired into the read-function/doc-indexer DOC_AI_S3_VECTOR_* env
   # vars (kept identical). Dimension/DistanceMetric/NonFilterableMetadataKeys are IMMUTABLE
   # in S3 Vectors; the provisioner replaces the index if they change. Filterable metadata
-  # used at query time is version/type/subType (see layer vector-store-s3.js), so the
-  # remaining metadata keys are declared non-filterable to save space. model/dims are
-  # stored (non-filterable) so the doc-indexer can reuse unchanged embeddings across index
-  # versions (Req 6.2), matching the DynamoDB store; non-filterable keys are still returned
-  # by GetVectors/QueryVectors. 6 keys is within the provisioner's max of 10.
+  # used at query time is version/type/subType/repositoryType/namespace (see layer
+  # vector-store-s3.js FILTERABLE_FILTER_KEYS; repositoryType/namespace added by spec
+  # 0-0-7-tool-discovery-enhancement, Requirement 10.1 — they are deliberately NOT listed
+  # below so S3 Vectors treats them as filterable by default), so the remaining metadata
+  # keys are declared non-filterable to save space. model/dims are stored (non-filterable)
+  # so the doc-indexer can reuse unchanged embeddings across index versions (Req 6.2),
+  # matching the DynamoDB store; non-filterable keys are still returned by
+  # GetVectors/QueryVectors. 6 keys is within the provisioner's max of 10.
   DocAiVectorIndex:
     Type: Custom::S3VectorIndex
     Condition: EnableDocAiIsTrue
@@ -2032,6 +2069,41 @@ Resources:
       MetricTransformations:
         - MetricNamespace: !Sub '${Prefix}-${ProjectId}/DocAi'
           MetricName: SemanticDegradeCount
+          MetricValue: '1'
+          DefaultValue: 0
+
+  # ---------------------------------------------------------------------------
+  # Discovery metric filters (0-0-7-tool-discovery-enhancement, task 4.2, Req 12.4/12.6)
+  #
+  # Unlike the DocAi filters above, these are NOT gated on EnableDocAiIsTrue: they measure
+  # the always-on `search_documentation` tool, not the opt-in semantic-assisted feature, so
+  # the filter is created unconditionally.
+  #
+  # >! Same text-format caveat as the DocAi filters: the read-function runs with
+  # >! AWS_LAMBDA_LOG_FORMAT=text, so FilterPattern uses a literal quoted-substring token
+  # >! rather than a JSON selector.
+  #
+  # >! CONTRACT WITH TASK 4.1: this filter is deployed ahead of the structured
+  # >! `discovery_search` log event (task 4.1) specifically to establish the R12.6
+  # >! zero-result baseline before the filter/ranking changes (tasks 12/17) ship. Task 4.1's
+  # >! `discovery_search` event (emitted via DebugAndLog) MUST include the literal, stable
+  # >! token `DISCOVERY_SEARCH_EMPTY` somewhere on the log line whenever `emptyResult` is
+  # >! true for a `search_documentation` call -- analogous to the stable `DOC_AI_USAGE`
+  # >! token the DocAi filters above key on. If task 4.1 instead emits only a bare JSON
+  # >! `"emptyResult":true` field with no companion literal token, this FilterPattern SHALL
+  # >! be updated to match that exact substring instead.
+
+  # COUNT of search_documentation calls that returned zero results (R12.4 metric; R12.6
+  # baseline). Matches the stable token task 4.1 is required to emit on its empty-result
+  # discovery_search log line.
+  DiscoverySearchZeroResultMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref ReadLambdaLogGroup
+      FilterPattern: '"DISCOVERY_SEARCH_EMPTY"'
+      MetricTransformations:
+        - MetricNamespace: !Sub '${Prefix}-${ProjectId}/Discovery'
+          MetricName: SearchZeroResultCount
           MetricValue: '1'
           DefaultValue: 0
 

@@ -132,6 +132,7 @@ All data is stored in a single table (`{Prefix}-{ProjectId}-{StageId}-DocIndex`)
 | `content:{hash}` | `v:{version}:metadata` | Metadata for a content entry (path, type, title, keywords, etc.) |
 | `content:{hash}` | `v:{version}:content` | Full extracted content text |
 | `search:{keyword}` | `v:{version}:{hash}` | Keyword-to-content mapping with relevance score |
+| `corpus:{version}` | `manifest` | Per-repository corpus manifest (name, owner, repository type, resolution, namespace, section count, ref) backing the `indexedRepositories` response field |
 
 ### Version pointer
 
@@ -179,6 +180,66 @@ Content type weights are applied as multipliers:
 | template-pattern | 0.9 |
 | code-example | 0.8 |
 
+## Repository classification and the `atlantis_repository-type` prerequisite
+
+The indexer and the Read Lambda apply per-repository behavior — file exclusions during indexing, and relevance weighting during search — based on each repository's GitHub custom property **`atlantis_repository-type`**. Setting this property is an **operational prerequisite performed on GitHub, not a code change in this repository**: an administrator sets a custom property value on each organization repository through GitHub's repository settings (or the GitHub API/CLI), and the indexer picks it up on its next build.
+
+> **Important**: This repository's code does not set `atlantis_repository-type` on any GitHub repository. Per-type exclusions and ranking weighting only behave as intended once an administrator has set the property on the organization's indexed repositories. A repository with no property set is handled safely (see *Absent* below) but does not receive type-specific treatment.
+
+### Valid values
+
+| Value | Typical repository |
+|:------|:--------------------|
+| `documentation` | Platform or reference documentation repositories |
+| `app-starter` | Application starter/bootstrap repositories |
+| `templates` | CloudFormation template repositories |
+| `management` | Internal management/tooling repositories |
+| `package` | Published npm/pip packages consumed by Atlantis applications, e.g. `cache-data` |
+| `mcp` | MCP server repositories |
+
+### Three-state resolution
+
+For each repository, the indexer resolves `atlantis_repository-type` into one of three distinguishable states rather than collapsing two of them into a single empty value:
+
+| State | Meaning | How it arises |
+|:------|:--------|:---------------|
+| **resolved** | The property is set to one of the valid values above. | The custom-properties API call succeeded and returned a non-empty value for `atlantis_repository-type`. |
+| **absent** | The property is genuinely unset on the repository. | The call succeeded (GitHub returned a properties array, even an empty one) but `atlantis_repository-type` was not present in it. |
+| **fetch-failed** | The true value is unknown. | The custom-properties API call errored, 404'd, or timed out. The indexer cannot distinguish "not set" from "could not check" without this third state. |
+
+Resolving the property never throws and never fails an index build — a GitHub API hiccup degrades gracefully rather than blocking the scheduled build.
+
+### Per-repository-type file exclusion matrix
+
+File exclusions (the same global exclusion list described in the main `EXCLUDED_FILES` behavior — `LICENSE.md`, `CONTRIBUTING.md`, `CONTRIBUTE.md`, `CHANGELOG.md`, `SECURITY.md`) are applied per repository type rather than as one fixed global set:
+
+| Classification | Exclusion policy |
+|:----------------|:-------------------|
+| `package` | Global exclusions **minus `CHANGELOG.md`** — a package's changelog is deliberately kept searchable, since version and migration questions depend on it (e.g. "what changed in cache-data v1.3?"). |
+| `documentation`, `templates`, `app-starter`, `mcp`, `management` | Full global exclusions. |
+| *absent* | **No file-name exclusions at all.** A repository with no `atlantis_repository-type` set is never penalized for an operational omission — it is indexed as broadly as possible rather than silently narrowed. |
+| *fetch-failed* | **Carries forward** the repository's classification from the previous index build's corpus manifest. If no previous resolution exists (e.g. a brand-new repository whose first build hit a fetch failure), the full global exclusion set applies as the default. |
+
+`AGENTS.md` is excluded for every repository regardless of classification — it is served instead through the `agents-md` [agent asset tool](../developer/agent-asset-tools.md), so indexing it would duplicate the same guidance on two surfaces with different freshness.
+
+**Determinism guarantee**: two builds over identical repository content with identical successfully-resolved properties index an identical set of files for that repository, including when one of the two builds experienced a transient fetch failure that was carried forward to the previously-resolved classification.
+
+### Relevance weighting
+
+Repository type also weights keyword-path search relevance: a section from a `package` or `documentation` repository is not outranked by an incidental, lower-value match from an unrelated repository at equal textual relevance. Repositories with an *absent* or *fetch-failed* classification receive a neutral weight — never penalized for a missing property.
+
+## Corpus manifest size budget
+
+Every `search_documentation` response includes an `indexedRepositories` block listing every repository currently in the index (see the [end-user tools reference](../end-user/tools/README.md#search_documentation) for the response shape and a discover-then-filter example). The size of this block is governed by an environment variable:
+
+| Variable | Default | Description |
+|:---------|:--------|:--------------|
+| `MCP_CORPUS_MANIFEST_MAX_BYTES` | `4096` (4 KB) | Maximum serialized byte size of the `indexedRepositories` block. |
+
+When the full listing (name, owner, repository type, namespace, section count, and ref per repository) would exceed this budget, the block degrades to a `compact` listing (name and repository type only), and if that still exceeds the budget, degrades further to a `count` summary (`{ "repositoryCount": N, "omitted": true }`). This degradation ladder is evaluated against the manifest's own budget first, and then re-checked together with the rest of the response against the overall response size threshold — the manifest is always degraded (or omitted) before any of the caller's requested search results are truncated.
+
+Raise `MCP_CORPUS_MANIFEST_MAX_BYTES` if your organization indexes a large number of repositories and wants the full per-repository listing to keep appearing on every response rather than degrading to `compact` or `count`.
+
 ## Schedule configuration
 
 The indexer schedule is controlled by two CloudFormation parameters:
@@ -206,3 +267,6 @@ A CloudWatch Alarm monitors the indexer for errors (Sum > 1 over a 900-second pe
 
 - [Atlantis DevOps Platform](https://github.com/63klabs/atlantis)
 - [GitHub Personal Access Tokens](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens)
+- [GitHub custom properties documentation](https://docs.github.com/en/organizations/managing-organization-settings/managing-custom-properties-for-repositories-in-your-organization) — how to set `atlantis_repository-type` on an organization repository
+- [search_documentation tool reference](../end-user/tools/README.md#search_documentation) — the `repository`/`repositoryType`/`namespace` filters and `indexedRepositories` response field this classification feeds
+- [Tool Metadata Registry and search-common layer](../developer/tool-discovery.md) — developer-facing architecture of the discovery enhancements

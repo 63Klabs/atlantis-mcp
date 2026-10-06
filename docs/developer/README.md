@@ -15,3 +15,4 @@ Guides:
 - [Testing guide](testing.md) - Running, writing, and debugging tests
 - [Documentation semantic search](documentation-semantic-search.md) - Bedrock-assisted retrieval layer internals and how to extend it
 - [Agent asset tools](agent-asset-tools.md) - Registry-driven steering/hooks/AGENTS.md tools and how to add a new asset type
+- [Tool discovery enhancement](tool-discovery.md) - Tool Metadata Registry fan-out, the single `tool-catalog.js` merge, and the `search-common` normalization layer

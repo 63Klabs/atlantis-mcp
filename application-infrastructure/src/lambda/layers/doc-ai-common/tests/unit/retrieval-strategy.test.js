@@ -41,7 +41,9 @@ const {
   selectStrategy,
   buildSemanticFilters,
   normalizeQuery,
-  DEFAULT_TOP_K
+  DEFAULT_TOP_K,
+  satisfiesResultFilters,
+  anyResultCarriesRequestedField
 } = require('../../nodejs/retrieval-strategy');
 
 /**
@@ -228,6 +230,95 @@ describe('buildSemanticFilters — type/ghusers mapping', () => {
 
   it('deduplicates a single distinct owner from a repeated ghusers array', () => {
     expect(buildSemanticFilters({ ghusers: ['63klabs', '63klabs'] })).toEqual({ owner: '63klabs' });
+  });
+
+  // spec 0-0-7-tool-discovery-enhancement, Requirement 10.2: repositoryType/namespace are
+  // pushed down as store filters; repository is NOT (applied only in result-mapping).
+  it('maps a non-empty repositoryType to { repositoryType }', () => {
+    expect(buildSemanticFilters({ repositoryType: 'package' })).toEqual({ repositoryType: 'package' });
+  });
+
+  it('maps a non-empty namespace to { namespace }', () => {
+    expect(buildSemanticFilters({ namespace: 'core' })).toEqual({ namespace: 'core' });
+  });
+
+  it('combines type/repositoryType/namespace/ghusers filters together', () => {
+    expect(buildSemanticFilters({
+      type: 'documentation',
+      repositoryType: 'package',
+      namespace: 'core',
+      ghusers: ['63klabs']
+    })).toEqual({
+      type: 'documentation',
+      repositoryType: 'package',
+      namespace: 'core',
+      owner: '63klabs'
+    });
+  });
+
+  it('ignores a whitespace-only repositoryType/namespace', () => {
+    expect(buildSemanticFilters({ repositoryType: '   ', namespace: '   ' })).toEqual({});
+  });
+
+  it('never pushes a repository filter into the store filter object', () => {
+    expect(buildSemanticFilters({ repository: 'cache-data' })).toEqual({});
+  });
+});
+
+describe('satisfiesResultFilters — result-mapping-stage repository/repositoryType/namespace filter (Req 10.2)', () => {
+  it('returns true when no filter is requested', () => {
+    expect(satisfiesResultFilters({ repository: 'a', repositoryType: 'b', namespace: 'c' }, {})).toBe(true);
+    expect(satisfiesResultFilters({}, {})).toBe(true);
+  });
+
+  it('matches when every requested field equals the result value', () => {
+    const result = { repository: 'cache-data', repositoryType: 'package', namespace: 'core' };
+    expect(satisfiesResultFilters(result, { repository: 'cache-data' })).toBe(true);
+    expect(satisfiesResultFilters(result, { repositoryType: 'package' })).toBe(true);
+    expect(satisfiesResultFilters(result, { namespace: 'core' })).toBe(true);
+    expect(satisfiesResultFilters(result, {
+      repository: 'cache-data', repositoryType: 'package', namespace: 'core'
+    })).toBe(true);
+  });
+
+  it('rejects when a requested field mismatches', () => {
+    const result = { repository: 'cache-data', repositoryType: 'package', namespace: 'core' };
+    expect(satisfiesResultFilters(result, { repository: 'other' })).toBe(false);
+    expect(satisfiesResultFilters(result, { repositoryType: 'documentation' })).toBe(false);
+    expect(satisfiesResultFilters(result, { namespace: 'other-namespace' })).toBe(false);
+  });
+
+  it('rejects when the result is missing the requested field (never a wildcard match)', () => {
+    const result = { repository: null, repositoryType: null, namespace: null };
+    expect(satisfiesResultFilters(result, { repository: 'cache-data' })).toBe(false);
+    expect(satisfiesResultFilters(result, { repositoryType: 'package' })).toBe(false);
+    expect(satisfiesResultFilters(result, { namespace: 'core' })).toBe(false);
+  });
+});
+
+describe('anyResultCarriesRequestedField — transitional-period detection (Req 10.3)', () => {
+  it('returns true (no degrade) when no repository/repositoryType/namespace filter is requested', () => {
+    expect(anyResultCarriesRequestedField([{ repository: null }], {})).toBe(true);
+  });
+
+  it('returns true when at least one candidate carries a non-null value for a requested field', () => {
+    const results = [
+      { repository: null, repositoryType: null, namespace: null },
+      { repository: 'cache-data', repositoryType: 'package', namespace: null }
+    ];
+    expect(anyResultCarriesRequestedField(results, { repositoryType: 'package' })).toBe(true);
+  });
+
+  it('returns false when every candidate is missing every requested field (pre-rebuild vectors)', () => {
+    const results = [
+      { repository: null, repositoryType: null, namespace: null },
+      { repository: null, repositoryType: null, namespace: null }
+    ];
+    expect(anyResultCarriesRequestedField(results, { repositoryType: 'package', namespace: 'core' })).toBe(false);
+  });
+
+  it('returns false for an empty candidate set', () => {
+    expect(anyResultCarriesRequestedField([], { repositoryType: 'package' })).toBe(false);
   });
 });
 
@@ -425,6 +516,143 @@ describe('SemanticRetrieval — result-shape parity (Req 2.2, 2.3, 3.4)', () => 
     const override = makeSemantic({ topK: 7 });
     await override.semantic.retrieve({ query: 'q', version: 'v1', topK: 3 });
     expect(override.vectorStore.query.mock.calls[0][1].topK).toBe(3);
+  });
+});
+
+describe('SemanticRetrieval — repository/repositoryType/namespace filter parity (Req 10.2, 10.3)', () => {
+  it('pushes repositoryType/namespace down into the vector-store query filter', async () => {
+    const hits = [{ hash: 'a', score: 0.9, metadata: {} }];
+    const { semantic, vectorStore } = makeSemantic({ hits });
+
+    await semantic.retrieve({
+      query: 'rotate the key',
+      repositoryType: 'package',
+      namespace: 'core',
+      version: 'v3'
+    });
+
+    const [, queryOptions] = vectorStore.query.mock.calls[0];
+    expect(queryOptions.filters).toEqual({ repositoryType: 'package', namespace: 'core' });
+  });
+
+  it('never pushes repository down into the vector-store query filter', async () => {
+    const hits = [{ hash: 'a', score: 0.9, metadata: {} }];
+    const { semantic, vectorStore, buildResults } = makeSemantic({
+      hits,
+      buildResults: jest.fn().mockResolvedValue([
+        { ...resultFromHit(hits[0], 0), repository: 'cache-data' }
+      ])
+    });
+
+    await semantic.retrieve({ query: 'q', repository: 'cache-data', version: 'v3' });
+
+    expect(vectorStore.query.mock.calls[0][1].filters).toEqual({});
+    expect(buildResults).toHaveBeenCalledTimes(1);
+  });
+
+  it('narrows the authoritative result set by repository in the result-mapping stage', async () => {
+    const hits = [
+      { hash: 'a', score: 0.95, metadata: {} },
+      { hash: 'b', score: 0.80, metadata: {} }
+    ];
+    const built = [
+      { ...resultFromHit(hits[0], 0), repository: 'cache-data' },
+      { ...resultFromHit(hits[1], 1), repository: 'other-repo' }
+    ];
+    const { semantic } = makeSemantic({
+      hits,
+      buildResults: jest.fn().mockResolvedValue(built)
+    });
+
+    const result = await semantic.retrieve({ query: 'q', repository: 'cache-data', version: 'v3' });
+
+    expect(result.results).toHaveLength(1);
+    expect(result.results[0].repository).toBe('cache-data');
+    expect(result.totalResults).toBe(1);
+  });
+
+  it('narrows the authoritative result set by repositoryType/namespace in the result-mapping stage', async () => {
+    const hits = [
+      { hash: 'a', score: 0.95, metadata: {} },
+      { hash: 'b', score: 0.80, metadata: {} }
+    ];
+    const built = [
+      { ...resultFromHit(hits[0], 0), repositoryType: 'package', namespace: 'core' },
+      { ...resultFromHit(hits[1], 1), repositoryType: 'documentation', namespace: 'core' }
+    ];
+    const { semantic } = makeSemantic({
+      hits,
+      buildResults: jest.fn().mockResolvedValue(built)
+    });
+
+    const result = await semantic.retrieve({ query: 'q', repositoryType: 'package', version: 'v3' });
+
+    expect(result.results).toHaveLength(1);
+    expect(result.results[0].repositoryType).toBe('package');
+  });
+
+  it('returns a genuinely empty (not degraded) result set when metadata IS present but nothing matches', async () => {
+    const hits = [{ hash: 'a', score: 0.95, metadata: {} }];
+    const built = [{ ...resultFromHit(hits[0], 0), repository: 'other-repo', repositoryType: 'documentation', namespace: 'other-ns' }];
+    const { semantic } = makeSemantic({ hits, buildResults: jest.fn().mockResolvedValue(built) });
+
+    const result = await semantic.retrieve({ query: 'q', repository: 'cache-data', version: 'v3' });
+
+    expect(result.results).toEqual([]);
+    expect(result.totalResults).toBe(0);
+    expect(result.suggestions).toHaveLength(2);
+  });
+
+  it('throws FILTER_NOT_SUPPORTED (transitional period) when every candidate lacks the requested field entirely', async () => {
+    const hits = [
+      { hash: 'a', score: 0.95, metadata: {} },
+      { hash: 'b', score: 0.80, metadata: {} }
+    ];
+    // Pre-rebuild vectors: built results never carry repositoryType/namespace (both null).
+    const built = hits.map((hit, index) => ({
+      ...resultFromHit(hit, index),
+      repository: null,
+      repositoryType: null,
+      namespace: null
+    }));
+    const { semantic } = makeSemantic({ hits, buildResults: jest.fn().mockResolvedValue(built) });
+
+    const error = await captureError(semantic.retrieve({ query: 'q', repositoryType: 'package', version: 'v3' }));
+
+    expect(error).toBeInstanceOf(RetrievalError);
+    expect(error.code).toBe('FILTER_NOT_SUPPORTED');
+  });
+
+  it('a FILTER_NOT_SUPPORTED failure degrades to keyword via FallbackRetrieval (Req 10.3)', async () => {
+    const hits = [{ hash: 'a', score: 0.95, metadata: {} }];
+    const built = [{ ...resultFromHit(hits[0], 0), repository: null, repositoryType: null, namespace: null }];
+    const { semantic } = makeSemantic({ hits, buildResults: jest.fn().mockResolvedValue(built) });
+    const keywordResponse = makeKeywordResponse('q');
+    const keyword = { retrieve: jest.fn().mockResolvedValue(keywordResponse) };
+    const logger = makeLogger();
+
+    const strategy = selectStrategy({
+      config: { enabled: true, retrievalMode: 'semantic', minTier: 'paid' },
+      tier: 'private',
+      strategies: { keyword, semantic },
+      logger
+    });
+
+    const result = await strategy.retrieve({ query: 'q', repositoryType: 'package', version: 'v3' });
+
+    expect(strategy).toBeInstanceOf(FallbackRetrieval);
+    expect(keyword.retrieve).toHaveBeenCalledTimes(1);
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+    expect(result).toBe(keywordResponse);
+  });
+
+  it('does not degrade when no candidates were found at all (empty hits -> empty response, no throw)', async () => {
+    const { semantic } = makeSemantic({ hits: [] });
+
+    const result = await semantic.retrieve({ query: 'q', repositoryType: 'package', version: 'v3' });
+
+    expect(result.results).toEqual([]);
+    expect(result.totalResults).toBe(0);
   });
 });
 

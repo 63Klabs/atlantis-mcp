@@ -265,9 +265,13 @@ describe('DocIndex.queryIndex() — type/subType filter push-down', () => {
 		expect(result.totalResults).toBe(0);
 	});
 
-	it('does not widen the candidate window when filtering (membership unchanged)', async () => {
-		// limit=1 => the pre-push-down code fetched the top limit*3 = 3 ranked hashes. Push-down
-		// must filter WITHIN that window, not pull additional lower-ranked matches into it.
+	it('applies push-down BEFORE the candidate-window slice, so a filter-matching candidate outside the old window is no longer dropped (design 8.3 reorder)', async () => {
+		// limit=1 => under the PRE-REORDER pipeline, the top limit*3 = 3 ranked hashes were
+		// sliced FIRST (code1, code2, doc1), then push-down ran within that window, so doc2
+		// never reached the metadata fetch even though it satisfies the filter. Under the
+		// REORDERED pipeline, push-down runs on the FULL ranked array first (dropping the
+		// known type mismatches code1/code2), and only then is the (wider, filtered) window
+		// applied — so doc2 is no longer prematurely excluded.
 		const fixture = {
 			keywordItems: {
 				lambda: [
@@ -288,12 +292,15 @@ describe('DocIndex.queryIndex() — type/subType filter push-down', () => {
 		const client = createMockClient(fixture);
 		DocIndex.setDocClient(client);
 
+		// limit=1 still caps the FINAL returned results to 1 (slice(limit) at the end of the
+		// pipeline), but the candidate window ahead of the metadata fetch is no longer so
+		// narrow that a known-good match is excluded before it is even evaluated.
 		const result = await DocIndex.queryIndex({ query: 'lambda', type: 'documentation', limit: 1 });
 
-		// doc2 sits outside the top-3 window, so it is neither read nor counted — matching
-		// the post-fetch-filter behavior exactly.
-		expect(metadataHashesRead(client)).toEqual(['doc1']);
-		expect(result.totalResults).toBe(1);
+		expect(metadataHashesRead(client).sort()).toEqual(['doc1', 'doc2']);
+		expect(result.totalResults).toBe(2);
+		// The final slice(limit) still caps the RETURNED results to 1, keeping the
+		// highest-ranked match.
 		expect(result.results.map((r) => r.title)).toEqual(['Doc One']);
 	});
 

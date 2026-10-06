@@ -18,9 +18,11 @@
  *     key `` `${version}#${hash}` `` ({@link makeVectorKey}) and carries a `version`
  *     metadata field so {@link S3VectorStore#query} can filter to the active version and
  *     {@link parseHashFromKey} can recover the bare `hash`.
- *   - Stored metadata is `{ version, hash, type, subType, repository, owner,
- *     embeddingInputHash, model, dims }` (undefined/null omitted). `type`/`subType` are
- *     used as filterable query keys; `repository`/`owner`/`embeddingInputHash` ride along
+ *   - Stored metadata is `{ version, hash, type, subType, repository, repositoryType,
+ *     namespace, owner, embeddingInputHash, model, dims }` (undefined/null omitted).
+ *     `type`/`subType`/`repositoryType`/`namespace` are used as filterable query keys
+ *     (spec 0-0-7-tool-discovery-enhancement, Requirement 10.1 added `repositoryType`/
+ *     `namespace`); `repository`/`owner`/`embeddingInputHash` ride along (non-filterable)
  *     so the RetrievalStrategy can enrich results the same way the keyword path does; and
  *     `model`/`dims` are persisted so the doc-indexer can reuse an unchanged embedding
  *     across index versions (Req 6.2), matching {@link module:vector-store-dynamodb
@@ -65,10 +67,10 @@
  * });
  *
  * await store.upsertVectors('v3', [
- *   { hash: 'abc123', vector: [0.1, 0.2, 0.3], metadata: { type: 'guide', subType: 'howto', repository: 'core', owner: '63klabs', embeddingInputHash: 'h1' } }
+ *   { hash: 'abc123', vector: [0.1, 0.2, 0.3], metadata: { type: 'guide', subType: 'howto', repository: 'core', repositoryType: 'documentation', namespace: null, owner: '63klabs', embeddingInputHash: 'h1' } }
  * ]);
  *
- * const hits = await store.query(queryVector, { version: 'v3', filters: { type: 'guide' }, topK: 10 });
+ * const hits = await store.query(queryVector, { version: 'v3', filters: { type: 'guide', repositoryType: 'documentation' }, topK: 10 });
  * // hits === [{ hash, score, metadata }, ...] ordered by descending similarity
  */
 
@@ -104,10 +106,18 @@ const KEY_SEPARATOR = '#';
  * Metadata keys a caller may filter on at query time. S3 Vectors rejects (400) a filter
  * that references a non-filterable metadata key, so callers' filters are intersected with
  * this allowlist. `version` is always applied separately by {@link buildS3Filter}.
+ *
+ * `repositoryType` and `namespace` were added by spec 0-0-7-tool-discovery-enhancement
+ * (Requirement 10.1/10.2) alongside the matching metadata write in
+ * {@link S3VectorStore#upsertVectors}; `template.yml`'s `NonFilterableMetadataKeys` for the
+ * vector index does NOT list either key, so S3 Vectors treats them as filterable by
+ * default. `repository` stays off this allowlist (and stays in
+ * `NonFilterableMetadataKeys`) — it rides along in stored metadata for result-mapping
+ * enrichment, but is narrowed at the result-mapping stage rather than as a store filter.
  * @constant {string[]}
  */
 // >! Fixed allowlist of filterable keys; filtering on anything else 400s in S3 Vectors.
-const FILTERABLE_FILTER_KEYS = ['type', 'subType'];
+const FILTERABLE_FILTER_KEYS = ['type', 'subType', 'repositoryType', 'namespace'];
 
 /**
  * Maximum vectors per `PutVectors` request. S3 Vectors caps the number of vectors per
@@ -427,9 +437,12 @@ class S3VectorStore extends VectorStore {
   /**
    * Writes (or overwrites) the vectors for an index `version`. Each vector is stored under
    * a version-scoped key (`` `${version}#${hash}` ``) with `{ version, hash, type, subType,
-   * repository, owner, embeddingInputHash, model, dims }` metadata (undefined/null omitted),
-   * so many versions can share one index, each hit maps back to its bare `hash`, and the
-   * doc-indexer can reuse an unchanged embedding across versions (Req 6.2).
+   * repository, repositoryType, namespace, owner, embeddingInputHash, model, dims }`
+   * metadata (undefined/null omitted), so many versions can share one index, each hit maps
+   * back to its bare `hash`, the semantic retrieval path can filter on `repositoryType`/
+   * `namespace` the same way it already filters on `type`/`subType` (spec
+   * 0-0-7-tool-discovery-enhancement, Requirement 10.1), and the doc-indexer can reuse an
+   * unchanged embedding across versions (Req 6.2).
    *
    * Items are validated BEFORE any AWS call (so validation errors surface as
    * `INVALID_ARGUMENT`/`INVALID_VECTOR` rather than `UPSERT_FAILED`), then written via
@@ -437,7 +450,7 @@ class S3VectorStore extends VectorStore {
    *
    * @async
    * @param {string} version - The index version these vectors belong to (e.g. `'v3'`).
-   * @param {Array.<{hash: string, vector: number[], metadata: Object}>} items - Vectors to store. `metadata` may include `{ type, subType, repository, owner, embeddingInputHash, model, dims }` (all persisted; undefined/null omitted).
+   * @param {Array.<{hash: string, vector: number[], metadata: Object}>} items - Vectors to store. `metadata` may include `{ type, subType, repository, repositoryType, namespace, owner, embeddingInputHash, model, dims }` (all persisted; undefined/null omitted).
    * @returns {Promise<void>} Resolves when all vectors are persisted (a no-op when `items` is empty).
    * @throws {VectorStoreError} `INVALID_ARGUMENT` when `version`/`items` are malformed, `INVALID_VECTOR` when a vector is not numeric, or `UPSERT_FAILED` (with `cause`) when `PutVectors` fails.
    * @example
@@ -486,7 +499,7 @@ class S3VectorStore extends VectorStore {
    * @param {number[]} embedding - The query embedding vector.
    * @param {Object} options - Query options.
    * @param {string} options.version - Index version to search.
-   * @param {Object} [options.filters] - Metadata equality filters (e.g. `{ type, subType }`); only filterable keys are applied.
+   * @param {Object} [options.filters] - Metadata equality filters (e.g. `{ type, subType, repositoryType, namespace }`); only filterable keys ({@link FILTERABLE_FILTER_KEYS}) are applied.
    * @param {number} [options.topK=10] - Maximum number of results to return.
    * @returns {Promise<Array.<{hash: string, score: number, metadata: Object}>>} Neighbours ordered by descending similarity. Empty array when nothing matches.
    * @throws {VectorStoreError} `INVALID_ARGUMENT` when `version` is missing, `INVALID_QUERY` when `embedding` is not a non-empty array, or `QUERY_FAILED` (with `cause`) when `QueryVectors` fails.
@@ -709,7 +722,9 @@ class S3VectorStore extends VectorStore {
       data: { float32: vector },
       // >! Persist the fields the retrieval layer and the index-time reuse check need.
       // >! `version` enables multiple versions to coexist in one index; `hash` maps a query
-      // >! hit back to its content item; `type`/`subType` are the filterable query keys;
+      // >! hit back to its content item; `type`/`subType`/`repositoryType`/`namespace` are
+      // >! the filterable query keys (spec 0-0-7-tool-discovery-enhancement, Requirement
+      // >! 10.1 added `repositoryType`/`namespace` alongside the existing `type`/`subType`);
       // >! `model`/`dims` let the doc-indexer reuse an unchanged embedding across versions
       // >! (Req 6.2), matching the DynamoDB store. Undefined/null values are pruned.
       metadata: pruneEmptyValues({
@@ -718,6 +733,8 @@ class S3VectorStore extends VectorStore {
         type: metadata.type,
         subType: metadata.subType,
         repository: metadata.repository,
+        repositoryType: metadata.repositoryType,
+        namespace: metadata.namespace,
         owner: metadata.owner,
         embeddingInputHash: metadata.embeddingInputHash,
         model: metadata.model,

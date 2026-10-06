@@ -417,6 +417,34 @@ const connections = [
         encrypt: false
       }
     ]
+  },
+
+  // Corpus Manifest Internal Cache Connection (models/corpus.js, R8)
+  {
+    name: 'corpus',
+    host: 'internal', // DynamoDB reads only — corpus.js never fetches from GitHub
+    path: '/corpus',
+    cache: [
+      // Corpus manifest cache profile
+      {
+        profile: 'corpus-manifest',
+        overrideOriginHeaderExpiration: true,
+        // >! Long TTL in both environments: the DynamoDB item key is `corpus:{version}`
+        // >! (or, transitionally, derived from `mainindex:{version}`), so the cache key
+        // >! is already version-scoped. A new index build naturally produces a new key
+        // >! and the previous entry simply becomes unreachable — there is no explicit
+        // >! invalidation step, so a long TTL costs nothing while still bounding memory
+        // >! held by superseded versions. Mirrors the version-scoping reasoning already
+        // >! given for `document`/`template-chunks` above.
+        // >! Production: 24 hour TTL. Test: TTL_NON_PROD for rapid iteration.
+        defaultExpirationInSeconds: IS_PRODUCTION ? (24 * 60 * 60) : TTL_NON_PROD,
+        expirationIsOnInterval: false,
+        headersToRetain: '',
+        hostId: 'corpus',
+        pathId: 'manifest',
+        encrypt: false
+      }
+    ]
   }
 ];
 

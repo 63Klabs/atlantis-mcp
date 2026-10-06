@@ -304,6 +304,94 @@ Adding a new asset type — or enabling the shipped-but-disabled `skills` type �
 
 Large assets degrade gracefully like large templates: `get_agent_asset` responses over the configured size threshold return a `contentTruncated: true` summary with a `totalChunks` count, and `get_agent_asset_chunk` retrieves the content incrementally by zero-based `chunkIndex` — the same `ContentSizer`/`ContentChunker` pattern used by `get_template`/`get_template_chunk`.
 
+## Tool Discovery Enhancement
+
+A set of additive changes to the Read Lambda and the Doc Indexer that make the server the
+first place an AI agent looks for Atlantis platform resources, and make `@63klabs/cache-data`
+reachable by the queries an agent would naturally write despite its name not containing
+"atlantis". See the [developer guide](docs/developer/tool-discovery.md) for implementation
+detail and the [admin-ops guide](docs/admin-ops/documentation-indexer.md) for the
+`atlantis_repository-type` operational prerequisite.
+
+### `search-common` Lambda Layer
+
+A new Lambda Layer, `layers/search-common/`, shared by the Read Lambda and the Doc Indexer,
+holding the single normalization implementation (`normalize.js`: `normalizeTerm`,
+`normalizeText`, a shared stop-word set, and an ordered suffix-reduction table) that both
+index-time tokenization and query-time tokenization call. It follows the `doc-ai-common`
+layer's precedent exactly — same `ContentUri`/`Layers` wiring, same `loadLayerModule`-style
+indirection with an env-var override for tests — but is deliberately a separate layer rather
+than an addition to `doc-ai-common`, since normalization is required by the always-on
+keyword search path regardless of whether the optional Bedrock semantic-search feature
+(`doc-ai-common`'s actual purpose) is enabled.
+
+```
+layers/search-common/nodejs/normalize.js
+  │
+  ├── required by doc-indexer/lib/extractors/{markdown,cloudformation,jsdoc,python}.js
+  │     (index-time tokenization — replaces four previously-independent copies)
+  │
+  └── required by read-function/models/doc-index.js
+        (query-time tokenization — replaces a fifth, previously-divergent implementation)
+```
+
+Because both sides call one implementation, index-time and query-time token sets cannot
+diverge, and because the token set for any term always includes the term as written, the
+change is re-index tolerant: a query against an index built before the layer existed still
+matches.
+
+### Tool Metadata Registry fan-out
+
+`read-function/config/tool-metadata.js` declares per-tool discovery metadata — title,
+behavioral annotations, category, trigger keywords, related tools, when-to-use/when-not-to-
+use guidance, and structured examples — in one module keyed by tool name, mirroring the
+`config/agent-asset-types.js` registry pattern used by the Agent Asset Tools above.
+`validateRegistry()` runs at module load and fails Lambda cold start if a manifest tool has
+no entry, an entry names a nonexistent tool, or a required field is missing.
+
+```
+config/tool-metadata.js (TOOL_METADATA registry)
+  │
+  ├── generateAnnotations() / generateTitles() / getDiscoveryBlock()
+  │
+  ▼
+utils/tool-catalog.js  (buildToolCatalog() — the SINGLE manifest/description/metadata merge)
+  │
+  ├── utils/json-rpc-router.js  (tools/list)
+  └── controllers/tools.js      (list_tools)
+```
+
+Before this feature, `tools/list` and `list_tools` each independently merged the manifest
+with extended descriptions. `buildToolCatalog()` is now the only place that merge happens;
+both call sites call it and nothing else, so a tool's description or metadata can never
+drift between the two surfaces. The registry's discovery fields are composed into the
+served description *text* rather than emitted as separate wire fields, so they reach every
+protocol revision without risking schema rejection on an older one; `title`/`annotations`
+are included only on a revision the server has confirmed permits them.
+
+### Corpus manifest
+
+Every `search_documentation` response carries an additive `indexedRepositories` field
+listing the repositories currently in the index — independent of what the query matched,
+and present even on a zero-result response — so a query that finds nothing still tells the
+agent what repositories exist to search instead. The field degrades through a `full` /
+`compact` / `count` ladder against a configurable byte budget
+(`MCP_CORPUS_MANIFEST_MAX_BYTES`), and is always degraded or omitted before the manifest can
+cause a caller's requested search results to be truncated.
+
+```
+models/corpus.js  (DAO: GetItem on corpus:{version}/manifest, version-keyed cache)
+  │
+  ├── 'indexer' source  — doc-indexer/lib/dynamo-writer.js writeCorpusManifest()
+  │                        writes one corpus:{version} item per index build
+  │
+  └── 'derived' source  — fallback: aggregated from mainindex:{version} entries
+                           when the indexer item is not yet present
+  ▼
+services/documentation.js  (selects full/compact/count tier against the byte budget,
+                              re-checked against the overall response size threshold)
+```
+
 ## Authentication and Access Tiers
 
 The application implements a four-tier access model. Authentication is opt-in: requests without an API key are served at the public tier.

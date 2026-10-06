@@ -284,12 +284,26 @@ function normalizeGhusers(ghusers) {
 
 /**
  * Build the flat metadata equality-filter object that {@link module:vector-store VectorStore}
- * implementations expect, from the tool's `type`/`ghusers` inputs. The DynamoDB store
- * applies these by strict equality over stored metadata keys; the S3 store honors the
- * filterable keys (`type`, `subType`) and always constrains to the active version.
+ * implementations expect, from the tool's `type`/`ghusers`/`repositoryType`/`namespace`
+ * inputs. The DynamoDB store applies these by strict equality over stored metadata keys;
+ * the S3 store honors its filterable allowlist (`type`, `subType`, `repositoryType`,
+ * `namespace` — see `vector-store-s3.js` `FILTERABLE_FILTER_KEYS`) and always constrains to
+ * the active version.
  *
  * Mapping:
  *   - `type` (non-empty string) -> `filters.type` (both stores filter on `type`).
+ *   - `repositoryType` (non-empty string) -> `filters.repositoryType` (spec
+ *     0-0-7-tool-discovery-enhancement, Requirement 10.2). Store-expressible as of that
+ *     spec's re-index; a pre-rebuild vector simply lacks the metadata key, so the store's
+ *     equality filter naturally excludes it rather than matching it incorrectly.
+ *   - `namespace` (non-empty string) -> `filters.namespace` (Requirement 10.2), same
+ *     treatment as `repositoryType`.
+ *   - `repository` is intentionally NOT pushed down here: `vector-store-s3.js` keeps
+ *     `repository` OUT of its filterable allowlist (it rides along in metadata for
+ *     enrichment only), so a `repository` filter is applied exclusively in the
+ *     result-mapping stage ({@link SemanticRetrieval#retrieve}), mirroring how the keyword
+ *     path's push-down/authoritative-filter split already treats fields the index cannot
+ *     filter on.
  *   - `ghusers` -> `filters.owner`, but ONLY when exactly one owner is requested. The
  *     stores filter by strict equality (single value); an array of owners cannot be
  *     expressed as one equality condition, so multiple/zero owners are not pushed down
@@ -300,6 +314,8 @@ function normalizeGhusers(ghusers) {
  *
  * @param {Object} [options] - Filter inputs.
  * @param {string} [options.type] - Result type filter (documentation, template-pattern, code-example).
+ * @param {string} [options.repositoryType] - Repository type filter (spec 0-0-7, Requirement 10.2).
+ * @param {string} [options.namespace] - Namespace filter (spec 0-0-7, Requirement 10.2).
  * @param {(string|string[])} [options.ghusers] - GitHub users/orgs to narrow to.
  * @returns {Object} A flat equality-filter object (possibly empty) for `VectorStore.query`.
  * @example
@@ -307,25 +323,93 @@ function normalizeGhusers(ghusers) {
  * // { type: 'documentation' }
  *
  * @example
- * buildSemanticFilters({ type: 'documentation', ghusers: ['63klabs'] });
- * // { type: 'documentation', owner: '63klabs' }
+ * buildSemanticFilters({ type: 'documentation', repositoryType: 'package', namespace: 'core', ghusers: ['63klabs'] });
+ * // { type: 'documentation', repositoryType: 'package', namespace: 'core', owner: '63klabs' }
  *
  * @example
  * buildSemanticFilters({ ghusers: ['63klabs', 'acme'] });
  * // {}  (multiple owners cannot be a single equality filter)
  */
-function buildSemanticFilters({ type, ghusers } = {}) {
+function buildSemanticFilters({ type, repositoryType, namespace, ghusers } = {}) {
   const filters = {};
   // >! Only accept the known filter fields; never spread arbitrary caller keys into the
   // >! store filter (which could reference a non-filterable/unexpected metadata key).
   if (typeof type === 'string' && type.trim().length > 0) {
     filters.type = type;
   }
+  if (typeof repositoryType === 'string' && repositoryType.trim().length > 0) {
+    filters.repositoryType = repositoryType;
+  }
+  if (typeof namespace === 'string' && namespace.trim().length > 0) {
+    filters.namespace = namespace;
+  }
   const owners = normalizeGhusers(ghusers);
   if (owners.length === 1) {
     filters.owner = owners[0];
   }
   return filters;
+}
+
+/**
+ * Determine whether a built semantic result object satisfies a requested `repository`/
+ * `repositoryType`/`namespace` equality filter, using the SAME "missing attribute never
+ * matches" treatment the keyword path applies in `models/doc-index.js` (a result with no
+ * value for a requested field never matches, rather than being treated as a wildcard).
+ *
+ * @private
+ * @param {Object} result - A built result object (`{ repository, repositoryType, namespace, ... }`).
+ * @param {Object} requested - The requested filter values (`{ repository, repositoryType, namespace }`), any of which may be falsy for "not requested".
+ * @returns {boolean} `true` when `result` satisfies every requested field.
+ */
+function satisfiesResultFilters(result, { repository, repositoryType, namespace } = {}) {
+  if (repository && (!result || result.repository !== repository)) {
+    return false;
+  }
+  if (repositoryType && (!result || result.repositoryType !== repositoryType)) {
+    return false;
+  }
+  if (namespace && (!result || result.namespace !== namespace)) {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Determine whether ANY built result carries a non-null value for ANY of the requested
+ * `repository`/`repositoryType`/`namespace` fields. Used by
+ * {@link SemanticRetrieval#retrieve} (Requirement 10.3) to distinguish two very different
+ * reasons a filtered semantic query can come back with zero authoritative matches:
+ *
+ *   - The vector store/content HAS the new metadata, and genuinely nothing matches the
+ *     requested filter (a true, legitimate empty result — same as a keyword search that
+ *     finds nothing).
+ *   - The candidates were produced from vectors upserted BEFORE the spec
+ *     0-0-7-tool-discovery-enhancement re-index, so none of them carry
+ *     `repository`/`repositoryType`/`namespace` at all (every built result has `null`/
+ *     absent for the requested field(s)). Treating that as "zero matches" would silently
+ *     under-report results a keyword search could still find, which is the "transitional
+ *     period" scenario Requirement 10.3 calls out.
+ *
+ * @private
+ * @param {Array<Object>} results - The pre-filter built results (full candidate set, not yet narrowed).
+ * @param {Object} requested - The requested filter values (`{ repository, repositoryType, namespace }`).
+ * @returns {boolean} `true` when at least one candidate carries a non-null value for at least one requested field.
+ */
+function anyResultCarriesRequestedField(results, { repository, repositoryType, namespace } = {}) {
+  const fields = [];
+  if (repository) {
+    fields.push('repository');
+  }
+  if (repositoryType) {
+    fields.push('repositoryType');
+  }
+  if (namespace) {
+    fields.push('namespace');
+  }
+  if (fields.length === 0) {
+    return true;
+  }
+  return results.some((result) => fields.some((field) => result && result[field] !== null && result[field] !== undefined));
 }
 
 /**
@@ -598,28 +682,47 @@ class SemanticRetrieval extends RetrievalStrategy {
    * Retrieves semantically ranked documentation results for a query.
    *
    * Flow: validate the query → (no active version → empty result set with suggestions,
-   * Req 2.5) → embed the query (cached) → build metadata filters from `type`/`ghusers` →
-   * `vectorStore.query(embedding, { version, filters, topK })` → map hits to the keyword
-   * result shape via the injected `buildResults` (with `score` → `relevanceScore`) →
-   * assemble `{ results, totalResults, query, suggestions }`.
+   * Req 2.5) → embed the query (cached) → build metadata filters from
+   * `type`/`repositoryType`/`namespace`/`ghusers` → `vectorStore.query(embedding, {
+   * version, filters, topK })` → map hits to the keyword result shape via the injected
+   * `buildResults` (with `score` → `relevanceScore`) → apply the result-mapping-stage
+   * `repository`/`repositoryType`/`namespace` filter (Requirement 10.2) → assemble
+   * `{ results, totalResults, query, suggestions }`.
+   *
+   * Transitional-period degrade (Requirement 10.3): `repositoryType`/`namespace` are
+   * pushed down as STORE filters (the S3 store declares them filterable as of the spec
+   * 0-0-7-tool-discovery-enhancement re-index), while `repository` is applied only in the
+   * result-mapping stage (the store never filters on it — see {@link buildSemanticFilters}).
+   * When any of `repository`/`repositoryType`/`namespace` is requested and the built
+   * candidate set is non-empty but NONE of those candidates carry a non-null value for ANY
+   * requested field, the vectors were produced before the re-index and genuinely cannot
+   * answer the filter — rather than silently returning an unfiltered (filter-contradicting)
+   * result set, this throws a typed {@link RetrievalError} so `selectStrategy`'s
+   * {@link FallbackRetrieval} degrades to the keyword path and logs the EXISTING degrade
+   * notice, exactly as it does for an embedding or vector-store failure. A genuinely empty
+   * authoritative match (the metadata IS present but nothing satisfies the filter) is NOT
+   * degraded — it returns an empty result set with suggestions, same as the keyword path.
    *
    * @async
    * @param {Object} options - Retrieval options.
    * @param {string} options.query - The search query. Must be a non-empty string.
    * @param {string} [options.type] - Result type filter (documentation, template-pattern, code-example).
+   * @param {string} [options.repository] - Repository name filter (spec 0-0-7, Requirement 10.2); applied in the result-mapping stage only.
+   * @param {string} [options.repositoryType] - Repository type filter (spec 0-0-7, Requirement 10.2); pushed down as a store filter when store-expressible.
+   * @param {string} [options.namespace] - Namespace filter (spec 0-0-7, Requirement 10.2); pushed down as a store filter when store-expressible.
    * @param {(string|string[])} [options.ghusers] - GitHub users/orgs to narrow to.
    * @param {number} [options.topK] - Maximum number of results (defaults to the constructor `topK`, else 10).
    * @param {Object} [options.authInfo] - Resolved caller auth context (`{ tier, ... }`); passed to `buildResults` context, never logged as PII.
    * @param {string} [options.version] - Active index version to search. When absent, an empty result set with suggestions is returned (Req 2.5).
    * @returns {Promise<{results: Array<Object>, totalResults: number, query: string, suggestions: string[]}>} The semantic search response, in the same shape as keyword results.
-   * @throws {RetrievalError} `INVALID_QUERY` when `query` is not a non-empty string; `RETRIEVAL_FAILED` (with `cause`) when embedding, the vector-store query, or content lookup fails.
+   * @throws {RetrievalError} `INVALID_QUERY` when `query` is not a non-empty string; `RETRIEVAL_FAILED` (with `cause`) when embedding, the vector-store query, or content lookup fails; `FILTER_NOT_SUPPORTED` when a `repository`/`repositoryType`/`namespace` filter is requested but the candidate vectors predate the re-index that added that metadata (Requirement 10.3) — caught by `FallbackRetrieval`, which degrades to keyword.
    * @example
-   * const result = await semantic.retrieve({ query: 'rotate the key', type: 'documentation', version: 'v3' });
+   * const result = await semantic.retrieve({ query: 'rotate the key', type: 'documentation', repositoryType: 'package', version: 'v3' });
    * console.log(result.results[0].relevanceScore); // cosine similarity of the top hit
    */
   async retrieve(options) {
     const opts = (options && typeof options === 'object') ? options : {};
-    const { query, type, ghusers, topK, authInfo, version } = opts;
+    const { query, type, repository, repositoryType, namespace, ghusers, topK, authInfo, version } = opts;
 
     // >! Validate the untrusted query before embedding or building a cache key.
     if (typeof query !== 'string' || query.trim().length === 0) {
@@ -650,7 +753,7 @@ class SemanticRetrieval extends RetrievalStrategy {
         cacheStats: this.getCacheStats()
       });
 
-      const filters = buildSemanticFilters({ type, ghusers });
+      const filters = buildSemanticFilters({ type, repositoryType, namespace, ghusers });
       this.#logger.info('DIAG: SemanticRetrieval filters built', { filters });
 
       const hits = await this.#vectorStore.query(embedding, {
@@ -675,11 +778,40 @@ class SemanticRetrieval extends RetrievalStrategy {
         version,
         authInfo
       });
-      const results = Array.isArray(built) ? built : [];
+      const candidates = Array.isArray(built) ? built : [];
       this.#logger.info('DIAG: SemanticRetrieval buildResults resolved', {
-        resultsLength: results.length,
-        firstRelevanceScore: results[0] ? results[0].relevanceScore : null
+        resultsLength: candidates.length,
+        firstRelevanceScore: candidates[0] ? candidates[0].relevanceScore : null
       });
+
+      // >! Result-mapping-stage filter (Requirement 10.2): `repository` is never a store
+      // >! filter (vector-store-s3.js keeps it out of FILTERABLE_FILTER_KEYS), and
+      // >! `repositoryType`/`namespace` are applied here too as the AUTHORITATIVE pass —
+      // >! mirroring the keyword path's push-down-then-authoritative-filter split in
+      // >! models/doc-index.js. A candidate missing the requested field never matches.
+      const requestedResultFilter = { repository, repositoryType, namespace };
+      const anyResultFilterRequested = Boolean(repository) || Boolean(repositoryType) || Boolean(namespace);
+
+      if (anyResultFilterRequested && candidates.length > 0
+        && !anyResultCarriesRequestedField(candidates, requestedResultFilter)) {
+        // >! Transitional period (Requirement 10.3): the candidate vectors predate the
+        // >! re-index that added repository/repositoryType/namespace metadata, so this
+        // >! strategy cannot honor the requested filter from its own result set. Returning
+        // >! the unfiltered candidates would CONTRADICT the filter (a correctness bug, per
+        // >! design section 11); throwing a typed error lets selectStrategy's
+        // >! FallbackRetrieval degrade to keyword (which CAN filter on content metadata)
+        // >! and emit the EXISTING degrade-to-keyword warning — no new logging path needed.
+        throw new RetrievalError(
+          'Semantic retrieval cannot honor the requested repository/repositoryType/namespace ' +
+          'filter: the matched vectors do not carry that metadata (pre-rebuild transitional ' +
+          'period).',
+          { code: 'FILTER_NOT_SUPPORTED' }
+        );
+      }
+
+      const results = anyResultFilterRequested
+        ? candidates.filter((result) => satisfiesResultFilters(result, requestedResultFilter))
+        : candidates;
 
       return {
         results,
@@ -1018,19 +1150,22 @@ class SemanticAssistedRetrieval extends RetrievalStrategy {
    * @param {Object} options - Retrieval options.
    * @param {string} options.query - The search query.
    * @param {string} [options.type] - Result type filter (documentation, template-pattern, code-example).
+   * @param {string} [options.repository] - Repository name filter (spec 0-0-7, Requirement 10.2); forwarded to the semantic strategy.
+   * @param {string} [options.repositoryType] - Repository type filter (spec 0-0-7, Requirement 10.2); forwarded to the semantic strategy.
+   * @param {string} [options.namespace] - Namespace filter (spec 0-0-7, Requirement 10.2); forwarded to the semantic strategy.
    * @param {(string|string[])} [options.ghusers] - GitHub users/orgs to narrow to.
    * @param {number} [options.topK] - Maximum number of results (defaults to the constructor `topK`, else 10).
    * @param {Object} [options.authInfo] - Resolved caller auth context (`{ tier, ... }`); forwarded to the semantic strategy, never logged as PII.
    * @param {string} [options.version] - Active index version to search. When absent, the semantic strategy returns an empty set and this strategy returns it unchanged (no LLM call).
    * @returns {Promise<{results: Array<Object>, totalResults: number, query: string, suggestions: string[]}>} The re-ranked (or, on assist failure, plain semantic) search response, in the same shape as semantic/keyword results.
-   * @throws {RetrievalError} A failure in the underlying semantic strategy (embedding / vector store) propagates as that strategy's own typed `RetrievalError`. An assist/LLM re-rank failure does NOT throw — it is caught, logged, and gracefully degraded to the plain semantic results.
+   * @throws {RetrievalError} A failure in the underlying semantic strategy (embedding / vector store / an unsatisfiable repository/repositoryType/namespace filter, Requirement 10.3) propagates as that strategy's own typed `RetrievalError`. An assist/LLM re-rank failure does NOT throw — it is caught, logged, and gracefully degraded to the plain semantic results.
    * @example
    * const result = await assisted.retrieve({ query: 'rotate the key', type: 'documentation', version: 'v3' });
    * console.log(result.results.length); // <= effective topK
    */
   async retrieve(options) {
     const opts = (options && typeof options === 'object') ? options : {};
-    const { query, type, ghusers, topK, authInfo, version } = opts;
+    const { query, type, repository, repositoryType, namespace, ghusers, topK, authInfo, version } = opts;
 
     const effectiveTopK = (Number.isInteger(topK) && topK > 0) ? topK : this.#topK;
     // Fetch more candidates than requested so the assist model can promote a strong hit.
@@ -1042,6 +1177,9 @@ class SemanticAssistedRetrieval extends RetrievalStrategy {
     const candidateEnvelope = await this.#semantic.retrieve({
       query,
       type,
+      repository,
+      repositoryType,
+      namespace,
       ghusers,
       topK: candidateCount,
       authInfo,
@@ -1678,6 +1816,10 @@ module.exports = {
   buildSemanticFilters,
   normalizeQuery,
   DEFAULT_TOP_K,
+  // Exposed for testing (spec 0-0-7-tool-discovery-enhancement, task 19.1: semantic-path
+  // repository/repositoryType/namespace filter parity + transitional-period degrade).
+  satisfiesResultFilters,
+  anyResultCarriesRequestedField,
   // Exposed for testing (task 13.3: model-not-available ERROR logging classification).
   isModelUnavailableError,
   MODEL_UNAVAILABLE_EVENT

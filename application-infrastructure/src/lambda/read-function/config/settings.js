@@ -9,6 +9,15 @@
 
 const { tools: { DebugAndLog, CachedSsmParameter } } = require('@63klabs/cache-data');
 const AgentAssetTypes = require('./agent-asset-types');
+const TEMPLATE_CATEGORIES = require('./template-categories');
+const VALID_REPOSITORY_TYPES = require('./repository-types');
+// >! The enforced schema (utils/schema-validator.js baseSchemas) is the single
+// >! authoritative definition (Requirement 3). This published tool manifest
+// >! references those same schema objects by tool name below rather than
+// >! hand-maintaining a second, independently-drifting copy. schema-validator.js
+// >! no longer requires settings.js (it gets TEMPLATE_CATEGORIES from
+// >! ./template-categories directly), so this require introduces no cycle.
+const { baseSchemas } = require('../utils/schema-validator');
 
 /**
  * Parse comma-delimited environment variable into array
@@ -143,33 +152,6 @@ function parseIntSetting(envVar, defaultValue, { min = 1, max = Infinity } = {})
 }
 
 /**
- * Template categories supported by Atlantis platform
- * @constant
- */
-const TEMPLATE_CATEGORIES = [
-  {
-    name: 'storage',
-    description: 'S3 buckets, DynamoDB tables, and data storage resources'
-  },
-  {
-    name: 'network',
-    description: 'CloudFront distributions, Route53, VPC, and networking resources'
-  },
-  {
-    name: 'pipeline',
-    description: 'CodePipeline, CodeBuild, and CI/CD infrastructure'
-  },
-  {
-    name: 'service-role',
-    description: 'IAM roles and policies for AWS services'
-  },
-  {
-    name: 'modules',
-    description: 'Reusable CloudFormation definitions and nested stacks'
-  }
-];
-
-/**
  * Access tiers in ascending order of privilege, used to validate
  * `DOC_AI_MIN_TIER`. Ordering: public < registered < paid < private.
  * @constant {Array<string>}
@@ -214,322 +196,67 @@ const settings = {
       {
         name: 'list_tools',
         description: 'List all available MCP tools with their descriptions and input schemas. Returns the complete set of tools supported by this server.',
-        inputSchema: {
-          type: 'object',
-          properties: {},
-          additionalProperties: false
-        }
+        inputSchema: baseSchemas.list_tools
       },
       {
         name: 'list_templates',
         description: 'List all CloudFormation templates available for deployment via Atlantis scripts, filtered by category, version, or S3 bucket. Categories include: **storage**, **network**, **pipeline**, **service-role**, and **modules**. The modules category organizes templates into subcategories (nested subdirectories). Returns template metadata such as name, category, description, namespace, and S3 location. Returns an empty array if no templates match the specified filters. Use the `category` parameter to narrow results when you know the resource type you need. To get version information for a specific template, use `list_template_versions`.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            category: {
-              type: 'string',
-              description: 'Filter by template category (storage, network, pipeline, service-role, modules)',
-              enum: TEMPLATE_CATEGORIES.map(cat => cat.name)
-            },
-            s3Buckets: {
-              type: 'array',
-              items: { type: 'string' },
-              description: 'Filter to specific S3 buckets from configured list'
-            }
-          }
-        }
+        inputSchema: baseSchemas.list_templates
       },
       {
         name: 'get_template',
         description: 'Retrieve a specific CloudFormation template with full content and metadata. Returns template content, parameters, outputs, version information, and S3 location.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            templateName: {
-              type: 'string',
-              description: 'Name of the template to retrieve'
-            },
-            category: {
-              type: 'string',
-              description: 'Template category',
-              enum: TEMPLATE_CATEGORIES.map(cat => cat.name)
-            },
-            version: {
-              type: 'string',
-              description: 'Human_Readable_Version (e.g., v1.2.3/2024-01-15)',
-              pattern: '^v\\d+\\.\\d+\\.\\d+(\\/\\d{4}-\\d{2}-\\d{2})?$'
-            },
-            versionId: {
-              type: 'string',
-              description: 'S3_VersionId for specific version'
-            },
-            s3Buckets: {
-              type: 'array',
-              items: { type: 'string' },
-              description: 'Filter to specific S3 buckets from configured list'
-            }
-          },
-          required: ['templateName', 'category']
-        }
+        inputSchema: baseSchemas.get_template
       },
       {
         name: 'list_template_versions',
         description: 'List all versions of a specific CloudFormation template. Returns version history with Human_Readable_Version, S3_VersionId, last modified date, and size.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            templateName: {
-              type: 'string',
-              description: 'Name of the template'
-            },
-            category: {
-              type: 'string',
-              description: 'Template category',
-              enum: TEMPLATE_CATEGORIES.map(cat => cat.name)
-            },
-            s3Buckets: {
-              type: 'array',
-              items: { type: 'string' },
-              description: 'Filter to specific S3 buckets from configured list'
-            }
-          },
-          required: ['templateName', 'category']
-        }
+        inputSchema: baseSchemas.list_template_versions
       },
       {
         name: 'list_categories',
         description: 'List all available template categories with descriptions and template counts. Returns category names, descriptions, and number of templates in each category.',
-        inputSchema: {
-          type: 'object',
-          properties: {}
-        }
+        inputSchema: baseSchemas.list_categories
       },
       {
         name: 'list_starters',
-        description: 'List all available application starter code repositories. Returns starter metadata including name, description, languages, frameworks, features, and S3 location. Starters can be used to initialize new project application repositories or reviewed for code patterns and stadards. They include a CloudFormation template and Build Spec to deploy the application and code for a Lambda function or other resources.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            s3Buckets: {
-              type: 'array',
-              items: { type: 'string' },
-              description: 'Filter to specific S3 buckets from configured list'
-            },
-            namespace: {
-              type: 'string',
-              description: 'Filter to a specific namespace (S3 root prefix)'
-            }
-          }
-        }
+        description: 'List all available application starter code repositories. Returns starter metadata including name, description, languages, frameworks, features, and S3 location. Starters can be used to initialize new project application repositories or reviewed for code patterns and standards. They include a CloudFormation template and Build Spec to deploy the application and code for a Lambda function or other resources.',
+        inputSchema: baseSchemas.list_starters
       },
       {
         name: 'get_starter_info',
         description: 'Retrieve detailed information about a specific starter code repository. Returns comprehensive metadata including languages, frameworks, features, prerequisites, and S3 location.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            starterName: {
-              type: 'string',
-              description: 'Name of the starter repository'
-            },
-            s3Buckets: {
-              type: 'array',
-              items: { type: 'string' },
-              description: 'Filter to specific S3 buckets from configured list'
-            },
-            namespace: {
-              type: 'string',
-              description: 'Filter to a specific namespace (S3 root prefix)'
-            }
-          },
-          required: ['starterName']
-        }
+        inputSchema: baseSchemas.get_starter_info
       },
       {
         name: 'search_documentation',
         description: 'Search Atlantis documentation, tutorials, and code patterns. Returns search results with title, excerpt, file path, GitHub URL, and result type (documentation or code example). When results are broad, refine with the optional `type` and/or `subType` filters; the response `availableFilters` block lists the `type`/`subType` values present in the matched set with counts.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            query: {
-              type: 'string',
-              description: 'Search query keywords'
-            },
-            type: {
-              type: 'string',
-              description: 'Optional. Filter by result type. Use to refine when results are broad.',
-              enum: ['documentation', 'template-pattern', 'code-example']
-            },
-            subType: {
-              type: 'string',
-              description: 'Optional. Filter by result subtype. Use to refine when results are broad.',
-              enum: ['guide', 'function', 'parameter']
-            },
-            ghusers: {
-              type: 'array',
-              items: { type: 'string' },
-              description: 'Filter to specific GitHub users/orgs from configured list'
-            }
-          },
-          required: ['query']
-        }
+        inputSchema: baseSchemas.search_documentation
       },
       {
         name: 'get_document',
         description: 'Retrieve the full stored source file behind a search_documentation result. Accepts either the `filePath` returned on a search result or a section `hash` (exactly one of the two). Returns filePath, githubUrl, repository, repositoryType, namespace, and the raw file content. Retrieval is storage-only: the server never fetches from GitHub, so when the document is not in storage an error is returned carrying the file-level `githubUrl` for the client to fetch directly.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            filePath: {
-              type: 'string',
-              description: 'contentPath from a search result (e.g., {org}/{repo}/{filePath}/{slug})'
-            },
-            hash: {
-              type: 'string',
-              description: 'Section content hash (16 hexadecimal characters)',
-              pattern: '^[0-9a-f]{16}$'
-            }
-          },
-          additionalProperties: false
-        }
+        inputSchema: baseSchemas.get_document
       },
       {
         name: 'get_document_chunk',
         description: 'Retrieve a specific chunk of a large document that was too large to return in a single get_document response. Takes the same lookup key as get_document (exactly one of `filePath` or `hash`) plus a zero-based `chunkIndex`.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            filePath: {
-              type: 'string',
-              description: 'contentPath from a search result (e.g., {org}/{repo}/{filePath}/{slug})'
-            },
-            hash: {
-              type: 'string',
-              description: 'Section content hash (16 hexadecimal characters)',
-              pattern: '^[0-9a-f]{16}$'
-            },
-            chunkIndex: {
-              type: 'integer',
-              description: 'Zero-based index of the chunk to retrieve',
-              minimum: 0
-            }
-          },
-          required: ['chunkIndex'],
-          additionalProperties: false
-        }
+        inputSchema: baseSchemas.get_document_chunk
       },
       {
         name: 'validate_naming',
         description: 'Validate resource names against Atlantis naming conventions. Supports S3 regional buckets (Pattern 1: AccountId-Region with -an suffix), global buckets (Pattern 2: AccountId-Region, Pattern 3: simple), service-role resources (ALL CAPS Prefix, no StageId), and application resources. Provide known component values (prefix, projectId) for accurate parsing of hyphenated components.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            resourceName: {
-              type: 'string',
-              description: 'Resource name to validate'
-            },
-            resourceType: {
-              type: 'string',
-              description: 'Type of AWS resource. "s3" and "service-role" have special validation patterns; all other values use standard application resource validation (Prefix-ProjectId-StageId-ResourceSuffix).'
-            },
-            isShared: {
-              type: 'boolean',
-              description: 'When true, validates as a shared resource without a StageId component (e.g., Prefix-ProjectId-ResourceSuffix)'
-            },
-            hasOrgPrefix: {
-              type: 'boolean',
-              description: 'When true, indicates the S3 bucket name includes an organization prefix segment for disambiguation'
-            },
-            prefix: {
-              type: 'string',
-              description: 'Known Prefix value for disambiguation of hyphenated components'
-            },
-            projectId: {
-              type: 'string',
-              description: 'Known ProjectId value for disambiguation of hyphenated components'
-            },
-            stageId: {
-              type: 'string',
-              description: 'Known StageId value for disambiguation of hyphenated components'
-            },
-            orgPrefix: {
-              type: 'string',
-              description: 'Known OrgPrefix value for disambiguation of hyphenated components'
-            }
-          },
-          required: ['resourceName']
-        }
+        inputSchema: baseSchemas.validate_naming
       },
       {
         name: 'check_template_updates',
         description: 'Check if CloudFormation templates have newer versions available. Returns update information including version, release date, changelog, and migration guide links for breaking changes.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            templateName: {
-              type: 'string',
-              description: 'Name of the template to check'
-            },
-            category: {
-              type: 'string',
-              description: 'Template category',
-              enum: TEMPLATE_CATEGORIES.map(cat => cat.name)
-            },
-            currentVersion: {
-              type: 'string',
-              description: 'Current Human_Readable_Version (e.g., v1.2.3/2024-01-15)',
-              pattern: '^v\\d+\\.\\d+\\.\\d+(\\/\\d{4}-\\d{2}-\\d{2})?$'
-            },
-            s3Buckets: {
-              type: 'array',
-              items: { type: 'string' },
-              description: 'Filter to specific S3 buckets from configured list'
-            }
-          },
-          required: ['templateName', 'category', 'currentVersion']
-        }
+        inputSchema: baseSchemas.check_template_updates
       },
       {
         name: 'get_template_chunk',
         description: 'Retrieve a specific chunk of a large CloudFormation template that was too large to return in a single get_template response.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            templateName: {
-              type: 'string',
-              description: 'Name of the template to retrieve'
-            },
-            category: {
-              type: 'string',
-              description: 'Template category',
-              enum: TEMPLATE_CATEGORIES.map(cat => cat.name)
-            },
-            chunkIndex: {
-              type: 'integer',
-              description: 'Zero-based index of the chunk to retrieve',
-              minimum: 0
-            },
-            version: {
-              type: 'string',
-              description: 'Human_Readable_Version (e.g., v1.2.3/2024-01-15)',
-              pattern: '^v\\d+\\.\\d+\\.\\d+(\\/\\d{4}-\\d{2}-\\d{2})?$'
-            },
-            versionId: {
-              type: 'string',
-              description: 'S3_VersionId for specific version'
-            },
-            s3Buckets: {
-              type: 'array',
-              items: { type: 'string' },
-              description: 'Filter to specific S3 buckets from configured list'
-            },
-            namespace: {
-              type: 'string',
-              description: 'Filter to a specific namespace (S3 root prefix)'
-            }
-          },
-          required: ['templateName', 'category', 'chunkIndex']
-        }
+        inputSchema: baseSchemas.get_template_chunk
       },
       // >! Registry-driven agent-asset tools (list_agent_assets, get_agent_asset,
       // >! list_agent_asset_types), with the `assetType` enum reflecting the
@@ -614,17 +341,13 @@ const settings = {
     repositoryTypeProperty: 'atlantis_repository-type',
 
     /**
-     * Valid repository type values
+     * Valid repository type values. Sourced from `./repository-types` so
+     * `schema-validator.js` can enum against the SAME list without requiring
+     * `settings.js` (see that module's header comment for the circular-import
+     * rationale, mirroring `template-categories.js`).
      * @type {Array<string>}
      */
-    validRepositoryTypes: [
-      'documentation',
-      'app-starter',
-      'templates',
-      'management',
-      'package',
-      'mcp'
-    ]
+    validRepositoryTypes: VALID_REPOSITORY_TYPES
   },
 
   // Cache Configuration
@@ -936,7 +659,20 @@ const settings = {
         bucket: process.env.DOC_AI_S3_VECTOR_BUCKET || '',
         index: process.env.DOC_AI_S3_VECTOR_INDEX || ''
       }
-    }
+    },
+
+    /**
+     * Byte budget for the `indexedRepositories` corpus-manifest block attached to every
+     * `search_documentation` response (spec 0-0-7, Requirement 8.7). The degradation
+     * ladder (`full` -> `compact` -> `count`) in `services/documentation.js` selects the
+     * richest tier whose serialized size fits this budget before the result is also
+     * measured against the overall response size threshold (R8.9).
+     *
+     * Read from `MCP_CORPUS_MANIFEST_MAX_BYTES`; defaults to 4096 (4 KB, R8.7).
+     *
+     * @type {number}
+     */
+    corpusManifestMaxBytes: parseIntSetting('MCP_CORPUS_MANIFEST_MAX_BYTES', 4096, { min: 1 })
   },
 
   rateLimits: {

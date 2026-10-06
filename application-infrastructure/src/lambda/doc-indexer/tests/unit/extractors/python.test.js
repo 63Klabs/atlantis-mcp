@@ -37,9 +37,17 @@ describe('Python Extractor', () => {
 			expect(extractKeywords('the a an')).toHaveLength(0);
 		});
 
-		it('filters out Python-specific stop words', () => {
+		it('no longer filters Python-specific stop words (consolidated onto the shared search-common stop-word set)', () => {
+			// Prior to delegating to the search-common layer (task 18.1), this extractor had its
+			// own extended stop-word list including Python-specific tokens like `self`/`cls`/
+			// `none`/`return`. The shared layer's stop-word set (design.md section 1.4) is the
+			// single policy for both index-time and query-time tokenization and does not include
+			// these Python-specific entries, so they now survive as keywords. `splitUnderscore`
+			// is the only Python-specific behavior preserved by delegation (R6.1, R6.3).
 			const keywords = extractKeywords('self cls none return');
-			expect(keywords).toHaveLength(0);
+			expect(keywords).toContain('self');
+			expect(keywords).toContain('none');
+			expect(keywords).toContain('return');
 		});
 	});
 

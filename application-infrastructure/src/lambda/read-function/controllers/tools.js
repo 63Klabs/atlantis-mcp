@@ -12,9 +12,8 @@
 
 const SchemaValidator = require('../utils/schema-validator');
 const MCPProtocol = require('../utils/mcp-protocol');
-const settings = require('../config/settings');
+const { buildToolCatalog } = require('../utils/tool-catalog');
 const { tools: { DebugAndLog } } = require('@63klabs/cache-data');
-const { extendedDescriptions } = require('../config/tool-descriptions');
 
 /**
  * List all available MCP tools
@@ -47,23 +46,14 @@ async function list(props) {
 
     DebugAndLog.info('list_tools request');
 
-    const tools = settings.tools.availableToolsList;
-
-    // Merge extended descriptions at response time
-    const mergedTools = tools.map(tool => {
-      const extended = extendedDescriptions[tool.name];
-      if (extended) {
-        return { ...tool, description: extended };
-      }
-      return tool;
-    });
+    const tools = buildToolCatalog();
 
     DebugAndLog.info('list_tools response', {
-      toolCount: mergedTools.length
+      toolCount: tools.length
     });
 
     // >! Return MCP-formatted response
-    return MCPProtocol.successResponse('list_tools', { tools: mergedTools });
+    return MCPProtocol.successResponse('list_tools', { tools });
 
   } catch (error) {
     DebugAndLog.error('list_tools error', {

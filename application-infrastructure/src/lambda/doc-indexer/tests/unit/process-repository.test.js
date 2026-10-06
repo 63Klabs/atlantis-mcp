@@ -1,7 +1,8 @@
 'use strict';
 
 /**
- * Unit tests for index-builder.processRepository (spec 0-0-6, tasks 1.1, 1.3, 1.4).
+ * Unit tests for index-builder.processRepository (spec 0-0-6, tasks 1.1, 1.3, 1.4; spec
+ * 0-0-7, task 16.2).
  *
  * Verifies the per-entry file-level metadata wiring:
  *   - documentPath = {org}/{repo}/{filePath} and documentHash = hash(documentPath) (1.1)
@@ -9,6 +10,8 @@
  *   - ref = release tag when a release archive was used, else the default branch, and the
  *     resulting file-level githubUrl (1.3)
  *   - repositoryType / namespace threaded from getRepositoryProperties, null when absent (1.4)
+ *   - fetch-failed carry-forward: resolved -> as-is, absent -> literal 'absent', fetch-failed
+ *     -> prior main-index classification or fail-open 'absent' when none exists (0-0-7 16.2)
  *
  * The network/archive collaborators are mocked; buildGithubUrl and hashContentPath run for
  * real so the produced URL and hashes are asserted against the real implementations.
@@ -37,9 +40,21 @@ jest.mock('../../lib/extractors/markdown', () => ({
 	extract: jest.fn()
 }));
 
+// dynamo-writer.getDocClient is used (via index-builder's internal require) by the
+// fetch-failed carry-forward lookup. Mocked so tests never touch real DynamoDB; the
+// returned client's `send` is configured per-test to simulate a previous main index.
+jest.mock('../../lib/dynamo-writer', () => {
+	const actual = jest.requireActual('../../lib/dynamo-writer');
+	return {
+		...actual,
+		getDocClient: jest.fn()
+	};
+});
+
 const githubClient = require('../../lib/github-client');
 const archiveProcessor = require('../../lib/archive-processor');
 const markdownExtractor = require('../../lib/extractors/markdown');
+const dynamoWriter = require('../../lib/dynamo-writer');
 const { hashContentPath } = require('../../lib/hasher');
 const { processRepository } = require('../../lib/index-builder');
 
@@ -149,5 +164,137 @@ describe('processRepository file-level metadata', () => {
 		expect(entry.owner).toBe('63klabs');
 		expect(entry.type).toBe('documentation');
 		expect(entry.title).toBe('Title');
+	});
+});
+
+describe('processRepository fetch-failed carry-forward (spec 0-0-7, task 16.2)', () => {
+	afterEach(() => {
+		jest.clearAllMocks();
+	});
+
+	it('uses repositoryType as-is when resolution is resolved', async () => {
+		primePipeline({
+			release: null,
+			properties: { repositoryType: 'package', namespace: 'core', resolution: 'resolved' }
+		});
+
+		const entries = await processRepository(REPO, 'token');
+		expect(entries[0].repositoryType).toBe('package');
+		expect(dynamoWriter.getDocClient).not.toHaveBeenCalled();
+	});
+
+	it('maps resolution "absent" to the literal string "absent", not null', async () => {
+		primePipeline({
+			release: null,
+			properties: { repositoryType: null, namespace: null, resolution: 'absent' }
+		});
+
+		const entries = await processRepository(REPO, 'token');
+		expect(entries[0].repositoryType).toBe('absent');
+	});
+
+	it('carries forward the prior classification on fetch-failed when a previous version exists', async () => {
+		primePipeline({
+			release: null,
+			properties: { repositoryType: null, namespace: null, resolution: 'fetch-failed' }
+		});
+
+		// Simulate a previous main index manifest (unchunked) with this repo's prior type.
+		const send = jest.fn().mockResolvedValue({
+			Item: {
+				pk: 'mainindex:20250714T060000',
+				sk: 'entries',
+				entries: [
+					{ owner: '63klabs', repository: 'cache-data', repositoryType: 'package' }
+				]
+			}
+		});
+		dynamoWriter.getDocClient.mockReturnValue({ send });
+
+		const entries = await processRepository(REPO, 'token', {
+			tableName: 'my-table',
+			previousVersion: '20250714T060000'
+		});
+
+		expect(entries[0].repositoryType).toBe('package');
+		expect(send).toHaveBeenCalledTimes(1);
+	});
+
+	it('reads chunked main index entries when the manifest has no inline entries', async () => {
+		primePipeline({
+			release: null,
+			properties: { repositoryType: null, namespace: null, resolution: 'fetch-failed' }
+		});
+
+		const send = jest.fn()
+			.mockResolvedValueOnce({ Item: { totalChunks: 1 } })
+			.mockResolvedValueOnce({
+				Item: {
+					entries: [
+						{ owner: '63klabs', repository: 'cache-data', repositoryType: 'documentation' }
+					]
+				}
+			});
+		dynamoWriter.getDocClient.mockReturnValue({ send });
+
+		const entries = await processRepository(REPO, 'token', {
+			tableName: 'my-table',
+			previousVersion: '20250714T060000'
+		});
+
+		expect(entries[0].repositoryType).toBe('documentation');
+		expect(send).toHaveBeenCalledTimes(2);
+	});
+
+	it('fails open to "absent" on fetch-failed when there is no previous version', async () => {
+		primePipeline({
+			release: null,
+			properties: { repositoryType: null, namespace: null, resolution: 'fetch-failed' }
+		});
+
+		const entries = await processRepository(REPO, 'token', {
+			tableName: 'my-table',
+			previousVersion: null
+		});
+
+		expect(entries[0].repositoryType).toBe('absent');
+		expect(dynamoWriter.getDocClient).not.toHaveBeenCalled();
+	});
+
+	it('fails open to "absent" on fetch-failed when the previous version has no matching entry', async () => {
+		primePipeline({
+			release: null,
+			properties: { repositoryType: null, namespace: null, resolution: 'fetch-failed' }
+		});
+
+		const send = jest.fn().mockResolvedValue({
+			Item: { entries: [{ owner: 'someone-else', repository: 'other-repo', repositoryType: 'package' }] }
+		});
+		dynamoWriter.getDocClient.mockReturnValue({ send });
+
+		const entries = await processRepository(REPO, 'token', {
+			tableName: 'my-table',
+			previousVersion: '20250714T060000'
+		});
+
+		expect(entries[0].repositoryType).toBe('absent');
+	});
+
+	it('fails open to "absent" on fetch-failed when the DynamoDB lookup throws', async () => {
+		primePipeline({
+			release: null,
+			properties: { repositoryType: null, namespace: null, resolution: 'fetch-failed' }
+		});
+
+		dynamoWriter.getDocClient.mockReturnValue({
+			send: jest.fn().mockRejectedValue(new Error('DynamoDB unavailable'))
+		});
+
+		const entries = await processRepository(REPO, 'token', {
+			tableName: 'my-table',
+			previousVersion: '20250714T060000'
+		});
+
+		expect(entries[0].repositoryType).toBe('absent');
 	});
 });

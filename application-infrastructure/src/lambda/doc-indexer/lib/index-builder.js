@@ -20,6 +20,7 @@ const {
 	writeDocumentEntries,
 	writeSearchKeywords,
 	writeMainIndex,
+	writeCorpusManifest,
 	updateVersionPointer,
 	setTtlOnPreviousVersion,
 	computeTtl,
@@ -44,13 +45,58 @@ const TYPE_WEIGHTS = {
 
 /**
  * Relevance score component weights.
+ *
+ * `repositoryNameMatch` sits between `excerptMatch` and `keywordMatch` (design.md section
+ * 8.1): a match on the repository name is stronger evidence of topical ownership than a
+ * bare keyword match (the `cache-data` case — a query for "cache-data installation" should
+ * rank `cache-data`'s own docs above an unrelated repository that merely mentions it in an
+ * excerpt), but it is not as strong as an explicit title match. `pathMatch` is the lowest
+ * weight — a match in the file path is weak but real evidence (design.md section 8.1).
+ *
  * @type {Object.<string, number>}
  */
 const SCORE_WEIGHTS = {
 	titleMatch: 10,
 	excerptMatch: 5,
-	keywordMatch: 3
+	repositoryNameMatch: 4,
+	keywordMatch: 3,
+	pathMatch: 1
 };
+
+/**
+ * Per-`repositoryType` relevance multiplier (R7.2, design.md section 8.2), applied
+ * alongside the existing per-content-`type` {@link TYPE_WEIGHTS} multiplier so a section
+ * from a `package` or `documentation` repository is not outranked by an incidental,
+ * lower-value section from an unrelated repository at equal textual relevance.
+ *
+ * `package` and `documentation` repositories are the most authoritative sources for the
+ * platform and its companion packages, so they get the highest weight. `templates` and
+ * `app-starter` are neutral (`1.0`). `mcp` and `management` are weighted slightly below
+ * neutral — operationally relevant but not where an agent's documentation question is
+ * usually best answered. A repository with no resolved classification (`absent` or
+ * `fetch-failed`, surfaced as a `repositoryType` of `null`/`undefined`) takes the SAME
+ * neutral weight as `templates`/`app-starter`, so a repository that is merely missing the
+ * custom property is never penalized for an operational omission (design.md section 8.2).
+ *
+ * @type {Object.<string, number>}
+ */
+const REPOSITORY_TYPE_WEIGHTS = {
+	'package': 1.1,
+	'documentation': 1.1,
+	'templates': 1.0,
+	'app-starter': 1.0,
+	'mcp': 0.95,
+	'management': 0.95
+};
+
+/**
+ * Neutral multiplier used for an absent/unclassified `repositoryType` (`null`, `undefined`,
+ * or any value not present in {@link REPOSITORY_TYPE_WEIGHTS}), matching the `templates`/
+ * `app-starter` weight (design.md section 8.2).
+ *
+ * @type {number}
+ */
+const NEUTRAL_REPOSITORY_TYPE_WEIGHT = 1.0;
 
 /**
  * Parse the ATLANTIS_GITHUB_USER_ORGS environment variable into
@@ -163,10 +209,19 @@ function getExtractor(filePath) {
 
 /**
  * Compute relevance score for a keyword relative to a content entry.
- * Scoring: title match +10, excerpt match +5, keyword match +3.
+ * Scoring: title match +10, excerpt match +5, repository-name match +4, keyword match +3,
+ * path match +1.
+ *
+ * The repository-name and path signals (R7.1, design.md section 8.1) are evaluated against
+ * `entry.repository` and `entry.contentPath` respectively, the SAME fields already carried
+ * on every entry produced by `processRepository()` (repository-qualified content path;
+ * repository name from the GitHub API) — no new entry fields are required. Both signals are
+ * additive with the existing title/excerpt/keyword contributions, so a candidate can match
+ * on more than one signal for the same keyword (e.g. a `cache-data` query matching both the
+ * repository name AND a path segment).
  *
  * @param {string} keyword - The keyword being scored
- * @param {Object} entry - Content entry with title, excerpt, keywords
+ * @param {Object} entry - Content entry with title, excerpt, keywords, repository, contentPath
  * @returns {number} Relevance score
  */
 function computeRelevanceScore(keyword, entry) {
@@ -179,8 +234,14 @@ function computeRelevanceScore(keyword, entry) {
 	if (entry.excerpt && entry.excerpt.toLowerCase().includes(lowerKeyword)) {
 		score += SCORE_WEIGHTS.excerptMatch;
 	}
+	if (entry.repository && entry.repository.toLowerCase().includes(lowerKeyword)) {
+		score += SCORE_WEIGHTS.repositoryNameMatch;
+	}
 	if (entry.keywords && entry.keywords.some(k => k.toLowerCase() === lowerKeyword)) {
 		score += SCORE_WEIGHTS.keywordMatch;
+	}
+	if (entry.contentPath && entry.contentPath.toLowerCase().includes(lowerKeyword)) {
+		score += SCORE_WEIGHTS.pathMatch;
 	}
 
 	return score;
@@ -194,7 +255,16 @@ function computeRelevanceScore(keyword, entry) {
  * what lets the read path push `type`/`subType` filters down ahead of the metadata fetch
  * (spec 0-0-6, task 1.6). Missing values are normalized to `null`.
  *
- * @param {Array<Object>} entries - Content entries with hash, title, excerpt, keywords, type, subType
+ * The base score (title/excerpt/repository-name/keyword/path matches) is scaled by BOTH the
+ * existing per-content-`type` {@link TYPE_WEIGHTS} multiplier AND the new per-
+ * `repositoryType` {@link REPOSITORY_TYPE_WEIGHTS} multiplier (R7.2, design.md section 8.2),
+ * so a `package`/`documentation` repository's sections are not outranked by an incidental,
+ * lower-value section from an unrelated repository at equal textual relevance. An entry with
+ * no resolved `repositoryType` (`null`/`undefined`, or any value absent from
+ * `REPOSITORY_TYPE_WEIGHTS`) takes the neutral multiplier, matching `templates`/
+ * `app-starter` — never penalized for an operational omission.
+ *
+ * @param {Array<Object>} entries - Content entries with hash, title, excerpt, keywords, type, subType, repository, contentPath, repositoryType
  * @returns {Array<{hash: string, keyword: string, relevanceScore: number, typeWeight: number, type: (string|null), subType: (string|null)}>}
  */
 function buildKeywordEntries(entries) {
@@ -202,12 +272,13 @@ function buildKeywordEntries(entries) {
 
 	for (const entry of entries) {
 		const typeWeight = TYPE_WEIGHTS[entry.type] || 0.8;
+		const repositoryTypeWeight = REPOSITORY_TYPE_WEIGHTS[entry.repositoryType] || NEUTRAL_REPOSITORY_TYPE_WEIGHT;
 		// Deduplicate keywords per entry to avoid duplicate pk/sk in DynamoDB batch writes
 		const uniqueKeywords = [...new Set(entry.keywords.map(k => k.toLowerCase()))];
 
 		for (const keyword of uniqueKeywords) {
 			const baseScore = computeRelevanceScore(keyword, entry);
-			const relevanceScore = Math.round(baseScore * typeWeight);
+			const relevanceScore = Math.round(baseScore * typeWeight * repositoryTypeWeight);
 
 			keywordEntries.push({
 				hash: entry.hash,
@@ -224,6 +295,163 @@ function buildKeywordEntries(entries) {
 }
 
 /**
+ * Resolve the EFFECTIVE repository classification to apply the exclusion policy with
+ * (design.md section 10.2/10.3, Requirements 9.5, 9.6, 9.7).
+ *
+ * `getRepositoryProperties()` returns a raw `repositoryType` plus a `resolution` state
+ * (`'resolved' | 'absent' | 'fetch-failed'`). `isIndexable` has no notion of `resolution` —
+ * by the time a `repositoryType` reaches it, this function must already have collapsed the
+ * three states into the single classification `isIndexable` understands:
+ *
+ * - `resolution === 'resolved'` (or any value other than `'absent'`/`'fetch-failed'`,
+ *   defensively — e.g. an older caller/test mock that predates the three-state resolution
+ *   and omits `resolution` entirely) — `repositoryType` is used as-is (unchanged behavior).
+ * - `resolution === 'absent'` — the raw `repositoryType` is already `null` here, but
+ *   `isIndexable` treats an omitted/null `repositoryType` as the GLOBAL DEFAULT policy, not
+ *   the no-exclusions `absent` policy (see `file-filter.js` {@link getExcludedFilesForType}).
+ *   Those are different policies, so this function maps `absent` to the explicit literal
+ *   string `'absent'` rather than passing `null` through.
+ * - `resolution === 'fetch-failed'` — the true classification is unknown for this build.
+ *   Carry forward the repository's classification from the previous index version (design
+ *   10.3) via `lookupPriorRepositoryType`. If a prior classification is found, use it. If
+ *   there is no prior entry (first time this repository has been indexed, or the previous
+ *   version has no derivable classification for it), fail OPEN by resolving to the literal
+ *   string `'absent'` (no exclusions) per Requirement 9.6's explicit "no previous resolution
+ *   -> global default" rule being satisfied via the no-exclusions `absent` policy — see
+ *   {@link lookupPriorRepositoryType} for why `absent` (not the five-type global-exclusion
+ *   set) is the chosen fail-open target.
+ *
+ * This function never throws: {@link lookupPriorRepositoryType} is itself best-effort and
+ * non-throwing, consistent with the never-fails-a-build contract already established for
+ * `getRepositoryProperties` and `loadPriorEmbeddings`.
+ *
+ * @param {Object} params - Resolution inputs.
+ * @param {string|null} params.repositoryType - Raw `repositoryType` from `getRepositoryProperties`.
+ * @param {('resolved'|'absent'|'fetch-failed')} params.resolution - Resolution state from `getRepositoryProperties`.
+ * @param {string} params.tableName - DynamoDB table name (for the carry-forward lookup).
+ * @param {?string} params.previousVersion - Prior index version, or falsy on first build.
+ * @param {string} params.owner - Repository owner (org or user).
+ * @param {string} params.repoName - Repository name.
+ * @returns {Promise<string|null>} The effective classification to pass to `isIndexable`
+ *   (`repositoryType` as-is, the literal `'absent'`, or a carried-forward prior type).
+ * @example
+ * await resolveEffectiveRepositoryType({
+ *   repositoryType: null, resolution: 'fetch-failed',
+ *   tableName: 'my-table', previousVersion: '20250714T060000',
+ *   owner: '63klabs', repoName: 'cache-data'
+ * });
+ * // 'package' (carried forward) or 'absent' (no prior entry — fail open)
+ */
+async function resolveEffectiveRepositoryType({ repositoryType, resolution, tableName, previousVersion, owner, repoName }) {
+	if (resolution === 'absent') {
+		return 'absent';
+	}
+
+	if (resolution === 'fetch-failed') {
+		const priorType = await lookupPriorRepositoryType(tableName, previousVersion, owner, repoName);
+		return priorType !== null ? priorType : 'absent';
+	}
+
+	// resolution === 'resolved', or any unrecognized/omitted value — treated as 'resolved'
+	// for backward compatibility with callers that predate the three-state resolution.
+	return repositoryType;
+}
+
+/**
+ * Best-effort lookup of a repository's classification as recorded in the PREVIOUS index
+ * version's main index, for `fetch-failed` carry-forward (design.md section 10.3).
+ *
+ * The design's intended source is the previous version's corpus manifest item
+ * (`corpus:{version}` / `manifest`, written by task 18.2). That item does not exist yet —
+ * this task (16.2) ships before 18.2 — so there is currently no indexer-written manifest to
+ * read on the write side either. This mirrors the exact bootstrapping gap the read side
+ * solved in `models/corpus.js` (design 9.2, task 11.1): until the indexer-written manifest
+ * item exists, derive the same information from the main index.
+ *
+ * Reads `mainindex:{previousVersion}` (manifest at sk=`entries`, chunks at sk=`entries:{i}`,
+ * mirroring the read-function's `getMainIndex` chunked-read pattern) and returns the
+ * `repositoryType` of the first entry whose `owner`+`repository` match. Once task 18.2 ships
+ * a written `corpus:{version}`/`manifest` item, that item becomes a cheaper single-`GetItem`
+ * source for the same lookup; this function can be pointed at it then without changing its
+ * contract (best-effort, non-throwing, resolves to `null` on any miss or failure).
+ *
+ * Non-throwing by design: any DynamoDB error, missing version, or no matching entry
+ * resolves to `null` (treated by {@link resolveEffectiveRepositoryType} as "no prior entry",
+ * which fails open to `absent`) rather than rejecting and failing the build.
+ *
+ * @param {string} tableName - DynamoDB table name
+ * @param {?string} previousVersion - Prior index version, or falsy on first build
+ * @param {string} owner - Repository owner (org or user)
+ * @param {string} repoName - Repository name
+ * @returns {Promise<string|null>} The prior `repositoryType`, or `null` when there is no
+ *   previous version, no matching entry, or the lookup fails
+ * @example
+ * await lookupPriorRepositoryType('my-table', '20250714T060000', '63klabs', 'cache-data');
+ * // 'package' or null
+ */
+async function lookupPriorRepositoryType(tableName, previousVersion, owner, repoName) {
+	if (!previousVersion || !tableName) {
+		return null;
+	}
+
+	try {
+		const { getDocClient } = require('./dynamo-writer');
+		const { GetCommand } = require('@aws-sdk/lib-dynamodb');
+		const client = getDocClient();
+
+		const manifestResult = await client.send(new GetCommand({
+			TableName: tableName,
+			Key: { pk: `mainindex:${previousVersion}`, sk: 'entries' }
+		}));
+
+		if (!manifestResult.Item) {
+			return null;
+		}
+
+		const manifest = manifestResult.Item;
+		const findMatch = (entries) => {
+			if (!Array.isArray(entries)) {
+				return null;
+			}
+			const match = entries.find((e) => e && e.owner === owner && e.repository === repoName);
+			return match ? (match.repositoryType ?? null) : null;
+		};
+
+		// Legacy/small format: entries stored directly on the manifest item.
+		if (Array.isArray(manifest.entries)) {
+			return findMatch(manifest.entries);
+		}
+
+		// Chunked format: fetch each chunk until a match is found.
+		const totalChunks = manifest.totalChunks || 0;
+		for (let i = 0; i < totalChunks; i++) {
+			const chunkResult = await client.send(new GetCommand({
+				TableName: tableName,
+				Key: { pk: `mainindex:${previousVersion}`, sk: `entries:${i}` }
+			}));
+			const found = chunkResult.Item ? findMatch(chunkResult.Item.entries) : null;
+			if (found !== null) {
+				return found;
+			}
+		}
+
+		return null;
+	} catch (err) {
+		// >! Non-fatal: carry-forward is best-effort. Log and resolve to "no prior entry"
+		// >! so the caller fails open to 'absent' rather than failing the build.
+		console.warn(JSON.stringify({
+			level: 'WARN',
+			event: 'prior_repository_type_lookup_failed',
+			previousVersion,
+			owner,
+			repo: repoName,
+			error: err.message
+		}));
+		return null;
+	}
+}
+
+/**
  * Process a single repository: download archive, extract files, run extractors.
  *
  * Each returned entry carries, in addition to the extractor output:
@@ -236,14 +464,30 @@ function buildKeywordEntries(entries) {
  *   archive was downloaded, else the repository default branch.
  * - `repositoryType` / `namespace` — from the repository's GitHub custom properties, or
  *   `null` when absent (best-effort; a custom-property failure never fails the build).
+ *   `repositoryType` as stored on the entry is the EFFECTIVE classification (post
+ *   carry-forward resolution, see {@link resolveEffectiveRepositoryType}) — i.e. the same
+ *   value passed to `isIndexable` — not the raw `getRepositoryProperties` value, so a
+ *   `fetch-failed` repository's entries carry its carried-forward (or fail-open `absent`)
+ *   type rather than `null`.
  * - `fileContent` — the full raw source file text, retained so task 1.5 can write one
  *   `document:{fileHash}` item per file (de-duplicated by `documentHash`).
  *
  * @param {Object} repo - Repository info with name, defaultBranch, owner
  * @param {string} token - GitHub PAT
+ * @param {Object} [options] - Carry-forward lookup inputs (optional; omitted on first build
+ *   or when the caller has no table/version context, e.g. existing tests).
+ * @param {string} [options.tableName] - DynamoDB table name, for `fetch-failed` carry-forward.
+ * @param {?string} [options.previousVersion] - Prior index version, for `fetch-failed` carry-forward.
+ * @param {function(Object): void} [options.onRepositoryProcessed] - Optional callback invoked
+ *   once per repository, after classification resolution and extraction complete, with the
+ *   repository-level manifest entry `{ name, owner, repositoryType, resolution, namespace,
+ *   sections, ref }` (spec 0-0-7, task 18.2 — feeds {@link writeCorpusManifest}). Omitted by
+ *   existing callers/tests with no behavior change — this is purely an additive observation
+ *   hook; it does not alter the returned entries array.
  * @returns {Promise<Array<Object>>} Extracted content entries with hash and file-level metadata
  */
-async function processRepository(repo, token) {
+async function processRepository(repo, token, options = {}) {
+	const { tableName, previousVersion, onRepositoryProcessed } = options;
 	const release = await getLatestRelease(repo.owner, repo.name, token);
 
 	let archiveUrl;
@@ -259,14 +503,25 @@ async function processRepository(repo, token) {
 	}
 
 	// Repository classification (best-effort; never throws, never fails the build).
-	const { repositoryType, namespace } = await getRepositoryProperties(repo.owner, repo.name, token);
+	// `resolution` ('resolved' | 'absent' | 'fetch-failed') drives the three-branch
+	// carry-forward resolution below (design 10.3, Requirements 9.6, 9.7) BEFORE
+	// `isIndexable` is ever called — `isIndexable` has no notion of `resolution`.
+	const { repositoryType: rawRepositoryType, namespace, resolution } = await getRepositoryProperties(repo.owner, repo.name, token);
+	const repositoryType = await resolveEffectiveRepositoryType({
+		repositoryType: rawRepositoryType,
+		resolution,
+		tableName,
+		previousVersion,
+		owner: repo.owner,
+		repoName: repo.name
+	});
 
 	const buffer = await downloadArchive(archiveUrl, token);
 	const files = extractArchive(buffer);
 	const entries = [];
 
 	for (const file of files) {
-		if (!isIndexable(file.path)) {
+		if (!isIndexable(file.path, repositoryType)) {
 			continue;
 		}
 
@@ -317,6 +572,22 @@ async function processRepository(repo, token) {
 				error: err.message
 			}));
 		}
+	}
+
+	// Repository-level manifest entry for the corpus manifest (spec 0-0-7, task 18.2).
+	// `sections` is the entry count actually indexed for this repository, matching the
+	// `sections` field documented in design.md section 9.1 — not the number of files
+	// discovered, so an excluded file never inflates the reported count.
+	if (typeof onRepositoryProcessed === 'function') {
+		onRepositoryProcessed({
+			name: repo.name,
+			owner: repo.owner,
+			repositoryType,
+			resolution,
+			namespace,
+			sections: entries.length,
+			ref
+		});
 	}
 
 	return entries;
@@ -555,6 +826,15 @@ async function runEmbeddingPhase({
 				subType: entry.subType,
 				repository: entry.repository,
 				owner: entry.owner,
+				// >! spec 0-0-7-tool-discovery-enhancement, Requirement 10.1: persist the
+				// >! EFFECTIVE repositoryType (post carry-forward resolution, see
+				// >! resolveEffectiveRepositoryType) and namespace in vector-store metadata so
+				// >! the semantic retrieval path can filter on the same fields as the keyword
+				// >! path. `repositoryType`/`namespace` are declared FILTERABLE (not in
+				// >! template.yml's NonFilterableMetadataKeys), unlike `repository`, which
+				// >! stays non-filterable and is narrowed only at the result-mapping stage.
+				repositoryType: entry.repositoryType,
+				namespace: entry.namespace,
 				embeddingInputHash,
 				model,
 				dims: dimensions
@@ -669,7 +949,35 @@ async function build(options = {}) {
 		throw new Error('GitHub token is not configured or is blank');
 	}
 
+	// Resolve the previous (currently active) index version BEFORE processing any
+	// repository. This used to happen only after the repo loop (for the version-pointer
+	// write), but `fetch-failed` carry-forward (design 10.3, Requirements 9.6, 9.7) needs
+	// it available DURING `processRepository` so a transiently-failed classification can
+	// be resolved against the prior build's main index. Best-effort: any failure (or no
+	// previous version — first build) leaves `previousVersion` `null`, which both this
+	// lookup and the carry-forward lookup already treat as "nothing to carry forward".
+	let previousVersion = null;
+	try {
+		const { getDocClient } = require('./dynamo-writer');
+		const { GetCommand } = require('@aws-sdk/lib-dynamodb');
+		const client = getDocClient();
+		const pointerResult = await client.send(new GetCommand({
+			TableName: tableName,
+			Key: { pk: 'version:pointer', sk: 'active' }
+		}));
+		if (pointerResult.Item) {
+			previousVersion = pointerResult.Item.version || null;
+		}
+	} catch (err) {
+		// No previous version — first build (or a transient read failure; either way,
+		// proceed with previousVersion = null rather than failing the build).
+	}
+
 	const allEntries = [];
+	// Per-repository manifest entries, collected via `onRepositoryProcessed` as each
+	// repository finishes (spec 0-0-7, task 18.2) and written as the single
+	// `corpus:{version}`/`manifest` item once the repo loop completes.
+	const corpusRepositories = [];
 	let totalRepos = 0;
 
 	// Process each org/user
@@ -695,7 +1003,11 @@ async function build(options = {}) {
 
 		for (const repo of repos) {
 			try {
-				const entries = await processRepository(repo, token);
+				const entries = await processRepository(repo, token, {
+					tableName,
+					previousVersion,
+					onRepositoryProcessed: (manifestEntry) => corpusRepositories.push(manifestEntry)
+				});
 				allEntries.push(...entries);
 				totalRepos++;
 
@@ -748,6 +1060,12 @@ async function build(options = {}) {
 	await writeSearchKeywords(tableName, version, keywordEntries);
 
 	// Build and write main index
+	// `repositoryType` is included here (in addition to the existing fields) so a LATER
+	// build's `fetch-failed` carry-forward lookup (see `lookupPriorRepositoryType` above)
+	// has a classification to read back from THIS version's main index — it was previously
+	// omitted from this mapping, which meant there was no persisted classification data
+	// for a future carry-forward lookup to find (design 9.2's transitional-derivation note
+	// in `models/corpus.js` observes the same gap on the read side).
 	const now = new Date().toISOString();
 	const indexEntries = uniqueEntries.map(entry => ({
 		hash: entry.hash,
@@ -757,28 +1075,20 @@ async function build(options = {}) {
 		title: entry.title,
 		repository: entry.repository,
 		owner: entry.owner,
+		repositoryType: entry.repositoryType ?? null,
 		keywords: entry.keywords,
 		lastIndexed: now
 	}));
 
 	await writeMainIndex(tableName, version, indexEntries);
 
-	// Update version pointer (read previous version first)
-	let previousVersion = null;
-	try {
-		const { getDocClient } = require('./dynamo-writer');
-		const { GetCommand } = require('@aws-sdk/lib-dynamodb');
-		const client = getDocClient();
-		const result = await client.send(new GetCommand({
-			TableName: tableName,
-			Key: { pk: 'version:pointer', sk: 'active' }
-		}));
-		if (result.Item) {
-			previousVersion = result.Item.version || null;
-		}
-	} catch (err) {
-		// No previous version — first build
-	}
+	// Corpus manifest (spec 0-0-7, task 18.2, Requirements 8.3, 8.5): one item per build,
+	// written once per-repository processing completes rather than once per repository, so
+	// it reflects the final set of repositories actually processed in this build. This is
+	// the Read Function's `models/corpus.js` source of truth for `indexedRepositories`
+	// (design.md section 9.1) and the carry-forward source for a future build's
+	// `fetch-failed` resolution (design.md section 10.3).
+	await writeCorpusManifest(tableName, version, corpusRepositories);
 
 	// -- Bedrock-assisted semantic search: index-time embedding phase (spec 0-0-6) --
 	// >! Gated behind the feature flag. When disabled the indexer performs NO embedding
@@ -856,6 +1166,8 @@ module.exports = {
 	computeRelevanceScore,
 	buildKeywordEntries,
 	processRepository,
+	resolveEffectiveRepositoryType,
+	lookupPriorRepositoryType,
 	// Index-time embedding phase (spec 0-0-6, task 5.1) — exported for task 5.3 tests.
 	runEmbeddingPhase,
 	loadPriorEmbeddings,
@@ -864,5 +1176,7 @@ module.exports = {
 	computeEmbeddingInputHash,
 	shouldReuseEmbedding,
 	TYPE_WEIGHTS,
-	SCORE_WEIGHTS
+	SCORE_WEIGHTS,
+	REPOSITORY_TYPE_WEIGHTS,
+	NEUTRAL_REPOSITORY_TYPE_WEIGHT
 };

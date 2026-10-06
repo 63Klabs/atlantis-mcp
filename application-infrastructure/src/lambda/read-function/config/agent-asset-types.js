@@ -2,10 +2,10 @@
  * Agent Asset Types Registry
  *
  * Single source of truth for the agent-asset types (steering, hooks, agents-md,
- * and the disabled-by-default skills) served by the generic `list_agent_assets`
- * and `get_agent_asset` MCP tools. Adding a new entry, or enabling a disabled
- * one, extends the `assetType` enumeration accepted by those tools with no
- * change to the generic controller, service, or data-access layer logic.
+ * and skills) served by the generic `list_agent_assets` and `get_agent_asset`
+ * MCP tools. Adding a new entry, or enabling a disabled one, extends the
+ * `assetType` enumeration accepted by those tools with no change to the
+ * generic controller, service, or data-access layer logic.
  *
  * This module validates the registry once at load time via `validateRegistry()`
  * so that a malformed registry fails initialization fast and exposes no
@@ -29,10 +29,11 @@
  *
  * Every entry MUST declare non-empty `name`, `toolToken`, `folder`,
  * `extensions` (a non-empty array of non-empty strings), and `description`.
- * No two entries may share the same `name`, `toolToken`, or `folder`.
- * `skills` ships fully configured but disabled by default: while disabled it
- * is excluded from the generated `assetType` enumeration and any `tools/call`
- * that supplies `skills` as `assetType` is rejected with a validation error.
+ * No two entries may share the same `name`, `toolToken`, or `folder`. An
+ * entry may set `enabled: false` to exclude itself from the generated
+ * `assetType` enumeration (any `tools/call` that supplies a disabled type as
+ * `assetType` is rejected with a validation error) until asset content for
+ * that type is published.
  *
  * @type {AgentAssetType[]}
  */
@@ -63,8 +64,7 @@ const AGENT_ASSET_TYPES = [
     toolToken: 'skills',
     folder: 'skills',
     extensions: ['.md'],
-    description: 'Kiro skills packaging reusable, on-demand instructions and workflows for AI coding assistants.',
-    enabled: false
+    description: 'Kiro skills packaging reusable, on-demand instructions and workflows for AI coding assistants. Published as flat S3 objects at `skills/{skill-name}.md`, each mapping to a local `{skill-name}/SKILL.md` folder whose `name` frontmatter equals the skill-name folder name.'
   }
 ];
 
@@ -206,7 +206,7 @@ function getEnabledTypes() {
  * @returns {string[]} Enabled type names, in registry order
  * @example
  * const names = getEnabledTypeNames();
- * // -> ['steering', 'hooks', 'agents-md']
+ * // -> ['steering', 'hooks', 'agents-md', 'skills']
  */
 function getEnabledTypeNames() {
   return getEnabledTypes().map((entry) => entry.name);
@@ -219,7 +219,7 @@ function getEnabledTypeNames() {
  * @param {string} name - Canonical type identifier (the `assetType` value)
  * @returns {AgentAssetType|null} The matching entry, or `null` when no entry has that `name`
  * @example
- * getTypeByName('skills'); // -> the disabled skills entry (not null)
+ * getTypeByName('skills'); // -> the skills entry
  * getTypeByName('unknown-type'); // -> null
  */
 function getTypeByName(name) {
@@ -239,7 +239,7 @@ function getTypeByName(name) {
  * @returns {AgentAssetType|null} The enabled entry, or `null` when `assetType` is unknown or names a disabled entry
  * @example
  * resolveEnabledType('steering'); // -> the steering entry
- * resolveEnabledType('skills');   // -> null (disabled)
+ * resolveEnabledType('skills');   // -> the skills entry (enabled)
  * resolveEnabledType('bogus');    // -> null (unknown)
  */
 function resolveEnabledType(assetType) {

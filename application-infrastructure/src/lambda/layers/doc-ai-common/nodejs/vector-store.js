@@ -26,13 +26,15 @@
  * Contract (implemented by every concrete store):
  *   - `upsertVectors(version, items)` — write/overwrite the vectors for an index
  *     `version`. `items` is an array of `{ hash: string, vector: number[], metadata:
- *     object }`. `metadata` carries at least `{ type, subType, repository, ... }` used
- *     for query-time filtering. Resolves (no value) on success.
+ *     object }`. `metadata` carries at least `{ type, subType, repository, repositoryType,
+ *     namespace, ... }` used for query-time filtering (`repositoryType`/`namespace` added
+ *     by spec 0-0-7-tool-discovery-enhancement, Requirement 10.1). Resolves (no value) on
+ *     success.
  *   - `query(embedding, { version, filters, topK })` — given a query `embedding`
  *     (`number[]`), return the top `topK` nearest neighbours from index `version`,
- *     applying `filters` (e.g. `{ type, subType }`) equivalently to keyword filtering.
- *     Resolves to an array of `{ hash: string, score: number, metadata: object }`
- *     ordered by DESCENDING cosine similarity (Requirements 4.3, 4.4).
+ *     applying `filters` (e.g. `{ type, subType, repositoryType, namespace }`) equivalently
+ *     to keyword filtering. Resolves to an array of `{ hash: string, score: number,
+ *     metadata: object }` ordered by DESCENDING cosine similarity (Requirements 4.3, 4.4).
  *   - `deleteVersion(version)` — remove/clean up all vectors for a superseded version.
  *
  * Security:

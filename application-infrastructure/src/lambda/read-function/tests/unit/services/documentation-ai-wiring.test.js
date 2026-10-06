@@ -86,6 +86,10 @@ jest.mock('../../../models', () => ({
     queryIndex: jest.fn(),
     getActiveVersion: jest.fn(),
     getContentMetadataByHashes: jest.fn()
+  },
+  Corpus: {
+    getCorpusManifest: jest.fn(),
+    MANIFEST_SOURCE: { INDEXER: 'indexer', DERIVED: 'derived', UNAVAILABLE: 'unavailable' }
   }
 }));
 
@@ -115,7 +119,8 @@ function makeSettings(aiOverrides = {}) {
         candidateMultiplier: 3,
         s3Vectors: { bucket: '', index: '' },
         ...aiOverrides
-      }
+      },
+      corpusManifestMaxBytes: 4096
     }
   };
 }
@@ -140,6 +145,15 @@ describe('Documentation Service — AI retrieval-strategy wiring (task 8.4)', ()
 
     Config.settings.mockReturnValue(makeSettings());
     Config.getConnCacheProfile.mockImplementation(() => createMockConnCacheProfile());
+
+    // spec 0-0-7-tool-discovery-enhancement, task 13.1: this file is scoped to AI
+    // retrieval-strategy wiring; the corpus manifest is unavailable here so
+    // `indexedRepositories` stays absent and does not interact with those assertions.
+    Models.Corpus.getCorpusManifest.mockResolvedValue({
+      repositories: null,
+      source: 'unavailable',
+      version: null
+    });
 
     // Default: getData invokes the cache-miss fetch function with the connection.
     CacheableDataAccess.getData.mockImplementation(async (profile, fetchFn, conn) => fetchFn(conn, {}));
@@ -192,6 +206,37 @@ describe('Documentation Service — AI retrieval-strategy wiring (task 8.4)', ()
     expect(result.results).toEqual([{ title: 'Kw' }]);
     expect(result.errors).toBeUndefined();
     expect(result.partialData).toBe(false);
+  });
+
+  it('enabled + eligible tier + semantic: threads repository/repositoryType/namespace filters to the semantic strategy (Req 10.2)', async () => {
+    Config.settings.mockReturnValue(makeSettings({ enabled: true, minTier: 'paid', retrievalMode: 'semantic' }));
+    Models.DocIndex.getActiveVersion.mockResolvedValue('v3');
+    mockEmbed.mockResolvedValue([0.1, 0.2, 0.3, 0.4]);
+    mockVectorQuery.mockResolvedValue([
+      { hash: 'h1', score: 0.91, metadata: { type: 'documentation' } }
+    ]);
+    Models.DocIndex.getContentMetadataByHashes.mockResolvedValue({
+      h1: {
+        title: 'T1', excerpt: 'E1', path: 'repo/one.md', type: 'documentation', subType: 'guide',
+        repository: 'cache-data', repositoryType: 'package', namespace: 'core'
+      }
+    });
+
+    const result = await Documentation.search({
+      query: 'rotate the key',
+      repository: 'cache-data',
+      repositoryType: 'package',
+      namespace: 'core',
+      authInfo: { tier: 'private' }
+    });
+
+    // vectorStore.query filters carry the store-expressible fields (repositoryType/namespace);
+    // `repository` is applied in the result-mapping stage, not pushed into the store filter.
+    const [, queryOpts] = mockVectorQuery.mock.calls[0];
+    expect(queryOpts.filters).toEqual({ repositoryType: 'package', namespace: 'core' });
+    expect(result.results).toHaveLength(1);
+    expect(result.results[0].repository).toBe('cache-data');
+    expect(result.errors).toBeUndefined();
   });
 
   it('enabled + eligible tier + semantic: uses semantic retrieval and maps hit.score -> relevanceScore', async () => {
@@ -264,6 +309,35 @@ describe('Documentation Service — AI retrieval-strategy wiring (task 8.4)', ()
     expect(result.totalResults).toBe(3);
     expect(result.errors).toBeUndefined();
     expect(result.partialData).toBe(false);
+  });
+
+  it('transitional period: degrades to keyword when semantic candidates lack repositoryType/namespace entirely (Req 10.3)', async () => {
+    Config.settings.mockReturnValue(makeSettings({ enabled: true, minTier: 'paid', retrievalMode: 'semantic' }));
+    Models.DocIndex.getActiveVersion.mockResolvedValue('v3');
+    mockEmbed.mockResolvedValue([0.1, 0.2, 0.3, 0.4]);
+    mockVectorQuery.mockResolvedValue([
+      { hash: 'h1', score: 0.91, metadata: {} }
+    ]);
+    // Pre-rebuild content metadata: no repositoryType/namespace at all on the hit.
+    Models.DocIndex.getContentMetadataByHashes.mockResolvedValue({
+      h1: { title: 'T1', excerpt: 'E1', path: 'repo/one.md', type: 'documentation' }
+    });
+    Models.DocIndex.queryIndex.mockResolvedValue({
+      results: [{ title: 'Fallback' }], totalResults: 1, query: 'q', suggestions: ['kw']
+    });
+
+    const result = await Documentation.search({
+      query: 'q',
+      repositoryType: 'package',
+      authInfo: { tier: 'private' }
+    });
+
+    // Semantic was attempted (embed + vector query) then degraded to keyword rather than
+    // returning results that contradict the requested filter.
+    expect(mockVectorQuery).toHaveBeenCalledTimes(1);
+    expect(Models.DocIndex.queryIndex).toHaveBeenCalledTimes(1);
+    expect(result.results).toEqual([{ title: 'Fallback' }]);
+    expect(result.totalResults).toBe(1);
   });
 
   it('semantic failure: falls back to keyword and still returns a valid envelope', async () => {

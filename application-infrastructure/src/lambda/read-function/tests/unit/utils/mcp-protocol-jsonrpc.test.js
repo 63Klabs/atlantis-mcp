@@ -143,12 +143,13 @@ describe('initializeResponse', () => {
     expect(response.id).toBe('init-1');
   });
 
-  it('contains serverInfo with name and version', () => {
+  it('contains serverInfo with name and version sourced from package.json', () => {
     const response = initializeResponse('init-2');
+    const { version } = require('../../../package.json');
 
     expect(response.result.serverInfo).toEqual({
       name: 'atlantis-mcp-server',
-      version: '0.0.1'
+      version
     });
   });
 
@@ -166,11 +167,12 @@ describe('initializeResponse', () => {
     expect(response.result.protocolVersion).toBe('2024-11-05');
   });
 
-  it('result has exactly three keys: protocolVersion, capabilities, serverInfo', () => {
+  it('result has exactly four keys: protocolVersion, capabilities, serverInfo, instructions', () => {
     const response = initializeResponse('init-5');
 
     expect(Object.keys(response.result).sort()).toEqual([
       'capabilities',
+      'instructions',
       'protocolVersion',
       'serverInfo'
     ]);

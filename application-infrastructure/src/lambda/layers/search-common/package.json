@@ -1,0 +1,30 @@
+{
+  "name": "search-common",
+  "version": "0.0.1",
+  "description": "Shared Lambda Layer for search normalization (tokenize/normalize, stop words, length policy). Consumed by the read-function and doc-indexer.",
+  "main": "nodejs/index.js",
+  "scripts": {
+    "test": "jest --passWithNoTests",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
+  },
+  "keywords": [
+    "atlantis",
+    "mcp",
+    "documentation",
+    "search",
+    "normalization",
+    "lambda-layer"
+  ],
+  "author": "63Klabs",
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {
+    "eslint": "^10.0.2",
+    "fast-check": "^3.0.0",
+    "jest": "^30.2.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

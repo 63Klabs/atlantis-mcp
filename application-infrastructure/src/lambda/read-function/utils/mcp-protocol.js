@@ -9,6 +9,8 @@
  */
 
 const settings = require('../config/settings');
+const { buildInstructions } = require('../config/server-instructions');
+const { version: SERVER_VERSION } = require('../package.json');
 
 /**
  * MCP Protocol Version
@@ -80,8 +82,9 @@ function initializeResponse(id) {
     },
     serverInfo: {
       name: 'atlantis-mcp-server',
-      version: '0.0.1'
-    }
+      version: SERVER_VERSION
+    },
+    instructions: buildInstructions()
   });
 }
 
@@ -211,9 +214,10 @@ function getCapabilities() {
     tools: MCP_TOOLS,
     description: 'Atlantis MCP Server',
     vendor: '63Klabs',
+    instructions: buildInstructions(),
     serverInfo: {
       name: 'atlantis-mcp-server',
-      version: '0.0.1'
+      version: SERVER_VERSION
     }
   };
 }

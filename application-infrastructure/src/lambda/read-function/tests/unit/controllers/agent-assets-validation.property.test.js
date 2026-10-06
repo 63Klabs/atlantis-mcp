@@ -12,7 +12,8 @@
  *
  * This test generalizes the fixed examples already covered by
  * `agent-assets-controller.test.js` (task 6.2) across many randomly
- * generated invalid inputs. It uses the REAL `SchemaValidator`
+ * generated invalid inputs, including unknown and malformed `assetType`
+ * values. It uses the REAL `SchemaValidator`
  * (`utils/schema-validator.js`, with the agent-asset schemas merged in via
  * task 8.2) and the REAL `AgentAssetTypes` registry -- both have no AWS or
  * `@63klabs/cache-data` dependency -- so real schema enforcement (the
@@ -76,11 +77,12 @@ const ENABLED_ASSET_TYPES = AgentAssetTypes.getEnabledTypeNames();
 
 /**
  * Arbitrary generating strings that are NOT one of the enabled
- * `assetType` values -- including `'skills'` (a real, disabled registry
- * entry), the empty string, and random garbage strings.
+ * `assetType` values -- the empty string, case/underscore variants of real
+ * type names, and random garbage strings. Built from the live
+ * `ENABLED_ASSET_TYPES` list rather than a hardcoded set of names, so it
+ * stays correct regardless of which registry entries are enabled.
  */
 const invalidAssetTypeArb = fc.oneof(
-  fc.constant('skills'),
   fc.constant(''),
   fc.constantFrom('Steering', 'HOOKS', 'agents_md', 'templates', 'bogus-type', 'skill'),
   fc.string({ minLength: 1, maxLength: 30 }).filter((s) => !ENABLED_ASSET_TYPES.includes(s))

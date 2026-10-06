@@ -404,9 +404,27 @@ function normalizePropertyValue(value) {
  *
  * Calls the GitHub custom-properties API (`GET /repos/{owner}/{repo}/properties/values`)
  * and maps the `atlantis_repository-type` property to `repositoryType` and the
- * `atlantis_namespace` property to `namespace`. This never throws and never fails a build:
- * a fetch error, a 404, or an absent property yields `null` for the affected field. The
- * GitHub token is never logged.
+ * `atlantis_namespace` property to `namespace`. This never throws and never fails a build.
+ *
+ * The resolution of `repositoryType` is reported as a third field, `resolution`, with one
+ * of three values:
+ * - `'resolved'` — the call succeeded and `atlantis_repository-type` was present with a
+ *   valid (non-empty) value.
+ * - `'absent'` — the call succeeded (a properties array was returned) but
+ *   `atlantis_repository-type` was not in it, or normalized to an empty value. GitHub's
+ *   custom-properties endpoint returns `200` with an empty array for an accessible
+ *   repository that simply has no custom properties set — it does not 404 in that case.
+ *   A 404 (or any other non-success response) therefore does NOT mean "no properties";
+ *   it means the request did not yield a trustworthy properties array at all.
+ * - `'fetch-failed'` — the request threw (network error, non-200/404 status after
+ *   retries) or returned a 404 (repository not found/inaccessible, or an unexpected
+ *   absence of a properties array). The true classification is unknown.
+ *
+ * `namespace` is unaffected by this distinction and remains a plain string-or-null; only
+ * `repositoryType`'s resolution is tracked, since it alone drives the per-type exclusion
+ * policy.
+ *
+ * The GitHub token is never logged.
  *
  * @param {string} owner - Repository owner (org or user)
  * @param {string} repo - Repository name
@@ -414,10 +432,12 @@ function normalizePropertyValue(value) {
  * @param {Object} [options] - Options
  * @param {string} [options.repositoryTypeProperty=REPOSITORY_TYPE_PROPERTY] - Custom-property name for the repository type
  * @param {string} [options.namespaceProperty=NAMESPACE_PROPERTY] - Custom-property name for the namespace
- * @returns {Promise<{repositoryType: (string|null), namespace: (string|null)}>} Mapped properties (fields are `null` when unavailable)
+ * @returns {Promise<{repositoryType: (string|null), namespace: (string|null),
+ *            resolution: ('resolved'|'absent'|'fetch-failed')}>} Mapped properties plus the
+ *            resolution state of `repositoryType`
  * @example
  * const props = await getRepositoryProperties('63klabs', 'cache-data', token);
- * // { repositoryType: 'package', namespace: null }
+ * // { repositoryType: 'package', namespace: null, resolution: 'resolved' }
  */
 async function getRepositoryProperties(owner, repo, token, options = {}) {
 	const repositoryTypeProperty = options.repositoryTypeProperty || REPOSITORY_TYPE_PROPERTY;
@@ -429,23 +449,38 @@ async function getRepositoryProperties(owner, repo, token, options = {}) {
 			token
 		);
 
+		// githubRequest returns `null` for a 404. A 404 on this endpoint means the
+		// repository could not be read (not found/inaccessible) rather than "no custom
+		// properties configured" — GitHub returns 200 with an empty array for that case.
+		// So a non-array response here is a failed fetch, not a confirmed absence.
+		if (!Array.isArray(data)) {
+			console.warn(JSON.stringify({
+				level: 'WARN',
+				event: 'repo_properties_failed',
+				owner,
+				repo,
+				error: 'properties/values did not return an array (404 or unexpected response)'
+			}));
+			return { repositoryType: null, namespace: null, resolution: 'fetch-failed' };
+		}
+
 		let repositoryType = null;
 		let namespace = null;
 
-		if (Array.isArray(data)) {
-			for (const prop of data) {
-				if (!prop || typeof prop.property_name !== 'string') {
-					continue;
-				}
-				if (prop.property_name === repositoryTypeProperty) {
-					repositoryType = normalizePropertyValue(prop.value);
-				} else if (prop.property_name === namespaceProperty) {
-					namespace = normalizePropertyValue(prop.value);
-				}
+		for (const prop of data) {
+			if (!prop || typeof prop.property_name !== 'string') {
+				continue;
+			}
+			if (prop.property_name === repositoryTypeProperty) {
+				repositoryType = normalizePropertyValue(prop.value);
+			} else if (prop.property_name === namespaceProperty) {
+				namespace = normalizePropertyValue(prop.value);
 			}
 		}
 
-		return { repositoryType, namespace };
+		const resolution = repositoryType !== null ? 'resolved' : 'absent';
+
+		return { repositoryType, namespace, resolution };
 	} catch (err) {
 		// >! Best-effort: a custom-property failure must never fail the build. Log the
 		// >! owner/repo and error message only — never the token.
@@ -456,7 +491,7 @@ async function getRepositoryProperties(owner, repo, token, options = {}) {
 			repo,
 			error: err.message
 		}));
-		return { repositoryType: null, namespace: null };
+		return { repositoryType: null, namespace: null, resolution: 'fetch-failed' };
 	}
 }
 

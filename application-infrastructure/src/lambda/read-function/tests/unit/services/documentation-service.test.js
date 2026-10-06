@@ -38,6 +38,10 @@ jest.mock('../../../config', () => ({
 jest.mock('../../../models', () => ({
   DocIndex: {
     queryIndex: jest.fn()
+  },
+  Corpus: {
+    getCorpusManifest: jest.fn(),
+    MANIFEST_SOURCE: { INDEXER: 'indexer', DERIVED: 'derived', UNAVAILABLE: 'unavailable' }
   }
 }));
 
@@ -76,6 +80,7 @@ describe('Documentation Service', () => {
     Config.settings.mockClear();
     Config.getConnCacheProfile.mockClear();
     Models.DocIndex.queryIndex.mockClear();
+    Models.Corpus.getCorpusManifest.mockClear();
 
     // Default mock implementations. documentation.ai defaults to disabled so the service
     // exercises the unchanged keyword path (backward-compat) in these existing tests.
@@ -89,8 +94,18 @@ describe('Documentation Service', () => {
           enabled: false,
           minTier: 'paid',
           retrievalMode: 'semantic'
-        }
+        },
+        corpusManifestMaxBytes: 4096
       }
+    });
+
+    // spec 0-0-7-tool-discovery-enhancement, task 13.1: corpus manifest is unavailable by
+    // default in these existing tests so `indexedRepositories` is simply absent and the
+    // pre-existing backward-compat assertions are unaffected.
+    Models.Corpus.getCorpusManifest.mockResolvedValue({
+      repositories: null,
+      source: 'unavailable',
+      version: null
     });
   });
 
@@ -179,7 +194,10 @@ describe('Documentation Service', () => {
         type: 'code-example',
         subType: undefined,
         limit: 10,
-        docAiMode: 'keyword'
+        docAiMode: 'keyword',
+        repository: undefined,
+        repositoryType: undefined,
+        namespace: undefined
       });
     });
 
@@ -218,7 +236,10 @@ describe('Documentation Service', () => {
         type: 'documentation',
         subType: 'tutorial',
         limit: 10,
-        docAiMode: 'keyword'
+        docAiMode: 'keyword',
+        repository: undefined,
+        repositoryType: undefined,
+        namespace: undefined
       });
     });
 
@@ -419,6 +440,132 @@ describe('Documentation Service', () => {
       });
       expect(result.results).toEqual(mockSearchResults.results);
       expect(result.suggestions).toEqual(mockSearchResults.suggestions);
+    });
+
+    // spec 0-0-7-tool-discovery-enhancement, task 12.1 (Requirements 5.1, 5.3)
+    it('should pass repository, repositoryType, and namespace through to DocIndex.queryIndex()', async () => {
+      const mockConnCache = createMockConnCacheProfile();
+      Config.getConnCacheProfile.mockReturnValue(mockConnCache);
+
+      Models.DocIndex.queryIndex.mockResolvedValue({ results: [], totalResults: 0, suggestions: [] });
+      CacheableDataAccess.getData.mockImplementation(async (profile, fetchFn) => fetchFn(mockConnCache.conn, {}));
+
+      await Documentation.search({
+        query: 'cache-data',
+        repository: 'cache-data',
+        repositoryType: 'package',
+        namespace: 'v2'
+      });
+
+      expect(Models.DocIndex.queryIndex).toHaveBeenCalledWith(expect.objectContaining({
+        repository: 'cache-data',
+        repositoryType: 'package',
+        namespace: 'v2'
+      }));
+    });
+
+    // spec 0-0-7-tool-discovery-enhancement, task 12.5 (Requirements 5.4, 13.4)
+    it('should include repository, repositoryType, and namespace in the cache key parameters', async () => {
+      const mockConnCache = createMockConnCacheProfile();
+      Config.getConnCacheProfile.mockReturnValue(mockConnCache);
+
+      CacheableDataAccess.getData.mockResolvedValue({ getBody: (parse) => parse ? {
+          results: [], totalResults: 0, query: 'cache-data', suggestions: [], errors: undefined, partialData: false
+        } : JSON.stringify({
+          results: [], totalResults: 0, query: 'cache-data', suggestions: [], errors: undefined, partialData: false
+        }) });
+
+      await Documentation.search({
+        query: 'cache-data',
+        repository: 'cache-data',
+        repositoryType: 'package',
+        namespace: 'v2'
+      });
+
+      expect(mockConnCache.conn.parameters).toEqual({
+        query: 'cache-data',
+        type: undefined,
+        subType: undefined,
+        limit: 10,
+        docAiMode: 'keyword',
+        repository: 'cache-data',
+        repositoryType: 'package',
+        namespace: 'v2'
+      });
+    });
+
+    // spec 0-0-7-tool-discovery-enhancement, task 12.5 (Requirements 5.4, 13.4)
+    it('should produce different cache-key parameters for different repository filter values (no collision)', async () => {
+      const mockConnCacheA = createMockConnCacheProfile();
+      Config.getConnCacheProfile.mockReturnValue(mockConnCacheA);
+      CacheableDataAccess.getData.mockResolvedValue({ getBody: (parse) => parse ? {
+          results: [], totalResults: 0, query: 'cache-data', suggestions: [], errors: undefined, partialData: false
+        } : JSON.stringify({
+          results: [], totalResults: 0, query: 'cache-data', suggestions: [], errors: undefined, partialData: false
+        }) });
+
+      await Documentation.search({ query: 'cache-data', repository: 'cache-data' });
+      const parametersA = { ...mockConnCacheA.conn.parameters };
+
+      const mockConnCacheB = createMockConnCacheProfile();
+      Config.getConnCacheProfile.mockReturnValue(mockConnCacheB);
+
+      await Documentation.search({ query: 'cache-data', repository: 'atlantis-mcp' });
+      const parametersB = { ...mockConnCacheB.conn.parameters };
+
+      expect(parametersA.repository).toBe('cache-data');
+      expect(parametersB.repository).toBe('atlantis-mcp');
+      expect(parametersA).not.toEqual(parametersB);
+    });
+
+    // spec 0-0-7-tool-discovery-enhancement, task 12.5 (Requirements 5.4, 13.4)
+    it('should produce different cache-key parameters for different repositoryType/namespace combinations (no collision)', async () => {
+      const mockConnCacheA = createMockConnCacheProfile();
+      Config.getConnCacheProfile.mockReturnValue(mockConnCacheA);
+      CacheableDataAccess.getData.mockResolvedValue({ getBody: (parse) => parse ? {
+          results: [], totalResults: 0, query: 'q', suggestions: [], errors: undefined, partialData: false
+        } : JSON.stringify({
+          results: [], totalResults: 0, query: 'q', suggestions: [], errors: undefined, partialData: false
+        }) });
+
+      await Documentation.search({ query: 'q', repositoryType: 'package', namespace: 'v1' });
+      const parametersA = { ...mockConnCacheA.conn.parameters };
+
+      const mockConnCacheB = createMockConnCacheProfile();
+      Config.getConnCacheProfile.mockReturnValue(mockConnCacheB);
+
+      await Documentation.search({ query: 'q', repositoryType: 'package', namespace: 'v2' });
+      const parametersB = { ...mockConnCacheB.conn.parameters };
+
+      expect(parametersA).not.toEqual(parametersB);
+    });
+
+    it('should pass the caller-supplied ghusers through to DocIndex.queryIndex() as the owner filter', async () => {
+      const mockConnCache = createMockConnCacheProfile();
+      Config.getConnCacheProfile.mockReturnValue(mockConnCache);
+
+      Models.DocIndex.queryIndex.mockResolvedValue({ results: [], totalResults: 0, suggestions: [] });
+      CacheableDataAccess.getData.mockImplementation(async (profile, fetchFn) => fetchFn(mockConnCache.conn, {}));
+
+      await Documentation.search({ query: 'cache-data', ghusers: ['63klabs'] });
+
+      expect(Models.DocIndex.queryIndex).toHaveBeenCalledWith(expect.objectContaining({
+        ghusers: ['63klabs']
+      }));
+    });
+
+    it('should NOT pass an owner filter to DocIndex.queryIndex() when ghusers is omitted (unchanged default behavior)', async () => {
+      const mockConnCache = createMockConnCacheProfile();
+      Config.getConnCacheProfile.mockReturnValue(mockConnCache);
+
+      Models.DocIndex.queryIndex.mockResolvedValue({ results: [], totalResults: 0, suggestions: [] });
+      CacheableDataAccess.getData.mockImplementation(async (profile, fetchFn) => fetchFn(mockConnCache.conn, {}));
+
+      await Documentation.search({ query: 'cache-data' });
+
+      expect(Models.DocIndex.queryIndex).toHaveBeenCalledWith(expect.objectContaining({
+        ghusers: undefined
+      }));
     });
 
     it('should return suggestions when no results found', async () => {

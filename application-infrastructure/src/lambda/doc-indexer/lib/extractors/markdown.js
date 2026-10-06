@@ -1,26 +1,13 @@
 'use strict';
 
+const { SearchCommon } = require('../search-common');
+
 /**
  * Heading pattern matching Markdown headings H1–H6.
  * Captures the heading level (number of # chars) and the heading text.
  * @type {RegExp}
  */
 const HEADING_PATTERN = /^(#{1,6})\s+(.+)$/;
-
-/**
- * Common stop words excluded from keyword extraction.
- * @type {Set<string>}
- */
-const STOP_WORDS = new Set([
-	'a', 'an', 'the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
-	'of', 'with', 'by', 'from', 'is', 'it', 'as', 'be', 'was', 'are',
-	'this', 'that', 'not', 'can', 'will', 'do', 'if', 'you', 'your',
-	'we', 'our', 'has', 'have', 'had', 'been', 'would', 'could', 'should',
-	'may', 'might', 'shall', 'its', 'also', 'into', 'than', 'then',
-	'each', 'which', 'their', 'them', 'these', 'those', 'such', 'when',
-	'how', 'what', 'where', 'who', 'all', 'any', 'both', 'no', 'so',
-	'up', 'out', 'about', 'just', 'more', 'some', 'other', 'over'
-]);
 
 /**
  * Maximum (soft) excerpt length in characters. Excerpts are trimmed at a sentence or
@@ -36,12 +23,6 @@ const MAX_EXCERPT_LENGTH = 200;
  * @type {number}
  */
 const EXCERPT_HARD_CAP = 240;
-
-/**
- * Minimum keyword length to include.
- * @type {number}
- */
-const MIN_KEYWORD_LENGTH = 2;
 
 /**
  * Normalize a heading string into a URL-friendly slug for use in content paths.
@@ -62,23 +43,20 @@ function slugifyHeading(heading) {
 }
 
 /**
- * Extract keywords from a text string by tokenizing, lowercasing,
- * removing stop words, and deduplicating.
+ * Extract keywords from a text string by delegating to the shared `search-common` layer's
+ * `normalizeText`, which tokenizes, lowercases, removes stop words, and deduplicates
+ * (R6.1, R6.3). Delegating here (rather than a local implementation) is what keeps this
+ * extractor's index-time tokenization policy identical to the Read Function's query-time
+ * tokenization policy.
  *
  * @param {string} text - Source text to extract keywords from
  * @returns {Array<string>} Array of unique, lowercase keyword strings
  * @example
  * extractKeywords('Install the cache-data package');
- * // ["install", "cache-data", "package"]
+ * // ["install", "cache-data", "package", "data"]
  */
 function extractKeywords(text) {
-	const words = text
-		.toLowerCase()
-		.replace(/[^a-z0-9\s-]/g, ' ')
-		.split(/\s+/)
-		.filter(word => word.length >= MIN_KEYWORD_LENGTH && !STOP_WORDS.has(word));
-
-	return [...new Set(words)];
+	return SearchCommon.normalizeText(text);
 }
 
 /**

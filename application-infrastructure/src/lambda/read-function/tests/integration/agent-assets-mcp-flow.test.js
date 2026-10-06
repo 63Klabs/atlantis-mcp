@@ -116,7 +116,7 @@ jest.mock('../../utils/auth-resolver', () => ({
 // NOTE: `config/settings.js`, `utils/schema-validator.js`, and
 // `config/agent-asset-types.js` are NOT mocked, so `tools/list` and the
 // generated `assetType` enum below reflect the REAL shipped registry
-// (three enabled types, `skills` disabled).
+// (four enabled types: steering, hooks, agents-md, skills).
 jest.mock('../../controllers', () => ({
   Templates: {
     list: jest.fn().mockResolvedValue({ success: true, data: [{ name: 'template-1' }] }),
@@ -199,9 +199,9 @@ describe('Agent Assets MCP tools/list and tools/call integration', () => {
         expect(toolsByName[name].inputSchema).not.toBeNull();
       }
 
-      // The `skills` type is disabled by default in the shipped registry, so the
-      // enum must equal exactly the three enabled types, in registry order.
-      const expectedEnabledTypes = ['steering', 'hooks', 'agents-md'];
+      // All four shipped types are enabled in the shipped registry, so the
+      // enum must equal exactly the four enabled types, in registry order.
+      const expectedEnabledTypes = ['steering', 'hooks', 'agents-md', 'skills'];
       expect(toolsByName.get_agent_asset.inputSchema.properties.assetType.enum).toEqual(expectedEnabledTypes);
       expect(toolsByName.list_agent_assets.inputSchema.properties.assetType.enum).toEqual(expectedEnabledTypes);
     });
@@ -293,7 +293,7 @@ describe('Agent Assets MCP tools/list and tools/call integration', () => {
     });
   });
 
-  describe('tools/call for the disabled skills type', () => {
+  describe('tools/call for an unknown assetType', () => {
     /*
      * NOTE on approach: `../../controllers` is mocked module-wide for this
      * file (matching the established sibling-test pattern), so a `tools/call`
@@ -306,8 +306,8 @@ describe('Agent Assets MCP tools/list and tools/call integration', () => {
      * dynamic `require`) to exercise the real controller here would be
      * fragile and would duplicate coverage that already exists at the unit
      * level: `tests/unit/controllers/agent-assets-controller.test.js` (task
-     * 6.2) asserts the real controller rejects a disabled/unknown
-     * `assetType` with `INVALID_INPUT`, and
+     * 6.2) asserts the real controller rejects an unknown `assetType` with
+     * `INVALID_INPUT`, and
      * `tests/unit/controllers/agent-assets-input-validation.property.test.js`
      * (task 6.3, Property 11) property-tests that same rejection across many
      * invalid inputs including disabled types.
@@ -315,14 +315,16 @@ describe('Agent Assets MCP tools/list and tools/call integration', () => {
      * This integration suite's job is to prove the ROUTING/WIRING: that a
      * controller-reported `INVALID_INPUT` error (exactly the shape the real
      * controller produces via `MCPProtocol.errorResponse('INVALID_INPUT', ...)`
-     * for a disabled `assetType` such as `skills`) is correctly surfaced by
-     * the router as a JSON-RPC response carrying `errorCode: 'INVALID_INPUT'`
-     * in the error data — without ever reaching a real S3 read. So the mock
-     * here simulates exactly what the real controller returns for `skills`,
-     * and the assertions target the router's handling of that result.
+     * for an unknown `assetType`) is correctly surfaced by the router as a
+     * JSON-RPC response carrying `errorCode: 'INVALID_INPUT'` in the error
+     * data — without ever reaching a real S3 read. So the mock here
+     * simulates exactly what the real controller returns for an unknown
+     * `assetType`, and the assertions target the router's handling of that
+     * result. (All four shipped types -- steering, hooks, agents-md, skills
+     * -- are enabled; see Requirements 11.6, 11.7, 11.9.)
      */
-    it('returns INVALID_INPUT before any S3 read when the controller rejects a disabled assetType', async () => {
-      const validAssetTypes = ['steering', 'hooks', 'agents-md'];
+    it('returns INVALID_INPUT before any S3 read when the controller rejects an unknown assetType', async () => {
+      const validAssetTypes = ['steering', 'hooks', 'agents-md', 'skills'];
       Controllers.AgentAssets.get.mockResolvedValueOnce({
         protocol: 'mcp',
         version: '1.0',
@@ -331,7 +333,7 @@ describe('Agent Assets MCP tools/list and tools/call integration', () => {
         error: {
           code: 'INVALID_INPUT',
           details: {
-            message: `Invalid assetType "skills". Valid values: ${validAssetTypes.join(', ')}`,
+            message: `Invalid assetType "bogus". Valid values: ${validAssetTypes.join(', ')}`,
             errors: [`assetType must be one of: ${validAssetTypes.join(', ')}`]
           }
         },
@@ -343,9 +345,9 @@ describe('Agent Assets MCP tools/list and tools/call integration', () => {
         method: 'tools/call',
         params: {
           name: 'get_agent_asset',
-          arguments: { assetType: 'skills', name: 'some-skill.md' }
+          arguments: { assetType: 'bogus', name: 'some-asset.md' }
         },
-        id: 'call-skills-1'
+        id: 'call-bogus-1'
       });
 
       const response = await handler(event, context);

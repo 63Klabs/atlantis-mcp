@@ -18,6 +18,7 @@ jest.mock('../../lib/dynamo-writer', () => {
 		writeDocumentEntries: jest.fn().mockResolvedValue(undefined),
 		writeSearchKeywords: jest.fn().mockResolvedValue(undefined),
 		writeMainIndex: jest.fn().mockResolvedValue(undefined),
+		writeCorpusManifest: jest.fn().mockResolvedValue(undefined),
 		updateVersionPointer: jest.fn().mockResolvedValue(undefined),
 		setTtlOnPreviousVersion: jest.fn().mockResolvedValue(undefined),
 		getDocClient: jest.fn(() => ({ send })),

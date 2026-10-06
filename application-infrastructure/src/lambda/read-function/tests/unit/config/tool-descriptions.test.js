@@ -4,12 +4,17 @@
  * Tests the extendedDescriptions map and validateDescriptions() function:
  * - Every tool in availableToolsList has a corresponding extended description
  * - Every description value is a non-empty string
- * - Each description starts with a verb-led sentence
+ * - Each description opens with a "Call this..." trigger sentence
+ * - A representative set of descriptions names its domain-specific concrete
+ *   identifiers (Requirement 4.2)
  * - Each description contains at least one failure-mode keyword
- * - validateDescriptions() logs a warning for unmatched keys
+ * - validateDescriptions() logs a warning for an extended-description key with
+ *   no matching manifest tool
+ * - validateDescriptions() logs a warning for a manifest tool with no extended
+ *   description entry (Requirement 4.4)
  * - Graceful fallback when a tool has no description entry
  *
- * Requirements: 1.1, 1.2, 1.4, 2.1, 2.2, 2.3, 5.1, 5.2
+ * Requirements: 1.1, 1.2, 1.4, 2.1, 2.2, 2.3, 4.1, 4.2, 4.4, 4.6, 5.1, 5.2
  */
 
 // Set required env var before loading settings
@@ -60,16 +65,43 @@ describe('config/tool-descriptions', () => {
 		});
 	});
 
-	describe('verb-led descriptions (Req 2.1, 2.2)', () => {
-		const LEADING_VERBS = [
-			'Retrieve', 'List', 'Search', 'Validate', 'Check'
+	describe('trigger-sentence descriptions (Req 4.1, 4.2)', () => {
+		// Scoped to the hand-authored entries in config/tool-descriptions.js.
+		// The agent-asset tool descriptions (list_agent_assets, get_agent_asset,
+		// list_agent_asset_types, get_agent_asset_chunk) are generated from the
+		// AGENT_ASSET_TYPES registry (config/agent-asset-types.js) and are out of
+		// scope for this rewrite (task 8.1).
+		const HAND_AUTHORED_TOOL_NAMES = [
+			'list_tools', 'list_templates', 'get_template', 'list_template_versions',
+			'list_categories', 'list_starters', 'get_starter_info', 'search_documentation',
+			'get_document', 'get_document_chunk', 'validate_naming', 'check_template_updates',
+			'get_template_chunk'
 		];
 
-		test('each description should start with a common verb', () => {
-			for (const name of toolNames) {
+		test('each hand-authored description should open with a "Call this" trigger sentence stating when to use the tool', () => {
+			for (const name of HAND_AUTHORED_TOOL_NAMES) {
 				const desc = extendedDescriptions[name];
-				const startsWithVerb = LEADING_VERBS.some(verb => desc.startsWith(verb));
-				expect(startsWithVerb).toBe(true);
+				expect(desc.startsWith('Call this')).toBe(true);
+			}
+		});
+	});
+
+	describe('concrete-identifier spot-check (Req 4.2)', () => {
+		// Spot-check a representative set of hand-authored descriptions rather
+		// than requiring every tool to name every identifier category.
+		const EXPECTED_IDENTIFIERS = {
+			search_documentation: ['cache-data'],
+			get_template: ['templateName', 'category'],
+			validate_naming: ['Prefix-ProjectId-StageId'],
+			check_template_updates: ['templateName', 'category', 'currentVersion']
+		};
+
+		test('each spot-checked description names its domain-specific identifiers', () => {
+			for (const [name, identifiers] of Object.entries(EXPECTED_IDENTIFIERS)) {
+				const desc = extendedDescriptions[name];
+				for (const identifier of identifiers) {
+					expect(desc).toContain(identifier);
+				}
 			}
 		});
 	});
@@ -106,6 +138,35 @@ describe('config/tool-descriptions', () => {
 
 			// Clean up
 			delete extendedDescriptions['nonexistent_tool'];
+		});
+	});
+
+	describe('validateDescriptions missing-description warning (Req 4.4)', () => {
+		test('should log a warning when a manifest tool has no extended description entry', () => {
+			// Pick a real manifest tool and temporarily remove its extended description
+			const toolName = toolNames[0];
+			const savedValue = extendedDescriptions[toolName];
+			delete extendedDescriptions[toolName];
+
+			jest.clearAllMocks();
+			validateDescriptions();
+
+			expect(DebugAndLog.warn).toHaveBeenCalledWith(
+				expect.stringContaining(toolName)
+			);
+
+			// Clean up
+			extendedDescriptions[toolName] = savedValue;
+		});
+
+		test('should not warn about missing descriptions when every manifest tool has one', () => {
+			jest.clearAllMocks();
+			validateDescriptions();
+
+			const missingDescriptionWarnings = DebugAndLog.warn.mock.calls.filter(
+				([message]) => message.includes('has no extended description')
+			);
+			expect(missingDescriptionWarnings).toHaveLength(0);
 		});
 	});
 

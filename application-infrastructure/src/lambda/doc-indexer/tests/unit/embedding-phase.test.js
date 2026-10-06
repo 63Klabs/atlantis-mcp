@@ -31,6 +31,7 @@ jest.mock('../../lib/dynamo-writer', () => {
     writeDocumentEntries: jest.fn().mockResolvedValue(undefined),
     writeSearchKeywords: jest.fn().mockResolvedValue(undefined),
     writeMainIndex: jest.fn().mockResolvedValue(undefined),
+    writeCorpusManifest: jest.fn().mockResolvedValue(undefined),
     updateVersionPointer: jest.fn().mockResolvedValue(undefined),
     setTtlOnPreviousVersion: jest.fn().mockResolvedValue(undefined),
     getDocClient: jest.fn(() => ({ send })),
@@ -276,6 +277,47 @@ describe('runEmbeddingPhase', () => {
         dims: DOC_AI.embedding.dimensions
       });
     }
+  });
+
+  // spec 0-0-7-tool-discovery-enhancement, task 19.1 (Requirement 10.1): the embedding
+  // phase must carry each entry's EFFECTIVE repositoryType/namespace into vector-store
+  // metadata so the semantic retrieval path can filter on the same fields as the keyword
+  // path, exactly as it already carries type/subType/repository/owner.
+  test('carries repositoryType and namespace through to vector-store metadata (Req 10.1)', async () => {
+    const entry = makeEntry({ hash: 'with-repo-type', repositoryType: 'package', namespace: 'core' });
+    const embed = jest.fn().mockResolvedValue([0.1, 0.2]);
+    const upsertVectors = jest.fn().mockResolvedValue(undefined);
+
+    await runEmbeddingPhase({
+      tableName: 't', version: 'v9', previousVersion: null, entries: [entry], docAi: DOC_AI,
+      embeddingProvider: { embed }, vectorStore: { upsertVectors }, priorEmbeddings: new Map()
+    });
+
+    const [, records] = upsertVectors.mock.calls[0];
+    expect(records).toHaveLength(1);
+    expect(records[0].metadata).toMatchObject({
+      repositoryType: 'package',
+      namespace: 'core'
+    });
+  });
+
+  test('omits repositoryType/namespace from metadata when the entry has neither (absent classification)', async () => {
+    const entry = makeEntry({ hash: 'absent-classification' });
+    delete entry.repositoryType;
+    delete entry.namespace;
+    const embed = jest.fn().mockResolvedValue([0.1, 0.2]);
+    const upsertVectors = jest.fn().mockResolvedValue(undefined);
+
+    await runEmbeddingPhase({
+      tableName: 't', version: 'v9', previousVersion: null, entries: [entry], docAi: DOC_AI,
+      embeddingProvider: { embed }, vectorStore: { upsertVectors }, priorEmbeddings: new Map()
+    });
+
+    const [, records] = upsertVectors.mock.calls[0];
+    // The S3 store prunes undefined/null metadata values (vector-store-s3.js), so the
+    // phase only needs to pass the raw (possibly undefined) fields through unchanged.
+    expect(records[0].metadata.repositoryType).toBeUndefined();
+    expect(records[0].metadata.namespace).toBeUndefined();
   });
 
   test('upserted is false and no error propagates when the store upsert rejects', async () => {

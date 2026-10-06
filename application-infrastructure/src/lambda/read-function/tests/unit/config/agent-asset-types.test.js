@@ -14,17 +14,15 @@
  *   strings), no two entries share name/toolToken/folder, and the four
  *   shipped entries (steering, hooks, agents-md, skills) match their
  *   documented shape (Requirement 5.1).
- * - `skills` ships disabled: excluded from getEnabledTypeNames() and from
- *   resolveEnabledType(), while still resolvable via getTypeByName(), and
- *   the fixed tools (list_agent_assets, get_agent_asset,
- *   list_agent_asset_types) still exist regardless — disabling a type
- *   never removes a tool, only removes it from the assetType enum
- *   (Requirement 5.5).
+ * - All four shipped types ship enabled: all are included in
+ *   getEnabledTypeNames() and resolveEnabledType(), and the fixed tools
+ *   (list_agent_assets, get_agent_asset, list_agent_asset_types) exist
+ *   regardless of registry contents (Requirement 5.5).
  * - Adding a synthetic enabled entry to the registry extends the
  *   assetType enum by exactly one accepted value and creates no new tool
  *   (Requirement 5.4).
  *
- * Requirements: 5.1, 5.4, 5.5
+ * Requirements: 5.1, 5.4, 5.5, 11.6, 11.7
  */
 
 const MODULE_PATH = '../../../config/agent-asset-types';
@@ -112,34 +110,38 @@ describe('config/agent-asset-types - shipped registry shape (Requirement 5.1)', 
 		expect(agentsMd.enabled).not.toBe(false);
 	});
 
-	test('skills entry: folder "skills", extensions [".md"], disabled by default', () => {
+	test('skills entry: folder "skills", extensions [".md"], enabled, documents the flat-asset mapping (Requirements 11.6, 11.7)', () => {
 		const skills = getTypeByName('skills');
 		expect(skills).not.toBeNull();
 		expect(skills.folder).toBe('skills');
 		expect(skills.extensions).toEqual(['.md']);
-		expect(skills.enabled).toBe(false);
+		expect(skills.enabled).not.toBe(false);
+		expect(skills.description).toMatch(/skills\/\{skill-name\}\.md/);
+		expect(skills.description).toMatch(/\{skill-name\}\/SKILL\.md/);
 	});
 });
 
-describe('config/agent-asset-types - skills disabled (Requirement 5.5)', () => {
-	test('getEnabledTypeNames() excludes "skills"', () => {
+describe('config/agent-asset-types - skills enabled (Requirements 11.6, 11.7, 11.9)', () => {
+	test('getEnabledTypeNames() includes "skills"', () => {
 		const enabledNames = getEnabledTypeNames();
-		expect(enabledNames).not.toContain('skills');
-		expect(enabledNames).toEqual(['steering', 'hooks', 'agents-md']);
+		expect(enabledNames).toContain('skills');
+		expect(enabledNames).toEqual(['steering', 'hooks', 'agents-md', 'skills']);
 	});
 
-	test('resolveEnabledType("skills") returns null', () => {
-		expect(resolveEnabledType('skills')).toBeNull();
+	test('resolveEnabledType("skills") returns the entry', () => {
+		const skills = resolveEnabledType('skills');
+		expect(skills).not.toBeNull();
+		expect(skills.name).toBe('skills');
 	});
 
-	test('getTypeByName("skills") still returns the entry (disabled, not absent)', () => {
+	test('getTypeByName("skills") returns the entry', () => {
 		const skills = getTypeByName('skills');
 		expect(skills).not.toBeNull();
 		expect(skills.name).toBe('skills');
-		expect(skills.enabled).toBe(false);
+		expect(skills.enabled).not.toBe(false);
 	});
 
-	test('fixed tools exist in generateToolDefinitions() regardless of "skills" being disabled', () => {
+	test('fixed tools exist in generateToolDefinitions() regardless of registry contents', () => {
 		const toolNames = generateToolDefinitions().map((tool) => tool.name);
 		for (const fixedName of FIXED_TOOL_NAMES) {
 			expect(toolNames).toContain(fixedName);
@@ -147,10 +149,10 @@ describe('config/agent-asset-types - skills disabled (Requirement 5.5)', () => {
 		expect([...toolNames].sort()).toEqual([...FIXED_TOOL_NAMES].sort());
 	});
 
-	test('"skills" is absent from the assetType enum on both generic tool schemas', () => {
+	test('"skills" is present in the assetType enum on both generic tool schemas', () => {
 		const schemas = generateSchemas();
-		expect(schemas.get_agent_asset.properties.assetType.enum).not.toContain('skills');
-		expect(schemas.list_agent_assets.properties.assetType.enum).not.toContain('skills');
+		expect(schemas.get_agent_asset.properties.assetType.enum).toContain('skills');
+		expect(schemas.list_agent_assets.properties.assetType.enum).toContain('skills');
 	});
 });
 
@@ -185,10 +187,10 @@ describe('config/agent-asset-types - synthetic enabled entry (Requirement 5.4)',
 		});
 
 		// Sanity check: the isolated copy starts out identical to the shipped
-		// registry (3 enabled types, "skills" excluded, 4 fixed tools).
+		// registry (4 enabled types, 4 fixed tools).
 		const namesBefore = isolatedMod.getEnabledTypeNames();
 		const toolNamesBefore = isolatedMod.generateToolDefinitions().map((tool) => tool.name);
-		expect(namesBefore).toEqual(['steering', 'hooks', 'agents-md']);
+		expect(namesBefore).toEqual(['steering', 'hooks', 'agents-md', 'skills']);
 		expect([...toolNamesBefore].sort()).toEqual([...FIXED_TOOL_NAMES].sort());
 
 		// Add the synthetic entry as the only source change.

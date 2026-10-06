@@ -49,6 +49,10 @@ jest.mock('../../../models', () => ({
     queryIndex: jest.fn(),
     getActiveVersion: jest.fn(),
     getContentMetadataByHashes: jest.fn()
+  },
+  Corpus: {
+    getCorpusManifest: jest.fn(),
+    MANIFEST_SOURCE: { INDEXER: 'indexer', DERIVED: 'derived', UNAVAILABLE: 'unavailable' }
   }
 }));
 
@@ -128,10 +132,21 @@ describe('search_documentation backward-compatibility snapshot', () => {
       github: { userOrgs: ['63klabs'] },
       docIndexTable: 'test-doc-index-table',
       documentation: {
-        ai: { enabled: false, minTier: 'paid', retrievalMode: 'semantic' }
+        ai: { enabled: false, minTier: 'paid', retrievalMode: 'semantic' },
+        corpusManifestMaxBytes: 4096
       }
     });
     Config.getConnCacheProfile.mockImplementation(() => createMockConnCacheProfile());
+
+    // spec 0-0-7-tool-discovery-enhancement, task 13.1: this snapshot locks the PRE-existing
+    // field set; the corpus manifest is unavailable here so `indexedRepositories` is simply
+    // absent and does not perturb the pre-existing-field inventory this file guards. The new
+    // field's own additive shape is covered by `documentation-corpus-manifest.test.js`.
+    Models.Corpus.getCorpusManifest.mockResolvedValue({
+      repositories: null,
+      source: 'unavailable',
+      version: null
+    });
 
     // Cache miss on every call so the assembled envelope is what search() returns.
     CacheableDataAccess.getData.mockImplementation(async (profile, fetchFn, conn) => fetchFn(conn, {}));

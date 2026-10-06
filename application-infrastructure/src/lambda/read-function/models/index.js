@@ -12,6 +12,7 @@ const GitHubAPI = require('./github-api');
 const DocIndex = require('./doc-index');
 const S3Common = require('./s3-common');
 const S3AgentAssets = require('./s3-agent-assets');
+const Corpus = require('./corpus');
 
 module.exports = {
   S3Templates,
@@ -19,5 +20,6 @@ module.exports = {
   GitHubAPI,
   DocIndex,
   S3Common,
-  S3AgentAssets
+  S3AgentAssets,
+  Corpus
 };

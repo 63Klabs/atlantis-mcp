@@ -218,8 +218,20 @@ describe('buildS3Filter — metadata filter translation (Req 4.3)', () => {
     ]);
   });
 
-  it('exposes the filterable key allowlist as [type, subType]', () => {
-    expect(FILTERABLE_FILTER_KEYS).toEqual(['type', 'subType']);
+  it('exposes the filterable key allowlist as [type, subType, repositoryType, namespace]', () => {
+    // spec 0-0-7-tool-discovery-enhancement, Requirement 10.1: repositoryType/namespace
+    // were added to the filterable allowlist alongside the existing type/subType.
+    expect(FILTERABLE_FILTER_KEYS).toEqual(['type', 'subType', 'repositoryType', 'namespace']);
+  });
+
+  it('ANDs the version with repositoryType and namespace filters (Req 10.2)', () => {
+    expect(buildS3Filter('v3', { repositoryType: 'package', namespace: 'core' })).toEqual({
+      $and: [
+        { version: { $eq: 'v3' } },
+        { repositoryType: { $eq: 'package' } },
+        { namespace: { $eq: 'core' } }
+      ]
+    });
   });
 });
 
@@ -345,6 +357,10 @@ describe('upsertVectors — PutVectors mapping and chunking (Req 4.2)', () => {
           type: 'guide',
           subType: 'howto',
           repository: 'core',
+          // spec 0-0-7-tool-discovery-enhancement, Requirement 10.1: repositoryType and
+          // namespace are now persisted alongside type/subType/repository.
+          repositoryType: 'package',
+          namespace: 'core-namespace',
           embeddingInputHash: 'h1',
           // model/dims ARE persisted so the doc-indexer can reuse unchanged embeddings
           // across versions for the S3 store (Req 6.2), matching DynamoDB. `owner` is
@@ -370,6 +386,8 @@ describe('upsertVectors — PutVectors mapping and chunking (Req 4.2)', () => {
       type: 'guide',
       subType: 'howto',
       repository: 'core',
+      repositoryType: 'package',
+      namespace: 'core-namespace',
       embeddingInputHash: 'h1',
       model: 'amazon.titan-embed-text-v2:0',
       dims: 4

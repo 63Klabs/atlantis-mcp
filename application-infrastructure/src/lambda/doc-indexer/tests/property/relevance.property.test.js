@@ -2,7 +2,14 @@
 'use strict';
 
 const fc = require('fast-check');
-const { computeRelevanceScore, buildKeywordEntries, TYPE_WEIGHTS, SCORE_WEIGHTS } = require('../../lib/index-builder');
+const {
+	computeRelevanceScore,
+	buildKeywordEntries,
+	TYPE_WEIGHTS,
+	SCORE_WEIGHTS,
+	REPOSITORY_TYPE_WEIGHTS,
+	NEUTRAL_REPOSITORY_TYPE_WEIGHT
+} = require('../../lib/index-builder');
 
 /**
  * Arbitrary for a keyword string.
@@ -180,5 +187,163 @@ describe('Property 13: Search results sorted by relevance descending', () => {
 			}),
 			{ numRuns: 100 }
 		);
+	});
+});
+
+// Feature: tool-discovery-enhancement, Requirement 7.1, 7.2: ranking inputs
+describe('Task 17.1: repository-name, path, and repository-type ranking signals', () => {
+
+	it('repository-name match contributes +repositoryNameMatch to base score', () => {
+		fc.assert(
+			fc.property(keywordArb, (keyword) => {
+				const entry = {
+					title: 'unrelated title',
+					excerpt: 'unrelated excerpt',
+					keywords: ['unrelated'],
+					repository: `prefix-${keyword}-suffix`,
+					contentPath: 'org/unrelated-repo/README.md/section'
+				};
+
+				const score = computeRelevanceScore(keyword, entry);
+				expect(score).toBeGreaterThanOrEqual(SCORE_WEIGHTS.repositoryNameMatch);
+			}),
+			{ numRuns: 100 }
+		);
+	});
+
+	it('path match contributes +pathMatch to base score', () => {
+		fc.assert(
+			fc.property(keywordArb, (keyword) => {
+				const entry = {
+					title: 'unrelated title',
+					excerpt: 'unrelated excerpt',
+					keywords: ['unrelated'],
+					repository: 'unrelated-repo',
+					contentPath: `org/unrelated-repo/docs/${keyword}/section`
+				};
+
+				const score = computeRelevanceScore(keyword, entry);
+				expect(score).toBeGreaterThanOrEqual(SCORE_WEIGHTS.pathMatch);
+			}),
+			{ numRuns: 100 }
+		);
+	});
+
+	it('repositoryNameMatch weight sits strictly between excerptMatch and keywordMatch', () => {
+		expect(SCORE_WEIGHTS.repositoryNameMatch).toBeLessThan(SCORE_WEIGHTS.excerptMatch);
+		expect(SCORE_WEIGHTS.repositoryNameMatch).toBeGreaterThan(SCORE_WEIGHTS.keywordMatch);
+	});
+
+	it('pathMatch is the lowest-weighted signal', () => {
+		const others = [
+			SCORE_WEIGHTS.titleMatch,
+			SCORE_WEIGHTS.excerptMatch,
+			SCORE_WEIGHTS.repositoryNameMatch,
+			SCORE_WEIGHTS.keywordMatch
+		];
+		for (const weight of others) {
+			expect(SCORE_WEIGHTS.pathMatch).toBeLessThan(weight);
+		}
+	});
+
+	it('score is zero when keyword does not match title, excerpt, keywords, repository, or path', () => {
+		fc.assert(
+			fc.property(keywordArb, (keyword) => {
+				const entry = {
+					title: 'zzzzz',
+					excerpt: 'zzzzz',
+					keywords: ['zzzzz'],
+					repository: 'zzzzz',
+					contentPath: 'org/zzzzz/zzzzz.md/zzzzz'
+				};
+
+				fc.pre(
+					!entry.title.includes(keyword) &&
+					!entry.excerpt.includes(keyword) &&
+					!entry.repository.includes(keyword) &&
+					!entry.contentPath.includes(keyword)
+				);
+
+				const score = computeRelevanceScore(keyword, entry);
+				expect(score).toBe(0);
+			}),
+			{ numRuns: 100 }
+		);
+	});
+
+	it('REPOSITORY_TYPE_WEIGHTS: package and documentation are highest, templates/app-starter neutral, mcp/management slightly below neutral', () => {
+		expect(REPOSITORY_TYPE_WEIGHTS['package']).toBeGreaterThan(NEUTRAL_REPOSITORY_TYPE_WEIGHT);
+		expect(REPOSITORY_TYPE_WEIGHTS['documentation']).toBeGreaterThan(NEUTRAL_REPOSITORY_TYPE_WEIGHT);
+		expect(REPOSITORY_TYPE_WEIGHTS['templates']).toBe(NEUTRAL_REPOSITORY_TYPE_WEIGHT);
+		expect(REPOSITORY_TYPE_WEIGHTS['app-starter']).toBe(NEUTRAL_REPOSITORY_TYPE_WEIGHT);
+		expect(REPOSITORY_TYPE_WEIGHTS['mcp']).toBeLessThan(NEUTRAL_REPOSITORY_TYPE_WEIGHT);
+		expect(REPOSITORY_TYPE_WEIGHTS['management']).toBeLessThan(NEUTRAL_REPOSITORY_TYPE_WEIGHT);
+	});
+
+	it('an absent/unclassified repositoryType takes the neutral weight, same as templates/app-starter', () => {
+		fc.assert(
+			fc.property(keywordArb, fc.constantFrom(undefined, null, 'some-unclassified-type'), (keyword, repositoryType) => {
+				const entry = {
+					hash: 'abcdef0123456789',
+					title: `title with ${keyword}`,
+					excerpt: 'some excerpt',
+					keywords: [keyword],
+					type: 'documentation',
+					repositoryType
+				};
+				const neutralEntry = { ...entry, repositoryType: 'templates' };
+
+				const [absentResult] = buildKeywordEntries([entry]);
+				const [neutralResult] = buildKeywordEntries([neutralEntry]);
+
+				expect(absentResult.relevanceScore).toBe(neutralResult.relevanceScore);
+			}),
+			{ numRuns: 100 }
+		);
+	});
+
+	it('buildKeywordEntries scales relevanceScore by both typeWeight and the repositoryType multiplier', () => {
+		fc.assert(
+			fc.property(
+				fc.constantFrom('documentation', 'code-example', 'template-pattern'),
+				fc.constantFrom('package', 'documentation', 'templates', 'app-starter', 'mcp', 'management'),
+				keywordArb,
+				(type, repositoryType, keyword) => {
+					const entry = {
+						hash: 'abcdef0123456789',
+						title: `title with ${keyword}`,
+						excerpt: 'some excerpt',
+						keywords: [keyword],
+						type,
+						repositoryType
+					};
+
+					const [result] = buildKeywordEntries([entry]);
+					const baseScore = computeRelevanceScore(keyword, entry);
+					const expected = Math.round(baseScore * TYPE_WEIGHTS[type] * REPOSITORY_TYPE_WEIGHTS[repositoryType]);
+
+					expect(result.relevanceScore).toBe(expected);
+				}
+			),
+			{ numRuns: 100 }
+		);
+	});
+
+	it('a package-repository section outranks an equal-text-relevance section from an unrelated/unclassified repository', () => {
+		const sharedEntry = {
+			hash: 'abcdef0123456789',
+			title: 'title with widget',
+			excerpt: 'some excerpt',
+			keywords: ['widget'],
+			type: 'documentation'
+		};
+
+		const packageEntry = { ...sharedEntry, repositoryType: 'package' };
+		const unclassifiedEntry = { ...sharedEntry, repositoryType: undefined };
+
+		const [packageResult] = buildKeywordEntries([packageEntry]);
+		const [unclassifiedResult] = buildKeywordEntries([unclassifiedEntry]);
+
+		expect(packageResult.relevanceScore).toBeGreaterThan(unclassifiedResult.relevanceScore);
 	});
 });

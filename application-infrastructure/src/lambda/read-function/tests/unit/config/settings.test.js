@@ -281,3 +281,36 @@ describe('config/settings documentation.ai.embedding.region - cross-region (Req 
     });
   });
 });
+
+describe('config/settings documentation.corpusManifestMaxBytes (spec 0-0-7, Req 8.7)', () => {
+  const CORPUS_ENV_KEY = 'MCP_CORPUS_MANIFEST_MAX_BYTES';
+
+  afterEach(() => {
+    delete process.env[CORPUS_ENV_KEY];
+  });
+
+  test('defaults to 4096 (4 KB) when unset', () => {
+    delete process.env[CORPUS_ENV_KEY];
+    const { settings } = loadSettings();
+    expect(settings.documentation.corpusManifestMaxBytes).toBe(4096);
+  });
+
+  test('parses a valid override', () => {
+    process.env[CORPUS_ENV_KEY] = '8192';
+    const { settings } = loadSettings();
+    expect(settings.documentation.corpusManifestMaxBytes).toBe(8192);
+  });
+
+  test('falls back to the default and logs a warning on a non-numeric value', () => {
+    process.env[CORPUS_ENV_KEY] = 'not-a-number';
+    const { settings, DebugAndLog } = loadSettings();
+    expect(settings.documentation.corpusManifestMaxBytes).toBe(4096);
+    expect(DebugAndLog.warn).toHaveBeenCalledWith(expect.stringContaining(CORPUS_ENV_KEY));
+  });
+
+  test('falls back to the default on a value below the minimum (0)', () => {
+    process.env[CORPUS_ENV_KEY] = '0';
+    const { settings } = loadSettings();
+    expect(settings.documentation.corpusManifestMaxBytes).toBe(4096);
+  });
+});

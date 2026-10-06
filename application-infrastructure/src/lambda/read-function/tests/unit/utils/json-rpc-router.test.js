@@ -102,13 +102,14 @@ describe('JSON-RPC Router', () => {
 
       const response = await handleJsonRpc(clientRequest);
       const body = parseBody(response);
+      const { version } = require('../../../package.json');
 
       expect(response.statusCode).toBe(200);
       expect(body.jsonrpc).toBe('2.0');
       expect(body.id).toBe('init-1');
       expect(body.result.serverInfo).toEqual({
         name: 'atlantis-mcp-server',
-        version: '0.0.1'
+        version
       });
       expect(body.result.capabilities).toEqual({
         tools: { listChanged: false }

@@ -120,9 +120,12 @@ describe('get_document / get_document_chunk registration', () => {
       expect(names).toContain('get_document');
       expect(names).toContain('get_document_chunk');
 
-      // tools/list merges the extended descriptions at response time.
+      // tools/list is sourced from buildToolCatalog() (task 6.3), which overlays the
+      // extended description and then composes the registry discovery block (if any)
+      // into the description text — so the extended description is the base of the
+      // response description rather than a byte-exact match.
       const listed = body.result.tools.find(t => t.name === 'get_document');
-      expect(listed.description).toBe(extendedDescriptions.get_document);
+      expect(listed.description).toContain(extendedDescriptions.get_document);
     });
 
     test('list_tools tool reports both document tools with extended descriptions', async () => {
@@ -140,7 +143,10 @@ describe('get_document / get_document_chunk registration', () => {
 
       for (const toolName of DOCUMENT_TOOLS) {
         const tool = listed.find(t => t.name === toolName);
-        expect(tool.description).toBe(extendedDescriptions[toolName]);
+        // list_tools is sourced from the same buildToolCatalog() call as tools/list
+        // (task 6.3), so the extended description is the base of a possibly-composed
+        // description rather than a byte-exact match.
+        expect(tool.description).toContain(extendedDescriptions[toolName]);
         expect(tool.inputSchema.type).toBe('object');
       }
     });

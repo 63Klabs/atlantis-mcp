@@ -8,7 +8,7 @@
  * - Keyword-based search with relevance ranking
  * - Suggestions when no results are found, or when the matched set is large enough to warrant
  *   narrowing by type/subType
- * - Additive `availableFilters` facets (distinct type/subType values with counts)
+ * - Additive `availableFilters` facets (distinct type/subType/repository values with counts)
  * - Storage-only retrieval of a full source file by `filePath`/`hash` ({@link getDocument});
  *   the server never fetches from GitHub
  *
@@ -27,6 +27,7 @@ const { tools: { DebugAndLog, ApiRequest } } = require('@63klabs/cache-data');
 const { Config } = require('../config');
 const Models = require('../models');
 const { hashContentPath, stripSlug } = require('../utils/content-hash');
+const ContentSizer = require('../utils/content-sizer');
 
 /**
  * Default Lambda mount path for the `doc-ai-common` layer modules. In the Lambda runtime
@@ -58,13 +59,448 @@ const VECTOR_STORE_LABEL = 's3-vectors';
 const NARROW_SUGGESTION_THRESHOLD = 25;
 
 /**
+ * Stable, machine-parseable prefix for the discovery-observability `discovery_search` log
+ * line (spec 0-0-7, Requirement 12.1/12.4), following the existing `DOC_AI_USAGE` convention
+ * (`doc-ai-common` `retrieval-strategy.js`): a fixed token, one space, then compact JSON. The
+ * read-function runs with `AWS_LAMBDA_LOG_FORMAT=text`, so a CloudWatch Logs metric filter can
+ * only key on a literal substring, not a JSON field selector.
+ *
+ * @constant {string}
+ */
+const DISCOVERY_SEARCH_EVENT = 'DISCOVERY_SEARCH';
+
+/**
+ * Additional literal, stable token appended to the `discovery_search` log line whenever
+ * `emptyResult` is `true` (spec 0-0-7, Requirement 12.4/12.6; `template.yml`
+ * `DiscoverySearchZeroResultMetricFilter`). The metric filter keys on this exact substring,
+ * so it MUST be present on the line whenever the matched set is empty, and MUST NOT appear
+ * when it is not.
+ *
+ * @constant {string}
+ */
+const DISCOVERY_SEARCH_EMPTY_TOKEN = 'DISCOVERY_SEARCH_EMPTY';
+
+/**
+ * Stable, machine-parseable prefix for the discovery-observability `discovery_tool_call` log
+ * line (spec 0-0-7, Requirement 12.2/12.3), emitted once per `tools/call` dispatch.
+ *
+ * @constant {string}
+ */
+const DISCOVERY_TOOL_CALL_EVENT = 'DISCOVERY_TOOL_CALL';
+
+/**
+ * Stable, machine-parseable prefix for the discovery-observability `discovery_manifest_degraded`
+ * log line (spec 0-0-7, Requirement 12.1; design section 13). Emitted by
+ * {@link logManifestDegraded}, called from the corpus-manifest degradation ladder once task
+ * 13.1 implements it; defined now so that task has a ready-made, tested injection point.
+ *
+ * @constant {string}
+ */
+const DISCOVERY_MANIFEST_DEGRADED_EVENT = 'DISCOVERY_MANIFEST_DEGRADED';
+
+/**
+ * Count query tokens for the `discovery_search` log event WITHOUT logging the tokens or the
+ * query text itself (Requirement 12.5 — never log query text alongside caller identity).
+ * A simple whitespace split is sufficient here: this is an observability count, not a
+ * retrieval-affecting tokenization (that remains `normalize.js`/`doc-index.js`).
+ *
+ * @param {string} query - Trimmed query string.
+ * @returns {number} Number of whitespace-separated tokens (`0` for an empty string).
+ * @example
+ * countQueryTokens('cache-data rotate key'); // => 3
+ */
+function countQueryTokens(query) {
+  if (typeof query !== 'string' || query.trim().length === 0) {
+    return 0;
+  }
+  return query.trim().split(/\s+/).length;
+}
+
+/**
+ * Derive the list of filters actually supplied on a `search_documentation` call, for the
+ * `filtersApplied` field of the `discovery_search` log event (Requirement 12.1). Covers
+ * `type`, `subType`, `ghusers`, and the `repository`/`repositoryType`/`namespace` filters
+ * added by task 12.1 (design 7.1).
+ *
+ * @param {Object} options - The filter options supplied to {@link search}.
+ * @param {string} [options.type] - Type filter, if supplied.
+ * @param {string} [options.subType] - SubType filter, if supplied.
+ * @param {Array<string>} [options.ghusers] - GitHub users/orgs filter, if supplied.
+ * @param {string} [options.repository] - Repository filter, if supplied.
+ * @param {string} [options.repositoryType] - RepositoryType filter, if supplied.
+ * @param {string} [options.namespace] - Namespace filter, if supplied.
+ * @returns {Array<string>} Names of the filters that were supplied, e.g. `['type', 'ghusers']`.
+ * @example
+ * filtersAppliedFrom({ type: 'documentation', ghusers: ['63klabs'] }); // => ['type', 'ghusers']
+ */
+function filtersAppliedFrom({ type, subType, ghusers, repository, repositoryType, namespace } = {}) {
+  const applied = [];
+  if (typeof type === 'string' && type.length > 0) {
+    applied.push('type');
+  }
+  if (typeof subType === 'string' && subType.length > 0) {
+    applied.push('subType');
+  }
+  if (Array.isArray(ghusers) && ghusers.length > 0) {
+    applied.push('ghusers');
+  }
+  if (typeof repository === 'string' && repository.length > 0) {
+    applied.push('repository');
+  }
+  if (typeof repositoryType === 'string' && repositoryType.length > 0) {
+    applied.push('repositoryType');
+  }
+  if (typeof namespace === 'string' && namespace.length > 0) {
+    applied.push('namespace');
+  }
+  return applied;
+}
+
+/**
+ * Best-effort label of the retrieval strategy used for a `search_documentation` call, for the
+ * `strategy` field of the `discovery_search` log event (Requirement 12.1).
+ *
+ * Mirrors the SAME decision inputs `selectStrategy` (`doc-ai-common` `retrieval-strategy.js`)
+ * uses to choose a primary strategy, without importing the layer or re-deriving its internal
+ * fallback bookkeeping: the AI feature flag, the configured `retrievalMode`, and whether the
+ * caller's tier qualifies. This is independent of whether a semantic call later degrades to
+ * keyword at runtime (e.g. an embedding failure) — that degrade path already has its own log
+ * line (`doc-ai-common` `FallbackRetrieval`); this label reports what was SELECTED, which is
+ * what an observability signal on "is `instructions` steering agents toward semantic search"
+ * needs.
+ *
+ * @param {Object} ai - The `documentation.ai` settings block.
+ * @param {string} tier - Resolved caller tier (defaults applied upstream).
+ * @returns {string} One of `'keyword'`, `'semantic'`, or `'semantic-assisted'`.
+ */
+function strategyLabelFor(ai, tier) {
+  if (!ai || ai.enabled !== true || ai.retrievalMode === 'keyword') {
+    return 'keyword';
+  }
+
+  const tierRankOrder = { public: 0, authenticated: 1, paid: 2, private: 3 };
+  const callerRank = tierRankOrder[tier] ?? 0;
+  const minRank = tierRankOrder[ai.minTier] ?? tierRankOrder.paid;
+  if (callerRank < minRank) {
+    return 'keyword';
+  }
+
+  return ai.retrievalMode === 'semantic-assisted' ? 'semantic-assisted' : 'semantic';
+}
+
+/**
+ * Emit the structured `discovery_search` observability log event (Requirement 12.1, 12.4,
+ * 12.5). Called once per `search_documentation` call, on both cache hit and cache miss, so
+ * the zero-result signal and the CloudWatch metric baseline (R12.6) reflect every call rather
+ * than only cache misses.
+ *
+ * Logs `tokenCount` (a count, never the query text or tokens) and never logs caller identity
+ * or any credential/PII alongside it (Requirement 12.5). Emitted at INFO so it is visible in
+ * PROD (consistent with `DOC_AI_USAGE`, which the maintainer also wants visible there).
+ *
+ * The line always carries the stable {@link DISCOVERY_SEARCH_EVENT} token; it ADDITIONALLY
+ * carries the literal {@link DISCOVERY_SEARCH_EMPTY_TOKEN} substring whenever `emptyResult` is
+ * `true`, per the `DiscoverySearchZeroResultMetricFilter` contract in `template.yml` (the
+ * read-function logs in TEXT format, so the filter matches a literal substring, not a JSON
+ * field).
+ *
+ * @param {Object} fields - Event fields.
+ * @param {number} fields.tokenCount - Query token count (not the tokens themselves).
+ * @param {Array<string>} fields.filtersApplied - Filter names supplied on the call.
+ * @param {number} fields.resultCount - Size of the matched result set.
+ * @param {string} fields.strategy - Retrieval strategy label (`keyword`/`semantic`/`semantic-assisted`).
+ * @param {boolean} fields.emptyResult - Whether the matched result set was empty.
+ * @param {?string} [fields.manifestTier] - Corpus-manifest degradation tier, when available
+ *   (task 13.1); `null` until that task populates it.
+ * @param {?string} [fields.manifestSource] - Corpus-manifest source, when available (task
+ *   11.1); `null` until that task populates it.
+ * @example
+ * logDiscoverySearch({
+ *   tokenCount: 2, filtersApplied: ['type'], resultCount: 0, strategy: 'keyword',
+ *   emptyResult: true, manifestTier: null, manifestSource: null
+ * });
+ */
+function logDiscoverySearch({
+  tokenCount,
+  filtersApplied,
+  resultCount,
+  strategy,
+  emptyResult,
+  manifestTier = null,
+  manifestSource = null
+}) {
+  try {
+    const payload = {
+      tokenCount,
+      filtersApplied: Array.isArray(filtersApplied) ? filtersApplied : [],
+      resultCount,
+      strategy,
+      emptyResult: emptyResult === true,
+      manifestTier,
+      manifestSource
+    };
+    // >! The literal DISCOVERY_SEARCH_EMPTY_TOKEN substring is appended to the line itself
+    // >! (not just the JSON field) so the TEXT-format log line stays filterable by a plain
+    // >! CloudWatch Logs metric filter substring match (see template.yml contract comment).
+    const emptySuffix = payload.emptyResult ? ` ${DISCOVERY_SEARCH_EMPTY_TOKEN}` : '';
+    DebugAndLog.info(`${DISCOVERY_SEARCH_EVENT} ${JSON.stringify(payload)}${emptySuffix}`);
+  } catch {
+    // >! Best-effort telemetry: swallow any logging error so it can never fail the request.
+  }
+}
+
+/**
+ * Emit the structured `discovery_tool_call` observability log event (Requirement 12.2, 12.3).
+ *
+ * Intended to be called once per `tools/call` dispatch from the shared JSON-RPC router
+ * injection point (`utils/json-rpc-router.js` `handleToolsCall`), NOT duplicated per
+ * controller, so tool-selection frequency and first-tool-in-session are derivable from one
+ * log line per call regardless of which tool was invoked.
+ *
+ * `firstInSession` is a per-container (per warm Lambda execution environment) signal, not a
+ * true per-client-session signal: the MCP server is stateless across requests, so "session"
+ * here means "the first tool call this container has observed since its last cold start" —
+ * an honest, documented limitation (design section 13) rather than a synthetic session id.
+ *
+ * @param {string} toolName - Invoked tool name.
+ * @param {boolean} firstInSession - Whether this is the first tool call this container has
+ *   observed since cold start.
+ * @example
+ * logDiscoveryToolCall('search_documentation', true);
+ */
+function logDiscoveryToolCall(toolName, firstInSession) {
+  try {
+    const payload = { toolName, firstInSession: firstInSession === true };
+    DebugAndLog.info(`${DISCOVERY_TOOL_CALL_EVENT} ${JSON.stringify(payload)}`);
+  } catch {
+    // >! Best-effort telemetry: swallow any logging error so it can never fail the request.
+  }
+}
+
+/**
+ * Emit the structured `discovery_manifest_degraded` observability log event (design section
+ * 13, Requirement 12.1). Defined and exported now so the corpus-manifest degradation ladder
+ * (task 13.1, not yet implemented) can call it directly without re-deriving the log shape;
+ * there is no existing degradation code path to call this from yet.
+ *
+ * @param {string} fromTier - Manifest tier degraded FROM (e.g. `'full'`).
+ * @param {string} toTier - Manifest tier degraded TO (e.g. `'compact'`).
+ * @param {string} reason - Short, non-sensitive reason for the degradation (e.g. `'budget-exceeded'`).
+ * @example
+ * logManifestDegraded('full', 'compact', 'budget-exceeded');
+ */
+function logManifestDegraded(fromTier, toTier, reason) {
+  try {
+    const payload = { fromTier, toTier, reason };
+    DebugAndLog.info(`${DISCOVERY_MANIFEST_DEGRADED_EVENT} ${JSON.stringify(payload)}`);
+  } catch {
+    // >! Best-effort telemetry: swallow any logging error so it can never fail the request.
+  }
+}
+
+/**
+ * Corpus-manifest degradation ladder tier names (spec 0-0-7, Requirement 8.8; design
+ * section 9.3). Ordered richest-to-leanest; {@link selectManifestTier} walks this order.
+ *
+ * - `full` — every repository with its complete recorded detail (name, owner,
+ *   repositoryType, namespace, sections, ref).
+ * - `compact` — name and repositoryType only, when `full` would exceed the byte budget.
+ * - `count` — a total count with `omitted: true`, when even `compact` would exceed the
+ *   budget.
+ *
+ * @constant {{FULL: string, COMPACT: string, COUNT: string}}
+ */
+const MANIFEST_TIER = {
+  FULL: 'full',
+  COMPACT: 'compact',
+  COUNT: 'count'
+};
+
+/**
+ * Build the `full` tier shape: every repository's complete recorded detail (design 9.3).
+ *
+ * @param {Array<Object>} repositories - Corpus manifest repositories from `models/corpus.js`.
+ * @returns {Array<{name: ?string, owner: ?string, repositoryType: ?string, namespace: ?string, sections: ?number, ref: ?string}>}
+ */
+function buildFullManifestEntries(repositories) {
+  return repositories.map((repo) => ({
+    name: repo?.name ?? null,
+    owner: repo?.owner ?? null,
+    repositoryType: repo?.repositoryType ?? null,
+    namespace: repo?.namespace ?? null,
+    sections: repo?.sections ?? null,
+    ref: repo?.ref ?? null
+  }));
+}
+
+/**
+ * Build the `compact` tier shape: repository name and repositoryType only (design 9.3).
+ *
+ * @param {Array<Object>} repositories - Corpus manifest repositories from `models/corpus.js`.
+ * @returns {Array<{name: ?string, repositoryType: ?string}>}
+ */
+function buildCompactManifestEntries(repositories) {
+  return repositories.map((repo) => ({
+    name: repo?.name ?? null,
+    repositoryType: repo?.repositoryType ?? null
+  }));
+}
+
+/**
+ * Build the `count` tier shape: a total count with an omitted-listing indication (design 9.3).
+ *
+ * @param {Array<Object>} repositories - Corpus manifest repositories from `models/corpus.js`.
+ * @returns {{repositoryCount: number, omitted: true}}
+ */
+function buildCountManifestSummary(repositories) {
+  return { repositoryCount: repositories.length, omitted: true };
+}
+
+/**
+ * Serialized byte length of a candidate `indexedRepositories` block, measured the same way
+ * as the overall response ({@link ContentSizer}), so budget comparisons are apples-to-apples.
+ *
+ * @param {Object} block - A candidate `indexedRepositories` block (any tier shape).
+ * @returns {number} UTF-8 byte length of the block's JSON serialization.
+ */
+function measureManifestBlockBytes(block) {
+  return ContentSizer.measure(JSON.stringify(block)).byteLength;
+}
+
+/**
+ * Select the richest corpus-manifest tier that fits within `maxBytes` (Requirement 8.7,
+ * 8.8; design 9.3). Degrades `full` -> `compact` -> `count`; when even `count` does not
+ * fit, returns `null` so the caller omits `indexedRepositories` entirely rather than
+ * violate the budget (Requirement 8.8's "indication that the listing was omitted" case).
+ *
+ * This selection is against the manifest's OWN byte budget (`MCP_CORPUS_MANIFEST_MAX_BYTES`,
+ * R8.7) and is independent of the overall response size threshold, which is checked
+ * separately and may force a further degrade (design 9.4, {@link selectManifestForResponse}).
+ *
+ * @param {Array<Object>} repositories - Corpus manifest repositories from `models/corpus.js`.
+ * @param {number} maxBytes - The manifest's own byte budget (`corpusManifestMaxBytes`).
+ * @returns {?{tier: string, block: Object}} The selected tier and its block, or `null` when
+ *   no tier fits.
+ */
+function selectManifestTier(repositories, maxBytes) {
+  const candidates = [
+    { tier: MANIFEST_TIER.FULL, entries: buildFullManifestEntries(repositories) },
+    { tier: MANIFEST_TIER.COMPACT, entries: buildCompactManifestEntries(repositories) }
+  ];
+
+  for (const candidate of candidates) {
+    const block = { tier: candidate.tier, repositories: candidate.entries };
+    if (measureManifestBlockBytes(block) <= maxBytes) {
+      return { tier: candidate.tier, block };
+    }
+  }
+
+  const countBlock = { tier: MANIFEST_TIER.COUNT, ...buildCountManifestSummary(repositories) };
+  if (measureManifestBlockBytes(countBlock) <= maxBytes) {
+    return { tier: MANIFEST_TIER.COUNT, block: countBlock };
+  }
+
+  return null;
+}
+
+/**
+ * Assemble the additive `indexedRepositories` response field with budget-aware degradation
+ * (Requirements 8.1, 8.2, 8.4, 8.7, 8.8, 8.9).
+ *
+ * Assembly order follows design section 9.4 exactly:
+ * 1. `results` (and the rest of `returnObject`) are already built by the caller — this
+ *    function never sees or touches them, so `indexedRepositories` can never cause a
+ *    caller's requested results to be truncated (R8.9).
+ * 2. Select the manifest tier that fits the manifest's own byte budget
+ *    (`corpusManifestMaxBytes`, R8.7/R8.8), degrading `full` -> `compact` -> `count`.
+ * 3. Measure that candidate manifest TOGETHER WITH the already-serialized rest of the
+ *    response against the response's overall size threshold ({@link ContentSizer}); if it
+ *    does not fit, degrade one more tier (and log via {@link logManifestDegraded}); if
+ *    `count` still does not fit, omit the manifest entirely rather than push the response
+ *    over the hard cap (R8.8's binding constraint).
+ *
+ * @param {Array<Object>} repositories - Corpus manifest repositories from `models/corpus.js`
+ *   (`getCorpusManifest()`'s `repositories` field; never `null` here — the caller omits the
+ *   whole field upstream when the manifest source is `'unavailable'`).
+ * @param {string} restOfResponseJson - JSON string of the response envelope WITHOUT
+ *   `indexedRepositories`, used to measure the total response size the manifest would be
+ *   added to (design 9.4 step 3).
+ * @returns {{tier: string, block: Object}|null} The selected tier and block to attach as
+ *   `indexedRepositories`, or `null` when no tier fits even after full degradation — the
+ *   caller omits the field entirely in that case (R8.8).
+ */
+function assembleIndexedRepositories(repositories, restOfResponseJson) {
+  const maxBytes = Config.settings().documentation.corpusManifestMaxBytes;
+  const budgetSelection = selectManifestTier(repositories, maxBytes);
+
+  if (!budgetSelection) {
+    // >! Even the `count` tier exceeds its OWN budget — nothing to attach. No degrade log
+    // >! here: there is no "from" tier that was ever a candidate for this response.
+    return null;
+  }
+
+  // >! Log the budget-driven degrade (R8.8): `full` is always the richest tier a non-empty
+  // >! corpus could have been served at, so any OTHER tier being selected here means the
+  // >! ladder stepped down against `corpusManifestMaxBytes` before the response-size check
+  // >! below ever runs.
+  if (budgetSelection.tier !== MANIFEST_TIER.FULL) {
+    const priorTier = budgetSelection.tier === MANIFEST_TIER.COMPACT ? MANIFEST_TIER.FULL : MANIFEST_TIER.COMPACT;
+    logManifestDegraded(priorTier, budgetSelection.tier, 'manifest-byte-budget-exceeded');
+  }
+
+  const restBytes = ContentSizer.measure(restOfResponseJson).byteLength;
+  const threshold = ContentSizer.DEFAULT_SIZE_THRESHOLD;
+
+  // >! Degrade (design 9.4 step 4): walk down from the budget-selected tier while the
+  // >! TOTAL (rest-of-response + manifest) would exceed the response's hard cap. `results`
+  // >! is part of `restOfResponseJson` and is never touched here (R8.9).
+  const ladder = [MANIFEST_TIER.FULL, MANIFEST_TIER.COMPACT, MANIFEST_TIER.COUNT];
+  let currentTier = budgetSelection.tier;
+  let currentBlock = budgetSelection.block;
+
+  while (ladder.indexOf(currentTier) !== -1) {
+    const manifestBytes = measureManifestBlockBytes(currentBlock);
+    if (restBytes + manifestBytes <= threshold) {
+      if (currentTier !== budgetSelection.tier) {
+        logManifestDegraded(budgetSelection.tier, currentTier, 'response-size-threshold-exceeded');
+      }
+      return { tier: currentTier, block: currentBlock };
+    }
+
+    const nextIndex = ladder.indexOf(currentTier) + 1;
+    if (nextIndex >= ladder.length) {
+      break;
+    }
+    const nextTier = ladder[nextIndex];
+    currentBlock = nextTier === MANIFEST_TIER.FULL
+      ? { tier: nextTier, repositories: buildFullManifestEntries(repositories) }
+      : nextTier === MANIFEST_TIER.COMPACT
+        ? { tier: nextTier, repositories: buildCompactManifestEntries(repositories) }
+        : { tier: nextTier, ...buildCountManifestSummary(repositories) };
+    currentTier = nextTier;
+  }
+
+  // >! Even `count` would push the TOTAL response over the hard cap: omit the manifest
+  // >! entirely rather than violate R8.8's binding constraint. Still log the degrade from
+  // >! whatever tier the budget selection chose, so the omission is observable.
+  if (budgetSelection.tier !== null) {
+    logManifestDegraded(budgetSelection.tier, 'omitted', 'response-size-threshold-exceeded');
+  }
+  return null;
+}
+
+/**
  * Result fields exposed as facets in `availableFilters`. These are exactly the fields the
  * `search_documentation` tool accepts as filters, so every facet value an agent sees is a
  * value it can pass straight back as a filter.
  *
+ * `repository` is kept distinct from the index-wide corpus manifest (design 9.3): this facet
+ * is computed over the matched result set only, while the corpus manifest lists every
+ * indexed repository regardless of what the query matched (spec 0-0-7, Requirement 5.5).
+ *
  * @constant {Array<string>}
  */
-const FACET_FIELDS = ['type', 'subType'];
+const FACET_FIELDS = ['type', 'subType', 'repository'];
 
 /**
  * Count the distinct values of one facet field across a result set.
@@ -98,24 +534,26 @@ function countFacetValues(results, field) {
 /**
  * Build the additive `availableFilters` facet block for a search result set.
  *
- * Lists the distinct `type` and `subType` values present with their counts so an agent can
- * see exactly what a follow-up query can be narrowed to (spec 0-0-6, Requirement 8.1).
- * Returns `undefined` when no facet value is present at all (no results, or results whose
- * `type`/`subType` are absent), which keeps the envelope byte-identical to the pre-facet
- * response in those cases — the field is additive and optional (Requirement 8.5).
+ * Lists the distinct `type`, `subType`, and `repository` values present with their counts so
+ * an agent can see exactly what a follow-up query can be narrowed to (spec 0-0-6, Requirement
+ * 8.1; `repository` added by spec 0-0-7, Requirement 5.5). Returns `undefined` when no facet
+ * value is present at all (no results, or results whose `type`/`subType`/`repository` are
+ * absent), which keeps the envelope byte-identical to the pre-facet response in those cases —
+ * the field is additive and optional (Requirement 8.5).
  *
  * Facets are computed over the results the retrieval path assembled for this request; a
  * field with no values is omitted rather than emitted as an empty array.
  *
  * @param {Array<Object>} results - Assembled search result objects.
- * @returns {?{type: Array<{value: string, count: number}>, subType: Array<{value: string, count: number}>}} Facet block, or `undefined` when there is nothing to report.
+ * @returns {?{type: Array<{value: string, count: number}>, subType: Array<{value: string, count: number}>, repository: Array<{value: string, count: number}>}} Facet block, or `undefined` when there is nothing to report.
  * @example
  * buildAvailableFilters([
- *   { type: 'documentation', subType: 'guide' },
- *   { type: 'documentation', subType: 'reference' }
+ *   { type: 'documentation', subType: 'guide', repository: 'cache-data' },
+ *   { type: 'documentation', subType: 'reference', repository: 'cache-data' }
  * ]);
  * // => { type: [{ value: 'documentation', count: 2 }],
- * //      subType: [{ value: 'guide', count: 1 }, { value: 'reference', count: 1 }] }
+ * //      subType: [{ value: 'guide', count: 1 }, { value: 'reference', count: 1 }],
+ * //      repository: [{ value: 'cache-data', count: 2 }] }
  */
 function buildAvailableFilters(results) {
   const list = Array.isArray(results) ? results : [];
@@ -325,18 +763,37 @@ function getDocAiComponents(ai) {
  * @param {string} [options.type] - Filter by type (documentation, template-pattern, code-example)
  * @param {string} [options.subType] - Filter by subType (guide, tutorial, reference, troubleshooting, function, resource)
  * @param {number} [options.limit=10] - Maximum results to return
- * @param {Array<string>} [options.ghusers] - Filter to specific GitHub users/orgs (optional, validated against settings)
+ * @param {Array<string>} [options.ghusers] - Filter to specific GitHub users/orgs (optional, validated against
+ *   settings). Also narrows RETURNED results to sections whose `owner` is in this set (design 7.2) — not just
+ *   which orgs are crawled.
+ * @param {string} [options.repository] - Filter to a specific repository name (optional).
+ * @param {string} [options.repositoryType] - Filter to a specific repository type (optional, enum over
+ *   `settings.github.validRepositoryTypes`).
+ * @param {string} [options.namespace] - Filter to a specific namespace (optional).
  * @param {Object} [options.authInfo] - Optional resolved auth context ({ tier, isAuthenticated, ... }).
  *   Threaded from the controller; the caller tier gates retrieval-strategy selection (task 8.4).
  *   When the AI feature is disabled or the tier is below the configured minimum, the keyword
  *   path is used and behaves byte-for-byte as before. Only the tier is used/logged; never PII.
- * @returns {Promise<Object>} { results: Array, totalResults: number, query: string, suggestions: Array, availableFilters: Object|undefined, errors: Array, partialData: boolean }
+ * @returns {Promise<Object>} { results: Array, totalResults: number, query: string, suggestions: Array, availableFilters: Object|undefined, indexedRepositories: Object|undefined, errors: Array, partialData: boolean }
  *
- * `availableFilters` is additive and optional: when the matched results carry `type`/`subType`
- * values it lists each distinct value with its count (e.g.
- * `{ type: [{ value: 'documentation', count: 22 }], subType: [ ... ] }`) so a follow-up query
- * can be narrowed; it is absent when there is nothing to report. When `totalResults` is large,
- * `suggestions` also gains a "narrow by type/subType" hint.
+ * `availableFilters` is additive and optional: when the matched results carry
+ * `type`/`subType`/`repository` values it lists each distinct value with its count (e.g.
+ * `{ type: [{ value: 'documentation', count: 22 }], subType: [ ... ], repository: [ ... ] }`)
+ * so a follow-up query can be narrowed; it is absent when there is nothing to report. The
+ * `repository` facet is computed over the matched set only and is distinct from the
+ * index-wide corpus manifest. When `totalResults` is large, `suggestions` also gains a
+ * "narrow by type/subType" hint.
+ *
+ * `indexedRepositories` (spec 0-0-7, Requirement 8) is present on every call, including
+ * zero-result ones, UNLESS the corpus manifest cannot be derived at all (`source ===
+ * 'unavailable'`) or even its leanest `count` tier would push the total response over the
+ * size threshold — in either case the field is omitted entirely rather than emitted empty.
+ * Shaped `{ tier: 'full'|'compact'|'count', repositories: Array<Object> }` for the `full`/
+ * `compact` tiers (richer-to-leaner: `full` carries name/owner/repositoryType/namespace/
+ * sections/ref; `compact` carries name/repositoryType only), or `{ tier: 'count',
+ * repositoryCount: number, omitted: true }` for the `count` tier. It lists every indexed
+ * repository regardless of what the query matched and is distinct from `availableFilters`;
+ * it never causes `results`/`totalResults` to be truncated.
  *
  * Each result object includes:
  * - title: string - Result title
@@ -379,7 +836,7 @@ function getDocAiComponents(ai) {
  * });
  */
 async function search(options = {}) {
-  const { query, type, subType, limit = 10, ghusers, authInfo } = options;
+  const { query, type, subType, limit = 10, ghusers, repository, repositoryType, namespace, authInfo } = options;
 
   if (!query || typeof query !== 'string' || query.trim().length === 0) {
     throw new Error('query is required and must be a non-empty string');
@@ -428,7 +885,13 @@ async function search(options = {}) {
     // >! vice versa. The former store segment is gone because S3 Vectors is the only
     // >! backend (spec 0-0-6, Requirement 7); stale keyed entries expire on the normal
     // >! TTL. Discriminator only; caching/TTLs are otherwise unchanged.
-    docAiMode: (ai.enabled === true) ? `${ai.retrievalMode}|${tier}` : 'keyword'
+    docAiMode: (ai.enabled === true) ? `${ai.retrievalMode}|${tier}` : 'keyword',
+    // >! Cache-key filters (task 12.2, R5.4/R13.4): `repository`/`repositoryType`/`namespace`
+    // >! are included as-is (plain strings or undefined, same treatment as `type`/`subType`)
+    // >! so a result set computed under one filter combination is never served for another.
+    repository,
+    repositoryType,
+    namespace
   };
 
   // >! Define fetch function for cache miss
@@ -445,11 +908,41 @@ async function search(options = {}) {
     // >! { results, totalResults, query, suggestions } shape UNCHANGED. This is both the
     // >! disabled-path search and the tier/error fallback for the semantic path, so keyword
     // >! behavior stays byte-for-byte the current search.
+    // >!
+    // >! `repository`/`repositoryType`/`namespace` are now also carried on
+    // >! `connection.parameters` (task 12.2) and read from there below, consistent with
+    // >! `type`/`subType`. `ghusers`' cache-key contribution is `conn.host` (see below), not
+    // >! `connection.parameters`, so it is still read from the outer `search()` closure.
+    // >!
+    // >! Cache-key completeness (task 12.2, R5.4/R13.4): `conn.host = usersOrgsToSearch`
+    // >! (set above) already varies the cache key by the resolved org list, because
+    // >! `CacheableDataAccess.getData()` hashes `{ data, connection, cachePolicy }` as a
+    // >! whole (`Cache.generateIdHash`, `dao-cache.js`) — i.e. the ENTIRE `connection`
+    // >! object, not just `connection.parameters`. A caller-supplied `ghusers` is validated
+    // >! and intersected against `settings.github.userOrgs` before being assigned to
+    // >! `conn.host`, so two different `ghusers` inputs that resolve to the same org set
+    // >! hash identically (correct: they would also return identical results), and two
+    // >! inputs that resolve to different org sets hash differently (correct: the `owner`
+    // >! push-down filter below would narrow results differently). No additional
+    // >! `ghusers`/`owner` entry is needed on `conn.parameters` for this reason.
+    // >!
+    // >! `ownerFilter` is the CALLER-SUPPLIED `ghusers` only — never the resolved
+    // >! `usersOrgsToSearch` default (which is every configured org when `ghusers` is
+    // >! omitted). Filtering results by the default list would narrow every unfiltered
+    // >! search to callers whose `owner` metadata happens to match a configured org string,
+    // >! which is a behavior change this task must not make (R5.6/R13.3 membership
+    // >! preservation when no new filter is supplied).
+    const ownerFilter = (Array.isArray(ghusers) && ghusers.length > 0) ? usersOrgsToSearch : undefined;
+
     const keywordSearchFn = async () => {
       const keywordResult = await Models.DocIndex.queryIndex({
         query: connection.parameters.query,
         type: connection.parameters.type,
         subType: connection.parameters.subType,
+        repository: connection.parameters.repository,
+        repositoryType: connection.parameters.repositoryType,
+        namespace: connection.parameters.namespace,
+        ghusers: ownerFilter,
         limit: connection.parameters.limit
       });
       return {
@@ -503,6 +996,13 @@ async function search(options = {}) {
       searchResult = await strategy.retrieve({
         query: connection.parameters.query,
         type: connection.parameters.type,
+        // >! spec 0-0-7-tool-discovery-enhancement, task 19.1 (Requirement 10.2): thread
+        // >! the repository/repositoryType/namespace filters through to the semantic path
+        // >! the same way they are already threaded to the keyword path above, so filter
+        // >! behavior does not depend on which retrieval strategy was selected.
+        repository: connection.parameters.repository,
+        repositoryType: connection.parameters.repositoryType,
+        namespace: connection.parameters.namespace,
         ghusers,
         topK: (limit || ai.topK),
         authInfo,
@@ -543,7 +1043,54 @@ async function search(options = {}) {
     {}, // options: for functions, tokens, non-cache data
   );
 
-  return cacheObj.getBody(true);
+  // >! Shallow-copy defensively: `getBody()` may return a reference into cache-data's
+  // >! internal cached state (shared across calls that hit the same cache entry), and the
+  // >! corpus manifest below is attached PER CALL (R8.1) rather than cached alongside the
+  // >! query result (R8.5 — it has its own independent, version-keyed cache). Mutating the
+  // >! cached object directly would leak one call's manifest attachment into another.
+  const body = { ...cacheObj.getBody(true) };
+
+  // >! Corpus manifest (Requirement 8.1, 8.2): assembled OUTSIDE the query cache (above),
+  // >! on every call including cache hits, because the manifest is cached independently of
+  // >! any individual query (R8.5) — once per index version via `models/corpus.js`'s own
+  // >! version-keyed cache, not once per `search_documentation` cache entry. This also keeps
+  // >! `results`/`totalResults`/etc. (already finalized in `body`) completely untouched by
+  // >! the manifest assembly below (R8.9).
+  const manifest = await Models.Corpus.getCorpusManifest(Config.settings().docIndexTable);
+
+  let manifestTier = null;
+  const manifestSource = manifest.source;
+
+  if (manifest.source !== Models.Corpus.MANIFEST_SOURCE.UNAVAILABLE && Array.isArray(manifest.repositories)) {
+    // >! Measure against the REST of the response (everything already in `body`) so the
+    // >! degradation ladder reacts to the response's actual total size, never to the
+    // >! manifest in isolation (design 9.4 step 3; R8.9).
+    const restOfResponseJson = JSON.stringify(body);
+    const selection = assembleIndexedRepositories(manifest.repositories, restOfResponseJson);
+
+    if (selection) {
+      body.indexedRepositories = selection.block;
+      manifestTier = selection.tier;
+    }
+    // >! selection === null: even the `count` tier would push the total response over the
+    // >! hard cap (R8.8) — omit `indexedRepositories` entirely rather than violate the cap.
+    // >! `manifestTier` stays `null` for the log line in that case.
+  }
+
+  // >! Discovery observability (Requirement 12.1, 12.4, 12.5): emitted on EVERY call,
+  // >! cache hit or miss, so the zero-result signal/metric baseline (R12.6) reflects actual
+  // >! caller-observed outcomes rather than only cache misses.
+  logDiscoverySearch({
+    tokenCount: countQueryTokens(conn.parameters.query),
+    filtersApplied: filtersAppliedFrom({ type, subType, ghusers, repository, repositoryType, namespace }),
+    resultCount: body?.totalResults ?? (body?.results ? body.results.length : 0),
+    strategy: strategyLabelFor(ai, tier),
+    emptyResult: (body?.totalResults ?? 0) === 0,
+    manifestTier,
+    manifestSource
+  });
+
+  return body;
 }
 
 /**
@@ -777,5 +1324,11 @@ class TestHarness {
 module.exports = {
   search,
   getDocument,
+  // >! Discovery observability (spec 0-0-7, task 4.1, Requirement 12.1). `logManifestDegraded`
+  // >! is exported so the corpus-manifest degradation ladder (task 13.1) can call it directly
+  // >! once it exists; the `discovery_search`/`discovery_tool_call` emitters are internal
+  // >! (exercised via DebugAndLog log-line assertions, matching the existing DOC_AI_USAGE
+  // >! test convention) and are not part of the service's public surface.
+  logManifestDegraded,
   TestHarness
 };

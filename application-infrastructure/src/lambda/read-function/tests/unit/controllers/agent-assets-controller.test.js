@@ -14,9 +14,9 @@
  * - Error handling (ASSET_NOT_FOUND, INVALID_INPUT, INTERNAL_ERROR)
  *
  * `config/agent-asset-types.js` has no AWS/cache-data dependency, so it is
- * used unmocked here: `skills` really is disabled and `steering`/`hooks`/
- * `agents-md` really are enabled, exercising the controller's real
- * defense-in-depth registry checks.
+ * used unmocked here: `steering`/`hooks`/`agents-md`/`skills` are all
+ * really enabled, exercising the controller's real defense-in-depth
+ * registry checks against an unknown (bogus) assetType.
  */
 
 // Mock dependencies before requiring controller
@@ -86,31 +86,11 @@ describe('Agent Assets Controller', () => {
       expect(result.success).toBe(false);
     });
 
-    test('should return INVALID_INPUT naming valid types for a disabled assetType (Req 7.8)', async () => {
+    test('should return INVALID_INPUT naming valid types for an unknown assetType, exercising the defense-in-depth re-check', async () => {
       // Arrange: schema validation "passes" (simulating a bypassed enum check),
-      // exercising the controller's own defense-in-depth re-check
-      const props = { bodyParameters: { input: { assetType: 'skills' } } };
-      SchemaValidator.validate.mockReturnValue({ valid: true });
-
-      // Act
-      const result = await AgentAssetsController.list(props);
-
-      // Assert
-      const expectedValidTypes = AgentAssetTypes.getEnabledTypeNames();
-      expect(expectedValidTypes).toEqual(['steering', 'hooks', 'agents-md']);
-      expect(MCPProtocol.errorResponse).toHaveBeenCalledWith(
-        'INVALID_INPUT',
-        expect.objectContaining({
-          message: expect.stringContaining(expectedValidTypes.join(', '))
-        }),
-        'list_agent_assets'
-      );
-      expect(Services.AgentAssets.list).not.toHaveBeenCalled();
-      expect(result.success).toBe(false);
-    });
-
-    test('should return INVALID_INPUT naming valid types for an unknown assetType', async () => {
-      // Arrange
+      // exercising the controller's own defense-in-depth re-check against the
+      // real registry (all four shipped types -- steering, hooks, agents-md,
+      // skills -- are enabled; see Requirements 11.6, 11.7, 11.9)
       const props = { bodyParameters: { input: { assetType: 'bogus' } } };
       SchemaValidator.validate.mockReturnValue({ valid: true });
 
@@ -118,10 +98,12 @@ describe('Agent Assets Controller', () => {
       const result = await AgentAssetsController.list(props);
 
       // Assert
+      const expectedValidTypes = AgentAssetTypes.getEnabledTypeNames();
+      expect(expectedValidTypes).toEqual(['steering', 'hooks', 'agents-md', 'skills']);
       expect(MCPProtocol.errorResponse).toHaveBeenCalledWith(
         'INVALID_INPUT',
         expect.objectContaining({
-          message: expect.stringContaining('steering, hooks, agents-md')
+          message: expect.stringContaining(expectedValidTypes.join(', '))
         }),
         'list_agent_assets'
       );
@@ -261,26 +243,6 @@ describe('Agent Assets Controller', () => {
     test('should return INVALID_INPUT naming valid types for an unknown assetType (Req 7.8)', async () => {
       // Arrange
       const props = { bodyParameters: { input: { assetType: 'bogus', name: 'x.md' } } };
-      SchemaValidator.validate.mockReturnValue({ valid: true });
-
-      // Act
-      const result = await AgentAssetsController.get(props);
-
-      // Assert
-      expect(MCPProtocol.errorResponse).toHaveBeenCalledWith(
-        'INVALID_INPUT',
-        expect.objectContaining({
-          message: expect.stringContaining('steering, hooks, agents-md')
-        }),
-        'get_agent_asset'
-      );
-      expect(Services.AgentAssets.get).not.toHaveBeenCalled();
-      expect(result.success).toBe(false);
-    });
-
-    test('should return INVALID_INPUT naming valid types for a disabled assetType', async () => {
-      // Arrange
-      const props = { bodyParameters: { input: { assetType: 'skills', name: 'x.md' } } };
       SchemaValidator.validate.mockReturnValue({ valid: true });
 
       // Act

@@ -387,7 +387,11 @@ Ask your AI: "What types of agent assets are available?"
 
 ## search_documentation
 
-Search Atlantis documentation, tutorials, and code patterns by keyword. Returns results with title, excerpt, file path, GitHub URL, and result type. Requires the `query` parameter. Returns an empty array if no documents match the query. All filters are optional: `type` and `subType` narrow the result set, and `ghusers` narrows to specific GitHub organizations.
+Search Atlantis documentation, tutorials, and code patterns by keyword. Returns results with title, excerpt, file path, GitHub URL, and result type. Requires the `query` parameter. Returns an empty array if no documents match the query. All filters are optional: `type` and `subType` narrow the result set; `ghusers` narrows to specific GitHub organizations; `repository`, `repositoryType`, and `namespace` narrow to a specific indexed repository.
+
+The indexed corpus is not limited to the `atlantis` repositories themselves — it also includes the Atlantis platform's companion packages, such as `@63klabs/cache-data` (commonly just called `cache-data`), even though that package name does not contain "atlantis". A question about caching, TTLs, or `CacheableDataAccess` is answered from this same tool; see [cache-data query guidance](#cache-data-query-guidance) below.
+
+> **Note:** `search_documentation` indexes extracted sections (headings, functions, parameters) from documentation, templates, and code files — it does not provide full-text code search over raw repository source. Use [`get_document`](#get_document) to retrieve a complete source file once you have a `filePath` or `hash` from a result.
 
 > **Tip:** On servers where it is enabled, eligible (paid/private) tiers receive results ranked by meaning rather than exact keywords — using the same tool and the same response shape. See [Semantic Documentation Search](semantic-search.md).
 
@@ -399,6 +403,11 @@ Search Atlantis documentation, tutorials, and code patterns by keyword. Returns 
 | `type` | string | No | Filter by result type: `documentation`, `template-pattern`, `code-example` |
 | `subType` | string | No | Filter by result subtype: `guide`, `function`, `parameter` |
 | `ghusers` | array[string] | No | Filter to specific GitHub users/orgs from configured list |
+| `repository` | string | No | Filter to a specific repository name (e.g. `cache-data`) |
+| `repositoryType` | string | No | Filter by repository type: `documentation`, `app-starter`, `templates`, `management`, `package`, `mcp` |
+| `namespace` | string | No | Filter to a specific namespace (S3 root prefix) |
+
+A filter value that matches no indexed section returns a successful response with an empty result set, not an error.
 
 ### Response Fields
 
@@ -406,7 +415,8 @@ Each result includes `title`, `excerpt`, `filePath`, `githubUrl`, `type`, `subTy
 
 The envelope also includes:
 
-- **`availableFilters`** (optional) — the distinct `type` and `subType` values present in the matched set, with counts, e.g. `{ "type": [{ "value": "documentation", "count": 22 }], "subType": [...] }`. Use these values directly as `type`/`subType` filters on a follow-up query. Absent when there is nothing to report (e.g. zero results).
+- **`availableFilters`** (optional) — the distinct `type`, `subType`, and `repository` values present in the matched set, with counts, e.g. `{ "type": [{ "value": "documentation", "count": 22 }], "repository": [{ "value": "cache-data", "count": 8 }] }`. Use these values directly as `type`/`subType`/`repository` filters on a follow-up query. Absent when there is nothing to report (e.g. zero results).
+- **`indexedRepositories`** — present on every response, including zero-result ones. Unlike `availableFilters`, this is not scoped to what your query matched; it names every repository in the index so you can discover repositories you didn't know existed, then filter on them. See [Discovering and filtering by repository](#discovering-and-filtering-by-repository) below.
 - **`suggestions`** — used for zero-result guidance as before, and also gains a "narrow the search with a type or subType filter" hint when the matched set is large, pointing you at `availableFilters`.
 
 ### Example Usage
@@ -426,6 +436,50 @@ Ask your AI: "Find code examples for Lambda functions"
 Ask your AI: "That search had too many results — narrow it to type template-pattern"
 ```
 
+**Filter to one repository:**
+```
+Ask your AI: "Search for 'ttl' but only in the cache-data repository"
+```
+
+### Discovering and filtering by repository
+
+`indexedRepositories` solves the bootstrap problem: you can't ask for a repository by name until you know it exists. Every `search_documentation` response — even one matching nothing — lists the repositories currently in the index, so a query that finds nothing still teaches you what you could have asked for instead.
+
+```json
+{
+  "results": [],
+  "totalResults": 0,
+  "indexedRepositories": {
+    "tier": "full",
+    "repositoryCount": 13,
+    "repositories": [
+      { "name": "cache-data", "owner": "63Klabs", "repositoryType": "package", "namespace": null, "sections": 412, "ref": "v1.3.17" },
+      { "name": "atlantis-sam-templates", "owner": "63Klabs", "repositoryType": "templates", "namespace": null, "sections": 88, "ref": "main" }
+    ]
+  }
+}
+```
+
+`indexedRepositories` degrades gracefully under a byte budget: a large corpus is served as a `compact` listing (`name`/`repositoryType` only) or, as a last resort, a `count` summary (`{ "tier": "count", "repositoryCount": 13, "omitted": true }`) rather than ever truncating your actual `results`.
+
+**Discover-then-filter example:**
+
+```
+Ask your AI: "Search for 'rotate the cache secret'"
+```
+
+Suppose this returns no matches, but the response's `indexedRepositories` lists a repository named `cache-data` with `repositoryType: "package"` that you hadn't heard of before. You can now narrow a follow-up query to it directly:
+
+```
+Ask your AI: "Search for 'rotate' but only in the cache-data repository"
+```
+
+which calls `search_documentation` with `{ "query": "rotate", "repository": "cache-data" }` and returns only sections from that repository.
+
+### cache-data query guidance
+
+The indexed corpus includes `@63klabs/cache-data` — the Atlantis platform's caching package — even though its name doesn't contain "atlantis". Terms like **caching**, **cache**, **TTL**, **DynamoDB cache**, **S3 cache**, **Lambda cache**, and **`CacheableDataAccess`** all reach `cache-data` documentation, in addition to querying by the package name itself (`cache-data` or `@63klabs/cache-data`). If a search about caching returns nothing useful, check `indexedRepositories` for a `package`-type repository and filter to it directly.
+
 ### Use Cases
 
 - Find implementation guidance
@@ -434,6 +488,8 @@ Ask your AI: "That search had too many results — narrow it to type template-pa
 - Learn best practices
 - Find CloudFormation resource patterns
 - Narrow a broad result set using the `availableFilters` values from a prior search
+- Discover a repository you didn't know existed from `indexedRepositories`, then filter a follow-up search to it
+- Find `@63klabs/cache-data` documentation using caching-related terms, without already knowing the package name
 
 ---
 

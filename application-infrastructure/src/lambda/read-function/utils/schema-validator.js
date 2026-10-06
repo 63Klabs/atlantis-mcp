@@ -7,9 +7,9 @@
  * @module schema-validator
  */
 
-const settings = require('../config/settings');
 const AgentAssetTypes = require('../config/agent-asset-types');
-const TEMPLATE_CATEGORIES = settings.templates.categories;
+const TEMPLATE_CATEGORIES = require('../config/template-categories');
+const VALID_REPOSITORY_TYPES = require('../config/repository-types');
 
 /**
  * JSON Schema definitions for all MCP tools built into the base tool set
@@ -228,7 +228,26 @@ const baseSchemas = {
           minLength: 1
         },
         minItems: 1,
-        description: 'Filter to specific GitHub users/orgs from configured list'
+        description: 'Filter to specific GitHub users/orgs from configured list. Also narrows results to sections whose owner is in this set.'
+      },
+      repository: {
+        type: 'string',
+        minLength: 1,
+        description: 'Filter to a specific repository name. Optional; omit to search all repositories.'
+      },
+      // >! Enum values must match `settings.github.validRepositoryTypes` (the
+      // >! `atlantis_repository-type` GitHub custom property values). A mismatched enum
+      // >! silently excludes every stored document from a filtered search.
+      repositoryType: {
+        type: 'string',
+        enum: VALID_REPOSITORY_TYPES,
+        description: 'Filter by repository type. Optional; omit to search all repository types.'
+      },
+      namespace: {
+        type: 'string',
+        pattern: '^[a-z0-9][a-z0-9-]*$',
+        maxLength: 63,
+        description: 'Filter to a specific namespace (S3 root prefix)'
       }
     },
     required: ['query'],
@@ -637,5 +656,11 @@ module.exports = {
   validate,
   getSchema,
   getToolNames,
-  schemas
+  schemas,
+  // >! The authoritative base schemas, keyed by tool name, for the literally
+  // >! declared tools (excludes the registry-generated agent-asset schemas,
+  // >! which `config/agent-asset-types.js` already generates independently).
+  // >! Published by `config/settings.js` so the advertised inputSchema and
+  // >! the enforced schema are the same object for every base tool (Req 3.1-3.4).
+  baseSchemas
 };

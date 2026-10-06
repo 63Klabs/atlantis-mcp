@@ -3,7 +3,9 @@
 const path = require('path');
 
 /**
- * Files excluded from indexing regardless of directory path.
+ * Files excluded from indexing regardless of directory path. This is the global default
+ * exclusion set; the per-repository-type policy matrix (see {@link EXCLUSION_POLICY} and
+ * {@link getExcludedFilesForType}) derives each type's actual exclusion set from this one.
  * @type {Set<string>}
  */
 const EXCLUDED_FILES = new Set([
@@ -14,6 +16,85 @@ const EXCLUDED_FILES = new Set([
 	'AGENTS.md',
 	'SECURITY.md'
 ]);
+
+/**
+ * File excluded from indexing for every repository type, unconditionally. `AGENTS.md` is
+ * served through the `agents-md` agent-asset channel, so indexing it would put the same
+ * guidance on two surfaces with different freshness (design 10.2). This exclusion is
+ * applied before the type-specific policy matrix below and cannot be overridden by any
+ * classification, including `absent`.
+ * @type {string}
+ */
+const ALWAYS_EXCLUDED_FILE = 'AGENTS.md';
+
+/**
+ * `EXCLUDED_FILES` minus `CHANGELOG.md`, used by the `package` classification so that
+ * version and migration questions can be answered from the changelog (design 10.2,
+ * Requirement 9.4).
+ * @type {Set<string>}
+ */
+const PACKAGE_EXCLUDED_FILES = new Set(
+	Array.from(EXCLUDED_FILES).filter((fileName) => fileName !== 'CHANGELOG.md')
+);
+
+/**
+ * Repository classifications recognized by the exclusion policy matrix (design 10.2),
+ * excluding `package` and `absent`, which have dedicated handling. Repository types
+ * outside this known set (as well as a missing/unrecognized `repositoryType`) fall back
+ * to the global default exclusion set, same as these.
+ * @type {Array<string>}
+ */
+const GLOBAL_POLICY_REPOSITORY_TYPES = ['documentation', 'templates', 'app-starter', 'mcp', 'management'];
+
+/**
+ * Per-repository-type file-exclusion policy matrix (design 10.2, Requirements 9.3, 9.4, 9.5).
+ *
+ * Each entry maps a `repositoryType` classification to the `EXCLUDED_FILES`-derived set
+ * that applies to it:
+ * - `package` — global exclusions minus `CHANGELOG.md`.
+ * - `documentation`, `templates`, `app-starter`, `mcp`, `management` — global exclusions.
+ * - `absent` — no filename-based exclusions at all (an empty set); directory and
+ *   extension/template-YAML rules still apply, since those are outside the scope of this
+ *   matrix (design 10.2 governs `EXCLUDED_FILES` specifically).
+ *
+ * `fetch-failed` is intentionally absent from this matrix: carry-forward resolution
+ * (design 10.3, task 16.2) happens before `isIndexable` is ever called, so by the time a
+ * `repositoryType` reaches this matrix it is already a resolved classification. As a
+ * last-resort safety net ahead of that work landing, an unrecognized value such as the
+ * literal string `'fetch-failed'` falls through to the global default below rather than
+ * throwing or silently excluding nothing.
+ *
+ * @type {Object<string, Set<string>>}
+ */
+const EXCLUSION_POLICY = {
+	package: PACKAGE_EXCLUDED_FILES,
+	absent: new Set()
+};
+for (const type of GLOBAL_POLICY_REPOSITORY_TYPES) {
+	EXCLUSION_POLICY[type] = EXCLUDED_FILES;
+}
+
+/**
+ * Resolve the `EXCLUDED_FILES`-derived set that applies to a given repository
+ * classification, per the policy matrix in design 10.2.
+ *
+ * `repositoryType` is treated as the global default (full `EXCLUDED_FILES`) whenever it is
+ * missing, `null`, `undefined`, or any value not present in {@link EXCLUSION_POLICY}.
+ * `absent` must be passed as the explicit string `'absent'` to receive the no-exclusions
+ * policy — it is never inferred from an omitted argument, so a caller that forgot to
+ * resolve/pass a type does not silently get every repository's files exempted from
+ * exclusion.
+ *
+ * @param {string} [repositoryType] - Resolved repository classification (e.g. `'package'`,
+ *   `'documentation'`, `'absent'`), or omitted/unrecognized for the global default
+ * @returns {Set<string>} The exclusion set to apply for `EXCLUDED_FILES` purposes
+ */
+function getExcludedFilesForType(repositoryType) {
+	if (repositoryType && EXCLUSION_POLICY[repositoryType]) {
+		return EXCLUSION_POLICY[repositoryType];
+	}
+	return EXCLUDED_FILES;
+}
 
 /**
  * Directory patterns excluded from indexing at any level in the tree.
@@ -84,15 +165,22 @@ function isInExcludedDirectory(filePath) {
 }
 
 /**
- * Determine whether a file should be indexed based on its path.
+ * Determine whether a file should be indexed based on its path and the repository's
+ * classification.
  *
  * Rules:
  * - File must not be inside an excluded directory (at any level)
  * - Extension must be one of: .md, .js, .jsx, .py, .yml, .yaml
  * - YAML files (.yml/.yaml) are only indexable when the filename matches template*.yml / template*.yaml
- * - Files in the EXCLUDED_FILES list are never indexable
+ * - `AGENTS.md` is never indexable, regardless of `repositoryType` (see {@link ALWAYS_EXCLUDED_FILE})
+ * - Otherwise, the file-exclusion policy matrix (design 10.2, Requirements 9.3, 9.4, 9.5;
+ *   see {@link EXCLUSION_POLICY} / {@link getExcludedFilesForType}) determines which
+ *   `EXCLUDED_FILES`-derived set applies for the given `repositoryType`
  *
  * @param {string} filePath - File path within the archive (e.g., "src/lib/utils.js")
+ * @param {string} [repositoryType] - Resolved repository classification (e.g. `'package'`,
+ *   `'documentation'`, `'absent'`). Omitted/unrecognized values fall back to the global
+ *   default exclusion set.
  * @returns {boolean} True if the file should be indexed
  * @example
  * isIndexable('README.md');                        // true
@@ -100,11 +188,15 @@ function isInExcludedDirectory(filePath) {
  * isIndexable('template.yml');                     // true
  * isIndexable('config.yml');                       // false (YAML but not template*)
  * isIndexable('LICENSE.md');                       // false (excluded file)
+ * isIndexable('CHANGELOG.md', 'package');          // true (package policy keeps CHANGELOG.md)
+ * isIndexable('CHANGELOG.md', 'documentation');     // false (global policy excludes it)
+ * isIndexable('LICENSE.md', 'absent');             // true (absent has no exclusions)
+ * isIndexable('AGENTS.md', 'absent');              // false (always excluded)
  * isIndexable('.github/workflows/ci.yml');         // false (excluded dir .*)
  * isIndexable('src/tests/unit/foo.test.js');       // false (excluded dir tests)
  * isIndexable('lib/node_modules/pkg/index.js');    // false (excluded dir node_modules)
  */
-function isIndexable(filePath) {
+function isIndexable(filePath, repositoryType) {
 	if (isInExcludedDirectory(filePath)) {
 		return false;
 	}
@@ -116,7 +208,11 @@ function isIndexable(filePath) {
 		return false;
 	}
 
-	if (EXCLUDED_FILES.has(fileName)) {
+	if (fileName === ALWAYS_EXCLUDED_FILE) {
+		return false;
+	}
+
+	if (getExcludedFilesForType(repositoryType).has(fileName)) {
 		return false;
 	}
 

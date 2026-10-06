@@ -7,6 +7,54 @@ const { Config } = require('../config');
 const { captureClient } = require('../utils/xray-capture');
 
 /**
+ * Default Lambda mount path for the `search-common` layer modules. In the Lambda runtime
+ * the layer is extracted to `/opt/nodejs`; tests override this via `SEARCH_COMMON_LAYER_PATH`
+ * to point at the local layer `nodejs/` directory so the real layer module loads without the
+ * runtime layer present. Mirrors the `doc-ai-common` layer's `DOC_AI_LAYER_PATH` precedent in
+ * `services/documentation.js`.
+ *
+ * @constant {string}
+ */
+const DEFAULT_SEARCH_COMMON_LAYER_PATH = '/opt/nodejs';
+
+/**
+ * Require a `search-common` layer module by base name.
+ *
+ * The read-function does NOT declare the layer as an npm dependency (it is provided at
+ * runtime by the attached Lambda Layer), so the layer's modules are loaded from the layer
+ * mount path via this helper rather than a package import. Isolating the require here keeps
+ * the layer-load target in one place and lets tests point `SEARCH_COMMON_LAYER_PATH` at the
+ * local layer directory.
+ *
+ * @param {string} name - Layer module base name (e.g. `'normalize'`).
+ * @returns {Object} The required layer module's exports.
+ * @throws {Error} When the module cannot be resolved — this is intentional: query-side
+ *   tokenization has no silent local fallback (R6.3, R6.6), so an unavailable layer module
+ *   fails the cold start rather than quietly reverting to a divergent local implementation.
+ * @example
+ * const { normalizeText } = loadLayerModule('normalize');
+ */
+function loadLayerModule(name) {
+	// >! Layer path from a fixed env var with a safe default; `name` is a first-party
+	// >! constant (never user input), so this is not a dynamic-require injection risk.
+	const base = process.env.SEARCH_COMMON_LAYER_PATH || DEFAULT_SEARCH_COMMON_LAYER_PATH;
+	return require(`${base}/${name}`);
+}
+
+/**
+ * The shared `normalize` module from the `search-common` layer, loaded once at cold start.
+ *
+ * Loaded eagerly (not lazily inside {@link extractQueryKeywords}) so a missing/misconfigured
+ * layer fails the Lambda's cold start immediately rather than surfacing on the first search
+ * request — "fail fast at cold start if the layer module is unavailable" (task 2.1). There is
+ * deliberately no try/catch here: a thrown error propagates and aborts module initialization,
+ * which is the intended behavior — no silent fallback to a local/legacy tokenization policy.
+ *
+ * @type {{normalizeTerm: Function, normalizeText: Function, STOP_WORDS: Set<string>, MIN_TOKEN_LENGTH: number, NORMALIZER_VERSION: string}}
+ */
+const SearchCommon = loadLayerModule('normalize');
+
+/**
  * Maximum keys per DynamoDB BatchGetItem request.
  * @type {number}
  */
@@ -58,6 +106,36 @@ const DOCUMENT_SK = 'content';
 const EXACT_PHRASE_BOOST = 20;
 
 /**
+ * Candidate-window multiplier applied to `limit` when NO filter is active.
+ *
+ * This is the SAME multiplier the pipeline has always used for the pre-filter candidate
+ * slice. It is kept as its own named constant (rather than inlined) so the unfiltered path
+ * stays byte-identical to pre-reorder behavior (R7.4, R5.6, design 8.3) regardless of future
+ * changes to {@link FILTERED_CANDIDATE_WINDOW_MULTIPLIER}.
+ *
+ * @type {number}
+ */
+const UNFILTERED_CANDIDATE_WINDOW_MULTIPLIER = 3;
+
+/**
+ * Candidate-window multiplier applied to `limit` when any filter
+ * (`type`/`subType`/`repository`/`repositoryType`/`namespace`/`ghusers`) is active.
+ *
+ * `repository`/`repositoryType`/`namespace` are not yet carried on `search:{keyword}`
+ * entries (design 7.3), so push-down is currently a no-op for those three and the
+ * authoritative post-fetch filter (plus the `ghusers`/`owner` filter) does the real
+ * narrowing. A window sized for the unfiltered case could therefore be exhausted by
+ * post-fetch filtering before reaching `limit` results, even when more matches exist
+ * deeper in the ranked list. This wider multiplier gives post-fetch filtering room to
+ * discard non-matching candidates while still surfacing up to `limit` results, and sets up
+ * the push-down path for `type`/`subType` (and any future carried field) to benefit
+ * immediately once applied to the full ranked array (design 8.3).
+ *
+ * @type {number}
+ */
+const FILTERED_CANDIDATE_WINDOW_MULTIPLIER = 10;
+
+/**
  * Documentation Index DAO
  *
  * Queries the persistent DynamoDB-backed documentation index built by the
@@ -105,15 +183,6 @@ function getDocClient() {
 function setDocClient(client) {
 	docClient = client;
 }
-
-/**
- * Common stop words filtered from search queries.
- * @type {Set<string>}
- */
-const STOP_WORDS = new Set([
-	'the', 'and', 'for', 'with', 'from', 'this', 'that',
-	'are', 'was', 'were', 'been', 'have', 'has', 'had'
-]);
 
 /**
  * Read the active version from the DynamoDB version pointer.
@@ -204,43 +273,52 @@ async function getMainIndex(tableName, version) {
 /**
  * Extract keywords from a query string.
  *
- * Lowercases, splits on whitespace, filters stop words and short tokens,
- * and deduplicates.
+ * Delegates to the shared `search-common` layer's `normalizeText` ({@link SearchCommon}) so
+ * query-side tokenization uses the SAME minimum token length and stop-word policy as index-side
+ * tokenization (R6.2, R6.3). This replaces a previous local implementation that filtered tokens
+ * of length <= 2 and a 14-entry stop-word list — stricter than the index side's
+ * `MIN_TOKEN_LENGTH = 2` and ~70-entry list — which made two-character partitions such as
+ * `search:s3` and `search:v2` unreachable from the query side and left several stop-worded
+ * index-side terms (e.g. `how`, `what`, `your`) issuing wasted reads against partitions that
+ * were never written (design.md "Baseline finding"). Query-time hyphen-component and
+ * suffix-reduced tokens are also picked up for free, since `normalizeText` derives the full
+ * token union rather than just the term as written.
  *
  * @param {string} query - Raw search query
- * @returns {Array<string>} Deduplicated keyword array
+ * @returns {Array<string>} Deduplicated keyword array, in first-appearance order
  */
 function extractQueryKeywords(query) {
-	if (!query || typeof query !== 'string') {
-		return [];
-	}
-
-	const words = query
-		.toLowerCase()
-		.replace(/[^a-z0-9\s-]/g, ' ')
-		.split(/\s+/)
-		.filter(w => w.length > 2 && !STOP_WORDS.has(w));
-
-	return [...new Set(words)];
+	return SearchCommon.normalizeText(query);
 }
 
 /**
- * Apply `type`/`subType` filter push-down to a ranked set of search-index candidates.
+ * Apply `type`/`subType`/`repository`/`repositoryType`/`namespace` filter push-down to a
+ * ranked set of search-index candidates.
  *
- * Uses the `type`/`subType` attributes carried on `search:{keyword}` entries to discard
+ * Uses whichever of these attributes are carried on `search:{keyword}` entries to discard
  * candidates that cannot satisfy the requested filter, so the metadata `BatchGetItem`
- * reads fewer items (R8.2).
+ * reads fewer items (R8.2, design 7.3). Today ONLY `type`/`subType` are written to
+ * `search:{keyword}` entries — `repository`/`repositoryType`/`namespace` are deliberately
+ * NOT added there (design 7.3: too expensive across millions of rows for a marginal read
+ * saving), so push-down for those three is a no-op in practice until a future indexing
+ * task carries them. The parameters exist now so this function already honors a carried
+ * value the moment one shows up, with no further change needed here.
  *
  * A candidate is discarded ONLY when its indexed value is known (non-null) and differs
- * from the requested value. Candidates indexed before `type`/`subType` were written to
- * search entries carry `null` and are always retained, leaving the authoritative
+ * from the requested value. Candidates with no indexed value for a given filter (either
+ * because the search entry predates that attribute being written, or because the
+ * attribute is never carried on search entries at all, as with `repository`/
+ * `repositoryType`/`namespace` today) are always retained, leaving the authoritative
  * post-fetch metadata filter to decide — so the returned membership is identical to the
- * post-fetch-only behavior (R8.5).
+ * post-fetch-only behavior (R8.5, R5.1).
  *
- * @param {Array<{hash: string, totalScore: number, type: (string|null), subType: (string|null)}>} candidates
+ * @param {Array<{hash: string, totalScore: number, type: (string|null), subType: (string|null), repository: (string|null|undefined), repositoryType: (string|null|undefined), namespace: (string|null|undefined)}>} candidates
  *   Ranked candidates from the search-keyword aggregation.
  * @param {string} [type] - Requested `type` filter, or falsy for no filter.
  * @param {string} [subType] - Requested `subType` filter, or falsy for no filter.
+ * @param {string} [repository] - Requested `repository` filter, or falsy for no filter.
+ * @param {string} [repositoryType] - Requested `repositoryType` filter, or falsy for no filter.
+ * @param {string} [namespace] - Requested `namespace` filter, or falsy for no filter.
  * @returns {Array<Object>} The retained candidates, in their original ranked order. The
  *   input array is returned unchanged when no filter is requested.
  * @example
@@ -250,16 +328,36 @@ function extractQueryKeywords(query) {
  * );
  * // kept = [{ hash: 'a', ... }, { hash: 'c', ... }]  ('c' is unknown, so it survives to the post-fetch filter)
  */
-function applyIndexedFilterPushDown(candidates, type, subType) {
-	if (!type && !subType) {
+function applyIndexedFilterPushDown(candidates, type, subType, repository, repositoryType, namespace) {
+	if (!type && !subType && !repository && !repositoryType && !namespace) {
 		return candidates;
 	}
 
+	/**
+	 * Discard the candidate only when the requested filter has a known, contradicting
+	 * value on the entry; an absent/unknown value is always retained.
+	 *
+	 * @param {*} entryValue - The candidate's indexed value for this field.
+	 * @param {*} requested - The requested filter value, or falsy for no filter.
+	 * @returns {boolean} `true` when the entry is known to contradict the requested filter.
+	 */
+	const contradicts = (entryValue, requested) =>
+		Boolean(requested) && entryValue !== null && entryValue !== undefined && entryValue !== requested;
+
 	return candidates.filter((entry) => {
-		if (type && entry.type !== null && entry.type !== undefined && entry.type !== type) {
+		if (contradicts(entry.type, type)) {
 			return false;
 		}
-		if (subType && entry.subType !== null && entry.subType !== undefined && entry.subType !== subType) {
+		if (contradicts(entry.subType, subType)) {
+			return false;
+		}
+		if (contradicts(entry.repository, repository)) {
+			return false;
+		}
+		if (contradicts(entry.repositoryType, repositoryType)) {
+			return false;
+		}
+		if (contradicts(entry.namespace, namespace)) {
 			return false;
 		}
 		return true;
@@ -347,6 +445,14 @@ function applyExactPhraseBoost(candidates, query) {
  * @param {string} options.query - Search query (keywords)
  * @param {string} [options.type] - Filter by type (documentation, template-pattern, code-example)
  * @param {string} [options.subType] - Filter by subType
+ * @param {string} [options.repository] - Filter by repository name
+ * @param {string} [options.repositoryType] - Filter by repository type
+ * @param {string} [options.namespace] - Filter by namespace
+ * @param {Array<string>} [options.ghusers] - Filter to sections whose `owner` metadata is
+ *   in this set. This is the SAME `ghusers` list `services/documentation.js` already uses
+ *   to restrict which orgs are crawled (`conn.host`) — passing it here ADDITIONALLY
+ *   narrows the RETURNED results by `owner`, so a validated, accepted `ghusers` value
+ *   actually takes effect on the result set rather than only on crawl scope (R5.3).
  * @param {number} [options.limit=10] - Maximum results
  * @returns {Promise<Object>} Search results with relevance ranking
  * @example
@@ -357,7 +463,7 @@ function applyExactPhraseBoost(candidates, query) {
  * });
  */
 async function queryIndex(options = {}) {
-	const { query, type, subType, limit = 10 } = options;
+	const { query, type, subType, repository, repositoryType, namespace, ghusers, limit = 10 } = options;
 	const settings = Config.settings();
 	const tableName = settings.docIndexTable;
 
@@ -420,20 +526,34 @@ async function queryIndex(options = {}) {
 							totalScore: 0,
 							typeWeight: item.typeWeight || 1.0,
 							// >! `type`/`subType` on search entries were added by spec 0-0-6 task 1.6.
-							// >! Entries written before that deploy have them absent; normalize to null
-							// >! so the push-down below can tell "known value" from "unknown".
+							// >! `repository`/`repositoryType`/`namespace` are NOT written to search
+							// >! entries at all today (design 7.3) — normalized to null here the same
+							// >! way so the push-down below always sees "unknown" for them and defers
+							// >! to the authoritative post-fetch filter.
 							type: (item.type === undefined || item.type === null) ? null : item.type,
-							subType: (item.subType === undefined || item.subType === null) ? null : item.subType
+							subType: (item.subType === undefined || item.subType === null) ? null : item.subType,
+							repository: (item.repository === undefined || item.repository === null) ? null : item.repository,
+							repositoryType: (item.repositoryType === undefined || item.repositoryType === null) ? null : item.repositoryType,
+							namespace: (item.namespace === undefined || item.namespace === null) ? null : item.namespace
 						};
 					} else {
 						// >! A hash can appear under several keywords. Adopt the first known
-						// >! type/subType so a legacy (null) entry does not mask a populated one.
+						// >! value for each field so a legacy (null) entry does not mask a populated one.
 						const known = scoresByHash[hash];
 						if (known.type === null && item.type !== undefined && item.type !== null) {
 							known.type = item.type;
 						}
 						if (known.subType === null && item.subType !== undefined && item.subType !== null) {
 							known.subType = item.subType;
+						}
+						if (known.repository === null && item.repository !== undefined && item.repository !== null) {
+							known.repository = item.repository;
+						}
+						if (known.repositoryType === null && item.repositoryType !== undefined && item.repositoryType !== null) {
+							known.repositoryType = item.repositoryType;
+						}
+						if (known.namespace === null && item.namespace !== undefined && item.namespace !== null) {
+							known.namespace = item.namespace;
 						}
 					}
 					scoresByHash[hash].totalScore += (item.relevanceScore || 0);
@@ -448,17 +568,36 @@ async function queryIndex(options = {}) {
 	let ranked = Object.values(scoresByHash)
 		.sort((a, b) => b.totalScore - a.totalScore);
 
-	// >! Select the top slice BEFORE filtering, exactly as the pre-push-down code did, so the
-	// >! candidate window (and therefore the returned membership) is unchanged (R8.5).
-	const fetchLimit = Math.min(ranked.length, limit * 3);
-	const topHashes = ranked.slice(0, fetchLimit);
+	// >! Filter push-down (R8.2, R5.1) is now applied to the FULL ranked array, BEFORE the
+	// >! candidate-window slice (design 8.3 reorder) — previously push-down ran AFTER the
+	// >! slice, so a candidate whose indexed value contradicted the filter could still
+	// >! occupy a window slot that a later-ranked, filter-satisfying candidate never
+	// >! reached. Running push-down first means every slot in the window below is one
+	// >! push-down has already confirmed is not a KNOWN contradiction, so the window is
+	// >! spent only on candidates that still have a chance to survive the authoritative
+	// >! post-fetch filter. `applyIndexedFilterPushDown` returns `candidates` UNCHANGED
+	// >! (same array, same order) when no filter argument is truthy, so this reorder is a
+	// >! no-op for the identical input in the unfiltered case (R7.4, R5.6).
+	// >! `repository`/`repositoryType`/`namespace` are not yet carried on search entries
+	// >! (design 7.3), so push-down is currently a no-op for those three — the post-fetch
+	// >! filter does the real narrowing until a future indexing task adds them.
+	const pushedDown = applyIndexedFilterPushDown(ranked, type, subType, repository, repositoryType, namespace);
 
-	// >! Filter push-down (R8.2): drop candidates whose indexed type/subType already
-	// >! contradicts the requested filter, so the metadata BatchGetItem reads fewer items.
-	// >! Candidates with an unknown (null) type/subType are retained and settled by the
-	// >! authoritative post-fetch filter below, keeping membership identical to the
-	// >! post-fetch-only behavior for indexes written before task 1.6 (R8.5).
-	const candidates = applyIndexedFilterPushDown(topHashes, type, subType);
+	// >! Candidate window: a filter (including `ghusers`/`owner`, which push-down cannot
+	// >! see since it is not carried on search entries at all) is settled only at the
+	// >! authoritative post-fetch stage below, which will discard part of this window. A
+	// >! wider multiplier compensates so filtered queries can still reach `limit` results
+	// >! (design 8.3). The unfiltered case keeps the EXACT pre-reorder multiplier and is
+	// >! applied to the SAME (unchanged) ranked array at the same conceptual pipeline
+	// >! position, so the returned set and order are byte-identical to pre-reorder
+	// >! behavior (R7.4, R5.6, R13.3).
+	const isFilterActive = Boolean(type || subType || repository || repositoryType || namespace)
+		|| (Array.isArray(ghusers) && ghusers.length > 0);
+	const windowMultiplier = isFilterActive
+		? FILTERED_CANDIDATE_WINDOW_MULTIPLIER
+		: UNFILTERED_CANDIDATE_WINDOW_MULTIPLIER;
+	const fetchLimit = Math.min(pushedDown.length, limit * windowMultiplier);
+	const candidates = pushedDown.slice(0, fetchLimit);
 
 	// >! Batched metadata read (BatchGetItem, chunked at 100) instead of one GetItem per
 	// >! hash, so read cost/latency scale sub-linearly with result count (R1.1).
@@ -478,16 +617,38 @@ async function queryIndex(options = {}) {
 		}
 	}
 
-	// >! Authoritative type/subType filter. Push-down above only removes candidates whose
-	// >! indexed type/subType is KNOWN to mismatch; this pass settles candidates whose search
-	// >! entries predate task 1.6 (type/subType absent), so membership is identical to the
-	// >! original post-fetch-only filtering (R8.5).
+	// >! Authoritative type/subType/repository/repositoryType/namespace filter. Push-down
+	// >! above only removes candidates whose indexed value is KNOWN to mismatch; this pass
+	// >! settles every candidate against the actual content metadata, so membership is
+	// >! identical to post-fetch-only filtering regardless of what (if anything) was carried
+	// >! on the search entry (R8.5, R5.1). A filter supplied against a field missing from a
+	// >! given metadata item (e.g. a legacy entry with no `repository` attribute) never
+	// >! matches — consistent with how a missing type/subType is treated.
 	let filtered = metadataResults;
 	if (type) {
 		filtered = filtered.filter(item => item.type === type);
 	}
 	if (subType) {
 		filtered = filtered.filter(item => item.subType === subType);
+	}
+	if (repository) {
+		filtered = filtered.filter(item => item.repository === repository);
+	}
+	if (repositoryType) {
+		filtered = filtered.filter(item => item.repositoryType === repositoryType);
+	}
+	if (namespace) {
+		filtered = filtered.filter(item => item.namespace === namespace);
+	}
+
+	// >! `owner` filter (R5.3, design 7.2): `ghusers`, when supplied, is honored as an
+	// >! ACTUAL results-narrowing filter here, in addition to the EXISTING crawl-scope
+	// >! restriction `services/documentation.js` applies via `conn.host`/
+	// >! `usersOrgsToSearch`. A missing `owner` attribute never matches, same treatment as
+	// >! the other metadata filters above.
+	if (Array.isArray(ghusers) && ghusers.length > 0) {
+		const ownerSet = new Set(ghusers);
+		filtered = filtered.filter(item => item.owner && ownerSet.has(item.owner));
 	}
 
 	// >! Query-time exact-phrase boost (R9.1, R9.2). Runs over the already-fetched candidates
@@ -790,7 +951,7 @@ class TestHarness {
 	 * Get access to internal helpers for testing purposes.
 	 * WARNING: This method is for testing only and should never be used in production.
 	 *
-	 * @returns {{applyIndexedFilterPushDown: typeof applyIndexedFilterPushDown, applyExactPhraseBoost: typeof applyExactPhraseBoost, normalizeForPhraseMatch: typeof normalizeForPhraseMatch, EXACT_PHRASE_BOOST: number}} Internal helpers
+	 * @returns {{applyIndexedFilterPushDown: typeof applyIndexedFilterPushDown, applyExactPhraseBoost: typeof applyExactPhraseBoost, normalizeForPhraseMatch: typeof normalizeForPhraseMatch, EXACT_PHRASE_BOOST: number, extractQueryKeywords: typeof extractQueryKeywords, SearchCommon: Object, UNFILTERED_CANDIDATE_WINDOW_MULTIPLIER: number, FILTERED_CANDIDATE_WINDOW_MULTIPLIER: number}} Internal helpers
 	 * @private
 	 * @example
 	 * // In tests only - DO NOT use in production
@@ -802,7 +963,11 @@ class TestHarness {
 			applyIndexedFilterPushDown,
 			applyExactPhraseBoost,
 			normalizeForPhraseMatch,
-			EXACT_PHRASE_BOOST
+			EXACT_PHRASE_BOOST,
+			extractQueryKeywords,
+			SearchCommon,
+			UNFILTERED_CANDIDATE_WINDOW_MULTIPLIER,
+			FILTERED_CANDIDATE_WINDOW_MULTIPLIER
 		};
 	}
 }
@@ -815,6 +980,7 @@ module.exports = {
 	batchGetMetadata,
 	getSectionMetadata,
 	getDocumentByFileHash,
+	getDocClient,
 	setDocClient,
 	TestHarness
 };

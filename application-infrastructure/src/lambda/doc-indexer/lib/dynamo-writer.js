@@ -375,6 +375,67 @@ async function writeMainIndex(tableName, version, indexEntries) {
 }
 
 /**
+ * Write the corpus manifest item for an index build (spec 0-0-7, Requirements 8.3, 8.5).
+ *
+ * Single item per build: pk=`corpus:{version}`, sk=`manifest`. This is the source of truth
+ * the Read Function's `models/corpus.js` reads (via a single `GetItem`) to populate the
+ * `indexedRepositories` response field (design.md section 9.1), independent of what any
+ * individual query matched. It is also the carry-forward source for a future build's
+ * `fetch-failed` resolution (design.md section 10.3) — `resolution` is persisted
+ * specifically so a later build can distinguish a repository that was genuinely `absent`
+ * from one that merely failed to resolve this time.
+ *
+ * Carries the same 7-day TTL as the other versioned index items (design.md "Corpus
+ * manifest item" data model) — the item is immutable for the life of its index version, and
+ * a new build produces a new `corpus:{version}` key rather than overwriting this one.
+ *
+ * Each repository entry is normalized to the full shape `{ name, owner, repositoryType,
+ * resolution, namespace, sections, ref }` with `null`/`0` defaults for any field the caller
+ * omits, so a partial input (e.g. a test fixture) never produces an item with missing keys.
+ *
+ * @param {string} tableName - DynamoDB table name
+ * @param {string} version - Index version identifier (e.g., "20250715T060000")
+ * @param {Array<Object>} repositories - Per-repository manifest entries with name, owner,
+ *   repositoryType, resolution, namespace, sections, ref
+ * @returns {Promise<void>}
+ * @throws {Error} When the DynamoDB write fails
+ * @example
+ * await writeCorpusManifest('my-table', '20250715T060000', [{
+ *   name: 'cache-data',
+ *   owner: '63klabs',
+ *   repositoryType: 'package',
+ *   resolution: 'resolved',
+ *   namespace: null,
+ *   sections: 412,
+ *   ref: 'v1.3.17'
+ * }]);
+ */
+async function writeCorpusManifest(tableName, version, repositories) {
+	const ttl = computeTtl();
+	const client = getDocClient();
+
+	const normalizedRepositories = (repositories || []).map((repo) => ({
+		name: repo.name ?? null,
+		owner: repo.owner ?? null,
+		repositoryType: repo.repositoryType ?? null,
+		resolution: repo.resolution ?? null,
+		namespace: repo.namespace ?? null,
+		sections: repo.sections ?? 0,
+		ref: repo.ref ?? null
+	}));
+
+	const item = {
+		pk: `corpus:${version}`,
+		sk: 'manifest',
+		version,
+		repositories: normalizedRepositories,
+		ttl
+	};
+
+	await client.send(new PutCommand({ TableName: tableName, Item: item }));
+}
+
+/**
  * Update the version pointer to point to the new active index version.
  *
  * When `embeddingMeta` is provided (only after the index-time embedding phase actually
@@ -451,6 +512,7 @@ module.exports = {
 	writeDocumentEntries,
 	writeSearchKeywords,
 	writeMainIndex,
+	writeCorpusManifest,
 	updateVersionPointer,
 	setTtlOnPreviousVersion,
 	// Exposed for testing
