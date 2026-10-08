@@ -231,9 +231,9 @@ function getTypeByName(name) {
  * type is currently enabled.
  *
  * Used by the controller and service as defense-in-depth beyond the schema
- * `enum` check: an unknown `assetType`, or one that names a disabled entry
- * such as `skills`, resolves to `null` so callers can reject the request
- * with a validation error naming the valid types (Requirements 5.5, 7.8).
+ * `enum` check: an unknown `assetType` or one that names a disabled entry
+ * resolves to `null` so callers can reject the request with a validation
+ * error naming the valid types (Requirements 5.5, 7.8).
  *
  * @param {string} assetType - The `assetType` value supplied by a caller
  * @returns {AgentAssetType|null} The enabled entry, or `null` when `assetType` is unknown or names a disabled entry
