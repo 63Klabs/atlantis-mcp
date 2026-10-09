@@ -81,7 +81,7 @@ describe('Architecture: Instructions Composition (Task 2.1)', () => {
       expect(relativePaths).toEqual(['utils/mcp-protocol.js']);
     });
     
-    it('utils/mcp-protocol.js calls buildInstructions() exactly twice (initializeResponse and getCapabilities)', () => {
+    it('utils/mcp-protocol.js calls buildInstructions() exactly once (in getCapabilities, shared by every carrier)', () => {
       const mcpProtocolPath = path.join(lambdaRoot, 'utils/mcp-protocol.js');
       const content = fs.readFileSync(mcpProtocolPath, 'utf8');
       
@@ -189,8 +189,8 @@ describe('Architecture: Instructions Composition (Task 2.1)', () => {
       // >! Call buildInstructions directly
       const directResult = buildInstructions();
       
-      // >! Call through initializeResponse
-      const initResponse = MCPProtocol.initializeResponse('test-id');
+      // >! Call through initializeResult
+      const initResponse = MCPProtocol.initializeResult('test-id');
       const initInstructions = initResponse.result.instructions;
       
       // >! Call through getCapabilities
@@ -217,7 +217,7 @@ describe('Architecture: Instructions Composition (Task 2.1)', () => {
       expect(content).toMatch(/getCapabilities\(/);
       
       // >! Verify the actual runtime result matches what we expect
-      const result = MCPProtocol.initializeResponse('test');
+      const result = MCPProtocol.initializeResult('test');
       expect(result.result.instructions).toContain('Atlantis');
       expect(result.result.instructions).toContain('cache-data');
     });

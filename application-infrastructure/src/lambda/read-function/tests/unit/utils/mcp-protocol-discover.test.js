@@ -11,7 +11,7 @@
 const {
   discoverResult,
   getCapabilities,
-  initializeResponse,
+  initializeResult,
   ALLOWED_REVISIONS,
   SERVER_NAME,
   SERVER_VERSION
@@ -135,45 +135,45 @@ describe('discoverResult', () => {
 // Consistency Tests (Requirement 5.4, 15.4)
 // ---------------------------------------------------------------
 describe('discoverResult consistency with other formatters', () => {
-  it('supportedVersions matches what initializeResponse would negotiate from', () => {
+  it('supportedVersions matches what initializeResult would negotiate from', () => {
     const discoverResponse = discoverResult('test-1');
     const caps = getCapabilities();
 
     // discoverResult exposes the full supportedVersions array
     expect(discoverResponse.result.supportedVersions).toEqual(caps.supportedVersions);
 
-    // initializeResponse uses one of these versions
-    const initResponse = initializeResponse('test-2');
+    // initializeResult uses one of these versions
+    const initResponse = initializeResult('test-2');
     const negotiatedVersion = initResponse.result.protocolVersion;
 
     expect(discoverResponse.result.supportedVersions).toContain(negotiatedVersion);
   });
 
-  it('capabilities are identical between discoverResult and initializeResponse', () => {
+  it('capabilities are identical between discoverResult and initializeResult', () => {
     const discoverResponse = discoverResult('test-3');
-    const initResponse = initializeResponse('test-4');
+    const initResponse = initializeResult('test-4');
 
     expect(discoverResponse.result.capabilities).toEqual(initResponse.result.capabilities);
   });
 
-  it('instructions are identical between discoverResult and initializeResponse', () => {
+  it('instructions are identical between discoverResult and initializeResult', () => {
     const discoverResponse = discoverResult('test-5');
-    const initResponse = initializeResponse('test-6');
+    const initResponse = initializeResult('test-6');
 
     expect(discoverResponse.result.instructions).toBe(initResponse.result.instructions);
   });
 
-  it('serverInfo version matches between discoverResult._meta and initializeResponse.result', () => {
+  it('serverInfo version matches between discoverResult._meta and initializeResult.result', () => {
     const discoverResponse = discoverResult('test-7');
-    const initResponse = initializeResponse('test-8');
+    const initResponse = initializeResult('test-8');
 
     expect(discoverResponse.result._meta['io.modelcontextprotocol/serverInfo'].version)
       .toBe(initResponse.result.serverInfo.version);
   });
 
-  it('serverInfo name matches between discoverResult._meta and initializeResponse.result', () => {
+  it('serverInfo name matches between discoverResult._meta and initializeResult.result', () => {
     const discoverResponse = discoverResult('test-9');
-    const initResponse = initializeResponse('test-10');
+    const initResponse = initializeResult('test-10');
 
     expect(discoverResponse.result._meta['io.modelcontextprotocol/serverInfo'].name)
       .toBe(initResponse.result.serverInfo.name);
@@ -195,17 +195,17 @@ describe('discoverResult consistency with other formatters', () => {
 // Modern-Era Specific Requirements
 // ---------------------------------------------------------------
 describe('discoverResult modern-era requirements', () => {
-  it('includes resultType field that initializeResponse does not have', () => {
+  it('includes resultType field that initializeResult does not have', () => {
     const discoverResponse = discoverResult('modern-1');
-    const initResponse = initializeResponse('modern-2');
+    const initResponse = initializeResult('modern-2');
 
     expect(discoverResponse.result.resultType).toBe('complete');
     expect(initResponse.result).not.toHaveProperty('resultType');
   });
 
-  it('includes _meta field that initializeResponse does not have', () => {
+  it('includes _meta field that initializeResult does not have', () => {
     const discoverResponse = discoverResult('modern-3');
-    const initResponse = initializeResponse('modern-4');
+    const initResponse = initializeResult('modern-4');
 
     expect(discoverResponse.result._meta).toBeDefined();
     expect(initResponse.result).not.toHaveProperty('_meta');

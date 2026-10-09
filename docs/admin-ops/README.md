@@ -3,6 +3,7 @@
 > Documentation for individuals with engineering, operations, and/or technical knowledge in charge of configuring and deploying the initial environment. They may also be responsible for supporting the application’s architecture and infrastructure as it interacts with other applications and services. They ensure the application is efficient, cost-optimized, and observable. They maintain the underlying platform if necessary (VPCs, OS, Firewalls).
 
 - [Deployment](./deployment/README.md)
+- [CORS and Response Headers](./cors-and-response-headers.md)
 - [Example CloudWatch Insights Queries](./cloudwatch-insights-queries.json)
 - [Documentation Indexer](./documentation-indexer.md)
 - [User Management](./user-management.md)

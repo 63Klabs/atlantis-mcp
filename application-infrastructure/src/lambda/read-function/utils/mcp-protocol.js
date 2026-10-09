@@ -232,40 +232,10 @@ function initializeResult(id, { declaredRevision } = {}) {
 }
 
 /**
- * Create a JSON-RPC 2.0 initialize response with server info and capabilities.
- *
- * @deprecated Use initializeResult(id, { declaredRevision }) instead. This function
- * is kept for backward compatibility with existing tests during the Phase 3-4 rollout
- * and will be removed in Phase 5 (task 19.1).
- *
- * @param {string|number|null} id - Request id
- * @returns {Object} JSON-RPC 2.0 response with serverInfo, capabilities, protocolVersion
- */
-function initializeResponse(id) {
-  return initializeResult(id);
-}
-
-/**
- * Create a JSON-RPC 2.0 tools/list response
- *
- * BACKWARD COMPATIBILITY SHIM (Phase 3-4)
- * This thin wrapper calls toolsListResult() with legacy era for existing tests.
- * Will be removed in Phase 5 (task 19.1) once all call sites use toolsListResult().
- *
- * @deprecated Use toolsListResult() instead
- * @param {string|number|null} id - Request id
- * @param {Array<Object>} tools - Array of tool definitions
- * @returns {Object} JSON-RPC 2.0 response with tools array in result
- */
-function toolsListResponse(id, tools) {
-  return toolsListResult(id, { era: 'legacy', catalog: tools });
-}
-
-/**
  * Create an era-aware JSON-RPC 2.0 tools/list response.
  *
- * Legacy era (2024-11-05): Returns simple `{ tools }` payload
- * Modern era (2025-11-25+): Returns `CacheableResult` envelope with:
+ * Legacy era (2024-11-05, 2025-11-25): Returns simple `{ tools }` payload
+ * Modern era (2026-07-28+): Returns `CacheableResult` envelope with:
  *   - tools: Array of tool definitions
  *   - ttlMs: Advisory cache TTL
  *   - cacheScope: 'server' (tools are server-scoped)
@@ -649,9 +619,7 @@ module.exports = {
   jsonRpcSuccess,
   jsonRpcError,
   initializeResult,
-  initializeResponse,  // Backward compatibility shim (Phase 3-4), removed in Phase 5
   toolsListResult,
-  toolsListResponse,   // Backward compatibility shim (Phase 3-4), removed in Phase 5
   toolsCallResult,
   discoverResult,
 

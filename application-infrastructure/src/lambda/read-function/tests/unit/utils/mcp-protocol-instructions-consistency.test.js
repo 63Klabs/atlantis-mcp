@@ -2,7 +2,7 @@
  * Unit Tests for Cross-Era Instructions Consistency
  *
  * Tests that the `instructions` field is byte-identical across protocol eras.
- * This ensures the legacy carrier (initializeResponse) and the modern carrier
+ * This ensures the legacy carrier (initializeResult) and the modern carrier
  * (future discoverResult) both serve the exact same instructions string from
  * the shared source (buildInstructions()).
  *
@@ -13,16 +13,16 @@
 process.env.PARAM_STORE_PATH = process.env.PARAM_STORE_PATH || '/test/';
 
 const { buildInstructions } = require('../../../config/server-instructions');
-const { initializeResponse } = require('../../../utils/mcp-protocol');
+const { initializeResult } = require('../../../utils/mcp-protocol');
 
 describe('Cross-Era Instructions Consistency', () => {
-  describe('initializeResponse instructions carrier', () => {
+  describe('initializeResult instructions carrier', () => {
     test('should return byte-identical instructions to buildInstructions()', () => {
       // Get the instructions string directly from the shared source
       const directInstructions = buildInstructions();
 
       // Get the instructions from the legacy initialize carrier
-      const initResult = initializeResponse('test-id-1');
+      const initResult = initializeResult('test-id-1');
       const carriedInstructions = initResult.result.instructions;
 
       // Assert byte-identical equality (Requirements 1.1, 15.3)
@@ -30,7 +30,7 @@ describe('Cross-Era Instructions Consistency', () => {
     });
 
     test('instructions field should be non-empty string', () => {
-      const initResult = initializeResponse('test-id-2');
+      const initResult = initializeResult('test-id-2');
       const instructions = initResult.result.instructions;
 
       expect(typeof instructions).toBe('string');
@@ -38,10 +38,10 @@ describe('Cross-Era Instructions Consistency', () => {
     });
 
     test('instructions should be consistent across multiple calls', () => {
-      // Call initializeResponse multiple times
-      const result1 = initializeResponse('call-1');
-      const result2 = initializeResponse('call-2');
-      const result3 = initializeResponse('call-3');
+      // Call initializeResult multiple times
+      const result1 = initializeResult('call-1');
+      const result2 = initializeResult('call-2');
+      const result3 = initializeResult('call-3');
 
       // All should return the same instructions
       expect(result1.result.instructions).toBe(result2.result.instructions);
@@ -49,17 +49,17 @@ describe('Cross-Era Instructions Consistency', () => {
     });
 
     test('instructions should match buildInstructions() with no options', () => {
-      // buildInstructions() with no arguments should match initializeResponse
+      // buildInstructions() with no arguments should match initializeResult
       const directInstructions = buildInstructions();
-      const initInstructions = initializeResponse('test-id-4').result.instructions;
+      const initInstructions = initializeResult('test-id-4').result.instructions;
 
       expect(initInstructions).toBe(directInstructions);
     });
 
     test('instructions should match buildInstructions() with empty options', () => {
-      // buildInstructions({}) should match initializeResponse
+      // buildInstructions({}) should match initializeResult
       const directInstructions = buildInstructions({});
-      const initInstructions = initializeResponse('test-id-5').result.instructions;
+      const initInstructions = initializeResult('test-id-5').result.instructions;
 
       expect(initInstructions).toBe(directInstructions);
     });
@@ -67,10 +67,10 @@ describe('Cross-Era Instructions Consistency', () => {
 
   describe('Single source of truth validation', () => {
     test('buildInstructions should be the only place instructions are composed', () => {
-      // This test validates that initializeResponse doesn't construct
+      // This test validates that initializeResult doesn't construct
       // instructions inline but calls buildInstructions()
       const source = buildInstructions();
-      const carrier = initializeResponse('test-id-6').result.instructions;
+      const carrier = initializeResult('test-id-6').result.instructions;
 
       // If these are byte-identical, the carrier must be calling the source
       expect(carrier).toBe(source);
@@ -83,7 +83,7 @@ describe('Cross-Era Instructions Consistency', () => {
 
     test('instructions string should not be empty in any carrier', () => {
       const directInstructions = buildInstructions();
-      const carriedInstructions = initializeResponse('test-id-7').result.instructions;
+      const carriedInstructions = initializeResult('test-id-7').result.instructions;
 
       expect(directInstructions.trim()).not.toBe('');
       expect(carriedInstructions.trim()).not.toBe('');
@@ -100,7 +100,7 @@ describe('Cross-Era Instructions Consistency', () => {
       // assertion will be added for discoverResult() once it exists.
       
       const instructions = buildInstructions();
-      const legacyInstructions = initializeResponse('test-id-8').result.instructions;
+      const legacyInstructions = initializeResult('test-id-8').result.instructions;
 
       // Legacy carrier validation (current)
       expect(legacyInstructions).toBe(instructions);
@@ -114,7 +114,7 @@ describe('Cross-Era Instructions Consistency', () => {
 
   describe('Instructions content validation', () => {
     test('instructions should contain expected platform references', () => {
-      const instructions = initializeResponse('test-id-9').result.instructions;
+      const instructions = initializeResult('test-id-9').result.instructions;
 
       // Validate that instructions mention the Atlantis platform
       // (content is owned by server-instructions.js but we verify it's present)
@@ -123,7 +123,7 @@ describe('Cross-Era Instructions Consistency', () => {
     });
 
     test('instructions should be a single string, not an array or object', () => {
-      const instructions = initializeResponse('test-id-10').result.instructions;
+      const instructions = initializeResult('test-id-10').result.instructions;
 
       expect(typeof instructions).toBe('string');
       expect(Array.isArray(instructions)).toBe(false);

@@ -125,7 +125,11 @@ describe('Feature: use-client-request-and-response-classes', () => {
       return fc.assert(
         fc.asyncProperty(
           fc.integer({ min: 100, max: 599 }),
-          fc.jsonValue().filter(v => !Object.is(v, -0)),
+          // Normalize through JSON so a -0 at ANY depth becomes +0. fc.jsonValue() can emit a
+          // nested -0; JSON.stringify writes it as "0", so the parsed body would not toEqual the
+          // original (toEqual distinguishes +0 from -0). Filtering only the top-level value
+          // left this property failing roughly 1 run in 100.
+          fc.jsonValue().map(v => JSON.parse(JSON.stringify(v))),
           fc.dictionary(
             fc.stringMatching(/^X-[A-Za-z0-9-]+$/),
             fc.string({ minLength: 1, maxLength: 50 })

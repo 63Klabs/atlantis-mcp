@@ -270,29 +270,32 @@ Tasks are rooted at `application-infrastructure/`. Unit tests go under `src/lamb
     - Deploy to dev; call `tools/list` with `_meta['io.modelcontextprotocol/protocolVersion']: '2025-11-25'` and separately with `'2026-07-28'`; verify every tool with a registry entry carries `title` and `annotations` on both responses
     - Call `tools/list` with `'2024-11-05'`; verify no tool carries those fields (Requirement 13.2)
     - _Requirements: 13.1, 13.2, 13.3, 13.4_
+    - ⏳ **Open: needs a deployment.** The same assertions run in-process via `tests/integration/mcp-protocol-tools-list-fields.test.js` (title/annotations present on `2025-11-25` and `2026-07-28`, absent on `2024-11-05` and when no revision is declared, none empty, identical tool order across revisions). Re-run them against the deployed stack. Note: the revision must be declared with the `MCP-Protocol-Version` header or `params._meta`; a bare `tools/list` after `initialize` gets baseline fields only because the server keeps no session.
 
   - [ ] 18.2 Hand-verify Kiro against the deployed `beta` stage
     - Point Kiro at the deployed `beta` MCP endpoint; confirm `initialize` succeeds; `tools/list` returns the full tool catalog; `list_templates` returns a usable result
     - Capture a request/response log trace in the admin-ops documentation (task 20.3)
     - _Requirements: 15.12_
+    - ⏳ **Open: needs a human and a deployment.** Cannot be done from this environment. Worth checking while you do it: which `MCP-Protocol-Version` header value Kiro sends on requests after `initialize`. If it is a revision the server does not list (for example `2025-06-18`), the request now returns `-32022`; see the Changed entry in `CHANGELOG.md`.
 
-- [ ] 19. Clean up transition shims (Phase 5)
+- [x] 19. Clean up transition shims (Phase 5)
 
-  - [ ] 19.1 Remove the backward-compatibility `initializeResponse(id)` and `toolsListResponse(id, tools)` exports
+  - [x] 19.1 Remove the backward-compatibility `initializeResponse(id)` and `toolsListResponse(id, tools)` exports
     - Both were kept during Phases 3 and 4 to minimize churn in existing tests. By this point every call site reads `initializeResult()` / `toolsListResult()`; remove the thin shims and update the three remaining test imports
     - _Requirements: 3.1_
 
-  - [ ] 19.2 Verify no caller references the shim names
+  - [x] 19.2 Verify no caller references the shim names
     - Grep `src/lambda/read-function/` for `initializeResponse` and `toolsListResponse`; should return no matches outside of this task's commit
     - _Requirements: 3.1_
+    - ✅ **Completed**: The only remaining match is a local variable named `initializeResponse` in `tests/integration/mcp-protocol-discover.test.js`, which holds the result of `initializeResult()` and is not the removed export. While updating call sites, the stale era labels in the `toolsListResult` docblock and `config/server-instructions.js` header were corrected. A pre-existing flaky property test (`client-request-response.property.test.js`, nested `-0` from `fc.jsonValue()`) was also fixed; it failed about 1 run in 100 independent of this work.
 
 - [ ] 20. Documentation (Phase 5)
 
-  - [ ] 20.1 Add `ARCHITECTURE.md` section "MCP protocol dual-era support"
+  - [x] 20.1 Add `ARCHITECTURE.md` section "MCP protocol dual-era support"
     - Describe the era discriminator with the Requirement 4 decision table; the shared capability and negotiation sources; the per-request path from inbound method to resolved era to formatted response; the fact that era is stateless and purely response-shaping
     - _Requirements: 14.1_
 
-  - [ ] 20.2 Add `docs/developer/mcp-protocol-sources.md`
+  - [x] 20.2 Add `docs/developer/mcp-protocol-sources.md`
     - Name the three single-source-of-truth files: `config/release-version.js` (generated), `config/server-instructions.js` (shared with discovery spec), and `utils/mcp-protocol.js`'s `SUPPORTED_PROTOCOL_VERSIONS` / `SERVER_NAME`
     - Record the legacy-revision-selection decision: both `2024-11-05` and `2025-11-25` advertised, rationale as in design section 12
     - _Requirements: 14.2, 14.6_
@@ -304,14 +307,16 @@ Tasks are rooted at `application-infrastructure/`. Unit tests go under `src/lamb
     - Record the hand-verification coverage limitation: Kiro only, other three clients cross-referenced to their public docs
     - Attach the Phase 5 Kiro trace from task 18.2
     - _Requirements: 14.3, 14.6_
+    - ⏳ **Written; one item open.** The page is complete and covers every bullet above except the Kiro trace, which depends on task 18.2 (a real deployment). The page states plainly that only Kiro was available and that a real Claude Code / ChatGPT / Cursor connection has not been performed. It also corrects the design's origin rationale: the `Cors` stanza covers `/mcp/auth/*` too, so the recorded reasoning explains why a wildcard origin is acceptable for the JWT-protected auth routes as well, not just the read-only MCP route.
 
-  - [ ] 20.4 Add `docs/end-user/supported-protocol-revisions.md`
+  - [x] 20.4 Add `docs/end-user/supported-protocol-revisions.md`
     - Name all three advertised revisions and the dual-era posture; note that `Mcp-Param-*` / `x-mcp-header` support is not implemented
     - _Requirements: 14.4, 14.7_
 
-  - [ ] 20.5 Update `CHANGELOG.md` v0.0.7 unreleased entry
+  - [x] 20.5 Update `CHANGELOG.md` v0.0.7 unreleased entry
     - Append the "MCP Protocol Dual-Era Support" entry under `### Added` as specified in the design document's "Changes to version-tracked artifacts" section; preserves the existing discovery-spec entry
     - _Requirements: 14.5_
+    - ✅ **Completed**: 19 lines added, 0 removed. Entries sit under `### Added`, plus new `### Changed` and `### Fixed` categories. The `-32022`-for-unlisted-header change is recorded under **Changed** as a behavior change; recategorize it under **Breaking Changes** if you consider it one.
 
 - [ ] 21. Final verification
   - Run the full Jest suite with zero failing tests
@@ -319,6 +324,12 @@ Tasks are rooted at `application-infrastructure/`. Unit tests go under `src/lamb
   - Deploy to `beta`; run the Phase 5 hand-verification against Kiro
   - Confirm all documentation deliverables from task 20 are committed
   - _Requirements: 15.11, 15.12, 16.1_
+  - **Status (partial):**
+    - ✅ Full Jest suite: 2091 passing, 0 failing. The 115 skipped tests are in 6 suites that need real AWS/GitHub access and were skipped before this spec began.
+    - ✅ Single-source-of-truth tests pass (release version, instructions, supported versions, server name).
+    - ✅ ESLint clean on every source file edited by this spec.
+    - ⏳ Deploy to `beta` and the Kiro hand-verification (tasks 13, 17, 18.1, 18.2) are not done; they need a deployment.
+    - ⏳ Nothing is committed. All Phase 1-5 work since commit `67483b3` is uncommitted in the working tree.
 
 ## Task Dependency Graph
 

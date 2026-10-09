@@ -41,11 +41,11 @@ describe('MCP Protocol Release Version', () => {
       expect(capabilities.serverInfo.version).toBe(releaseVersionModule.releaseVersion);
     });
 
-    test('should use release version in initializeResponse', () => {
+    test('should use release version in initializeResult', () => {
       const releaseVersionModule = require('../../../config/release-version.js');
       const mcpProtocol = require('../../../utils/mcp-protocol');
       
-      const initResponse = mcpProtocol.initializeResponse('test-id');
+      const initResponse = mcpProtocol.initializeResult('test-id');
       
       expect(initResponse.result.serverInfo.version).toBe(releaseVersionModule.releaseVersion);
     });
@@ -106,7 +106,7 @@ describe('MCP Protocol Release Version', () => {
       const mcpProtocol = require('../../../utils/mcp-protocol');
       
       const capabilities = mcpProtocol.getCapabilities();
-      const initResponse = mcpProtocol.initializeResponse('test-id');
+      const initResponse = mcpProtocol.initializeResult('test-id');
       
       expect(capabilities.serverInfo.version).toBe(initResponse.result.serverInfo.version);
     });

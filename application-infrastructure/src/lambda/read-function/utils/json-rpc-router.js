@@ -174,7 +174,7 @@ function extractId(rawId) {
  * 7. Dispatch by `method`:
  *    - `initialize`        → server capabilities via `initializeResult`
  *    - `server/discover`   → modern discovery via `discoverResult`
- *    - `tools/list`        → tool definitions via `toolsListResponse`
+ *    - `tools/list`        → tool definitions via `toolsListResult`
  *    - `tools/call`        → delegate to the matching controller
  *    - anything else       → `-32601` Method not found
  * 8. Wrap every response with `Content-Type: application/json`.

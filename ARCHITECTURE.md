@@ -392,6 +392,87 @@ services/documentation.js  (selects full/compact/count tier against the byte bud
                               re-checked against the overall response size threshold)
 ```
 
+## MCP Protocol Dual-Era Support
+
+The Read Lambda serves two families of MCP protocol revisions from the single `POST /mcp/v1` endpoint:
+
+- **Legacy era** (`2024-11-05`, `2025-11-25`): a client opens with an `initialize` request and the server answers with an `InitializeResult`.
+- **Modern era** (`2026-07-28`): the `initialize` handshake is gone. A client declares the revision on every request and may probe the server with `server/discover`.
+
+Era is a **per-request response-shaping decision**. The Lambda holds no state between requests in either era (no session ID, no SSE stream, no server-initiated requests), so there is no session to scope the decision to. See the [developer guide](docs/developer/mcp-protocol-sources.md) for where each constant lives, the [admin-ops guide](docs/admin-ops/cors-and-response-headers.md) for CORS and header ownership, and the [end-user guide](docs/end-user/supported-protocol-revisions.md) for what a client sees.
+
+### Request path
+
+```
+POST /mcp/v1 body + headers
+  │
+  ▼
+utils/json-rpc-router.js  handleJsonRpc()
+  │  parse body → validate JSON-RPC envelope
+  │
+  ├─ utils/mcp-era.js  resolveEra(method, body, headers)
+  │     → { era: 'legacy' | 'modern', declaredRevision }
+  │
+  ├─ era === 'modern'  → validateHeadersForModern()      -32020 HeaderMismatch on disagreement
+  │
+  ├─ declaredRevision present → negotiateProtocol()       -32022 UnsupportedProtocolVersion if unlisted
+  │
+  ▼
+switch (method)
+  ├─ initialize        → initializeResult()   legacy envelope
+  ├─ server/discover   → discoverResult()     modern envelope
+  ├─ tools/list        → toolsListResult()    envelope chosen by era
+  └─ tools/call        → toolsCallResult()    envelope chosen by era
+```
+
+All envelope shaping lives in the formatters in `utils/mcp-protocol.js`. Controllers return data and never construct a protocol envelope.
+
+### Era resolution
+
+`resolveEra()` reads the declared revision from the `MCP-Protocol-Version` header, then from `params._meta["io.modelcontextprotocol/protocolVersion"]` (a top-level `_meta` is also accepted). The header wins if both are present. A blank value counts as not declared.
+
+| Condition | Era | Notes |
+|-----------|-----|-------|
+| `method` is `initialize` | legacy | The revision comes from `params.protocolVersion`; see the counter-offer rule below |
+| `method` is `server/discover` | modern | Always answered, even if the declared revision is unlisted |
+| Declared revision is in the modern list | modern | |
+| Declared revision is in the legacy list | legacy | |
+| Declared revision is in neither list | modern | Rejected with `-32022` before dispatch |
+| Nothing declared, any other method | legacy | A legacy client sends `initialize` once and nothing afterward, so silence means legacy |
+
+### Version negotiation
+
+- **Header or `_meta` declaration.** `negotiateProtocol()` checks it against `SUPPORTED_PROTOCOL_VERSIONS`. An unlisted value returns `-32022` with `data.declaredRevision` (what the client sent) and `data.supportedVersions`. This applies to every method, `initialize` included, except `server/discover`, which is always answered.
+- **`initialize` handshake.** `params.protocolVersion` is never rejected. A supported revision is echoed back. Otherwise the server offers the highest legacy revision that is not newer than the one requested, or the highest legacy revision when the request is newer than everything supported. A client on an in-between revision is therefore offered one it is likely to understand, and clients that worked before this release keep working.
+
+### What differs between the eras
+
+| Method | Legacy | Modern |
+|--------|--------|--------|
+| `initialize` | `protocolVersion`, `capabilities`, `serverInfo`, `instructions` | Not used |
+| `server/discover` | Always answered in the modern shape, regardless of era | `supportedVersions`, `capabilities`, `instructions`, `resultType`, `_meta` |
+| `tools/list` | `{ tools }` | `tools`, `ttlMs`, `cacheScope`, `resultType`, `_meta` |
+| `tools/call` | `{ content }` | `content`, `resultType`, `_meta` |
+
+Modern results carry `resultType: "complete"` and the server identity under `_meta["io.modelcontextprotocol/serverInfo"]`. Legacy results carry neither. `ttlMs` (10 minutes) is advisory for the client; the Lambda does not cache `tools/list` itself.
+
+`Tool.title` and `Tool.annotations` are emitted by `tools/list` only when the declared revision is `2025-11-25` or `2026-07-28`. A request that declares no revision, or `2024-11-05`, receives the baseline fields only.
+
+### Shared sources
+
+| Value | Defined in | Read by |
+|-------|-----------|---------|
+| Supported, legacy, and modern revision lists | `utils/mcp-protocol.js` | `getCapabilities()`, `negotiateProtocol()`, `utils/mcp-era.js` |
+| Server name and version | `utils/mcp-protocol.js` (`SERVER_NAME`, `SERVER_VERSION`) | Every formatter, through `getCapabilities()` |
+| `instructions` string | `config/server-instructions.js` | `getCapabilities()` only |
+| Release version | `config/release-version.js` (generated at build) | `SERVER_VERSION` |
+
+`getCapabilities()` is the one function that assembles `supportedVersions`, `capabilities`, `serverInfo`, and `instructions`. Both `initializeResult()` and `discoverResult()` read from it, so the two eras cannot diverge. Tests assert each value has a single definition.
+
+### Advertising a revision
+
+A revision is added to `SUPPORTED_PROTOCOL_VERSIONS` only once every field it requires is implemented and tested. A legacy client cannot fall forward from a half-implemented advertisement, so partial support is worse than none. `mcp-era.js` may *recognize* a revision (route it to an era) before it is advertised.
+
 ## Authentication and Access Tiers
 
 The application implements a four-tier access model. Authentication is opt-in: requests without an API key are served at the public tier.
