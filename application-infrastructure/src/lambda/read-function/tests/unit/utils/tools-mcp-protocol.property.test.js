@@ -41,13 +41,12 @@ describe('Feature: add-tools-endpoint-which-lists-available-tools, Property 2: M
     );
   });
 
-  test('getCapabilities().tools returns exactly settings.tools.availableToolsList (reference identity)', () => {
+  test('MCP_TOOLS constant returns exactly settings.tools.availableToolsList (reference identity)', () => {
     fc.assert(
       fc.property(
         fc.constant(null),
         () => {
-          const capabilities = MCPProtocol.getCapabilities();
-          expect(capabilities.tools).toBe(availableToolsList);
+          expect(MCPProtocol.MCP_TOOLS).toBe(availableToolsList);
         }
       ),
       { numRuns: 100 }

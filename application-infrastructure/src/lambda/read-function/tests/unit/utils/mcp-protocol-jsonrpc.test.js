@@ -14,6 +14,7 @@ const {
   jsonRpcSuccess,
   jsonRpcError,
   initializeResponse,
+  initializeResult,
   toolsListResponse
 } = require('../../../utils/mcp-protocol');
 
@@ -143,13 +144,14 @@ describe('initializeResponse', () => {
     expect(response.id).toBe('init-1');
   });
 
-  it('contains serverInfo with name and version sourced from package.json', () => {
+  it('contains serverInfo with name and version sourced from config/release-version.js', () => {
     const response = initializeResponse('init-2');
-    const { version } = require('../../../package.json');
+    // Version comes from config/release-version.js (generated at build time)
+    const { releaseVersion } = require('../../../config/release-version.js');
 
     expect(response.result.serverInfo).toEqual({
       name: 'atlantis-mcp-server',
-      version
+      version: releaseVersion
     });
   });
 
@@ -161,10 +163,12 @@ describe('initializeResponse', () => {
     });
   });
 
-  it('contains protocolVersion', () => {
+  it('contains protocolVersion (defaults to highest supported legacy revision)', () => {
     const response = initializeResponse('init-4');
 
-    expect(response.result.protocolVersion).toBe('2024-11-05');
+    // When no declaredRevision is provided, returns highest supported legacy revision
+    // Phase 3: LEGACY_REVISIONS = ['2024-11-05', '2025-11-25']
+    expect(response.result.protocolVersion).toBe('2025-11-25');
   });
 
   it('result has exactly four keys: protocolVersion, capabilities, serverInfo, instructions', () => {
@@ -191,6 +195,91 @@ describe('initializeResponse', () => {
 
     expect(response.id).toBeNull();
     expect(response.result.serverInfo.name).toBe('atlantis-mcp-server');
+  });
+});
+
+// ---------------------------------------------------------------
+// initializeResult (new Phase 3 formatter with declaredRevision support)
+// ---------------------------------------------------------------
+describe('initializeResult', () => {
+  it('returns JSON-RPC 2.0 envelope with correct id', () => {
+    const response = initializeResult('init-result-1');
+
+    expect(response.jsonrpc).toBe('2.0');
+    expect(response.id).toBe('init-result-1');
+  });
+
+  it('defaults to highest supported legacy revision when no declaredRevision provided', () => {
+    const response = initializeResult('init-result-2');
+
+    // Phase 3: LEGACY_REVISIONS = ['2024-11-05', '2025-11-25']
+    // Should return highest: '2025-11-25'
+    expect(response.result.protocolVersion).toBe('2025-11-25');
+  });
+
+  it('echoes back supported declaredRevision when provided', () => {
+    const response = initializeResult('init-result-3', { declaredRevision: '2024-11-05' });
+
+    expect(response.result.protocolVersion).toBe('2024-11-05');
+  });
+
+  it('echoes back highest supported legacy revision when provided', () => {
+    const response = initializeResult('init-result-4', { declaredRevision: '2025-11-25' });
+
+    expect(response.result.protocolVersion).toBe('2025-11-25');
+  });
+
+  it('defaults to highest legacy revision when unsupported declaredRevision provided', () => {
+    const response = initializeResult('init-result-5', { declaredRevision: '2099-01-01' });
+
+    // Unsupported revision should fall back to highest legacy revision
+    expect(response.result.protocolVersion).toBe('2025-11-25');
+  });
+
+  it('contains serverInfo from shared source', () => {
+    const response = initializeResult('init-result-6');
+
+    expect(response.result.serverInfo).toHaveProperty('name');
+    expect(response.result.serverInfo).toHaveProperty('version');
+    expect(response.result.serverInfo.name).toBe('atlantis-mcp-server');
+  });
+
+  it('contains capabilities from shared source', () => {
+    const response = initializeResult('init-result-7');
+
+    expect(response.result.capabilities).toEqual({
+      tools: { listChanged: false }
+    });
+  });
+
+  it('contains instructions from shared source', () => {
+    const response = initializeResult('init-result-8');
+
+    expect(response.result.instructions).toBeDefined();
+    expect(typeof response.result.instructions).toBe('string');
+    expect(response.result.instructions.length).toBeGreaterThan(0);
+  });
+
+  it('result has exactly four keys (legacy envelope, no resultType, no _meta)', () => {
+    const response = initializeResult('init-result-9');
+
+    expect(Object.keys(response.result).sort()).toEqual([
+      'capabilities',
+      'instructions',
+      'protocolVersion',
+      'serverInfo'
+    ]);
+
+    // Requirement 7.2: Legacy envelope does NOT contain resultType or _meta
+    expect(response.result).not.toHaveProperty('resultType');
+    expect(response.result).not.toHaveProperty('_meta');
+  });
+
+  it('works with null id', () => {
+    const response = initializeResult(null, { declaredRevision: '2024-11-05' });
+
+    expect(response.id).toBeNull();
+    expect(response.result.protocolVersion).toBe('2024-11-05');
   });
 });
 

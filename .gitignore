@@ -20,6 +20,7 @@ application-infrastructure/src/coverage/
 package-lock.json
 __pycache__/
 *.py[cod]
+**/config/release-version.js
 
 # Exceptions
 !.gitignore

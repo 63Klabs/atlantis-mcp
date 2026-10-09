@@ -102,19 +102,21 @@ describe('JSON-RPC Router', () => {
 
       const response = await handleJsonRpc(clientRequest);
       const body = parseBody(response);
-      const { version } = require('../../../package.json');
+      // Version comes from config/release-version.js (generated at build time)
+      const { releaseVersion } = require('../../../config/release-version.js');
 
       expect(response.statusCode).toBe(200);
       expect(body.jsonrpc).toBe('2.0');
       expect(body.id).toBe('init-1');
       expect(body.result.serverInfo).toEqual({
         name: 'atlantis-mcp-server',
-        version
+        version: releaseVersion
       });
       expect(body.result.capabilities).toEqual({
         tools: { listChanged: false }
       });
-      expect(body.result.protocolVersion).toBe('2024-11-05');
+      // Phase 3: defaults to highest supported legacy revision
+      expect(body.result.protocolVersion).toBe('2025-11-25');
     });
   });
 
@@ -444,7 +446,7 @@ describe('JSON-RPC Router', () => {
       expect(errorResp.headers['Content-Type']).toBe('application/json');
     });
 
-    test('CORS headers are present on responses', async () => {
+    test('CORS headers reflect API Gateway ownership', async () => {
       const clientRequest = makeClientRequest({
         jsonrpc: '2.0',
         method: 'initialize',
@@ -453,9 +455,14 @@ describe('JSON-RPC Router', () => {
 
       const response = await handleJsonRpc(clientRequest);
 
+      // Per Requirement 9.5: Access-Control-Allow-Origin is set by Response.finalize()
       expect(response.headers['Access-Control-Allow-Origin']).toBe('*');
-      expect(response.headers['Access-Control-Allow-Methods']).toContain('POST');
-      expect(response.headers['Access-Control-Allow-Headers']).toContain('Content-Type');
+      
+      // Per Requirement 9.5: Access-Control-Allow-Methods and Access-Control-Allow-Headers
+      // are owned by API Gateway's Cors config in template.yml and answered on CORS preflight.
+      // They MUST NOT be present in the Lambda response.
+      expect(response.headers['Access-Control-Allow-Methods']).toBeUndefined();
+      expect(response.headers['Access-Control-Allow-Headers']).toBeUndefined();
     });
 
     test('X-MCP-Version header is present', async () => {

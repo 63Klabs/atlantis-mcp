@@ -29,34 +29,25 @@
 const settings = require('../config/settings');
 const { extendedDescriptions } = require('../config/tool-descriptions');
 const { generateAnnotations, generateTitles, getDiscoveryBlock } = require('../config/tool-metadata');
-
-/**
- * The protocol revision this codebase currently negotiates (see
- * `initializeResponse()` in `utils/mcp-protocol.js`). Tool definitions
- * served for this revision omit `title`/`annotations`, since this is the
- * revision baseline the server claims today and the wire legality of those
- * fields on it has not been established by the companion protocol spec.
- * @constant {string}
- */
-const BASELINE_PROTOCOL_VERSION = '2024-11-05';
+const { LEGACY_REVISION, MODERN_REVISION } = require('./mcp-protocol');
 
 /**
  * Allowlist of negotiated protocol revisions on which `Tool.title` and
  * `Tool.annotations` are known to be legal wire fields.
  *
- * DELIBERATE, CONSERVATIVE PLACEHOLDER. The actual protocol-revision
- * legality table is owned by the companion spec
- * `0-0-7-mcp-protocol-dual-era`, which has not yet landed. Per Requirement
- * 2.6 ("omit rather than emit invalidly"), this module defaults to NOT
- * including `title`/`annotations` for any revision today, including a
- * revision string that is merely newer than `BASELINE_PROTOCOL_VERSION` —
- * being conservative about an unconfirmed wire contract is safer than
- * guessing that a newer revision allows them. The companion spec should
- * extend this list (or replace it with its own legality table) once it
- * defines which revisions actually permit these fields.
+ * Per the MCP protocol specification, `Tool.title` and `Tool.annotations`
+ * were introduced in the 2025-11-25 revision and are supported in all
+ * subsequent revisions. The companion spec `0-0-7-mcp-protocol-dual-era`
+ * establishes which revisions this server advertises.
+ * 
+ * Phase 3: Added '2025-11-25' after verifying all required fields for this
+ * revision are emitted (design section 12 audit, task 9.1).
+ * 
+ * Requirements: 11.1, 13.1, 13.2
+ * 
  * @constant {string[]}
  */
-const REVISIONS_SUPPORTING_TITLE_ANNOTATIONS = [];
+const REVISIONS_SUPPORTING_TITLE_ANNOTATIONS = Object.freeze(['2025-11-25']);
 
 /**
  * Compose a tool's registry discovery block (`category`, `keywords`,
@@ -129,17 +120,14 @@ function composeDescription(baseDescription, discoveryBlock) {
  * Determine whether `Tool.title` and `Tool.annotations` are legal wire
  * fields on the given negotiated protocol revision.
  *
- * Conservative default: an omitted revision, or the current
- * `BASELINE_PROTOCOL_VERSION`, never permits these fields. Only a revision
- * explicitly present in `REVISIONS_SUPPORTING_TITLE_ANNOTATIONS` permits
- * them — and that allowlist is intentionally empty today (see its doc
- * comment).
+ * Only revisions explicitly present in `REVISIONS_SUPPORTING_TITLE_ANNOTATIONS`
+ * permit these fields. An omitted revision defaults to not supporting them.
  *
  * @param {string} [protocolVersion] - The negotiated protocol revision
  * @returns {boolean} True when `title`/`annotations` may be emitted on the wire for this revision
  */
 function revisionSupportsTitleAndAnnotations(protocolVersion) {
-  if (!protocolVersion || protocolVersion === BASELINE_PROTOCOL_VERSION) {
+  if (!protocolVersion) {
     return false;
   }
   return REVISIONS_SUPPORTING_TITLE_ANNOTATIONS.includes(protocolVersion);
@@ -211,6 +199,5 @@ function buildToolCatalog(options = {}) {
 
 module.exports = {
   buildToolCatalog,
-  BASELINE_PROTOCOL_VERSION,
   REVISIONS_SUPPORTING_TITLE_ANNOTATIONS
 };

@@ -109,9 +109,7 @@ const { handler } = require('../../index');
 
 const MANAGED_HEADERS = [
   'content-type',
-  'access-control-allow-origin',
-  'access-control-allow-methods',
-  'access-control-allow-headers'
+  'access-control-allow-origin'
 ];
 
 describe('Feature: use-client-request-and-response-classes', () => {

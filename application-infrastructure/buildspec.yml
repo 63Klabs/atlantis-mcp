@@ -54,6 +54,11 @@ phases:
 
       - ls -l -a
 
+      # Generate release-version.js for each Lambda function
+      # This must run before the per-function loop so the generated file is present
+      # when each function's tests run (Requirement 2.1)
+      - python3 application-infrastructure/build-scripts/write_release_version.py
+
       # Application Environment: Build and test each Lambda function independently.
       # src/lambda/ holds one directory per function (multi-src layout). Each function
       # is fully self-contained with its own package.json, .nvmrc, and node_modules.

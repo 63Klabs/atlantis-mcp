@@ -48,9 +48,18 @@ const process = async (clientRequest, response, authInfo) => {
     response.setStatusCode(jsonRpcResponse.statusCode);
     response.setBody(JSON.parse(jsonRpcResponse.body));
     if (jsonRpcResponse.headers) {
+      // >! Headers managed by cache-data Response.finalize():
+      // >! - content-type: finalize() sets from body when unset
+      // >! - access-control-allow-origin: finalize() overwrites unconditionally
+      // >! Note: access-control-allow-methods and access-control-allow-headers were removed
+      // >! from STANDARD_HEADERS - they are API-Gateway-owned (declared in template.yml Cors
+      // >! config) and answered on the OPTIONS preflight by API Gateway without Lambda involvement.
+      const CACHE_DATA_MANAGED_HEADERS = new Set([
+        'content-type',
+        'access-control-allow-origin'
+      ]);
       for (const [name, value] of Object.entries(jsonRpcResponse.headers)) {
-        // >! Skip headers that Response.finalize() manages automatically
-        if (!['content-type', 'access-control-allow-origin', 'access-control-allow-methods', 'access-control-allow-headers'].includes(name.toLowerCase())) {
+        if (!CACHE_DATA_MANAGED_HEADERS.has(name.toLowerCase())) {
           response.addHeader(name, value);
         }
       }

@@ -14,6 +14,7 @@
  */
 
 const MCPProtocol = require('./mcp-protocol');
+const { resolveEra, validateHeadersForModern } = require('./mcp-era');
 const ContentSizer = require('./content-sizer');
 const ContentChunker = require('./content-chunker');
 const Controllers = require('../controllers');
@@ -22,15 +23,23 @@ const { buildToolCatalog } = require('./tool-catalog');
 const { tools: { DebugAndLog } } = require('@63klabs/cache-data');
 
 /**
- * Standard CORS and MCP headers included on every response.
+ * Standard headers included on every response.
+ * 
+ * Header management responsibilities (Requirement 9.2):
+ * - `Content-Type` and `Access-Control-Allow-Origin`: Managed by `Response.finalize()` from @63klabs/cache-data.
+ *   `finalize()` sets `Content-Type` from the body when unset and overwrites `Access-Control-Allow-Origin`
+ *   unconditionally. Application-set values for `Content-Type` are preserved; `Access-Control-Allow-Origin`
+ *   is always overwritten.
+ * - `Access-Control-Allow-Methods` and `Access-Control-Allow-Headers`: Owned by API Gateway's `Cors`
+ *   configuration in `template.yml`. These headers are answered on the CORS preflight (OPTIONS request)
+ *   by API Gateway without Lambda involvement.
+ * 
  * @constant {Object}
  */
 const STANDARD_HEADERS = {
   'Content-Type': 'application/json',
   'X-MCP-Version': '1.0',
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With'
+  'Access-Control-Allow-Origin': '*'
 };
 
 /**
@@ -159,12 +168,16 @@ function extractId(rawId) {
  * 1. Parse the event body as JSON (return `-32700` on failure).
  * 2. Validate required fields `jsonrpc` and `method` (return `-32600` if missing).
  * 3. Extract `id` (use `null` when missing or invalid type).
- * 4. Dispatch by `method`:
- *    - `initialize`  → server capabilities via `initializeResponse`
- *    - `tools/list`  → tool definitions via `toolsListResponse`
- *    - `tools/call`  → delegate to the matching controller
- *    - anything else → `-32601` Method not found
- * 5. Wrap every response with `Content-Type: application/json`.
+ * 4. Resolve protocol era (legacy vs modern) from method and declared version.
+ * 5. Validate modern-era headers (Mcp-Method, Mcp-Name) if era is modern.
+ * 6. Negotiate protocol version if client declares a revision.
+ * 7. Dispatch by `method`:
+ *    - `initialize`        → server capabilities via `initializeResult`
+ *    - `server/discover`   → modern discovery via `discoverResult`
+ *    - `tools/list`        → tool definitions via `toolsListResponse`
+ *    - `tools/call`        → delegate to the matching controller
+ *    - anything else       → `-32601` Method not found
+ * 8. Wrap every response with `Content-Type: application/json`.
  *
  * @async
  * @param {ClientRequest} clientRequest - ClientRequest object
@@ -232,10 +245,46 @@ async function handleJsonRpc(clientRequest, authInfo) {
     const { method, params } = body;
     clientRequest.addQueryLog(`m:${method}`);
 
-    // --- Step 4: Dispatch by method -------------------------------------------
+    // --- Step 4: Resolve era and validate protocol version --------------------
+    const { era, declaredRevision } = resolveEra(method, event.headers || {}, body);
+
+    // Modern-era header validation (Requirement 8)
+    if (era === 'modern') {
+      const headerErr = validateHeadersForModern(method, event.headers || {}, body);
+      if (headerErr) {
+        return buildResponse(200, MCPProtocol.jsonRpcError(
+          id,
+          headerErr.code,
+          headerErr.message,
+          headerErr.data
+        ));
+      }
+    }
+
+    // Protocol version negotiation (when client declares a revision)
+    // Note: server/discover is always answerable regardless of version (Requirement 5.3)
+    if (declaredRevision !== null && method !== 'server/discover') {
+      const decision = MCPProtocol.negotiateProtocol(declaredRevision);
+      if (!decision.accepted) {
+        return buildResponse(200, MCPProtocol.jsonRpcError(
+          id,
+          MCPProtocol.JSON_RPC_ERRORS.UNSUPPORTED_PROTOCOL_VERSION,
+          'Unsupported protocol version',
+          { 
+            declaredRevision: decision.negotiatedRevision, 
+            supportedVersions: decision.supportedVersions 
+          }
+        ));
+      }
+    }
+
+    // --- Step 5: Dispatch by method -------------------------------------------
     switch (method) {
       case 'initialize':
-        return buildResponse(200, MCPProtocol.initializeResponse(id));
+        return buildResponse(200, MCPProtocol.initializeResult(id, { declaredRevision }));
+
+      case 'server/discover':
+        return buildResponse(200, MCPProtocol.discoverResult(id));
 
       case 'tools/list': {
         const catalog = buildToolCatalog();
