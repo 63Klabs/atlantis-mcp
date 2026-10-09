@@ -9,64 +9,36 @@
  * This module is kept separate from the router so the discrimination logic can
  * be unit-tested in isolation and the router stays a thin switch.
  *
- * Phase 3 note: During Phase 3, `MODERN_REVISIONS` contains '2026-07-28' but
- * `SUPPORTED_PROTOCOL_VERSIONS` in mcp-protocol.js does not yet advertise it.
- * A modern client declaring '2026-07-28' during Phase 3 will be routed to the
- * modern branch so that `negotiateProtocol()` can produce the correct -32022
- * error with the Phase-3-era supportedVersions list. The invariant assertion
- * at module load is therefore relaxed to allow a superset relationship during
- * the rollout window.
+ * Revision lists (`LEGACY_REVISIONS`, `MODERN_REVISIONS`) and the advertised
+ * `SUPPORTED_PROTOCOL_VERSIONS` are defined once in mcp-protocol.js. A revision may be
+ * recognized here (routed to its era) without yet being advertised, so that a client
+ * declaring it during a rollout window receives a correct -32022 rather than being
+ * mis-routed.
  *
  * @module utils/mcp-era
  */
 
-const { ALLOWED_REVISIONS } = require('./mcp-protocol');
+const {
+  SUPPORTED_PROTOCOL_VERSIONS,
+  LEGACY_REVISIONS,
+  MODERN_REVISIONS,
+  JSON_RPC_ERRORS
+} = require('./mcp-protocol');
 
-/**
- * Legacy MCP protocol revisions supported by this server.
- * These revisions use the handshake-based (initialize) model.
- *
- * Requirements: 4.1, 4.2
- *
- * @constant {ReadonlyArray<string>}
- */
-const LEGACY_REVISIONS = Object.freeze(['2024-11-05', '2025-11-25']);
+// Invariant: every advertised revision must be one this module can route to an era.
+// (Recognizing a revision without advertising it is allowed; the reverse is not.)
+// Revision lists are defined once in mcp-protocol.js and re-exported below.
+const KNOWN_REVISIONS = new Set([...LEGACY_REVISIONS, ...MODERN_REVISIONS]);
+const unroutable = SUPPORTED_PROTOCOL_VERSIONS.filter((revision) => !KNOWN_REVISIONS.has(revision));
 
-/**
- * Modern MCP protocol revisions supported or recognized by this server.
- * These revisions use the stateless (server/discover) model.
- *
- * Phase 3: This array contains '2026-07-28' even though
- * SUPPORTED_PROTOCOL_VERSIONS does not yet advertise it. This allows the era
- * resolver to correctly route a modern client's probe to the modern branch,
- * where negotiateProtocol() will produce -32022 with the correct Phase-3-era
- * supportedVersions list.
- *
- * Phase 4: After '2026-07-28' is added to SUPPORTED_PROTOCOL_VERSIONS, the
- * invariant becomes strict equality.
- *
- * Requirements: 4.2, 4.3
- *
- * @constant {ReadonlyArray<string>}
- */
-const MODERN_REVISIONS = Object.freeze(['2026-07-28']);
-
-// Invariant: union of LEGACY_REVISIONS and MODERN_REVISIONS must be a superset
-// of ALLOWED_REVISIONS (the advertised supportedVersions). During Phase 3,
-// MODERN_REVISIONS contains '2026-07-28' but ALLOWED_REVISIONS does not yet
-// advertise it, so the relationship is ⊇ rather than ===. After Phase 4,
-// the relationship becomes strict equality.
-const allKnownRevisions = new Set([...LEGACY_REVISIONS, ...MODERN_REVISIONS]);
-const advertisedRevisions = new Set(ALLOWED_REVISIONS);
-const isSuperset = [...advertisedRevisions].every(rev => allKnownRevisions.has(rev));
-
-if (!isSuperset) {
+if (unroutable.length > 0) {
   throw new Error(
-    `mcp-era.js invariant violation: union(LEGACY_REVISIONS, MODERN_REVISIONS) must be a superset of ALLOWED_REVISIONS. ` +
-    `Known: [${Array.from(allKnownRevisions).join(', ')}], ` +
-    `Advertised: [${Array.from(advertisedRevisions).join(', ')}]`
+    `mcp-era.js invariant violation: advertised revisions have no era: [${unroutable.join(', ')}]`
   );
 }
+
+/** Body/params `_meta` key under which a modern client declares its protocol revision. */
+const PROTOCOL_VERSION_META_KEY = 'io.modelcontextprotocol/protocolVersion';
 
 /**
  * Pick a header value from an HTTP headers object, case-insensitively.
@@ -92,6 +64,22 @@ function pickHeader(headers, name) {
     }
   }
   return null;
+}
+
+/**
+ * Treat a blank declaration as "not declared".
+ *
+ * A present-but-empty `MCP-Protocol-Version` header (or `_meta` value) carries no
+ * information, and rejecting it would break clients that send the header unconditionally.
+ * Only emptiness is normalized; a non-empty value is returned untouched (not trimmed), so
+ * `'2025-11-25 '` is still a declaration of an unsupported revision.
+ *
+ * @param {*} value - Raw declared value from a header or `_meta`
+ * @returns {string|null} The value when it is a non-blank string, otherwise null
+ * @private
+ */
+function presentOrNull(value) {
+  return typeof value === 'string' && value.trim().length > 0 ? value : null;
 }
 
 /**
@@ -139,9 +127,13 @@ function pickHeader(headers, name) {
  */
 function resolveEra(method, body, headers) {
   // Header is authoritative when present (Requirement 4.7).
-  const headerVersion = pickHeader(headers, 'mcp-protocol-version');
-  const bodyVersion = body?._meta?.['io.modelcontextprotocol/protocolVersion'] ?? null;
-  const declaredRevision = headerVersion ?? bodyVersion ?? null;
+  const headerVersion = presentOrNull(pickHeader(headers, 'mcp-protocol-version'));
+  // The MCP specification carries request metadata in `params._meta`; a top-level `_meta`
+  // is also accepted. `params._meta` wins when both are present.
+  const bodyVersion = presentOrNull(
+    body?.params?._meta?.[PROTOCOL_VERSION_META_KEY] ?? body?._meta?.[PROTOCOL_VERSION_META_KEY]
+  );
+  const declaredRevision = headerVersion ?? bodyVersion;
 
   // server/discover is always modern-shaped (Requirement 4.3 and 5.3).
   if (method === 'server/discover') {
@@ -187,7 +179,7 @@ function resolveEra(method, body, headers) {
  * @param {string} method - JSON-RPC method name from body
  * @param {Object<string, string>} [headers] - HTTP headers from API Gateway event
  * @param {Object} body - Parsed JSON-RPC request body
- * @returns {null|{code: number, message: string, data: Object}} 
+ * @returns {null|{code: number, message: string, data: Object}}
  *   Returns null on success, or an error descriptor on validation failure.
  *   The caller wraps this into a -32020 JSON-RPC error.
  * @example
@@ -203,8 +195,6 @@ function resolveEra(method, body, headers) {
  * // result.data.detail === 'Mcp-Method header disagrees with body method'
  */
 function validateHeadersForModern(method, headers, body) {
-  const { JSON_RPC_ERRORS } = require('./mcp-protocol');
-  
   const mcpMethod = pickHeader(headers, 'mcp-method');
   if (mcpMethod && mcpMethod !== method) {
     return {

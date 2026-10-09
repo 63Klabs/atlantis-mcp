@@ -29,7 +29,6 @@
 const settings = require('../config/settings');
 const { extendedDescriptions } = require('../config/tool-descriptions');
 const { generateAnnotations, generateTitles, getDiscoveryBlock } = require('../config/tool-metadata');
-const { LEGACY_REVISION, MODERN_REVISION } = require('./mcp-protocol');
 
 /**
  * Allowlist of negotiated protocol revisions on which `Tool.title` and
@@ -39,15 +38,16 @@ const { LEGACY_REVISION, MODERN_REVISION } = require('./mcp-protocol');
  * were introduced in the 2025-11-25 revision and are supported in all
  * subsequent revisions. The companion spec `0-0-7-mcp-protocol-dual-era`
  * establishes which revisions this server advertises.
- * 
- * Phase 3: Added '2025-11-25' after verifying all required fields for this
- * revision are emitted (design section 12 audit, task 9.1).
- * 
+ *
+ * '2025-11-25' was added after verifying all required fields for that revision are
+ * emitted (design section 12 audit, task 9.1). '2026-07-28' was added in the same
+ * change that advertises it in `SUPPORTED_PROTOCOL_VERSIONS` (task 16.1).
+ *
  * Requirements: 11.1, 13.1, 13.2
- * 
+ *
  * @constant {string[]}
  */
-const REVISIONS_SUPPORTING_TITLE_ANNOTATIONS = Object.freeze(['2025-11-25']);
+const REVISIONS_SUPPORTING_TITLE_ANNOTATIONS = Object.freeze(['2025-11-25', '2026-07-28']);
 
 /**
  * Compose a tool's registry discovery block (`category`, `keywords`,

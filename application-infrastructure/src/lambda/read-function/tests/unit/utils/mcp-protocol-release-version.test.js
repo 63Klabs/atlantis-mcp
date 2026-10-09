@@ -13,18 +13,16 @@ const path = require('path');
 
 describe('MCP Protocol Release Version', () => {
   const releaseVersionPath = path.join(__dirname, '../../../config/release-version.js');
-  const releaseVersionBackupPath = releaseVersionPath + '.backup';
-  
+
   beforeEach(() => {
     // Clear module cache to force re-require
     jest.resetModules();
   });
 
   afterEach(() => {
-    // Restore backup if it exists
-    if (fs.existsSync(releaseVersionBackupPath)) {
-      fs.renameSync(releaseVersionBackupPath, releaseVersionPath);
-    }
+    // Drop any simulated-missing-file mock so it cannot leak into other tests
+    jest.dontMock('../../../config/release-version.js');
+    jest.restoreAllMocks();
   });
 
   describe('getReleaseVersion() behavior', () => {
@@ -61,12 +59,13 @@ describe('MCP Protocol Release Version', () => {
     });
 
     test('should fall back to package.json version when config/release-version.js is missing', () => {
-      // Backup and remove the release-version.js file
-      if (fs.existsSync(releaseVersionPath)) {
-        fs.renameSync(releaseVersionPath, releaseVersionBackupPath);
-      }
-      
-      // Clear module cache
+      // Simulate the generated file being absent WITHOUT touching the real file on disk.
+      // (Renaming the real file races with other Jest workers that read it in parallel.)
+      jest.doMock('../../../config/release-version.js', () => {
+        throw new Error("Cannot find module '../config/release-version.js'");
+      });
+
+      // Clear module cache so mcp-protocol re-evaluates its accessor
       jest.resetModules();
       
       // Require cache-data to get DebugAndLog

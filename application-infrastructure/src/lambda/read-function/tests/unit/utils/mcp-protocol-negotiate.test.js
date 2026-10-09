@@ -19,8 +19,9 @@ process.env.PARAM_STORE_PATH = process.env.PARAM_STORE_PATH || '/test/';
 // Import the module under test
 const { negotiateProtocol, ALLOWED_REVISIONS } = require('../../../utils/mcp-protocol');
 
-// Phase 3: Current implementation supports both '2024-11-05' and '2025-11-25'
-const CURRENT_SUPPORTED_REVISIONS = ['2024-11-05', '2025-11-25'];
+// Explicit literal (not derived from the module) so an accidental change to the advertised
+// set fails here. Phase 4: '2026-07-28' is advertised once its required fields are implemented.
+const CURRENT_SUPPORTED_REVISIONS = ['2024-11-05', '2025-11-25', '2026-07-28'];
 
 describe('negotiateProtocol()', () => {
   describe('Acceptance of Allowed Revisions (Requirements 3.3, 15.6)', () => {
@@ -97,10 +98,10 @@ describe('negotiateProtocol()', () => {
     it('should include all currently supported revisions in supportedVersions', () => {
       const result = negotiateProtocol('2024-11-05');
 
-      // Phase 3: Now includes both 2024-11-05 and 2025-11-25
       expect(result.supportedVersions).toContain('2024-11-05');
       expect(result.supportedVersions).toContain('2025-11-25');
-      expect(result.supportedVersions.length).toBe(2);
+      expect(result.supportedVersions).toContain('2026-07-28');
+      expect(result.supportedVersions.length).toBe(3);
     });
 
     it('supportedVersions should match current implementation', () => {

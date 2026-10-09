@@ -1,257 +1,248 @@
 /**
- * Integration test for -32022 UnsupportedProtocolVersion error
- * 
- * Verifies that requests with unsupported protocol versions return -32022
- * with declaredRevision and supportedVersions in the error data.
- * 
- * Requirements: 4.4, 6.2, 15.5
- * 
- * TODO: These tests need rework in Phase 4 - they currently use incorrect test harness.
- * The function should test end-to-end behavior through the full Lambda handler.
+ * Integration tests: -32022 UnsupportedProtocolVersion
+ *
+ * Drives requests through handleJsonRpc() and asserts that a request declaring a
+ * revision outside `supportedVersions` is rejected with -32022, that the error data
+ * reports what the client declared, and that it enumerates the supported versions.
+ *
+ * Also covers the guard rails around that rejection: the legacy `initialize`
+ * handshake counter-offers instead of failing, and `server/discover` is always answerable.
+ *
+ * Requirements: 4.4, 6.2, 15.5, 16.1
  */
 
 const { describe, it, expect } = require('@jest/globals');
 const { handleJsonRpc } = require('../../utils/json-rpc-router');
+const { SUPPORTED_PROTOCOL_VERSIONS, JSON_RPC_ERRORS } = require('../../utils/mcp-protocol');
 
-/** Wrap a raw event in a mock clientRequest for handleJsonRpc */
-function wrapEvent(event) {
-    return { 
-        getEvent: () => event, 
-        getProps: () => ({ path: 'mcp/v1', method: 'POST' }), 
-        addQueryLog: () => {} 
-    };
+/**
+ * Build a minimal ClientRequest double for handleJsonRpc().
+ *
+ * @param {Object} body - JSON-RPC request body
+ * @param {Object} [headers] - HTTP headers
+ * @returns {{getEvent: Function, addQueryLog: Function}} ClientRequest double
+ */
+function makeClientRequest(body, headers = {}) {
+  const event = { httpMethod: 'POST', headers, body: JSON.stringify(body) };
+  return { getEvent: () => event, addQueryLog: () => {} };
 }
 
-describe.skip('-32022 UnsupportedProtocolVersion integration (TODO: Fix in Phase 4)', () => {
-    it('should return -32022 for unsupported version in _meta', async () => {
-        const event = {
-            httpMethod: 'POST',
-            path: '/mcp/v1',
-            body: JSON.stringify({
-                jsonrpc: '2.0',
-                method: 'tools/list',
-                id: 'test-id-1',
-                _meta: {
-                    'io.modelcontextprotocol/protocolVersion': '2099-01-01'
-                }
-            }),
-            headers: { 'Content-Type': 'application/json' }
-        };
-        
-        const result = await handleJsonRpc(wrapEvent(event));
-        const response = JSON.parse(result.body);
-        
-        // Debug: log response if test fails
-        if (!response.error) {
-            console.log('Unexpected response:', JSON.stringify(response, null, 2));
-        }
-        
-        expect(response.jsonrpc).toBe('2.0');
-        expect(response.id).toBe('test-id-1');
-        expect(response.error).toBeDefined();
-        expect(response.error.code).toBe(-32022);
-        expect(response.error.message).toContain('Unsupported protocol version');
-        
-        // Error data must contain declaredRevision and supportedVersions
-        expect(response.error.data).toBeDefined();
-        expect(response.error.data.declaredRevision).toBe('2099-01-01');
-        expect(response.error.data.supportedVersions).toBeDefined();
-        expect(Array.isArray(response.error.data.supportedVersions)).toBe(true);
-        expect(response.error.data.supportedVersions.length).toBeGreaterThan(0);
+/**
+ * Send a request through the router and parse the JSON-RPC response.
+ *
+ * @param {Object} body - JSON-RPC request body
+ * @param {Object} [headers] - HTTP headers
+ * @returns {Promise<Object>} Parsed JSON-RPC response
+ */
+async function send(body, headers) {
+  const response = await handleJsonRpc(makeClientRequest(body, headers), null);
+  expect(response.statusCode).toBe(200);
+  return JSON.parse(response.body);
+}
+
+describe('Integration: -32022 UnsupportedProtocolVersion', () => {
+  describe('declared via MCP-Protocol-Version header', () => {
+    it('rejects an unknown revision with -32022', async () => {
+      const body = await send(
+        { jsonrpc: '2.0', id: 'v1', method: 'tools/list' },
+        { 'MCP-Protocol-Version': '2099-01-01' }
+      );
+
+      expect(body.result).toBeUndefined();
+      expect(body.error.code).toBe(-32022);
+      expect(body.error.code).toBe(JSON_RPC_ERRORS.UNSUPPORTED_PROTOCOL_VERSION);
+      expect(body.id).toBe('v1');
     });
-    
-    it('should return -32022 for unsupported version in header', async () => {
-        const event = {
-            httpMethod: 'POST',
-            path: '/mcp/v1',
-            body: JSON.stringify({
-                jsonrpc: '2.0',
-                method: 'tools/list',
-                id: 'test-id-2'
-            }),
-            headers: { 
-                'Content-Type': 'application/json',
-                'Mcp-Protocol-Version': '2099-12-31'
-            }
-        };
-        
-        const result = await handleJsonRpc(wrapEvent(event));
-        const response = JSON.parse(result.body);
-        
-        expect(response.error).toBeDefined();
-        expect(response.error.code).toBe(-32022);
-        expect(response.error.data.declaredRevision).toBe('2099-12-31');
-        expect(response.error.data.supportedVersions).toContain('2024-11-05');
-        expect(response.error.data.supportedVersions).toContain('2025-11-25');
+
+    it('reports the revision the client declared, not null', async () => {
+      const body = await send(
+        { jsonrpc: '2.0', id: 'v2', method: 'tools/list' },
+        { 'mcp-protocol-version': '2099-01-01' }
+      );
+
+      expect(body.error.data.declaredRevision).toBe('2099-01-01');
     });
-    
-    it('should prefer header over body _meta when both are present', async () => {
-        const event = {
-            httpMethod: 'POST',
-            path: '/mcp/v1',
-            body: JSON.stringify({
-                jsonrpc: '2.0',
-                method: 'tools/list',
-                id: 'test-id-3',
-                _meta: {
-                    'io.modelcontextprotocol/protocolVersion': '2024-11-05' // supported
-                }
-            }),
-            headers: {
-                'Content-Type': 'application/json',
-                'Mcp-Protocol-Version': '2099-01-01' // unsupported
-            }
-        };
-        
-        const result = await handleJsonRpc(wrapEvent(event));
-        const response = JSON.parse(result.body);
-        
-        // Header wins, so should get -32022 error
-        expect(response.error).toBeDefined();
-        expect(response.error.code).toBe(-32022);
-        expect(response.error.data.declaredRevision).toBe('2099-01-01');
+
+    it('enumerates supportedVersions in the error data', async () => {
+      const body = await send(
+        { jsonrpc: '2.0', id: 'v3', method: 'tools/call', params: { name: 'list_tools' } },
+        { 'MCP-Protocol-Version': '2099-01-01' }
+      );
+
+      expect(body.error.data.supportedVersions).toEqual([...SUPPORTED_PROTOCOL_VERSIONS]);
+      expect(body.error.data.supportedVersions.length).toBeGreaterThan(0);
     });
-    
-    it('should return -32022 for malformed version strings', async () => {
-        const event = {
-            httpMethod: 'POST',
-            path: '/mcp/v1',
-            body: JSON.stringify({
-                jsonrpc: '2.0',
-                method: 'tools/list',
-                id: 'test-id-4',
-                _meta: {
-                    'io.modelcontextprotocol/protocolVersion': 'not-a-valid-version'
-                }
-            }),
-            headers: { 'Content-Type': 'application/json' }
-        };
-        
-        const result = await handleJsonRpc(wrapEvent(event));
-        const response = JSON.parse(result.body);
-        
-        expect(response.error).toBeDefined();
-        expect(response.error.code).toBe(-32022);
-        expect(response.error.data.declaredRevision).toBe('not-a-valid-version');
+  });
+
+  describe('declared via _meta', () => {
+    it('rejects an unknown revision in params._meta (the specification location)', async () => {
+      const body = await send({
+        jsonrpc: '2.0',
+        id: 'm1',
+        method: 'tools/list',
+        params: { _meta: { 'io.modelcontextprotocol/protocolVersion': '2099-01-01' } }
+      });
+
+      expect(body.error.code).toBe(-32022);
+      expect(body.error.data.declaredRevision).toBe('2099-01-01');
     });
-    
-    it('should return -32022 for empty string version', async () => {
-        const event = {
-            httpMethod: 'POST',
-            path: '/mcp/v1',
-            body: JSON.stringify({
-                jsonrpc: '2.0',
-                method: 'tools/list',
-                id: 'test-id-5',
-                _meta: {
-                    'io.modelcontextprotocol/protocolVersion': ''
-                }
-            }),
-            headers: { 'Content-Type': 'application/json' }
-        };
-        
-        const result = await handleJsonRpc(wrapEvent(event));
-        const response = JSON.parse(result.body);
-        
-        expect(response.error).toBeDefined();
-        expect(response.error.code).toBe(-32022);
-        expect(response.error.data.declaredRevision).toBe('');
+
+    it('rejects an unknown revision in a top-level _meta', async () => {
+      const body = await send({
+        jsonrpc: '2.0',
+        id: 'm2',
+        method: 'tools/list',
+        _meta: { 'io.modelcontextprotocol/protocolVersion': '2099-01-01' }
+      });
+
+      expect(body.error.code).toBe(-32022);
     });
-    
-    it('should include all currently supported versions in error data', async () => {
-        const event = {
-            httpMethod: 'POST',
-            path: '/mcp/v1',
-            body: JSON.stringify({
-                jsonrpc: '2.0',
-                method: 'tools/list',
-                id: 'test-id-6',
-                _meta: {
-                    'io.modelcontextprotocol/protocolVersion': '2098-01-01'
-                }
-            }),
-            headers: { 'Content-Type': 'application/json' }
-        };
-        
-        const result = await handleJsonRpc(wrapEvent(event));
-        const response = JSON.parse(result.body);
-        
-        const supportedVersions = response.error.data.supportedVersions;
-        
-        // Phase 3: Should include both 2024-11-05 and 2025-11-25
-        expect(supportedVersions).toContain('2024-11-05');
-        expect(supportedVersions).toContain('2025-11-25');
-        
-        // Should be in chronological order (compare as date strings)
-        for (let i = 1; i < supportedVersions.length; i++) {
-            expect(supportedVersions[i] > supportedVersions[i - 1]).toBe(true);
-        }
+
+    it('lets the header win when header and _meta disagree', async () => {
+      const body = await send(
+        {
+          jsonrpc: '2.0',
+          id: 'm3',
+          method: 'tools/list',
+          params: { _meta: { 'io.modelcontextprotocol/protocolVersion': '2024-11-05' } }
+        },
+        { 'MCP-Protocol-Version': '2099-01-01' }
+      );
+
+      expect(body.error.code).toBe(-32022);
+      expect(body.error.data.declaredRevision).toBe('2099-01-01');
     });
-    
-    it('should work with case-insensitive header names', async () => {
-        const event = {
-            httpMethod: 'POST',
-            path: '/mcp/v1',
-            body: JSON.stringify({
-                jsonrpc: '2.0',
-                method: 'tools/list',
-                id: 'test-id-7'
-            }),
-            headers: {
-                'Content-Type': 'application/json',
-                'mcp-protocol-version': '3000-01-01' // lowercase
-            }
-        };
-        
-        const result = await handleJsonRpc(wrapEvent(event));
-        const response = JSON.parse(result.body);
-        
-        expect(response.error).toBeDefined();
-        expect(response.error.code).toBe(-32022);
-        expect(response.error.data.declaredRevision).toBe('3000-01-01');
+  });
+
+  describe('malformed and edge-case declarations', () => {
+    it.each([
+      ['not-a-date', 'a non-date string'],
+      ['2025-13-45', 'an impossible calendar date'],
+      ['2025-11-25 ', 'a supported revision with trailing whitespace'],
+      ['2025-11-25; drop', 'a supported revision with trailing junk']
+    ])('rejects %j (%s) with -32022 and echoes it back', async (value) => {
+      const body = await send(
+        { jsonrpc: '2.0', id: 'bad', method: 'tools/list' },
+        { 'MCP-Protocol-Version': value }
+      );
+
+      expect(body.error.code).toBe(-32022);
+      expect(body.error.data.declaredRevision).toBe(value);
+      expect(body.error.data.supportedVersions).toEqual([...SUPPORTED_PROTOCOL_VERSIONS]);
     });
-    
-    it('should not return -32022 for supported versions', async () => {
-        // Test with 2024-11-05
-        const event1 = {
-            httpMethod: 'POST',
-            path: '/mcp/v1',
-            body: JSON.stringify({
-                jsonrpc: '2.0',
-                method: 'tools/list',
-                id: 'test-id-8',
-                _meta: {
-                    'io.modelcontextprotocol/protocolVersion': '2024-11-05'
-                }
-            }),
-            headers: { 'Content-Type': 'application/json' }
-        };
-        
-        const result1 = await handleJsonRpc(wrapEvent(event1));
-        const response1 = JSON.parse(result1.body);
-        
-        expect(response1.error).toBeUndefined();
-        expect(response1.result).toBeDefined();
-        
-        // Test with 2025-11-25
-        const event2 = {
-            httpMethod: 'POST',
-            path: '/mcp/v1',
-            body: JSON.stringify({
-                jsonrpc: '2.0',
-                method: 'tools/list',
-                id: 'test-id-9',
-                _meta: {
-                    'io.modelcontextprotocol/protocolVersion': '2025-11-25'
-                }
-            }),
-            headers: { 'Content-Type': 'application/json' }
-        };
-        
-        const result2 = await handleJsonRpc(wrapEvent(event2));
-        const response2 = JSON.parse(result2.body);
-        
-        expect(response2.error).toBeUndefined();
-        expect(response2.result).toBeDefined();
+
+    it.each(['', '   '])('treats a blank header (%j) as not declared, for every method', async (blank) => {
+      // Consistent across methods: a blank header must not be rejected on one path and
+      // ignored on another (initialize and tools/list both go through era resolution).
+      for (const method of ['tools/list', 'initialize', 'server/discover']) {
+        const body = await send({ jsonrpc: '2.0', id: 'blank', method }, { 'MCP-Protocol-Version': blank });
+
+        expect(body.error).toBeUndefined();
+      }
     });
+
+    it.each(['MCP-Protocol-Version', 'mcp-protocol-version', 'Mcp-Protocol-Version', 'MCP-PROTOCOL-VERSION'])(
+      'recognizes the header name case-insensitively: %s',
+      async (headerName) => {
+        const body = await send(
+          { jsonrpc: '2.0', id: 'case', method: 'tools/list' },
+          { [headerName]: '2099-01-01' }
+        );
+
+        expect(body.error.code).toBe(-32022);
+      }
+    );
+
+    it('copes with a request that has no headers property at all', async () => {
+      const event = {
+        httpMethod: 'POST',
+        body: JSON.stringify({ jsonrpc: '2.0', id: 'nohdr', method: 'tools/list' })
+      };
+      const response = await handleJsonRpc({ getEvent: () => event, addQueryLog: () => {} }, null);
+      const body = JSON.parse(response.body);
+
+      expect(body.error).toBeUndefined();
+      expect(Array.isArray(body.result.tools)).toBe(true);
+    });
+
+    it('does not leak an unsupported declaration across consecutive requests', async () => {
+      // The router is stateless: a rejected request must not affect the next one.
+      const rejected = await send(
+        { jsonrpc: '2.0', id: 'a', method: 'tools/list' },
+        { 'MCP-Protocol-Version': '2099-01-01' }
+      );
+      const accepted = await send({ jsonrpc: '2.0', id: 'b', method: 'tools/list' });
+
+      expect(rejected.error.code).toBe(-32022);
+      expect(accepted.error).toBeUndefined();
+    });
+  });
+
+  describe('is not raised for supported or undeclared revisions', () => {
+    it.each(SUPPORTED_PROTOCOL_VERSIONS)('accepts supported revision %s', async (revision) => {
+      const body = await send(
+        { jsonrpc: '2.0', id: 'ok', method: 'tools/list' },
+        { 'MCP-Protocol-Version': revision }
+      );
+
+      expect(body.error).toBeUndefined();
+      expect(Array.isArray(body.result.tools)).toBe(true);
+    });
+
+    it('accepts a request that declares no revision (legacy default)', async () => {
+      const body = await send({ jsonrpc: '2.0', id: 'none', method: 'tools/list' });
+
+      expect(body.error).toBeUndefined();
+      expect(Array.isArray(body.result.tools)).toBe(true);
+    });
+  });
+
+  describe('guard rails (Requirement 16.1)', () => {
+    it('server/discover stays answerable even when an unknown revision is declared', async () => {
+      const body = await send(
+        { jsonrpc: '2.0', id: 'd1', method: 'server/discover' },
+        { 'MCP-Protocol-Version': '2099-01-01' }
+      );
+
+      expect(body.error).toBeUndefined();
+      expect(body.result.supportedVersions).toEqual([...SUPPORTED_PROTOCOL_VERSIONS]);
+    });
+
+    it('initialize counter-offers rather than failing when the client asks for an unlisted revision', async () => {
+      // A legacy client on a revision this server does not list must still be able to connect.
+      const body = await send({
+        jsonrpc: '2.0',
+        id: 'i1',
+        method: 'initialize',
+        params: { protocolVersion: '2099-01-01', capabilities: {}, clientInfo: { name: 't', version: '1' } }
+      });
+
+      expect(body.error).toBeUndefined();
+      expect(SUPPORTED_PROTOCOL_VERSIONS).toContain(body.result.protocolVersion);
+    });
+
+    it('initialize offers the nearest older legacy revision for an in-between revision', async () => {
+      // 2025-06-18 is not listed; the closest older listed revision is 2024-11-05.
+      const body = await send({
+        jsonrpc: '2.0',
+        id: 'i2',
+        method: 'initialize',
+        params: { protocolVersion: '2025-06-18' }
+      });
+
+      expect(body.error).toBeUndefined();
+      expect(body.result.protocolVersion).toBe('2024-11-05');
+    });
+
+    it('initialize echoes a supported legacy revision', async () => {
+      const body = await send({
+        jsonrpc: '2.0',
+        id: 'i3',
+        method: 'initialize',
+        params: { protocolVersion: '2024-11-05' }
+      });
+
+      expect(body.result.protocolVersion).toBe('2024-11-05');
+    });
+  });
 });

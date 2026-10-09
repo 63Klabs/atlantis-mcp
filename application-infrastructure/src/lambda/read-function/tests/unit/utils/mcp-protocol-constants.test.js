@@ -1,105 +1,119 @@
 /**
  * Unit tests for MCP Protocol Constants
- * 
+ *
  * Tests that the single-source-of-truth constants for MCP protocol revisions
- * are correctly defined and exported from mcp-protocol.js.
- * 
- * Requirements: 3.1, 3.2
+ * are correctly defined and exported from mcp-protocol.js, and that every
+ * surface that reports supported versions reads from the same definition.
+ *
+ * Requirements: 3.1, 3.2, 3.3, 3.4, 12.1, 15.2
  */
 
 const {
-  LEGACY_REVISION,
-  MODERN_REVISION,
-  ALLOWED_REVISIONS
+  LEGACY_REVISIONS,
+  MODERN_REVISIONS,
+  SUPPORTED_PROTOCOL_VERSIONS,
+  ALLOWED_REVISIONS,
+  SERVER_NAME,
+  getCapabilities,
+  negotiateProtocol,
+  discoverResult
 } = require('../../../utils/mcp-protocol');
+const era = require('../../../utils/mcp-era');
+
+const DATE_FORMAT = /^\d{4}-\d{2}-\d{2}$/;
 
 describe('MCP Protocol Constants', () => {
-  describe('LEGACY_REVISION', () => {
-    it('should be defined as the oldest supported revision', () => {
-      expect(LEGACY_REVISION).toBe('2024-11-05');
+  describe('LEGACY_REVISIONS', () => {
+    it('lists the handshake-era revisions, oldest first', () => {
+      expect(LEGACY_REVISIONS).toEqual(['2024-11-05', '2025-11-25']);
     });
 
-    it('should be a string', () => {
-      expect(typeof LEGACY_REVISION).toBe('string');
-    });
-
-    it('should match the date format YYYY-MM-DD', () => {
-      expect(LEGACY_REVISION).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    it('is frozen', () => {
+      expect(Object.isFrozen(LEGACY_REVISIONS)).toBe(true);
     });
   });
 
-  describe('MODERN_REVISION', () => {
-    it('should be defined as the newest supported revision', () => {
-      expect(MODERN_REVISION).toBe('2025-11-25');
+  describe('MODERN_REVISIONS', () => {
+    it('lists the stateless-era revisions', () => {
+      expect(MODERN_REVISIONS).toEqual(['2026-07-28']);
     });
 
-    it('should be a string', () => {
-      expect(typeof MODERN_REVISION).toBe('string');
+    it('is frozen', () => {
+      expect(Object.isFrozen(MODERN_REVISIONS)).toBe(true);
     });
 
-    it('should match the date format YYYY-MM-DD', () => {
-      expect(MODERN_REVISION).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-    });
-
-    it('should be newer than LEGACY_REVISION', () => {
-      expect(new Date(MODERN_REVISION).getTime())
-        .toBeGreaterThan(new Date(LEGACY_REVISION).getTime());
-    });
-  });
-
-  describe('ALLOWED_REVISIONS', () => {
-    it('should be an array containing both revisions', () => {
-      expect(Array.isArray(ALLOWED_REVISIONS)).toBe(true);
-      expect(ALLOWED_REVISIONS).toHaveLength(2);
-    });
-
-    it('should contain LEGACY_REVISION as first element', () => {
-      expect(ALLOWED_REVISIONS[0]).toBe(LEGACY_REVISION);
-    });
-
-    it('should contain MODERN_REVISION as second element', () => {
-      expect(ALLOWED_REVISIONS[1]).toBe(MODERN_REVISION);
-    });
-
-    it('should be ordered from oldest to newest', () => {
-      const timestamps = ALLOWED_REVISIONS.map(rev => new Date(rev).getTime());
-      for (let i = 1; i < timestamps.length; i++) {
-        expect(timestamps[i]).toBeGreaterThan(timestamps[i - 1]);
-      }
-    });
-
-    it('should be frozen (immutable)', () => {
-      expect(Object.isFrozen(ALLOWED_REVISIONS)).toBe(true);
-    });
-
-    it('should not allow modifications', () => {
-      expect(() => {
-        ALLOWED_REVISIONS.push('2026-01-01');
-      }).toThrow();
-    });
-
-    it('should contain only valid date strings', () => {
-      ALLOWED_REVISIONS.forEach(revision => {
-        expect(revision).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-        expect(new Date(revision).toString()).not.toBe('Invalid Date');
+    it('contains only revisions newer than every legacy revision', () => {
+      const newestLegacy = LEGACY_REVISIONS[LEGACY_REVISIONS.length - 1];
+      MODERN_REVISIONS.forEach((revision) => {
+        expect(revision > newestLegacy).toBe(true);
       });
     });
   });
 
-  describe('Single Source of Truth', () => {
-    it('should export all three constants', () => {
-      expect(LEGACY_REVISION).toBeDefined();
-      expect(MODERN_REVISION).toBeDefined();
-      expect(ALLOWED_REVISIONS).toBeDefined();
+  describe('SUPPORTED_PROTOCOL_VERSIONS', () => {
+    it('is the advertised set once every required field is implemented (gate: Requirement 12.1)', () => {
+      // >! This is the single line to change when a revision is added to the advertisement.
+      expect(SUPPORTED_PROTOCOL_VERSIONS).toEqual(['2024-11-05', '2025-11-25', '2026-07-28']);
     });
 
-    it('ALLOWED_REVISIONS elements should reference the constant values', () => {
-      expect(ALLOWED_REVISIONS).toContain(LEGACY_REVISION);
-      expect(ALLOWED_REVISIONS).toContain(MODERN_REVISION);
+    it('is ordered oldest to newest with valid date strings', () => {
+      SUPPORTED_PROTOCOL_VERSIONS.forEach((revision) => {
+        expect(revision).toMatch(DATE_FORMAT);
+        expect(new Date(revision).toString()).not.toBe('Invalid Date');
+      });
+      for (let i = 1; i < SUPPORTED_PROTOCOL_VERSIONS.length; i++) {
+        expect(SUPPORTED_PROTOCOL_VERSIONS[i] > SUPPORTED_PROTOCOL_VERSIONS[i - 1]).toBe(true);
+      }
     });
 
-    it('should have exactly two allowed revisions', () => {
-      expect(ALLOWED_REVISIONS.length).toBe(2);
+    it('is frozen and cannot be modified', () => {
+      expect(Object.isFrozen(SUPPORTED_PROTOCOL_VERSIONS)).toBe(true);
+      expect(() => SUPPORTED_PROTOCOL_VERSIONS.push('2099-01-01')).toThrow();
+    });
+
+    it('only advertises revisions that belong to an era', () => {
+      const known = new Set([...LEGACY_REVISIONS, ...MODERN_REVISIONS]);
+      SUPPORTED_PROTOCOL_VERSIONS.forEach((revision) => {
+        expect(known.has(revision)).toBe(true);
+      });
+    });
+
+    it('has no revision in both eras', () => {
+      LEGACY_REVISIONS.forEach((revision) => {
+        expect(MODERN_REVISIONS).not.toContain(revision);
+      });
+    });
+
+    it('ALLOWED_REVISIONS is the same object (alias for existing call sites)', () => {
+      expect(ALLOWED_REVISIONS).toBe(SUPPORTED_PROTOCOL_VERSIONS);
+    });
+  });
+
+  describe('Single source of truth (Requirements 3.3, 15.2)', () => {
+    it('mcp-era re-exports the same era arrays rather than defining its own', () => {
+      expect(era.LEGACY_REVISIONS).toBe(LEGACY_REVISIONS);
+      expect(era.MODERN_REVISIONS).toBe(MODERN_REVISIONS);
+    });
+
+    it('getCapabilities() reports the shared list', () => {
+      expect(getCapabilities().supportedVersions).toBe(SUPPORTED_PROTOCOL_VERSIONS);
+    });
+
+    it('server/discover reports the shared list', () => {
+      expect(discoverResult('x').result.supportedVersions).toEqual([...SUPPORTED_PROTOCOL_VERSIONS]);
+    });
+
+    it('negotiateProtocol() accepts exactly the shared list and reports it on rejection', () => {
+      SUPPORTED_PROTOCOL_VERSIONS.forEach((revision) => {
+        expect(negotiateProtocol(revision).accepted).toBe(true);
+      });
+      const rejected = negotiateProtocol('2099-01-01');
+      expect(rejected.accepted).toBe(false);
+      expect(rejected.supportedVersions).toBe(SUPPORTED_PROTOCOL_VERSIONS);
+    });
+
+    it('server name has one definition shared by getCapabilities()', () => {
+      expect(getCapabilities().serverInfo.name).toBe(SERVER_NAME);
     });
   });
 });

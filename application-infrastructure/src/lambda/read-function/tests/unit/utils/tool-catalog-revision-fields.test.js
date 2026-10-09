@@ -13,21 +13,30 @@
 process.env.PARAM_STORE_PATH = process.env.PARAM_STORE_PATH || '/test/';
 
 const { buildToolCatalog, REVISIONS_SUPPORTING_TITLE_ANNOTATIONS } = require('../../../utils/tool-catalog');
-const { LEGACY_REVISION, MODERN_REVISION } = require('../../../utils/mcp-protocol');
 const settings = require('../../../config/settings');
+
+// Explicit literals: these tests assert behavior for specific named revisions, so the
+// revision under test must be visible in the test rather than derived from a constant.
+const BASELINE_REVISION = '2024-11-05';
+const LAST_LEGACY_REVISION = '2025-11-25';
+const MODERN_ERA_REVISION = '2026-07-28';
 
 describe('Tool Catalog - Revision-Dependent Field Emission', () => {
   describe('REVISIONS_SUPPORTING_TITLE_ANNOTATIONS constant', () => {
     test('should include 2025-11-25 (Requirement 13.1)', () => {
       // Phase 3: title and annotations were introduced in 2025-11-25
       expect(REVISIONS_SUPPORTING_TITLE_ANNOTATIONS).toContain('2025-11-25');
-      expect(REVISIONS_SUPPORTING_TITLE_ANNOTATIONS).toContain(MODERN_REVISION);
+      expect(REVISIONS_SUPPORTING_TITLE_ANNOTATIONS).toContain(LAST_LEGACY_REVISION);
+    });
+
+    test('should include the modern revision 2026-07-28 (Requirement 13.1)', () => {
+      expect(REVISIONS_SUPPORTING_TITLE_ANNOTATIONS).toContain(MODERN_ERA_REVISION);
     });
 
     test('should NOT include baseline revision 2024-11-05 (Requirement 13.2)', () => {
       // 2024-11-05 does not support title/annotations per design section 12
       expect(REVISIONS_SUPPORTING_TITLE_ANNOTATIONS).not.toContain('2024-11-05');
-      expect(REVISIONS_SUPPORTING_TITLE_ANNOTATIONS).not.toContain(LEGACY_REVISION);
+      expect(REVISIONS_SUPPORTING_TITLE_ANNOTATIONS).not.toContain(BASELINE_REVISION);
     });
   });
 
@@ -83,7 +92,7 @@ describe('Tool Catalog - Revision-Dependent Field Emission', () => {
 
   describe('buildToolCatalog() with legacy revision (2025-11-25)', () => {
     test('should include title field when registry provides it (Requirement 13.1)', () => {
-      const catalog = buildToolCatalog({ protocolVersion: LEGACY_REVISION });
+      const catalog = buildToolCatalog({ protocolVersion: LAST_LEGACY_REVISION });
 
       expect(catalog.length).toBeGreaterThan(0);
 
@@ -98,7 +107,7 @@ describe('Tool Catalog - Revision-Dependent Field Emission', () => {
     });
 
     test('should include annotations field when registry provides it (Requirement 13.1)', () => {
-      const catalog = buildToolCatalog({ protocolVersion: LEGACY_REVISION });
+      const catalog = buildToolCatalog({ protocolVersion: LAST_LEGACY_REVISION });
 
       expect(catalog.length).toBeGreaterThan(0);
 
@@ -112,7 +121,7 @@ describe('Tool Catalog - Revision-Dependent Field Emission', () => {
     });
 
     test('should still include standard fields (Requirement 13.3)', () => {
-      const catalog = buildToolCatalog({ protocolVersion: LEGACY_REVISION });
+      const catalog = buildToolCatalog({ protocolVersion: LAST_LEGACY_REVISION });
 
       catalog.forEach((tool) => {
         expect(tool).toHaveProperty('name');
@@ -127,7 +136,7 @@ describe('Tool Catalog - Revision-Dependent Field Emission', () => {
 
   describe('buildToolCatalog() with modern revision (2026-07-28)', () => {
     test('should include title field when registry provides it (Requirement 13.1)', () => {
-      const catalog = buildToolCatalog({ protocolVersion: MODERN_REVISION });
+      const catalog = buildToolCatalog({ protocolVersion: MODERN_ERA_REVISION });
 
       expect(catalog.length).toBeGreaterThan(0);
 
@@ -141,7 +150,7 @@ describe('Tool Catalog - Revision-Dependent Field Emission', () => {
     });
 
     test('should include annotations field when registry provides it (Requirement 13.1)', () => {
-      const catalog = buildToolCatalog({ protocolVersion: MODERN_REVISION });
+      const catalog = buildToolCatalog({ protocolVersion: MODERN_ERA_REVISION });
 
       expect(catalog.length).toBeGreaterThan(0);
 
@@ -154,7 +163,7 @@ describe('Tool Catalog - Revision-Dependent Field Emission', () => {
     });
 
     test('should still include standard fields (Requirement 13.3)', () => {
-      const catalog = buildToolCatalog({ protocolVersion: MODERN_REVISION });
+      const catalog = buildToolCatalog({ protocolVersion: MODERN_ERA_REVISION });
 
       catalog.forEach((tool) => {
         expect(tool).toHaveProperty('name');
@@ -215,14 +224,14 @@ describe('Tool Catalog - Revision-Dependent Field Emission', () => {
   describe('Consistency across revisions', () => {
     test('baseline and modern revisions should have same tool count', () => {
       const baselineCatalog = buildToolCatalog({ protocolVersion: '2024-11-05' });
-      const modernCatalog = buildToolCatalog({ protocolVersion: MODERN_REVISION });
+      const modernCatalog = buildToolCatalog({ protocolVersion: MODERN_ERA_REVISION });
 
       expect(baselineCatalog.length).toBe(modernCatalog.length);
     });
 
     test('baseline and modern revisions should have same tool names', () => {
       const baselineCatalog = buildToolCatalog({ protocolVersion: '2024-11-05' });
-      const modernCatalog = buildToolCatalog({ protocolVersion: MODERN_REVISION });
+      const modernCatalog = buildToolCatalog({ protocolVersion: MODERN_ERA_REVISION });
 
       const baselineNames = baselineCatalog.map(t => t.name).sort();
       const modernNames = modernCatalog.map(t => t.name).sort();
@@ -232,7 +241,7 @@ describe('Tool Catalog - Revision-Dependent Field Emission', () => {
 
     test('baseline and modern revisions should have same tool order (Requirement 2.7)', () => {
       const baselineCatalog = buildToolCatalog({ protocolVersion: '2024-11-05' });
-      const modernCatalog = buildToolCatalog({ protocolVersion: MODERN_REVISION });
+      const modernCatalog = buildToolCatalog({ protocolVersion: MODERN_ERA_REVISION });
 
       const baselineNames = baselineCatalog.map(t => t.name);
       const modernNames = modernCatalog.map(t => t.name);
@@ -242,7 +251,7 @@ describe('Tool Catalog - Revision-Dependent Field Emission', () => {
 
     test('tool descriptions should be identical across revisions (Requirement 13.3)', () => {
       const baselineCatalog = buildToolCatalog({ protocolVersion: '2024-11-05' });
-      const modernCatalog = buildToolCatalog({ protocolVersion: MODERN_REVISION });
+      const modernCatalog = buildToolCatalog({ protocolVersion: MODERN_ERA_REVISION });
 
       baselineCatalog.forEach((baselineTool, index) => {
         const modernTool = modernCatalog[index];
@@ -252,7 +261,7 @@ describe('Tool Catalog - Revision-Dependent Field Emission', () => {
 
     test('tool inputSchemas should be deep equal across revisions (Requirement 13.3)', () => {
       const baselineCatalog = buildToolCatalog({ protocolVersion: '2024-11-05' });
-      const modernCatalog = buildToolCatalog({ protocolVersion: MODERN_REVISION });
+      const modernCatalog = buildToolCatalog({ protocolVersion: MODERN_ERA_REVISION });
 
       baselineCatalog.forEach((baselineTool, index) => {
         const modernTool = modernCatalog[index];
@@ -263,7 +272,7 @@ describe('Tool Catalog - Revision-Dependent Field Emission', () => {
 
   describe('Requirement 13.4: Omit when no registry entry', () => {
     test('should omit title when registry has no title for tool (even on modern revision)', () => {
-      const catalog = buildToolCatalog({ protocolVersion: MODERN_REVISION });
+      const catalog = buildToolCatalog({ protocolVersion: MODERN_ERA_REVISION });
 
       // Find tools without title in the catalog
       const toolsWithoutTitle = catalog.filter(t => t.title === undefined);
@@ -277,7 +286,7 @@ describe('Tool Catalog - Revision-Dependent Field Emission', () => {
     });
 
     test('should omit annotations when registry has no annotations for tool (even on modern revision)', () => {
-      const catalog = buildToolCatalog({ protocolVersion: MODERN_REVISION });
+      const catalog = buildToolCatalog({ protocolVersion: MODERN_ERA_REVISION });
 
       // Find tools without annotations in the catalog
       const toolsWithoutAnnotations = catalog.filter(t => t.annotations === undefined);
@@ -293,8 +302,8 @@ describe('Tool Catalog - Revision-Dependent Field Emission', () => {
 
   describe('Deterministic output', () => {
     test('should return identical catalog for same revision on consecutive calls', () => {
-      const catalog1 = buildToolCatalog({ protocolVersion: MODERN_REVISION });
-      const catalog2 = buildToolCatalog({ protocolVersion: MODERN_REVISION });
+      const catalog1 = buildToolCatalog({ protocolVersion: MODERN_ERA_REVISION });
+      const catalog2 = buildToolCatalog({ protocolVersion: MODERN_ERA_REVISION });
 
       expect(catalog1).toEqual(catalog2);
       expect(JSON.stringify(catalog1)).toBe(JSON.stringify(catalog2));
@@ -316,7 +325,7 @@ describe('Tool Catalog - Revision-Dependent Field Emission', () => {
       const originalFirstToolKeys = Object.keys(originalFirstTool);
 
       // Build catalog with modern revision (which adds title/annotations)
-      buildToolCatalog({ protocolVersion: MODERN_REVISION });
+      buildToolCatalog({ protocolVersion: MODERN_ERA_REVISION });
 
       // Verify original manifest unchanged
       expect(settings.tools.availableToolsList).toBe(originalManifest);
@@ -326,8 +335,8 @@ describe('Tool Catalog - Revision-Dependent Field Emission', () => {
     });
 
     test('should return new array instances on each call', () => {
-      const catalog1 = buildToolCatalog({ protocolVersion: MODERN_REVISION });
-      const catalog2 = buildToolCatalog({ protocolVersion: MODERN_REVISION });
+      const catalog1 = buildToolCatalog({ protocolVersion: MODERN_ERA_REVISION });
+      const catalog2 = buildToolCatalog({ protocolVersion: MODERN_ERA_REVISION });
 
       // Arrays should not be the same reference
       expect(catalog1).not.toBe(catalog2);

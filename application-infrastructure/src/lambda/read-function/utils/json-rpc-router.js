@@ -24,7 +24,7 @@ const { tools: { DebugAndLog } } = require('@63klabs/cache-data');
 
 /**
  * Standard headers included on every response.
- * 
+ *
  * Header management responsibilities (Requirement 9.2):
  * - `Content-Type` and `Access-Control-Allow-Origin`: Managed by `Response.finalize()` from @63klabs/cache-data.
  *   `finalize()` sets `Content-Type` from the body when unset and overwrites `Access-Control-Allow-Origin`
@@ -33,7 +33,7 @@ const { tools: { DebugAndLog } } = require('@63klabs/cache-data');
  * - `Access-Control-Allow-Methods` and `Access-Control-Allow-Headers`: Owned by API Gateway's `Cors`
  *   configuration in `template.yml`. These headers are answered on the CORS preflight (OPTIONS request)
  *   by API Gateway without Lambda involvement.
- * 
+ *
  * @constant {Object}
  */
 const STANDARD_HEADERS = {
@@ -246,7 +246,7 @@ async function handleJsonRpc(clientRequest, authInfo) {
     clientRequest.addQueryLog(`m:${method}`);
 
     // --- Step 4: Resolve era and validate protocol version --------------------
-    const { era, declaredRevision } = resolveEra(method, event.headers || {}, body);
+    const { era, declaredRevision } = resolveEra(method, body, event.headers || {});
 
     // Modern-era header validation (Requirement 8)
     if (era === 'modern') {
@@ -270,9 +270,10 @@ async function handleJsonRpc(clientRequest, authInfo) {
           id,
           MCPProtocol.JSON_RPC_ERRORS.UNSUPPORTED_PROTOCOL_VERSION,
           'Unsupported protocol version',
-          { 
-            declaredRevision: decision.negotiatedRevision, 
-            supportedVersions: decision.supportedVersions 
+          {
+            // >! Echo what the client declared; negotiatedRevision is always null on rejection
+            declaredRevision,
+            supportedVersions: decision.supportedVersions
           }
         ));
       }
@@ -280,19 +281,28 @@ async function handleJsonRpc(clientRequest, authInfo) {
 
     // --- Step 5: Dispatch by method -------------------------------------------
     switch (method) {
-      case 'initialize':
-        return buildResponse(200, MCPProtocol.initializeResult(id, { declaredRevision }));
+      case 'initialize': {
+        // >! The legacy handshake carries the requested revision in params.protocolVersion.
+        // >! An unlisted value is NOT an error here: the handshake counter-offers a supported
+        // >! revision (see selectLegacyRevision), so clients on revisions we don't list still connect.
+        const requestedRevision = typeof params?.protocolVersion === 'string'
+          ? params.protocolVersion
+          : declaredRevision;
+        return buildResponse(200, MCPProtocol.initializeResult(id, { declaredRevision: requestedRevision }));
+      }
 
       case 'server/discover':
         return buildResponse(200, MCPProtocol.discoverResult(id));
 
       case 'tools/list': {
-        const catalog = buildToolCatalog();
-        return buildResponse(200, MCPProtocol.toolsListResponse(id, catalog));
+        // Revision-gated fields (Tool.title / Tool.annotations) are emitted only when the
+        // request declared a revision that allows them; no declaration means baseline fields.
+        const catalog = buildToolCatalog({ protocolVersion: declaredRevision || undefined });
+        return buildResponse(200, MCPProtocol.toolsListResult(id, { era, catalog }));
       }
 
       case 'tools/call':
-        return await handleToolsCall(id, params, clientRequest, authInfo);
+        return await handleToolsCall(id, params, clientRequest, authInfo, era);
 
       default:
         return buildResponse(200, MCPProtocol.jsonRpcError(
@@ -321,6 +331,11 @@ async function handleJsonRpc(clientRequest, authInfo) {
  * in TOOL_DISPATCH, invokes it with a props object matching the controller
  * interface, and wraps the result in MCP content format.
  *
+ * For modern protocol era, wraps results with `resultType` and `_meta`.
+ * For legacy era, returns bare result without additional envelope fields.
+ *
+ * Requirements: 14.3, 14.4
+ *
  * @async
  * @param {string|number|null} id - JSON-RPC request id
  * @param {Object} params - JSON-RPC params object
@@ -331,9 +346,10 @@ async function handleJsonRpc(clientRequest, authInfo) {
  *   (`{ tier, isAuthenticated, ... }`). Added to the controller `props` generically for all
  *   tools so tier-aware tools (e.g. documentation search) can read the caller's tier.
  *   Tier-unaware controllers ignore it. Defaults to a public-tier context when omitted.
+ * @param {string} [era='legacy'] - Protocol era: 'modern' or 'legacy'
  * @returns {Promise<Object>} API Gateway response
  */
-async function handleToolsCall(id, params, clientRequest, authInfo) {
+async function handleToolsCall(id, params, clientRequest, authInfo, era = 'legacy') {
   // >! Validate that params.name is present
   if (!params || typeof params.name !== 'string') {
     return buildResponse(200, MCPProtocol.jsonRpcError(
@@ -436,7 +452,7 @@ async function handleToolsCall(id, params, clientRequest, authInfo) {
         const summaryResult = {
           content: [{ type: 'text', text: JSON.stringify(summary) }]
         };
-        return buildResponse(200, MCPProtocol.jsonRpcSuccess(id, summaryResult));
+        return buildResponse(200, MCPProtocol.toolsCallResult(id, { era, result: summaryResult }));
       }
     } catch {
       // >! Graceful fallback: if summary generation fails, return the original full response
@@ -455,7 +471,7 @@ async function handleToolsCall(id, params, clientRequest, authInfo) {
         const summaryResult = {
           content: [{ type: 'text', text: JSON.stringify(summary) }]
         };
-        return buildResponse(200, MCPProtocol.jsonRpcSuccess(id, summaryResult));
+        return buildResponse(200, MCPProtocol.toolsCallResult(id, { era, result: summaryResult }));
       }
     } catch {
       // >! Graceful fallback: if summary generation fails, return the original full response
@@ -474,14 +490,14 @@ async function handleToolsCall(id, params, clientRequest, authInfo) {
         const summaryResult = {
           content: [{ type: 'text', text: JSON.stringify(summary) }]
         };
-        return buildResponse(200, MCPProtocol.jsonRpcSuccess(id, summaryResult));
+        return buildResponse(200, MCPProtocol.toolsCallResult(id, { era, result: summaryResult }));
       }
     } catch {
       // >! Graceful fallback: if summary generation fails, return the original full response
     }
   }
 
-  return buildResponse(200, MCPProtocol.jsonRpcSuccess(id, result));
+  return buildResponse(200, MCPProtocol.toolsCallResult(id, { era, result }));
 }
 
 /**

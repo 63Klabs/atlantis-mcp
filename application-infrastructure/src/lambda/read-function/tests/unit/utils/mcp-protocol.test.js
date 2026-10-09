@@ -162,8 +162,7 @@ describe('MCP Protocol Utilities', () => {
       expect(result.accepted).toBe(false);
       expect(result.negotiatedRevision).toBeNull();
       expect(result).not.toHaveProperty('capabilities');
-      // Phase 3: Message now includes both supported versions
-      expect(result.message).toBe('Protocol version 2099-01-01 not supported. Supported versions: 2024-11-05, 2025-11-25');
+      expect(result.message).toBe('Protocol version 2099-01-01 not supported. Supported versions: 2024-11-05, 2025-11-25, 2026-07-28');
     });
 
     test('should include list of supported versions', () => {
@@ -362,6 +361,89 @@ describe('MCP Protocol Utilities', () => {
       
       // getCapabilities() no longer returns protocol field (Requirements 3.1, 3.2, 3.3)
       // It returns era-neutral capability information instead
+    });
+  });
+
+  describe('tools/list Determinism (Task 14.6)', () => {
+    // Import additional functions needed for era-aware testing
+    const MCPProtocol = require('../../../utils/mcp-protocol');
+    const { toolsListResult } = MCPProtocol;
+
+    test('two consecutive calls produce deep-equal arrays for legacy era', () => {
+      const era = 'legacy';
+      const id = 'test-list-1';
+
+      const result1 = toolsListResult(id, { era, catalog: listTools() });
+      const result2 = toolsListResult(id, { era, catalog: listTools() });
+
+      // Extract tools arrays from JSON-RPC responses
+      expect(result1.result).toBeDefined();
+      expect(result2.result).toBeDefined();
+      expect(result1.result.tools).toBeDefined();
+      expect(result2.result.tools).toBeDefined();
+
+      // Deep equality check
+      expect(result1.result.tools).toEqual(result2.result.tools);
+    });
+
+    test('two consecutive calls produce byte-identical JSON for legacy era', () => {
+      const era = 'legacy';
+      const id = 'test-list-2';
+
+      const result1 = toolsListResult(id, { era, catalog: listTools() });
+      const result2 = toolsListResult(id, { era, catalog: listTools() });
+
+      // Byte-identical JSON serialization
+      const json1 = JSON.stringify(result1);
+      const json2 = JSON.stringify(result2);
+
+      expect(json1).toBe(json2);
+    });
+
+    test('tools array order is stable across multiple calls for legacy era', () => {
+      const era = 'legacy';
+      const id = 'test-list-3';
+
+      // Make 5 consecutive calls
+      const results = [];
+      for (let i = 0; i < 5; i++) {
+        const result = toolsListResult(id, { era, catalog: listTools() });
+        results.push(result.result.tools);
+      }
+
+      // All should be deep equal to the first
+      results.forEach(tools => {
+        expect(tools).toEqual(results[0]);
+      });
+
+      // All should have same order (tool names in same sequence)
+      const toolNames = results[0].map(t => t.name);
+      results.forEach(tools => {
+        const names = tools.map(t => t.name);
+        expect(names).toEqual(toolNames);
+      });
+    });
+
+    test('modern era tools/list is also deterministic', () => {
+      const era = 'modern';
+      const id = 'test-list-4';
+
+      const result1 = toolsListResult(id, { era, catalog: listTools() });
+      const result2 = toolsListResult(id, { era, catalog: listTools() });
+
+      // Extract tools arrays
+      expect(result1.result).toBeDefined();
+      expect(result2.result).toBeDefined();
+      expect(result1.result.tools).toBeDefined();
+      expect(result2.result.tools).toBeDefined();
+
+      // Deep equality
+      expect(result1.result.tools).toEqual(result2.result.tools);
+
+      // Byte-identical JSON
+      const json1 = JSON.stringify(result1);
+      const json2 = JSON.stringify(result2);
+      expect(json1).toBe(json2);
     });
   });
 });
