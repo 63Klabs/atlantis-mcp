@@ -2,7 +2,7 @@
 
 ## 0-0-7
 
-- [-] post-deploy-smoke-verification
+- [-] post-deploy-smoke-verification - ready to execute tasks
 - [ ] rate-limit-client-ip-spoofing
 - [ ] revive post deploy tests
 - [ ] api-gateway-live-alias
