@@ -767,9 +767,9 @@ The authentication pages use the `amazon-cognito-identity-js` browser SDK loaded
 
 ## Post-Deploy Pipeline
 
-After the CloudFormation stack deploys, a separate CodeBuild project runs the post-deploy buildspec to generate and publish the static documentation site.
+After the CloudFormation stack deploys, a separate CodeBuild project runs the post-deploy buildspec to generate and publish the static documentation site, then verify the deployed stage.
 
-```
+```text
 ┌──────────────────────────────────────────────────────────────────────┐
 │  01-export-api-spec.sh                                               │
 │  Query CloudFormation for the REST API ID, then export the resolved  │
@@ -792,15 +792,24 @@ After the CloudFormation stack deploys, a separate CodeBuild project runs the po
 │  04-consolidate-and-deploy.sh                                        │
 │  Merge API docs, Markdown HTML, static assets, and auth pages into   │
 │  a final directory. Apply settings.json token replacement. Sync to   │
-│  S3 for static hosting.                                              │
-└──────────────────────────────────────────────────────────────────────┘
-         │
+│  the S3 static hosting bucket (documentation site + auth pages).     │
+└────────┬─────────────────────────────────────────────────────────────┘
          ▼
-┌──────────────────┐
-│  S3 Static       │  Published documentation site + auth pages
-│  Hosting Bucket  │
-└──────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│  05-verify-deployment.sh                                             │
+│  Read the skip switch and verification key from SSM, then smoke-test │
+│  the deployed stage through the raw API Gateway URL and, when the    │
+│  stage has a custom domain, the edge URL. A core failure fails the   │
+│  build and blocks promotion.                                         │
+└──────────────────────────────────────────────────────────────────────┘
 ```
+
+Two packages are installed and tested in the `pre_build` phase, before any script runs:
+
+- `application-infrastructure/src/static`: the static site, tested with jsdom and audited (production dependencies only).
+- `application-infrastructure/tests/postdeploy-verify`: the tests for the verifier that `05-verify-deployment.sh` runs. It installs with `npm ci --include=dev` because `NODE_ENV=production` would otherwise skip the pinned test dependencies. A failing test stops the build before the site is built or published.
+
+Because `05-verify-deployment.sh` runs last, the documentation site is already published when verification runs. For how verification works, see [Post-deploy verification (developer)](docs/developer/post-deploy-verification.md). For operating it (skip switch, reading results, retrying), see [Post-deploy verification (admin-ops)](docs/admin-ops/post-deploy-verification.md).
 
 ## Build Pipeline
 

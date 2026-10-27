@@ -1,0 +1,16 @@
+{
+  "name": "atlantis-mcp-postdeploy-verify-tests",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Tests for the post-deploy verifier, postdeploy-scripts/verify-deployment.js",
+  "type": "module",
+  "scripts": {
+    "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js"
+  },
+  "devDependencies": {
+    "@jest/globals": "30.5.2",
+    "fast-check": "4.10.2",
+    "jest": "30.5.2",
+    "js-yaml": "4.3.1"
+  }
+}

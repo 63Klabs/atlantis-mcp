@@ -137,6 +137,14 @@ phases:
       - python3 ./build-scripts/generate-put-ssm.py ${PARAM_STORE_HIERARCHY}CacheData_SecureDataKey --generate 256
       # Save a spot for GitHub Token
       - python3 ./build-scripts/generate-put-ssm.py ${PARAM_STORE_HIERARCHY}GitHubToken
+      # Post-deploy verification: save a spot for its API key (BLANK = run without a key)
+      # >! No value is passed, so the SecureString is created as BLANK. generate-put-ssm.py never
+      # >! overwrites an existing parameter, so a key an operator stores later is not replaced.
+      - python3 ./build-scripts/generate-put-ssm.py ${PARAM_STORE_HIERARCHY}Mcp_PostDeployTestVerifyApiKey
+      # Post-deploy verification: skip switch, so verification runs by default
+      # >! Only the initial value is set. Later builds find the parameter and skip it,
+      # >! so an operator's change (for example, true) is not reset by a deploy.
+      - python3 ./build-scripts/generate-put-ssm.py ${PARAM_STORE_HIERARCHY}Mcp_PostDeployTestVerifySkip --value false
       # Generate a random 256 bit hash (hexidecimal) in SSM for the Session Rate Client Identifier Key
       - python3 ./build-scripts/generate-put-ssm.py ${PARAM_STORE_HIERARCHY}Mcp_SessionHashSalt --generate 256
 

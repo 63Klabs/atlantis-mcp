@@ -19,6 +19,43 @@ These items in [tasks.md](tasks.md) stay open until this checklist is done:
 
 When you finish, tick the boxes below, then update `tasks.md` and add the Kiro trace to [cors-and-response-headers.md](../../../docs/admin-ops/cors-and-response-headers.md).
 
+## Automated by post-deploy verification
+
+The deterministic parts of this checklist now run on every deployment. The last post-deploy script, `05-verify-deployment.sh`, sends read-only requests to the stage that was just deployed and fails the build when a core sub-check fails. See [post-deploy verification](../../../docs/developer/post-deploy-verification.md) for what it checks, how to run it locally, and how to change a check. The spec is [0-0-7-postdeploy-smoke-verification](../0-0-7-postdeploy-smoke-verification/requirements.md).
+
+The sub-check IDs below are the ones the verifier prints (for example `P2.3`). Core sub-checks fail the build. Advisory sub-checks (`S`, `T1`, `X2`) only warn.
+
+| Manual items | Automated by | Stays manual |
+|--------------|--------------|--------------|
+| Smoke test | P1.1 | |
+| A1, A2 | X1.1 to X1.3; X2.1 at the edge | A3 |
+| B1 | P2.1, P2.6, V1.2 | |
+| B2 | P2.2 | |
+| B3 | P2.3 to P2.5 | |
+| C1, C3 | P1.1 to P1.5, V1.1 | C4 |
+| C2 | P2.7 | |
+| D1, D3 | P3.1, P3.3 | |
+| D2 | P3.2 | |
+| E1 to E5 | P4.1 to P4.5 | |
+| F1, F2 | P5.1, P5.2 | |
+| F3 | P5.3 to P5.5 | |
+| F4 | P6.1, P6.2 | |
+| G1, G3 | P5.6 | |
+| G2 | P5.7 | |
+| G4 | P5.8 | |
+| H1, H2 | S2.1, S2.2 | H4 |
+| H3 | S1.1 | |
+| I1 | T1.1, modern request only | I1's legacy request, I2, I3 |
+| K1 | V1.1, V1.2 | K2, K3 (V1 makes them unnecessary) |
+| | | J (real clients), L (repository state) |
+
+Reading the table:
+
+- **S2.1 and S2.2** need a verification key stored for the stage. Without one they are skipped, and H1 and H2 stay worth running by hand.
+- **X2.1** runs only on stages with a custom domain, so it checks the same headers through CloudFront. It is skipped on `test`.
+- **A3, C4, H4, I2, I3, K2, K3** are not covered. C4 is not covered because P3 checks the `-32022` error on `tools/list` only, and `server/discover` must still answer for an unlisted revision. K2 and K3 are unnecessary because a wrong version already fails the build through V1.
+- A green post-deploy run does not close the tasks.md items above on its own. The sections still marked manual (J and L in particular) need a person.
+
 ## Prerequisites
 
 - `bash`, `curl`, and [`jq`](https://jqlang.github.io/jq/) installed
@@ -94,6 +131,8 @@ echo "Endpoint: $MCP_URL"
 
 ### Smoke test
 
+> **Automated by post-deploy verification**: P1.1 (`server/discover` answers without a key). See [post-deploy verification](../../../docs/developer/post-deploy-verification.md).
+
 Before starting, confirm the setup works. This should print `PASS`.
 
 - [ ] Endpoint reachable and answering JSON-RPC
@@ -106,6 +145,8 @@ mcp -d '{"jsonrpc":"2.0","id":0,"method":"server/discover"}' \
 If it fails: check `MCP_HOST` (no trailing slash, no `/mcp/v1`), then `echo "$MCP_URL"`.
 
 ## A. CORS preflight
+
+> **Automated by post-deploy verification**: A1 and A2 by X1.1 to X1.3, and by X2.1 through CloudFront on stages with a custom domain. A3 stays manual. See [post-deploy verification](../../../docs/developer/post-deploy-verification.md).
 
 Proves the API Gateway `Cors` stanza in `template.yml` was deployed. A browser-hosted modern client is blocked at the preflight if it was not. Spec: tasks 7, 8, 13.
 
@@ -158,6 +199,8 @@ Expect no datapoints, or a `Sum` of `0.0`, for the minutes when only the preflig
 
 ## B. Legacy `initialize`
 
+> **Automated by post-deploy verification**: B1 by P2.1, P2.6, and V1.2. B2 by P2.2. B3 by P2.3 to P2.5. See [post-deploy verification](../../../docs/developer/post-deploy-verification.md).
+
 Proves existing clients are unaffected and that the new fields are present. Spec: tasks 2, 11, 13, 16.
 
 - [ ] **B1.** A client asking for `2025-11-25` gets it echoed, with `instructions` and the right server version
@@ -193,6 +236,8 @@ mcp -d '{"jsonrpc":"2.0","id":1,"method":"initialize"}' \
 ```
 
 ## C. `server/discover`
+
+> **Automated by post-deploy verification**: C1 and C3 by P1.1 to P1.5 and V1.1. C2 by P2.7. C4 stays manual. See [post-deploy verification](../../../docs/developer/post-deploy-verification.md).
 
 Proves the modern probe works through API Gateway, needs no key, and matches `initialize`. Spec: tasks 11, 13, 17.
 
@@ -236,6 +281,8 @@ mcp -H 'MCP-Protocol-Version: 2099-01-01' -d '{"jsonrpc":"2.0","id":4,"method":"
 
 ## D. Unsupported version (`-32022`)
 
+> **Automated by post-deploy verification**: D1 and D3 by P3.1 and P3.3. D2 by P3.2. See [post-deploy verification](../../../docs/developer/post-deploy-verification.md).
+
 Proves the new error reaches the client with a useful payload. Spec: tasks 11.6, 13.
 
 - [ ] **D1.** Unlisted revision in the `MCP-Protocol-Version` header
@@ -263,6 +310,8 @@ curl -s -o /dev/null -w 'HTTP %{http_code}\n' "$MCP_URL" -H 'Content-Type: appli
 Expect `HTTP 200`.
 
 ## E. Header mismatch (`-32020`)
+
+> **Automated by post-deploy verification**: E1 to E5 by P4.1 to P4.5. See [post-deploy verification](../../../docs/developer/post-deploy-verification.md).
 
 Proves `Mcp-Method` and `Mcp-Name` **reach the Lambda through API Gateway**. A `-32020` can only come back if the header arrived. Spec: tasks 15, 17.
 
@@ -307,6 +356,8 @@ mcp -H 'Mcp-Method: tools/call' -H 'Mcp-Name: something_else' \
 ```
 
 ## F. Modern required fields
+
+> **Automated by post-deploy verification**: F1 and F2 by P5.1 and P5.2. F3 by P5.3 to P5.5. F4 by P6.1 and P6.2. See [post-deploy verification](../../../docs/developer/post-deploy-verification.md).
 
 Proves the `2026-07-28` response shape through the deployed stack, and that legacy responses did **not** change. Spec: tasks 14, 17.
 
@@ -358,6 +409,8 @@ mcp -H 'MCP-Protocol-Version: 2025-11-25' -d "$CALL" \
 
 ## G. Tool titles and annotations
 
+> **Automated by post-deploy verification**: G1 and G3 by P5.6. G2 by P5.7. G4 by P5.8. See [post-deploy verification](../../../docs/developer/post-deploy-verification.md).
+
 Proves `Tool.title` and `Tool.annotations` reach the wire on the right revisions (task 18.1, Requirement 13).
 
 > **Note**: The server keeps no session, so declaring a revision in `initialize` does not carry over to `tools/list`. Each request must declare the revision itself. A client that does not will receive the baseline fields only.
@@ -399,6 +452,8 @@ A=$(names 2024-11-05); B=$(names 2025-11-25); C=$(names 2026-07-28)
 
 ## H. Authentication and response headers
 
+> **Automated by post-deploy verification**: H1 and H2 by S2.1 and S2.2 (only when a verification key is stored for the stage). H3 by S1.1. H4 stays manual. See [post-deploy verification](../../../docs/developer/post-deploy-verification.md).
+
 Proves nothing changed for authenticated clients. Skip the key checks if you have no API key. Spec: Requirement 16.
 
 - [ ] **H1.** *(Needs a key)* `X-API-Key` still works on `initialize`
@@ -438,6 +493,8 @@ curl -si "$MCP_URL" -H 'Content-Type: application/json' -H "Origin: $MCP_ORIGIN"
 Expect: status `200`, `content-type: application/json`, `access-control-allow-origin: *`, `x-ratelimit-limit` and `x-ratelimit-remaining`, and `x-mcp-version: 1.0`. There should be **no** `access-control-allow-methods` or `access-control-allow-headers` on this response; API Gateway sends those only on the preflight.
 
 ## I. Real tool calls end to end
+
+> **Automated by post-deploy verification**: the modern `list_templates` request of I1 by T1.1 (advisory). The legacy request of I1, I2, and I3 stay manual. See [post-deploy verification](../../../docs/developer/post-deploy-verification.md).
 
 The unit tests stub the data layer. These calls hit the real S3, GitHub, and index backends, on both eras. Spec: tasks 14, 17.
 
@@ -553,6 +610,8 @@ Only Kiro is available for hands-on testing, so these were verified against publ
 If any of them fails, run section D against that client's traffic first. The `-32022` payload lists the revisions the server accepts.
 
 ## K. Build and release version
+
+> **Automated by post-deploy verification**: K1 by V1.1 and V1.2, on every deploy. K2 and K3 stay on this list, but V1 makes them unnecessary because a wrong version already fails the build. See [post-deploy verification](../../../docs/developer/post-deploy-verification.md).
 
 Proves the build wrote the right version and that the fallback was not used. Spec: tasks 1, 21.
 

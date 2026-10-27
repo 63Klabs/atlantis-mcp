@@ -120,6 +120,14 @@
         "/aws/lambda/${Prefix}-${ProjectId}-${StageId}-ReadFunction"
       ],
       "query": "fields @timestamp, @message, requestId\n| filter @message like /sidecar/i and (@message like /missing/i or @message like /invalid/i or @message like /error/i)\n| parse @message /starter[:\\s]+(?<starter>[^\\s,]+)/\n| parse @message /bucket[:\\s]+(?<bucket>[^\\s,]+)/\n| parse @message /(?<issue>missing sidecar|invalid JSON|missing required field)/i\n| stats count() as issueCount by starter, bucket, issue\n| sort issueCount desc"
+    },
+    {
+      "name": "Post-Deploy Verification Runs",
+      "description": "List recent post-deploy verification runs with outcome, exit code, expected version, and failed core sub-check IDs from the VERIFY_REPORT line",
+      "logGroups": [
+        "/aws/codebuild/${Prefix}-${ProjectId}-${StageId}-PostDeploy"
+      ],
+      "query": "fields @timestamp, @message\n| filter @message like /VERIFY_REPORT /\n| parse @message /\"outcome\":\"(?<outcome>[a-z]+)\",\"exitCode\":(?<exitCode>\\d+),\"expectedVersion\":\"?(?<expectedVersion>[^\",]*)\"?/\n| parse @message /\"failedCore\":\\[(?<failedCore>[^\\]]*)\\]/\n| sort @timestamp desc\n| limit 50"
     }
   ]
 }

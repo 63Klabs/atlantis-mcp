@@ -2,11 +2,11 @@
 
 ## 0-0-7
 
-- [-] post-deploy-smoke-verification - ready to execute tasks
-- [ ] rate-limit-client-ip-spoofing
-- [ ] revive post deploy tests
+- [X] post-deploy-smoke-verification - ready to execute tasks
 - [ ] api-gateway-live-alias
+- [ ] revive post deploy tests
 - [ ] lapsed tier downgrade
+- [ ] rate-limit-client-ip-spoofing
 
 ## Future
 
@@ -21,6 +21,7 @@
 
 ## Far Out
 
+- [ ] Replace api key with better auth
 - [ ] Add SES and connect to Cognito
 - [ ] Subscriptions
 - [ ] Show stats including ip history on user profile

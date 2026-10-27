@@ -1,13 +1,22 @@
 version: 0.2
 
 # POST-DEPLOYMENT BUILDSPEC
-# Orchestrates static site generation after the application CloudFormation stack deploys.
-# Executes scripts in sequence to export the API spec, generate HTML docs, and sync to S3.
+# Orchestrates static site generation and deployment verification after the
+# application CloudFormation stack deploys. Executes scripts in sequence to export
+# the API spec, generate HTML docs, sync them to S3, and verify the deployed stage.
 #
 # Required environment variables (provided by the pipeline):
-#   PREFIX, PROJECT_ID, STAGE_ID - CloudFormation stack name derivation
+#   PREFIX, PROJECT_ID, STAGE_ID - CloudFormation stack and pipeline name derivation
 #   S3_STATIC_HOST_BUCKET        - Target S3 bucket for static hosting
-#   PARAM_STORE_HIERARCHY         - Available but not directly used by these scripts
+#   PARAM_STORE_HIERARCHY        - SSM path of the verification key and skip switch (05)
+#   AWS_REGION                   - Region of the stack, used to build the raw API URL (05)
+
+env:
+  variables:
+    # >! Backup skip switch for 05-verify-deployment.sh, used only when the SSM parameter
+    # >! ${PARAM_STORE_HIERARCHY}Mcp_PostDeployTestVerifySkip is missing or unreadable.
+    # >! "true" skips deployment verification. Keep it "false".
+    VERIFY_SKIP: "false"
 
 phases:
   install:
@@ -50,6 +59,14 @@ phases:
       - npm audit --omit=dev --audit-level=high
       - cd "$CODEBUILD_SRC_DIR"
 
+      # Post-deploy verifier: install its pinned test dependencies and run its tests
+      # before any post-deploy script runs (NODE_ENV=production requires --include=dev)
+      - echo "--- Testing Post-Deploy Verifier ---"
+      - cd "$CODEBUILD_SRC_DIR/application-infrastructure/tests/postdeploy-verify"
+      - npm ci --include=dev
+      - NODE_ENV=test npm test
+      - cd "$CODEBUILD_SRC_DIR"
+
   build:
     commands:
       # >! Define PUBLIC_DOC_DIRS as a configurable variable controlling which doc directories are published.
@@ -77,3 +94,7 @@ phases:
       - bash -e application-infrastructure/postdeploy-scripts/04-consolidate-and-deploy.sh
 
       - echo "Post-deployment static generation complete"
+
+      # >! Verify the deployed stage last. A core failure fails the build and blocks promotion
+      - echo "Running 05-verify-deployment.sh..."
+      - bash -e application-infrastructure/postdeploy-scripts/05-verify-deployment.sh

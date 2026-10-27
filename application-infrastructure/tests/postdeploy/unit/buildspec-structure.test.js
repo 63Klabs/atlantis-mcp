@@ -101,13 +101,14 @@ describe('buildspec-postdeploy.yml structure', () => {
           cmd.includes('postdeploy-scripts/')
       );
 
-      expect(scriptCommands.length).toBe(4);
+      expect(scriptCommands.length).toBe(5);
 
       // Verify ordering
       expect(scriptCommands[0]).toContain('01-export-api-spec.sh');
       expect(scriptCommands[1]).toContain('02-generate-api-docs.sh');
       expect(scriptCommands[2]).toContain('03-generate-markdown-docs.sh');
       expect(scriptCommands[3]).toContain('04-consolidate-and-deploy.sh');
+      expect(scriptCommands[4]).toContain('05-verify-deployment.sh');
     });
 
     it('should invoke scripts with bash -e to halt on non-zero exit', () => {
