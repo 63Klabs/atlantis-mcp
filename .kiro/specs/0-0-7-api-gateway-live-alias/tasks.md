@@ -209,14 +209,14 @@ Do not commit unless the owner asks. Do not edit `.kiro/steering/atlantis-multi-
     - Confirm: the `AlarmNotificationEmail` recipient has been told to expect an alarm email; no `prod` promotion is pending from `beta`; the person running the drill holds `cloudwatch:SetAlarmState` and read access to CodeDeploy and CloudFormation; the drill is not the migration deploy and `beta` has already passed checks 1 to 7
     - _Requirements: 10.1, 10.2, 10.6_
 
-  - [-] 16.2 Run the drill on the next ordinary `beta` deploy
+  - [x] 16.2 Run the drill on the next ordinary `beta` deploy
     - After the shift starts, begin polling `server/discover` once a minute on the raw `execute-api` URL, as in Design, V-D
     - Put `ReadLambdaErrorsAlarm` into `ALARM` with `aws cloudwatch set-alarm-state` and repeat the call if the state reverts before CodeDeploy reacts, but stop when the shift ends
     - Watch the CodeDeploy deployment, the alias version, the polled versions, and the stack status
     - Judge: passed only if CodeDeploy stops and rolls back, the alias returns to the previous version, the polled responses return to the previous version, and the stack ends in `UPDATE_ROLLBACK_COMPLETE`. If CodeDeploy never reacts, record the outcome as inconclusive and do not treat it as a rollback failure
     - _Requirements: 10.3, 10.4, 10.5_
 
-  - [~] 16.3 Restore `beta` and record the result
+  - [-] 16.3 Restore `beta` and record the result
     - Redeploy `beta` normally so it is back on the current release, then fill in the drill rows of `VERIFICATION.md` (date, method, outcome, notes)
     - _Requirements: 10.7_
 
