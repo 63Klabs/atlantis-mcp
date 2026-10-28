@@ -35,7 +35,7 @@ jest.mock('../../../utils/json-rpc-router', () => ({
 const mockJsonRpcError = jest.fn().mockReturnValue({ jsonrpc: '2.0', error: { code: -32601, message: 'Not found' }, id: null });
 
 jest.mock('../../../utils/mcp-protocol', () => ({
-  toolsListResponse: jest.fn(),
+  toolsListResult: jest.fn(),
   jsonRpcError: mockJsonRpcError,
   JSON_RPC_ERRORS: {
     PARSE_ERROR: -32700,

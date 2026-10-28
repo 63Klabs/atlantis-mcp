@@ -1023,6 +1023,11 @@
         "executionId": "cc9f1da3-776a-42c9-a441-e47cf0612cec",
         "chatSessionId": "sess_ff6609e8-bc09-4f72-8f0c-f1623f8e2074",
         "timestamp": 1791296898884
+      },
+      {
+        "executionId": "e54c70cb-5020-4cff-b465-f60ddc389455",
+        "chatSessionId": "sess_3c6f3b73-7ba7-41dc-8d7e-99eba35db56b",
+        "timestamp": 1791480995521
       }
     ],
     "21.1 Author canonical `AGENTS.md` content for the `agents-md` asset type": [
@@ -1128,6 +1133,11 @@
         "executionId": "cc9f1da3-776a-42c9-a441-e47cf0612cec",
         "chatSessionId": "sess_ff6609e8-bc09-4f72-8f0c-f1623f8e2074",
         "timestamp": 1791305746016
+      },
+      {
+        "executionId": "8780be23-2b61-4126-a7c2-3dfb63569b1e",
+        "chatSessionId": "sess_421386b6-cf14-4352-930a-750ffb1b34d0",
+        "timestamp": 1791479602539
       }
     ],
     "22.1 Write integration tests for catalog, manifest, filters, and degradation": [
@@ -1145,6 +1155,16 @@
         "executionId": "cc9f1da3-776a-42c9-a441-e47cf0612cec",
         "chatSessionId": "sess_ff6609e8-bc09-4f72-8f0c-f1623f8e2074",
         "timestamp": 1791305746793
+      },
+      {
+        "executionId": "44bfb8f6-3ecc-401e-a622-b90ed2f46974",
+        "chatSessionId": "sess_5723eccc-3b3c-4b33-99e5-10933e7961a0",
+        "timestamp": 1791480269458
+      },
+      {
+        "executionId": "44bfb8f6-3ecc-401e-a622-b90ed2f46974",
+        "chatSessionId": "sess_5723eccc-3b3c-4b33-99e5-10933e7961a0",
+        "timestamp": 1791480402512
       }
     ],
     "23.1 Update end-user, admin-ops, developer docs, ARCHITECTURE.md, and CHANGELOG.md": [
@@ -1162,6 +1182,11 @@
         "executionId": "cc9f1da3-776a-42c9-a441-e47cf0612cec",
         "chatSessionId": "sess_ff6609e8-bc09-4f72-8f0c-f1623f8e2074",
         "timestamp": 1791305748065
+      },
+      {
+        "executionId": "ad5ec6da-55e4-4c25-b0de-e27fe4aaea6c",
+        "chatSessionId": "sess_aeb431f1-9a20-4de2-a65d-7b00b7f63b98",
+        "timestamp": 1791480602571
       }
     ],
     "24. Final checkpoint - Ensure all tests pass": [
@@ -1174,6 +1199,11 @@
         "executionId": "cc9f1da3-776a-42c9-a441-e47cf0612cec",
         "chatSessionId": "sess_ff6609e8-bc09-4f72-8f0c-f1623f8e2074",
         "timestamp": 1791296899773
+      },
+      {
+        "executionId": "e54c70cb-5020-4cff-b465-f60ddc389455",
+        "chatSessionId": "sess_3c6f3b73-7ba7-41dc-8d7e-99eba35db56b",
+        "timestamp": 1791481002262
       }
     ],
     "1. Create the `search-common` Lambda Layer with shared normalization (Rollout step 1)": [
@@ -1286,6 +1316,37 @@
         "executionId": "cc9f1da3-776a-42c9-a441-e47cf0612cec",
         "chatSessionId": "sess_ff6609e8-bc09-4f72-8f0c-f1623f8e2074",
         "timestamp": 1791304374685
+      }
+    ],
+    "21. Author agent-asset content and enable the skills type (Rollout step 5)": [
+      {
+        "executionId": "8780be23-2b61-4126-a7c2-3dfb63569b1e",
+        "chatSessionId": "sess_421386b6-cf14-4352-930a-750ffb1b34d0",
+        "timestamp": 1791479602908
+      }
+    ],
+    "22. Add cross-layer integration tests (R15.1)": [
+      {
+        "executionId": "44bfb8f6-3ecc-401e-a622-b90ed2f46974",
+        "chatSessionId": "sess_5723eccc-3b3c-4b33-99e5-10933e7961a0",
+        "timestamp": 1791480259622
+      },
+      {
+        "executionId": "44bfb8f6-3ecc-401e-a622-b90ed2f46974",
+        "chatSessionId": "sess_5723eccc-3b3c-4b33-99e5-10933e7961a0",
+        "timestamp": 1791480399015
+      }
+    ],
+    "23. Update documentation and changelog (R14)": [
+      {
+        "executionId": "ad5ec6da-55e4-4c25-b0de-e27fe4aaea6c",
+        "chatSessionId": "sess_aeb431f1-9a20-4de2-a65d-7b00b7f63b98",
+        "timestamp": 1791480465222
+      },
+      {
+        "executionId": "ad5ec6da-55e4-4c25-b0de-e27fe4aaea6c",
+        "chatSessionId": "sess_aeb431f1-9a20-4de2-a65d-7b00b7f63b98",
+        "timestamp": 1791480602918
       }
     ]
   }

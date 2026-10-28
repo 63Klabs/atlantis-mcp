@@ -9,7 +9,6 @@ venv*
 .vscode
 *.DS_Store
 *desktop.ini
-package-lock.json
 
 # If you need to remove .DS_Store
 # find . -name .DS_Store -print0 | xargs -0 git rm -f --ignore-unmatch
@@ -17,9 +16,9 @@ package-lock.json
 # Ignore Generated
 node_modules/
 application-infrastructure/src/coverage/
-package-lock.json
 __pycache__/
 *.py[cod]
+**/config/release-version.js
 
 # Exceptions
 !.gitignore

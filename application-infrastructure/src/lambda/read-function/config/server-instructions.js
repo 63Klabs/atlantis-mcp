@@ -2,10 +2,10 @@
  * Server Instructions
  *
  * Single source of truth for the MCP server-level `instructions` string
- * (Requirement 1). The string is composed once here and read by both
- * protocol-era carriers in `utils/mcp-protocol.js` (`initializeResponse()`
- * and `getCapabilities()`), so it cannot diverge between protocol eras
- * (R1.1).
+ * (Requirement 1). The string is composed once here, called only from
+ * `getCapabilities()` in `utils/mcp-protocol.js`, and carried by both
+ * protocol-era formatters (`initializeResult()` and `discoverResult()`),
+ * so it cannot diverge between protocol eras (R1.1).
  *
  * Content, in order:
  *   1. Scope sentence naming the Atlantis platform and `@63klabs/cache-data`

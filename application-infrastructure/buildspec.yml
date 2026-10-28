@@ -54,6 +54,11 @@ phases:
 
       - ls -l -a
 
+      # Generate release-version.js for each Lambda function
+      # This must run before the per-function loop so the generated file is present
+      # when each function's tests run (Requirement 2.1)
+      - python3 application-infrastructure/build-scripts/write_release_version.py
+
       # Application Environment: Build and test each Lambda function independently.
       # src/lambda/ holds one directory per function (multi-src layout). Each function
       # is fully self-contained with its own package.json, .nvmrc, and node_modules.
@@ -103,13 +108,13 @@ phases:
               cd "$CODEBUILD_SRC_DIR/$layer_dir"
 
               # Install dev so we can run tests, but we will remove dev dependencies later
-              npm install --include=dev
+              npm ci --include=dev
               # Run Test under test environment
               NODE_ENV=test npm test
 
               # Clean up test artifacts and reinstall only production dependencies to reduce Lambda package size
               rm -rf __tests__ tests coverage node_modules
-              npm install --omit=dev
+              npm ci --omit=dev
 
               # FAIL the build if npm audit has vulnerabilities it can't fix
               # Perform a fix to move us forward, then check to make sure there were no unresolved high fixes
@@ -132,6 +137,14 @@ phases:
       - python3 ./build-scripts/generate-put-ssm.py ${PARAM_STORE_HIERARCHY}CacheData_SecureDataKey --generate 256
       # Save a spot for GitHub Token
       - python3 ./build-scripts/generate-put-ssm.py ${PARAM_STORE_HIERARCHY}GitHubToken
+      # Post-deploy verification: save a spot for its API key (BLANK = run without a key)
+      # >! No value is passed, so the SecureString is created as BLANK. generate-put-ssm.py never
+      # >! overwrites an existing parameter, so a key an operator stores later is not replaced.
+      - python3 ./build-scripts/generate-put-ssm.py ${PARAM_STORE_HIERARCHY}Mcp_PostDeployTestVerifyApiKey
+      # Post-deploy verification: skip switch, so verification runs by default
+      # >! Only the initial value is set. Later builds find the parameter and skip it,
+      # >! so an operator's change (for example, true) is not reset by a deploy.
+      - python3 ./build-scripts/generate-put-ssm.py ${PARAM_STORE_HIERARCHY}Mcp_PostDeployTestVerifySkip --value false
       # Generate a random 256 bit hash (hexidecimal) in SSM for the Session Rate Client Identifier Key
       - python3 ./build-scripts/generate-put-ssm.py ${PARAM_STORE_HIERARCHY}Mcp_SessionHashSalt --generate 256
 
@@ -152,7 +165,9 @@ phases:
       # (repo root). Ensure the build scripts below run from application-infrastructure.
       - cd "$CODEBUILD_SRC_DIR/application-infrastructure"
 
-      # There is sometimes a bug that causes the alias to not be updated correctly (see comment in template.yml for AppFunction.Properties.AutoPublishCodeSha256)
+      # Rewrite AutoPublishCodeSha256 so SAM publishes a new Read function version, and moves the "live" alias, on every build.
+      # API Gateway invokes that alias, so API callers move to new code only when the alias moves. There is sometimes a bug that
+      # causes the alias not to update when the function code is unchanged (see build-scripts/update_template_timestamp.py).
       - python3 ./build-scripts/update_template_timestamp.py template.yml
 
       # Replace placeholders in the template-configuration.json file

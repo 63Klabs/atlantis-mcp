@@ -9,10 +9,14 @@
 process.env.PARAM_STORE_PATH = process.env.PARAM_STORE_PATH || '/test/';
 
 const settings = require('../../../config/settings');
+const { buildInstructions } = require('../../../config/server-instructions');
 const {
   MCP_VERSION,
-  MCP_CAPABILITIES,
+  MCP_CAPABILITIES_WIRE,
   MCP_TOOLS,
+  ALLOWED_REVISIONS,
+  SERVER_NAME,
+  SERVER_VERSION,
   successResponse,
   errorResponse,
   negotiateProtocol,
@@ -28,12 +32,9 @@ describe('MCP Protocol Utilities', () => {
       expect(MCP_VERSION).toBe('1.0');
     });
 
-    test('MCP_CAPABILITIES should have expected structure', () => {
-      expect(MCP_CAPABILITIES).toEqual({
-        tools: true,
-        resources: false,
-        prompts: false,
-        sampling: false
+    test('MCP_CAPABILITIES_WIRE should have expected on-wire structure (Requirements 3.1, 3.2)', () => {
+      expect(MCP_CAPABILITIES_WIRE).toEqual({
+        tools: { listChanged: false }
       });
     });
 
@@ -142,60 +143,94 @@ describe('MCP Protocol Utilities', () => {
   });
 
   describe('negotiateProtocol()', () => {
-    test('should accept supported version 1.0', () => {
-      const result = negotiateProtocol('1.0');
+    test('should accept supported revision 2024-11-05', () => {
+      const result = negotiateProtocol('2024-11-05');
 
-      expect(result).toHaveProperty('protocol', 'mcp');
       expect(result).toHaveProperty('accepted', true);
-      expect(result).toHaveProperty('version', '1.0');
+      expect(result).toHaveProperty('negotiatedRevision', '2024-11-05');
       expect(result).toHaveProperty('supportedVersions');
-      expect(result.supportedVersions).toContain('1.0');
-      expect(result).toHaveProperty('capabilities', MCP_CAPABILITIES);
-      expect(result.message).toContain('accepted');
+      expect(result.supportedVersions).toContain('2024-11-05');
+      expect(result).not.toHaveProperty('capabilities');
+      expect(result).not.toHaveProperty('protocol');
+      expect(result).not.toHaveProperty('version');
+      expect(result.message).toBe('Protocol version 2024-11-05 accepted');
     });
 
-    test('should reject unsupported version', () => {
-      const result = negotiateProtocol('2.0');
+    test('should reject unsupported revision', () => {
+      const result = negotiateProtocol('2099-01-01');
 
       expect(result.accepted).toBe(false);
-      expect(result.version).toBe(MCP_VERSION);
-      expect(result.capabilities).toBeNull();
-      expect(result.message).toContain('not supported');
+      expect(result.negotiatedRevision).toBeNull();
+      expect(result).not.toHaveProperty('capabilities');
+      expect(result.message).toBe('Protocol version 2099-01-01 not supported. Supported versions: 2024-11-05, 2025-11-25, 2026-07-28');
     });
 
     test('should include list of supported versions', () => {
-      const result = negotiateProtocol('1.0');
+      const result = negotiateProtocol('2024-11-05');
 
       expect(Array.isArray(result.supportedVersions)).toBe(true);
       expect(result.supportedVersions.length).toBeGreaterThan(0);
+      expect(result.supportedVersions).toContain('2024-11-05');
     });
   });
 
   describe('getCapabilities()', () => {
-    test('should return complete capabilities object', () => {
+    test('should return supportedVersions as ALLOWED_REVISIONS (Requirements 3.1, 15.4)', () => {
       const capabilities = getCapabilities();
 
-      expect(capabilities).toHaveProperty('protocol', 'mcp');
-      expect(capabilities).toHaveProperty('version', MCP_VERSION);
-      expect(capabilities).toHaveProperty('capabilities', MCP_CAPABILITIES);
-      expect(capabilities).toHaveProperty('tools');
-      expect(capabilities).toHaveProperty('description');
-      expect(capabilities).toHaveProperty('vendor', '63Klabs');
-      expect(capabilities).toHaveProperty('serverInfo');
+      expect(capabilities.supportedVersions).toBe(ALLOWED_REVISIONS);
+      expect(Array.isArray(capabilities.supportedVersions)).toBe(true);
+      expect(capabilities.supportedVersions).toContain('2024-11-05');
+      expect(capabilities.supportedVersions).toContain('2025-11-25');
     });
 
-    test('should include server information', () => {
+    test('should return capabilities as MCP_CAPABILITIES_WIRE (Requirements 3.1, 15.4)', () => {
       const capabilities = getCapabilities();
 
-      expect(capabilities.serverInfo).toHaveProperty('name');
-      expect(capabilities.serverInfo).toHaveProperty('version');
+      expect(capabilities.capabilities).toBe(MCP_CAPABILITIES_WIRE);
+      expect(capabilities.capabilities).toEqual({
+        tools: { listChanged: false }
+      });
     });
 
-    test('should include all tools', () => {
+    test('should return serverInfo.name as SERVER_NAME and serverInfo.version as SERVER_VERSION (Requirements 3.1, 15.4)', () => {
       const capabilities = getCapabilities();
 
-      expect(Array.isArray(capabilities.tools)).toBe(true);
-      expect(capabilities.tools.length).toBe(MCP_TOOLS.length);
+      expect(capabilities.serverInfo.name).toBe(SERVER_NAME);
+      expect(capabilities.serverInfo.name).toBe('atlantis-mcp-server');
+      expect(capabilities.serverInfo.version).toBe(SERVER_VERSION);
+      expect(typeof capabilities.serverInfo.version).toBe('string');
+    });
+
+    test('should return instructions byte-identical to buildInstructions() (Requirements 3.1, 15.4)', () => {
+      const capabilities = getCapabilities();
+      const directInstructions = buildInstructions();
+
+      expect(capabilities.instructions).toBe(directInstructions);
+      expect(typeof capabilities.instructions).toBe('string');
+      expect(capabilities.instructions.length).toBeGreaterThan(0);
+    });
+
+    test('should not include dead fields (protocol, version, tools) (Requirements 3.1, 15.4)', () => {
+      const capabilities = getCapabilities();
+
+      // These fields should NOT be present in getCapabilities() return value
+      expect(capabilities).not.toHaveProperty('protocol');
+      expect(capabilities).not.toHaveProperty('version');
+      expect(capabilities).not.toHaveProperty('tools');
+      expect(capabilities).not.toHaveProperty('description');
+      expect(capabilities).not.toHaveProperty('vendor');
+    });
+
+    test('should return only the four expected properties (Requirements 3.1, 15.4)', () => {
+      const capabilities = getCapabilities();
+      const keys = Object.keys(capabilities);
+
+      expect(keys).toHaveLength(4);
+      expect(keys).toContain('supportedVersions');
+      expect(keys).toContain('capabilities');
+      expect(keys).toContain('serverInfo');
+      expect(keys).toContain('instructions');
     });
   });
 
@@ -291,9 +326,8 @@ describe('MCP Protocol Utilities', () => {
       expect(tools).toBe(settings.tools.availableToolsList);
     });
 
-    test('getCapabilities().tools returns availableToolsList from settings (reference identity)', () => {
-      const capabilities = getCapabilities();
-      expect(capabilities.tools).toBe(settings.tools.availableToolsList);
+    test('MCP_TOOLS constant returns availableToolsList from settings (reference identity)', () => {
+      expect(MCP_TOOLS).toBe(settings.tools.availableToolsList);
     });
 
     test('isValidTool("list_tools") returns true', () => {
@@ -318,16 +352,98 @@ describe('MCP Protocol Utilities', () => {
       expect(error).toHaveProperty('timestamp');
     });
 
-    test('all responses should include MCP protocol identifier', () => {
+    test('legacy response formatters should include MCP protocol identifier', () => {
       const success = successResponse('test', {});
       const error = errorResponse('ERROR', 'Test');
-      const capabilities = getCapabilities();
-      const negotiation = negotiateProtocol('1.0');
 
       expect(success.protocol).toBe('mcp');
       expect(error.protocol).toBe('mcp');
-      expect(capabilities.protocol).toBe('mcp');
-      expect(negotiation.protocol).toBe('mcp');
+      
+      // getCapabilities() no longer returns protocol field (Requirements 3.1, 3.2, 3.3)
+      // It returns era-neutral capability information instead
+    });
+  });
+
+  describe('tools/list Determinism (Task 14.6)', () => {
+    // Import additional functions needed for era-aware testing
+    const MCPProtocol = require('../../../utils/mcp-protocol');
+    const { toolsListResult } = MCPProtocol;
+
+    test('two consecutive calls produce deep-equal arrays for legacy era', () => {
+      const era = 'legacy';
+      const id = 'test-list-1';
+
+      const result1 = toolsListResult(id, { era, catalog: listTools() });
+      const result2 = toolsListResult(id, { era, catalog: listTools() });
+
+      // Extract tools arrays from JSON-RPC responses
+      expect(result1.result).toBeDefined();
+      expect(result2.result).toBeDefined();
+      expect(result1.result.tools).toBeDefined();
+      expect(result2.result.tools).toBeDefined();
+
+      // Deep equality check
+      expect(result1.result.tools).toEqual(result2.result.tools);
+    });
+
+    test('two consecutive calls produce byte-identical JSON for legacy era', () => {
+      const era = 'legacy';
+      const id = 'test-list-2';
+
+      const result1 = toolsListResult(id, { era, catalog: listTools() });
+      const result2 = toolsListResult(id, { era, catalog: listTools() });
+
+      // Byte-identical JSON serialization
+      const json1 = JSON.stringify(result1);
+      const json2 = JSON.stringify(result2);
+
+      expect(json1).toBe(json2);
+    });
+
+    test('tools array order is stable across multiple calls for legacy era', () => {
+      const era = 'legacy';
+      const id = 'test-list-3';
+
+      // Make 5 consecutive calls
+      const results = [];
+      for (let i = 0; i < 5; i++) {
+        const result = toolsListResult(id, { era, catalog: listTools() });
+        results.push(result.result.tools);
+      }
+
+      // All should be deep equal to the first
+      results.forEach(tools => {
+        expect(tools).toEqual(results[0]);
+      });
+
+      // All should have same order (tool names in same sequence)
+      const toolNames = results[0].map(t => t.name);
+      results.forEach(tools => {
+        const names = tools.map(t => t.name);
+        expect(names).toEqual(toolNames);
+      });
+    });
+
+    test('modern era tools/list is also deterministic', () => {
+      const era = 'modern';
+      const id = 'test-list-4';
+
+      const result1 = toolsListResult(id, { era, catalog: listTools() });
+      const result2 = toolsListResult(id, { era, catalog: listTools() });
+
+      // Extract tools arrays
+      expect(result1.result).toBeDefined();
+      expect(result2.result).toBeDefined();
+      expect(result1.result.tools).toBeDefined();
+      expect(result2.result.tools).toBeDefined();
+
+      // Deep equality
+      expect(result1.result.tools).toEqual(result2.result.tools);
+
+      // Byte-identical JSON
+      const json1 = JSON.stringify(result1);
+      const json2 = JSON.stringify(result2);
+      expect(json1).toBe(json2);
     });
   });
 });

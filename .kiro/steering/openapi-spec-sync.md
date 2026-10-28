@@ -58,7 +58,7 @@ paths:
         httpMethod: post
         type: aws_proxy
         uri:
-          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ReadLambdaFunction.Arn}/invocations
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ReadLambdaFunction.Alias}/invocations
 ```
 
 ### When Removing an API Endpoint
@@ -108,15 +108,36 @@ All MCP endpoints follow this pattern:
       httpMethod: post
       type: aws_proxy
       uri:
-        Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ReadLambdaFunction.Arn}/invocations
+        Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ReadLambdaFunction.Alias}/invocations
 ```
 
 ### Lambda Function Reference
 
 The `x-amazon-apigateway-integration` section must reference the correct Lambda function:
 
-- For read-only operations: `${ReadLambdaFunction.Arn}`
+- For read-only operations: `${ReadLambdaFunction.Alias}` (the Read function is invoked through its
+  `live` alias so CodeDeploy traffic shifting and alarm rollback apply to API callers)
+- For the Auth function: `${AuthLambdaFunction.Arn}` (it has no alias)
 - For write operations (Phase 2): `${WriteLambdaFunction.Arn}`
+
+## Integration Targets and Lambda Permissions
+
+A function that declares `AutoPublishAlias` MUST be referenced by its alias (`${Function.Alias}`) in
+`template-openapi-spec.yml`. The unqualified ARN (`${Function.Arn}`) runs `$LATEST`, which CodeDeploy
+never shifts, so a gradual deployment would protect nobody.
+
+SAM generates an `AWS::Lambda::Permission` for the alias from each function's `Api` event, scoped to the
+event's method and path. An integration that targets the alias is therefore already covered. Do not add a
+hand-written `Permission`/`PermissionLive` pair for it.
+
+> **Note**: This repository deliberately departs from the permission-pair guidance in
+> `atlantis-multi-resource-src.md` for the Read function. That file is published by the Atlantis project
+> and is not edited here. The reasoning and evidence are in
+> `.kiro/specs/0-0-7-api-gateway-live-alias/PLAN.md`.
+
+The test `read-function/tests/unit/architecture/openapi-integration-targets.test.js` enforces the Read
+and Auth integration targets. Adding a function to the OpenAPI spec requires a decision, recorded in that
+test, about whether it is aliased.
 
 ## MCP Protocol Schemas
 

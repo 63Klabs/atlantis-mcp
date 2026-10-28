@@ -168,6 +168,17 @@ To host documentation you will need to do the following:
 #   - Tag: AllowInvalidationEvents=true
 ```
 
+### Post Deployment Verification
+
+The same Post Deploy stage also verifies each deployment. After the documentation is published, script `05-verify-deployment.sh` sends read-only requests to the stage that was just deployed and checks that the live server reports the release that was built and still speaks both MCP protocol eras.
+
+- **No setup:** Verification needs nothing beyond enabling the Post Deploy stage above. The main build creates the two SSM parameters it uses (the verification API key, stored as `BLANK`, and the skip switch) and never overwrites a value you have stored.
+- **Higher rate limit (optional):** Store a private-tier API key in the `Mcp_PostDeployTestVerifyApiKey` parameter to give the run a higher request limit than the public tier. Without a key, the run uses the public tier.
+- **Failures block promotion:** A failed or inconclusive run (for example, HTTP `429` on a core check) fails the PostDeploy stage. When promotion is enabled (`PromoteTargetStageId` is set), a failed stage keeps the build from being promoted.
+- **Skipping:** The `Mcp_PostDeployTestVerifySkip` parameter turns verification off for a stage. Leave it `false` unless you have a reason to skip.
+
+See the [developer guide](docs/developer/post-deploy-verification.md) for how the checks work and the [admin and ops guide](docs/admin-ops/post-deploy-verification.md) for the key, the skip switch, and retrying a stage.
+
 ## Enabling Documentation Semantic Search
 
 The `search_documentation` tool can optionally use Amazon Bedrock semantic retrieval instead of (or in addition to) keyword matching. See the [architecture overview](ARCHITECTURE.md#documentation-semantic-search-bedrock-assisted) for how it works and the [developer guide](docs/developer/documentation-semantic-search.md) for internals.

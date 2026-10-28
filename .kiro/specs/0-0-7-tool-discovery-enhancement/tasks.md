@@ -258,10 +258,10 @@ property-based tests (fast-check) under `tests/property/`, per the existing Jest
     - When the vector store lacks the new fields, fall back to the keyword path rather than returning results that contradict the filter, reusing the existing degrade logging; keep the response shape identical across strategies
     - _Requirements: 10.1, 10.2, 10.3, 10.4_
 
-- [ ] 20. Checkpoint - Rollout step 4 (single re-index) complete
+- [x] 20. Checkpoint - Rollout step 4 (single re-index) complete
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 21. Author agent-asset content and enable the skills type (Rollout step 5)
+- [x] 21. Author agent-asset content and enable the skills type (Rollout step 5)
   - [x] 21.1 Author canonical `AGENTS.md` content for the `agents-md` asset type
     - Author the canonical content for publication through the already-enabled `agents-md` type, reusing the precedence wording verbatim; no registry or DAO change
     - _Requirements: 11.1, 11.8_
@@ -278,23 +278,23 @@ property-based tests (fast-check) under `tests/property/`, per the existing Jest
     - Set the `skills` registry entry `enabled: true` and document the `skills/{skill-name}.md` to `{skill-name}/SKILL.md` convention in its description; order the flag flip after content is published so the type is never advertised empty
     - _Requirements: 11.6, 11.7, 11.9_
 
-  - [ ] 21.5 Write property test for skill format conformance
+  - [x] 21.5 Write property test for skill format conformance
     - **Property 13: Skill format conformance** — each authored skill has a `SKILL.md` whose `name` equals the folder name, with `name` and `description` within their length limits
     - **Validates: Requirements 11.4, 11.5**
 
-- [ ] 22. Add cross-layer integration tests (R15.1)
-  - [ ] 22.1 Write integration tests for catalog, manifest, filters, and degradation
+- [x] 22. Add cross-layer integration tests (R15.1)
+  - [x] 22.1 Write integration tests for catalog, manifest, filters, and degradation
     - `tools/list` and `list_tools` return byte-identical tool arrays; a no-match `search_documentation` still returns `indexedRepositories`; a filtered call returns only matching repositories and a `repository` facet; an oversized result set with a large corpus degrades the manifest rather than truncating results
     - _Requirements: 15.3, 15.5, 15.6, 2.4_
 
-- [ ] 23. Update documentation and changelog (R14)
-  - [ ] 23.1 Update end-user, admin-ops, developer docs, ARCHITECTURE.md, and CHANGELOG.md
+- [x] 23. Update documentation and changelog (R14)
+  - [x] 23.1 Update end-user, admin-ops, developer docs, ARCHITECTURE.md, and CHANGELOG.md
     - End-user: new filters, `indexedRepositories` with a discover-then-filter example, `cache-data` query guidance, and the no-code-search statement
     - Admin-ops: `MCP_CORPUS_MANIFEST_MAX_BYTES`, per-type exclusion matrix, three-state classification behavior, and the `atlantis_repository-type` prerequisite
     - Developer + `ARCHITECTURE.md`: registry fan-out, the single `tool-catalog.js` merge, and the `search-common` layer; `CHANGELOG.md` entry under `v0.0.7 (unreleased)` referencing this spec
     - _Requirements: 14.1, 14.2, 14.3, 14.4, 14.5, 14.6, 14.7_
 
-- [ ] 24. Final checkpoint - Ensure all tests pass
+- [x] 24. Final checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise. Deployed verification of PLAN section 6 success criteria (R15.11) is performed outside this coding plan after the step-4 re-index.
 
 ## Notes

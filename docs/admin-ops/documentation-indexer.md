@@ -270,3 +270,16 @@ A CloudWatch Alarm monitors the indexer for errors (Sum > 1 over a 900-second pe
 - [GitHub custom properties documentation](https://docs.github.com/en/organizations/managing-organization-settings/managing-custom-properties-for-repositories-in-your-organization) — how to set `atlantis_repository-type` on an organization repository
 - [search_documentation tool reference](../end-user/tools/README.md#search_documentation) — the `repository`/`repositoryType`/`namespace` filters and `indexedRepositories` response field this classification feeds
 - [Tool Metadata Registry and search-common layer](../developer/tool-discovery.md) — developer-facing architecture of the discovery enhancements
+
+## Repository and type filters on search
+
+The `search_documentation` tool accepts optional `repository`, `repositoryType`, and `namespace` filters in addition to the existing `type`/`subType`/`ghusers` filters:
+
+| Parameter | Type | Description |
+|:----------|:-----|:------------|
+| `repository` | string | Narrow results to one repository (e.g., `cache-data`) |
+| `repositoryType` | enum | Filter by repository type (`documentation`, `app-starter`, `templates`, `management`, `package`, `mcp`) |
+| `namespace` | string | Filter by repository namespace (for organization-scoped repositories) |
+
+A filter matching nothing returns a successful empty result rather than an error, and all filters participate in the search cache key. See the [end-user tools reference](../end-user/tools/README.md#search_documentation) for examples of discover-then-filter usage.
+
