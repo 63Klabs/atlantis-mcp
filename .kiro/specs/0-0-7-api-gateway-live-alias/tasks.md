@@ -158,9 +158,9 @@ Do not commit unless the owner asks. Do not edit `.kiro/steering/atlantis-multi-
   - Write the implementation summary: the red and green test runs, the local translation outcome, and the list of files
   - Ask the owner whether to commit, and hand over for the Phase 3 rollout. Do not commit unless asked
 
-- [ ] 11. Record the baseline (Phase 3, read-only, before any deploy)
+- [x] 11. Record the baseline (Phase 3, read-only, before any deploy)
 
-  - [-] 11.1 Capture the baseline for `test`, `beta`, and `prod`
+  - [x] 11.1 Capture the baseline for `test`, `beta`, and `prod`
     - Create `.kiro/specs/0-0-7-api-gateway-live-alias/VERIFICATION.md` from the skeleton in Design, V-C
     - For each stage, with that stage's credentials, run the `get-integration` command and the three `get-metric-statistics` calls from Design, V-C, and record the integration URI and the `Invocations` sums for the `FunctionName`, `Resource=<fn>`, and `Resource=<fn>:live` series
     - All commands are read-only. Expected: each stage's URI ends `:function:<fn>/invocations`, and the alias series is zero

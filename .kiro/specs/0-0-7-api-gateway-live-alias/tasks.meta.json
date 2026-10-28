@@ -334,6 +334,11 @@
         "executionId": "5d76da75-dcf9-47d2-b82c-be108bb34a8e",
         "chatSessionId": "sess_d0599468-a339-4178-833a-81d99acaaa1f",
         "timestamp": 1793154914463
+      },
+      {
+        "executionId": "5d76da75-dcf9-47d2-b82c-be108bb34a8e",
+        "chatSessionId": "sess_d0599468-a339-4178-833a-81d99acaaa1f",
+        "timestamp": 1793155082773
       }
     ],
     "12.1 Deploy through the pipeline": [
@@ -453,6 +458,13 @@
         "executionId": "38bb6b5c-b0d6-49c2-b3eb-8f75e6cca156",
         "chatSessionId": "sess_d0599468-a339-4178-833a-81d99acaaa1f",
         "timestamp": 1793144981825
+      }
+    ],
+    "11. Record the baseline (Phase 3, read-only, before any deploy)": [
+      {
+        "executionId": "5d76da75-dcf9-47d2-b82c-be108bb34a8e",
+        "chatSessionId": "sess_d0599468-a339-4178-833a-81d99acaaa1f",
+        "timestamp": 1793155082934
       }
     ]
   }
