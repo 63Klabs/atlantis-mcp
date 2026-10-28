@@ -78,8 +78,10 @@ API Gateway invokes the Read Function through its `live` alias, and CodeDeploy m
 - **Default shift:** about 30 minutes. The default `FunctionGradualDeploymentType` is `Linear10PercentEvery3Minutes`, which sends 10% more traffic to the new version every 3 minutes.
 - **Urgent fix:** to deploy faster, set `FunctionGradualDeploymentType` to `AllAtOnce` in the stage's parameter configuration (the same place you set the other template parameters, see [Step 3](#step-3-configure-deployment-parameters)) and deploy through the normal flow. The setting applies to every deploy for as long as it is set, so change it back to the default afterwards. The template only reads this parameter when `DeployEnvironment` is `PROD`. In any other environment it uses `AllAtOnce` regardless of the parameter.
 - **Two versions at once:** while a shift is in progress, the previous version and the new version both answer API requests, and consecutive requests from the same client can reach different versions.
-- **Seeing which version answered:** use the CloudWatch `AWS/Lambda` `Invocations` metric with the `FunctionName` and `Resource` dimensions, where `Resource` is `<function-name>:live`. The version number is also at the start of Lambda log stream names, for example `2026/03/01/[12]0f3a...`, where `12` is the function version.
-- **Rollback:** if CodeDeploy rolls back (for example because `ReadLambdaErrorsAlarm` fires), the stack ends in `UPDATE_ROLLBACK_COMPLETE`, and the alias, and therefore API traffic, returns to the previous version.
+- **Seeing which version answered:** use the CloudWatch `AWS/Lambda` `Invocations` metric with the `FunctionName` and `Resource` dimensions, where `Resource` is `<function-name>:live`. Log streams written through the alias are named `YYYY/MM/DD/[<version>]<32 hex characters>`, for example `2026/10/28/[47]02639d9680684eaaa10bef683581e9ba`, where `47` is the published version the `live` alias pointed to. Streams written before the alias integration are named `[$LATEST]` in the same position.
+- **Deploy time:** a PROD stack update takes about 28 minutes, because CloudFormation waits for the whole CodeDeploy shift before it finishes the alias update. The pipeline's Deploy stage takes as long. Allow about 35 minutes from push to a finished pipeline (about 5 for Build, about 28 for Deploy, about 2 for PostDeploy). The `test` stage moves its alias at once and takes about a minute.
+- **First deploy after the alias integration:** this one deploy was slower and was not protected by the shift. CloudFormation updates the alias first and waits for the shift to finish, and only then updates the REST API. Until then the API still called the unqualified function ARN, which was already running the new code, so callers were not shifted gradually. The API moved to the alias once the shift completed. Every later deploy is protected, because the API already calls the alias.
+- **Rollback:** `ReadLambdaErrorsAlarm` is checked by CodeDeploy during the shift. When the alarm goes to `ALARM`, CodeDeploy stops the deployment within seconds (status `Stopped`, reason `ALARM_ACTIVE`) and runs its own rollback deployment. The stack ends in `UPDATE_ROLLBACK_COMPLETE` about 40 seconds after the alarm, the alias stays on the previous version, and the stack rollback deletes the candidate version. The alarm watches the function's `Errors` metric as a whole and is not scoped to a version, so errors from either version can trigger it. When the Deploy stage fails this way, the PostDeploy stage does not run.
 - **Other functions:** the Auth Function and the other functions are not behind an alias and deploy at once. Only the Read Function's API traffic is shifted gradually.
 
 To count invocations answered through the alias over the last hour:
@@ -96,6 +98,42 @@ aws cloudwatch get-metric-statistics \
   --statistics Sum \
   --region us-east-1
 ```
+
+#### Recovering after a rolled-back deploy
+
+You cannot retry the pipeline's Deploy stage after a rollback. The retry fails immediately with `ChangeSet [pipeline-changeset] does not exist (ChangeSetNotFound)`, because the failed execution's change set was consumed by the deploy that rolled back. Start a new pipeline execution instead, or push a new commit:
+
+```bash
+# Start a new execution of the stage's pipeline from its current source revision
+aws codepipeline start-pipeline-execution \
+  --name <pipeline-name> \
+  --region us-east-1
+```
+
+The new execution builds again, creates a new change set against the stack in `UPDATE_ROLLBACK_COMPLETE`, and deploys with a full shift. The deleted candidate version is not reused, so the next version number skips it.
+
+#### Testing the rollback
+
+To check that the rollback path works on a stage, force the alarm into `ALARM` while a shift is in progress:
+
+```bash
+# Find the alarm name of the stage's application stack
+aws cloudformation describe-stack-resource \
+  --stack-name <application-stack-name> \
+  --logical-resource-id ReadLambdaErrorsAlarm \
+  --query StackResourceDetail.PhysicalResourceId \
+  --output text \
+  --region us-east-1
+
+# Force the alarm into ALARM during a shift
+aws cloudwatch set-alarm-state \
+  --alarm-name <alarm-name> \
+  --state-value ALARM \
+  --state-reason "Rollback test" \
+  --region us-east-1
+```
+
+> **Warning**: This triggers a real rollback of the deploy in progress, and the alarm notification email is sent to the `AlarmNotificationEmail` recipient. Tell the recipient first, and do not do this on a stage whose deploy you need to keep. The alarm returns to `OK` on its next evaluation if no errors occurred. Recover with a new pipeline execution as described above.
 
 For what developers must keep compatible between the two versions, see [Gradual deployment of the Read function](../../developer/gradual-deployment.md). For the parameter itself, see the [CloudFormation Parameters Reference](./cloudformation-parameters.md).
 
