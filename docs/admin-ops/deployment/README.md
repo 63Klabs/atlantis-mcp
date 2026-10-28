@@ -71,6 +71,34 @@ The Atlantis MCP Server uses branch-based deployments:
 dev → test → beta → main
 ```
 
+### How a PROD deploy reaches callers
+
+API Gateway invokes the Read Function through its `live` alias, and CodeDeploy moves that alias to each new version. A PROD deploy (`beta`, `stage`, `main`) therefore reaches API callers gradually instead of all at once. The `test` stage is not PROD and moves its alias at once.
+
+- **Default shift:** about 30 minutes. The default `FunctionGradualDeploymentType` is `Linear10PercentEvery3Minutes`, which sends 10% more traffic to the new version every 3 minutes.
+- **Urgent fix:** to deploy faster, set `FunctionGradualDeploymentType` to `AllAtOnce` in the stage's parameter configuration (the same place you set the other template parameters, see [Step 3](#step-3-configure-deployment-parameters)) and deploy through the normal flow. The setting applies to every deploy for as long as it is set, so change it back to the default afterwards. The template only reads this parameter when `DeployEnvironment` is `PROD`. In any other environment it uses `AllAtOnce` regardless of the parameter.
+- **Two versions at once:** while a shift is in progress, the previous version and the new version both answer API requests, and consecutive requests from the same client can reach different versions.
+- **Seeing which version answered:** use the CloudWatch `AWS/Lambda` `Invocations` metric with the `FunctionName` and `Resource` dimensions, where `Resource` is `<function-name>:live`. The version number is also at the start of Lambda log stream names, for example `2026/03/01/[12]0f3a...`, where `12` is the function version.
+- **Rollback:** if CodeDeploy rolls back (for example because `ReadLambdaErrorsAlarm` fires), the stack ends in `UPDATE_ROLLBACK_COMPLETE`, and the alias, and therefore API traffic, returns to the previous version.
+- **Other functions:** the Auth Function and the other functions are not behind an alias and deploy at once. Only the Read Function's API traffic is shifted gradually.
+
+To count invocations answered through the alias over the last hour:
+
+```bash
+aws cloudwatch get-metric-statistics \
+  --namespace AWS/Lambda \
+  --metric-name Invocations \
+  --dimensions Name=FunctionName,Value=acme-mcp-server-prod-ReadFunction \
+               Name=Resource,Value=acme-mcp-server-prod-ReadFunction:live \
+  --start-time "$(date -u -d '-1 hour' +%Y-%m-%dT%H:%M:%SZ)" \
+  --end-time "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  --period 300 \
+  --statistics Sum \
+  --region us-east-1
+```
+
+For what developers must keep compatible between the two versions, see [Gradual deployment of the Read function](../../developer/gradual-deployment.md). For the parameter itself, see the [CloudFormation Parameters Reference](./cloudformation-parameters.md).
+
 ## Step 1: Clone and Configure SAM Configuration Repository
 
 ### 1.1 Clone the Repository

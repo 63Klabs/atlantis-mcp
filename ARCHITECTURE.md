@@ -830,7 +830,7 @@ SSM parameters are created using the `generate-put-ssm.py` build script, which o
 | beta   | beta    | PROD              | Gradual deploys, long log retention, alarms, dashboards |
 | main   | prod    | PROD              | Gradual deploys, long log retention, alarms, dashboards |
 
-Production environments use CodeDeploy gradual deployment (`Linear10PercentEvery3Minutes` by default) with automatic rollback on CloudWatch alarm triggers.
+Production environments use CodeDeploy gradual deployment (`Linear10PercentEvery3Minutes` by default) with automatic rollback on CloudWatch alarm triggers. API Gateway invokes the Read Function through its `live` alias, so the gradual deployment applies to API traffic; for the length of a shift two versions answer requests. The Auth and other functions deploy at once.
 
 ### Conditional Resources (PROD only)
 

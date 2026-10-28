@@ -7,7 +7,13 @@
 #  in a SAM template file with the current timestamp. This is useful for 
 #  triggering new deployments of Lambda functions when the code changes.
 
-# It overcomes a (bug?) in which a new alias cannot be replaced during deployment.
+# It overcomes a (bug?) in which the alias of ReadLambdaFunction is not moved
+#  to a new version during deployment when the function code is unchanged.
+
+# API Gateway invokes `ReadLambdaFunction` through its `live` alias, so a build
+#  that did not publish a new version would leave API callers on the previous
+#  one. Rewriting `AutoPublishCodeSha256` on every build guarantees a new
+#  version.
 
 # The downside is that even if the Lambda code did not change (maybe only the 
 #  template did) this forces a new Lambda deployment.
