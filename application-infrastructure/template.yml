@@ -1962,21 +1962,21 @@ Resources:
             - !GetAtt UsersTable.Arn
 
   # -- Lambda permissions allowing API Gateway to Execute Read Lambda --
+  # >! The /mcp/v1 integration invokes the "live" alias (see template-openapi-spec.yml).
+  # >! SAM generates the permission for that alias from the McpV1Post event, scoped to
+  # >! POST /mcp/v1, so no hand-written permission for the alias is needed. This repository
+  # >! intentionally departs from the "Permission + PermissionLive" pair described in
+  # >! .kiro/steering/atlantis-multi-resource-src.md for the Read function; see
+  # >! .kiro/steering/openapi-spec-sync.md.
 
+  # Unused since the integration moved to the alias (spec 0-0-7-api-gateway-live-alias).
+  # Kept for one release so the integration URI can be reverted without a window of
+  # invocation errors. Remove in v0.0.8 (tracked in TODO.md).
   ReadLambdaPermission:
     Type: "AWS::Lambda::Permission"
     Properties:
       Action: lambda:InvokeFunction
       FunctionName: !Sub "${ReadLambdaFunction}"
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebApi}/*"
-
-  ReadLambdaPermissionLive:
-    Type: "AWS::Lambda::Permission"
-    Condition: IsProduction
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref ReadLambdaFunction.Alias
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebApi}/*"
 

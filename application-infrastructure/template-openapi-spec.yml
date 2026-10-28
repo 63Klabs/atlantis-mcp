@@ -49,7 +49,10 @@ paths:
         httpMethod: post
         type: aws_proxy
         uri:
-          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ReadLambdaFunction.Arn}/invocations
+          # >! Invoke the Read function through its "live" alias, not the unqualified ARN.
+          # >! CodeDeploy shifts the alias gradually in PROD and rolls it back on alarm; the
+          # >! unqualified ARN runs $LATEST and would bypass both.
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ReadLambdaFunction.Alias}/invocations
 
   /mcp/auth/key/regenerate:
     post:
