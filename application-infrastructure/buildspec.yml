@@ -165,7 +165,9 @@ phases:
       # (repo root). Ensure the build scripts below run from application-infrastructure.
       - cd "$CODEBUILD_SRC_DIR/application-infrastructure"
 
-      # There is sometimes a bug that causes the alias to not be updated correctly (see comment in template.yml for AppFunction.Properties.AutoPublishCodeSha256)
+      # Rewrite AutoPublishCodeSha256 so SAM publishes a new Read function version, and moves the "live" alias, on every build.
+      # API Gateway invokes that alias, so API callers move to new code only when the alias moves. There is sometimes a bug that
+      # causes the alias not to update when the function code is unchanged (see build-scripts/update_template_timestamp.py).
       - python3 ./build-scripts/update_template_timestamp.py template.yml
 
       # Replace placeholders in the template-configuration.json file

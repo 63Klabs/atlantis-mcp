@@ -12,9 +12,10 @@ Parameters are organized into the following categories:
 2. [S3 Configuration Parameters](#s3-configuration-parameters)
 3. [GitHub Configuration Parameters](#github-configuration-parameters)
 4. [Rate Limiting Parameters](#rate-limiting-parameters)
-5. [Cache TTL Parameters](#cache-ttl-parameters)
-6. [IAM Configuration Parameters](#iam-configuration-parameters)
-7. [Logging Parameters](#logging-parameters)
+5. [Deployment Parameters](#deployment-parameters)
+6. [Cache TTL Parameters](#cache-ttl-parameters)
+7. [IAM Configuration Parameters](#iam-configuration-parameters)
+8. [Logging Parameters](#logging-parameters)
 
 ---
 
@@ -219,6 +220,41 @@ PublicRateLimit: 1000 # For organizational use
 - Resets every hour
 - Returns HTTP 429 when exceeded
 - Includes `Retry-After` header in response
+
+---
+
+## Deployment Parameters
+
+### FunctionGradualDeploymentType
+
+**Type:** String  
+**Required:** No  
+**Default:** `Linear10PercentEvery3Minutes`  
+**Allowed Values:** `Canary10Percent5Minutes`, `Canary10Percent10Minutes`, `Canary10Percent15Minutes`, `Canary10Percent30Minutes`, `Linear10PercentEvery1Minute`, `Linear10PercentEvery2Minutes`, `Linear10PercentEvery3Minutes`, `Linear10PercentEvery10Minutes`, `AllAtOnce`
+
+**Description:** How a PROD stage shifts API traffic to a new Read Function version. API Gateway invokes the Read Function through its `live` alias, and CodeDeploy moves that alias using this deployment type. The parameter is ignored when `DeployEnvironment` is `TEST` or `DEV`: the template selects `AllAtOnce` for any `DeployEnvironment` other than `PROD`, whatever value is set here.
+
+**Deployment Types:**
+
+| Type | Behavior |
+|------|----------|
+| `Canary10Percent<N>Minutes` | The first 10% of traffic moves to the new version, then the remaining 90% moves after N minutes |
+| `Linear10PercentEvery<N>Minute(s)` | 10% of traffic moves every N minutes, so the full shift takes 10 times N minutes |
+| `AllAtOnce` | All traffic moves immediately |
+
+**Usage:**
+- Leave at the default for routine deployments (about 30 minutes to complete a shift).
+- Set `AllAtOnce` for an urgent fix, then set it back afterwards so later deployments are gradual again.
+- Set a `Canary...` value for fewer, larger steps.
+
+**Example Values:**
+```yaml
+FunctionGradualDeploymentType: Linear10PercentEvery3Minutes # Default
+FunctionGradualDeploymentType: AllAtOnce                    # Urgent fix
+FunctionGradualDeploymentType: Canary10Percent10Minutes     # Fewer, larger steps
+```
+
+> **Note**: Two versions of the Read Function answer API requests while a shift is in progress. Shared data, such as cache entries and table items, must work with both versions. See [Gradual Deployment](../../developer/gradual-deployment.md) for the compatibility rule.
 
 ---
 
