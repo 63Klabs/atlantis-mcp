@@ -346,6 +346,11 @@
         "executionId": "38bb6b5c-b0d6-49c2-b3eb-8f75e6cca156",
         "chatSessionId": "sess_d0599468-a339-4178-833a-81d99acaaa1f",
         "timestamp": 1793143010371
+      },
+      {
+        "executionId": "a3b525cd-5aa7-46da-95a9-82f35f18cd55",
+        "chatSessionId": "sess_d0599468-a339-4178-833a-81d99acaaa1f",
+        "timestamp": 1793195233813
       }
     ],
     "12.2 Run checks 1 to 7 from Design, V-C": [
@@ -353,6 +358,16 @@
         "executionId": "38bb6b5c-b0d6-49c2-b3eb-8f75e6cca156",
         "chatSessionId": "sess_d0599468-a339-4178-833a-81d99acaaa1f",
         "timestamp": 1793143010474
+      },
+      {
+        "executionId": "a3b525cd-5aa7-46da-95a9-82f35f18cd55",
+        "chatSessionId": "sess_d0599468-a339-4178-833a-81d99acaaa1f",
+        "timestamp": 1793195236381
+      },
+      {
+        "executionId": "a3b525cd-5aa7-46da-95a9-82f35f18cd55",
+        "chatSessionId": "sess_d0599468-a339-4178-833a-81d99acaaa1f",
+        "timestamp": 1793195496487
       }
     ],
     "13.1 Deploy and check": [
@@ -360,6 +375,16 @@
         "executionId": "38bb6b5c-b0d6-49c2-b3eb-8f75e6cca156",
         "chatSessionId": "sess_d0599468-a339-4178-833a-81d99acaaa1f",
         "timestamp": 1793143010575
+      },
+      {
+        "executionId": "8f8d9359-b238-4bfa-9a8e-c631b34539e7",
+        "chatSessionId": "sess_d0599468-a339-4178-833a-81d99acaaa1f",
+        "timestamp": 1793196622215
+      },
+      {
+        "executionId": "8f8d9359-b238-4bfa-9a8e-c631b34539e7",
+        "chatSessionId": "sess_d0599468-a339-4178-833a-81d99acaaa1f",
+        "timestamp": 1793200069806
       }
     ],
     "14.1 Deploy and check": [
@@ -381,6 +406,16 @@
         "executionId": "38bb6b5c-b0d6-49c2-b3eb-8f75e6cca156",
         "chatSessionId": "sess_d0599468-a339-4178-833a-81d99acaaa1f",
         "timestamp": 1793143010937
+      },
+      {
+        "executionId": "7e56eab0-529a-489b-9f1c-0af5453d84fd",
+        "chatSessionId": "sess_d0599468-a339-4178-833a-81d99acaaa1f",
+        "timestamp": 1793201250595
+      },
+      {
+        "executionId": "7e56eab0-529a-489b-9f1c-0af5453d84fd",
+        "chatSessionId": "sess_d0599468-a339-4178-833a-81d99acaaa1f",
+        "timestamp": 1793201257261
       }
     ],
     "16.2 Run the drill on the next ordinary `beta` deploy": [
@@ -388,6 +423,11 @@
         "executionId": "38bb6b5c-b0d6-49c2-b3eb-8f75e6cca156",
         "chatSessionId": "sess_d0599468-a339-4178-833a-81d99acaaa1f",
         "timestamp": 1793143011032
+      },
+      {
+        "executionId": "7e56eab0-529a-489b-9f1c-0af5453d84fd",
+        "chatSessionId": "sess_d0599468-a339-4178-833a-81d99acaaa1f",
+        "timestamp": 1793201260914
       }
     ],
     "16.3 Restore `beta` and record the result": [
@@ -465,6 +505,20 @@
         "executionId": "5d76da75-dcf9-47d2-b82c-be108bb34a8e",
         "chatSessionId": "sess_d0599468-a339-4178-833a-81d99acaaa1f",
         "timestamp": 1793155082934
+      }
+    ],
+    "12. Roll out to `test` and verify (Phase 3)": [
+      {
+        "executionId": "a3b525cd-5aa7-46da-95a9-82f35f18cd55",
+        "chatSessionId": "sess_d0599468-a339-4178-833a-81d99acaaa1f",
+        "timestamp": 1793195496596
+      }
+    ],
+    "13. Roll out to `beta` and verify (Phase 3)": [
+      {
+        "executionId": "8f8d9359-b238-4bfa-9a8e-c631b34539e7",
+        "chatSessionId": "sess_d0599468-a339-4178-833a-81d99acaaa1f",
+        "timestamp": 1793200070095
       }
     ]
   }

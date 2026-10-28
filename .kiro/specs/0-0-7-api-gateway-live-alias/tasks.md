@@ -166,22 +166,22 @@ Do not commit unless the owner asks. Do not edit `.kiro/steering/atlantis-multi-
     - All commands are read-only. Expected: each stage's URI ends `:function:<fn>/invocations`, and the alias series is zero
     - _Requirements: 9.1, 9.4_
 
-- [ ] 12. Roll out to `test` and verify (Phase 3)
+- [x] 12. Roll out to `test` and verify (Phase 3)
 
-  - [~] 12.1 Deploy through the pipeline
+  - [x] 12.1 Deploy through the pipeline
     - Merge the repository changes to the `test` branch (the owner's normal flow) and let the pipeline deploy. Do not deploy by hand
     - Note the deploy time and the stack events for the record
     - _Requirements: 9.2_
 
-  - [~] 12.2 Run checks 1 to 7 from Design, V-C
+  - [x] 12.2 Run checks 1 to 7 from Design, V-C
     - Send a few requests to the stage, then run: the integration URI check; the alias `Invocations` check and the unqualified series; the log stream naming check; the `aws deploy list-deployments` check on the stage's deployment group; the stack events ordering check; the stack status check; and read the PostDeploy build log for V1
     - Record each result in `VERIFICATION.md`, including the four open runtime items: the `AWS::Include` expansion, the CodeDeploy deployment group on `test`, the alias-then-`RestApi` ordering, and the log stream naming
     - If any check fails, stop the rollout, revert the URI line through the pipeline, and report the finding before another stage is deployed
     - _Requirements: 9.2, 9.4, 9.5_
 
-- [ ] 13. Roll out to `beta` and verify (Phase 3)
+- [x] 13. Roll out to `beta` and verify (Phase 3)
 
-  - [~] 13.1 Deploy and check
+  - [x] 13.1 Deploy and check
     - Only after task 12 is clean: merge to `beta`, let the pipeline deploy, and run the same checks 1 to 7. This is the stage's migration deploy
     - Record the results in `VERIFICATION.md`, including whether the alias update finished before the `RestApi` update on a PROD stage
     - If any check fails, stop and follow the failure handling in task 12.2
@@ -204,12 +204,12 @@ Do not commit unless the owner asks. Do not edit `.kiro/steering/atlantis-multi-
 
 - [ ] 16. Rollback drill on `beta` (Phase 3, requires explicit approval)
 
-  - [~] 16.1 Confirm the preconditions in writing
+  - [x] 16.1 Confirm the preconditions in writing
     - Do not start without the owner's explicit approval for the date
     - Confirm: the `AlarmNotificationEmail` recipient has been told to expect an alarm email; no `prod` promotion is pending from `beta`; the person running the drill holds `cloudwatch:SetAlarmState` and read access to CodeDeploy and CloudFormation; the drill is not the migration deploy and `beta` has already passed checks 1 to 7
     - _Requirements: 10.1, 10.2, 10.6_
 
-  - [~] 16.2 Run the drill on the next ordinary `beta` deploy
+  - [-] 16.2 Run the drill on the next ordinary `beta` deploy
     - After the shift starts, begin polling `server/discover` once a minute on the raw `execute-api` URL, as in Design, V-D
     - Put `ReadLambdaErrorsAlarm` into `ALARM` with `aws cloudwatch set-alarm-state` and repeat the call if the state reverts before CodeDeploy reacts, but stop when the shift ends
     - Watch the CodeDeploy deployment, the alias version, the polled versions, and the stack status
