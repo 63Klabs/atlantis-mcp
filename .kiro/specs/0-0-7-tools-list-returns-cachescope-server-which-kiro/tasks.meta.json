@@ -1,0 +1,127 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 Add the constant and discover tests": [
+      {
+        "executionId": "ce876bcd-6223-44fe-9e0c-707e9f14cd83",
+        "chatSessionId": "sess_696f42bc-32ce-469f-b46c-f0f0eae91d79",
+        "timestamp": 1793293548376
+      },
+      {
+        "executionId": "ce876bcd-6223-44fe-9e0c-707e9f14cd83",
+        "chatSessionId": "sess_696f42bc-32ce-469f-b46c-f0f0eae91d79",
+        "timestamp": 1793293642204
+      }
+    ],
+    "1.2 Update the integration and router tests": [
+      {
+        "executionId": "ce876bcd-6223-44fe-9e0c-707e9f14cd83",
+        "chatSessionId": "sess_696f42bc-32ce-469f-b46c-f0f0eae91d79",
+        "timestamp": 1793293646374
+      },
+      {
+        "executionId": "ce876bcd-6223-44fe-9e0c-707e9f14cd83",
+        "chatSessionId": "sess_696f42bc-32ce-469f-b46c-f0f0eae91d79",
+        "timestamp": 1793293687444
+      }
+    ],
+    "1.3 Add the architecture test": [
+      {
+        "executionId": "ce876bcd-6223-44fe-9e0c-707e9f14cd83",
+        "chatSessionId": "sess_696f42bc-32ce-469f-b46c-f0f0eae91d79",
+        "timestamp": 1793293691445
+      },
+      {
+        "executionId": "ce876bcd-6223-44fe-9e0c-707e9f14cd83",
+        "chatSessionId": "sess_696f42bc-32ce-469f-b46c-f0f0eae91d79",
+        "timestamp": 1793293730554
+      }
+    ],
+    "1.4 Run the new and changed tests against the unchanged server and confirm they fail": [
+      {
+        "executionId": "ce876bcd-6223-44fe-9e0c-707e9f14cd83",
+        "chatSessionId": "sess_696f42bc-32ce-469f-b46c-f0f0eae91d79",
+        "timestamp": 1793293733904
+      },
+      {
+        "executionId": "ce876bcd-6223-44fe-9e0c-707e9f14cd83",
+        "chatSessionId": "sess_696f42bc-32ce-469f-b46c-f0f0eae91d79",
+        "timestamp": 1793293769075
+      }
+    ],
+    "1. Write the Read Function tests and see them fail (Phase 1, red)": [
+      {
+        "executionId": "ce876bcd-6223-44fe-9e0c-707e9f14cd83",
+        "chatSessionId": "sess_696f42bc-32ce-469f-b46c-f0f0eae91d79",
+        "timestamp": 1793293769342
+      }
+    ],
+    "2.1 Add the constants and the helper": [
+      {
+        "executionId": "b3b3a6c9-53d8-4044-8022-702b13e7ffe4",
+        "chatSessionId": "sess_9548336e-420c-4dc4-bef4-00f9c30eae3e",
+        "timestamp": 1793294422535
+      },
+      {
+        "executionId": "b3b3a6c9-53d8-4044-8022-702b13e7ffe4",
+        "chatSessionId": "sess_9548336e-420c-4dc4-bef4-00f9c30eae3e",
+        "timestamp": 1793294473430
+      }
+    ],
+    "2.2 Use the helper in both formatters and update the JSDoc": [
+      {
+        "executionId": "b3b3a6c9-53d8-4044-8022-702b13e7ffe4",
+        "chatSessionId": "sess_9548336e-420c-4dc4-bef4-00f9c30eae3e",
+        "timestamp": 1793294475981
+      },
+      {
+        "executionId": "b3b3a6c9-53d8-4044-8022-702b13e7ffe4",
+        "chatSessionId": "sess_9548336e-420c-4dc4-bef4-00f9c30eae3e",
+        "timestamp": 1793294518501
+      }
+    ],
+    "2.3 Add the tool catalog cross-reference": [
+      {
+        "executionId": "b3b3a6c9-53d8-4044-8022-702b13e7ffe4",
+        "chatSessionId": "sess_9548336e-420c-4dc4-bef4-00f9c30eae3e",
+        "timestamp": 1793294521652
+      },
+      {
+        "executionId": "b3b3a6c9-53d8-4044-8022-702b13e7ffe4",
+        "chatSessionId": "sess_9548336e-420c-4dc4-bef4-00f9c30eae3e",
+        "timestamp": 1793294547481
+      }
+    ],
+    "2.4 Run the touched tests, then the whole suite": [
+      {
+        "executionId": "b3b3a6c9-53d8-4044-8022-702b13e7ffe4",
+        "chatSessionId": "sess_9548336e-420c-4dc4-bef4-00f9c30eae3e",
+        "timestamp": 1793294550221
+      },
+      {
+        "executionId": "b3b3a6c9-53d8-4044-8022-702b13e7ffe4",
+        "chatSessionId": "sess_9548336e-420c-4dc4-bef4-00f9c30eae3e",
+        "timestamp": 1793294700147
+      }
+    ],
+    "2. Fix the server (Phase 1, green)": [
+      {
+        "executionId": "b3b3a6c9-53d8-4044-8022-702b13e7ffe4",
+        "chatSessionId": "sess_9548336e-420c-4dc4-bef4-00f9c30eae3e",
+        "timestamp": 1793294700445
+      }
+    ],
+    "3. Phase 1 checkpoint": [
+      {
+        "executionId": "f91dfea8-00d2-4103-9fb8-1be3a369cb24",
+        "chatSessionId": "sess_5c6fc58a-860f-4571-ac75-eaac35ac7cc8",
+        "timestamp": 1793294756587
+      },
+      {
+        "executionId": "f91dfea8-00d2-4103-9fb8-1be3a369cb24",
+        "chatSessionId": "sess_5c6fc58a-860f-4571-ac75-eaac35ac7cc8",
+        "timestamp": 1793294825417
+      }
+    ]
+  }
+}

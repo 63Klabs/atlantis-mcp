@@ -166,61 +166,61 @@ Do not commit unless the owner asks. Do not edit `.kiro/steering/atlantis-multi-
     - All commands are read-only. Expected: each stage's URI ends `:function:<fn>/invocations`, and the alias series is zero
     - _Requirements: 9.1, 9.4_
 
-- [ ] 12. Roll out to `test` and verify (Phase 3)
+- [x] 12. Roll out to `test` and verify (Phase 3)
 
-  - [~] 12.1 Deploy through the pipeline
+  - [x] 12.1 Deploy through the pipeline
     - Merge the repository changes to the `test` branch (the owner's normal flow) and let the pipeline deploy. Do not deploy by hand
     - Note the deploy time and the stack events for the record
     - _Requirements: 9.2_
 
-  - [~] 12.2 Run checks 1 to 7 from Design, V-C
+  - [x] 12.2 Run checks 1 to 7 from Design, V-C
     - Send a few requests to the stage, then run: the integration URI check; the alias `Invocations` check and the unqualified series; the log stream naming check; the `aws deploy list-deployments` check on the stage's deployment group; the stack events ordering check; the stack status check; and read the PostDeploy build log for V1
     - Record each result in `VERIFICATION.md`, including the four open runtime items: the `AWS::Include` expansion, the CodeDeploy deployment group on `test`, the alias-then-`RestApi` ordering, and the log stream naming
     - If any check fails, stop the rollout, revert the URI line through the pipeline, and report the finding before another stage is deployed
     - _Requirements: 9.2, 9.4, 9.5_
 
-- [ ] 13. Roll out to `beta` and verify (Phase 3)
+- [x] 13. Roll out to `beta` and verify (Phase 3)
 
-  - [~] 13.1 Deploy and check
+  - [x] 13.1 Deploy and check
     - Only after task 12 is clean: merge to `beta`, let the pipeline deploy, and run the same checks 1 to 7. This is the stage's migration deploy
     - Record the results in `VERIFICATION.md`, including whether the alias update finished before the `RestApi` update on a PROD stage
     - If any check fails, stop and follow the failure handling in task 12.2
     - _Requirements: 9.3, 9.4, 9.5_
 
-- [ ] 14. Roll out to `prod` and verify (Phase 3)
+- [x] 14. Roll out to `prod` and verify (Phase 3)
 
-  - [~] 14.1 Deploy and check
+  - [x] 14.1 Deploy and check
     - Only after task 13 is clean: merge to `main`, let the pipeline deploy, and run the same checks 1 to 7. No drill on `prod`
     - Record the results in `VERIFICATION.md`
     - _Requirements: 9.3, 9.4, 10.2_
 
-- [ ] 15. Finalise documentation that depends on observed results (Phase 3)
+- [x] 15. Finalise documentation that depends on observed results (Phase 3)
 
-  - [~] 15.1 Update the documentation from the observed results
+  - [x] 15.1 Update the documentation from the observed results
     - Replace the log-stream-naming sentence in `docs/admin-ops/deployment/README.md` with the naming observed in task 12.2 (or remove the sentence if it was wrong)
     - If the observed ordering or CodeDeploy behavior on `test` differs from the design's reading, correct the statements that depended on it in `docs/developer/gradual-deployment.md`, the admin-ops README, and the changelog entries. Leave `PLAN.md` and `design.md` as the historical record
     - Re-run the link check from task 7.5
     - _Requirements: 6.3, 9.4_
 
-- [ ] 16. Rollback drill on `beta` (Phase 3, requires explicit approval)
+- [x] 16. Rollback drill on `beta` (Phase 3, requires explicit approval)
 
-  - [~] 16.1 Confirm the preconditions in writing
+  - [x] 16.1 Confirm the preconditions in writing
     - Do not start without the owner's explicit approval for the date
     - Confirm: the `AlarmNotificationEmail` recipient has been told to expect an alarm email; no `prod` promotion is pending from `beta`; the person running the drill holds `cloudwatch:SetAlarmState` and read access to CodeDeploy and CloudFormation; the drill is not the migration deploy and `beta` has already passed checks 1 to 7
     - _Requirements: 10.1, 10.2, 10.6_
 
-  - [~] 16.2 Run the drill on the next ordinary `beta` deploy
+  - [x] 16.2 Run the drill on the next ordinary `beta` deploy
     - After the shift starts, begin polling `server/discover` once a minute on the raw `execute-api` URL, as in Design, V-D
     - Put `ReadLambdaErrorsAlarm` into `ALARM` with `aws cloudwatch set-alarm-state` and repeat the call if the state reverts before CodeDeploy reacts, but stop when the shift ends
     - Watch the CodeDeploy deployment, the alias version, the polled versions, and the stack status
     - Judge: passed only if CodeDeploy stops and rolls back, the alias returns to the previous version, the polled responses return to the previous version, and the stack ends in `UPDATE_ROLLBACK_COMPLETE`. If CodeDeploy never reacts, record the outcome as inconclusive and do not treat it as a rollback failure
     - _Requirements: 10.3, 10.4, 10.5_
 
-  - [~] 16.3 Restore `beta` and record the result
+  - [x] 16.3 Restore `beta` and record the result
     - Redeploy `beta` normally so it is back on the current release, then fill in the drill rows of `VERIFICATION.md` (date, method, outcome, notes)
     - _Requirements: 10.7_
 
-- [~] 17. Final checkpoint
+- [x] 17. Final checkpoint
   - Mark `api-gateway-live-alias` complete in `TODO.md` under `## 0-0-7` (`- [x]`) once tasks 12 to 15 are done; the drill (task 16) may follow it
   - Confirm `VERIFICATION.md` has the baseline, each stage's results, the four settled runtime items, and the drill rows (or a note that the drill is pending approval)
   - Remind the owner of the follow-ups this feature leaves: remove `ReadLambdaPermission` in v0.0.8 (tracked in `TODO.md`), and the two spin-offs that were not created (version-scoped rollback alarms as an issue in this repository, and the upstream report on the starter pattern and the permission convention)

@@ -120,11 +120,44 @@ const JSON_RPC_ERRORS = {
  *
  * This is an advisory for the client, not a server-side cache TTL.
  *
+ * The same value applies to both tools/list and server/discover results: the
+ * discover result changes only on deploy, so it is cached for the same interval.
+ *
  * Requirements: 7.3
  *
  * @constant {number}
  */
 const TOOLS_LIST_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
+/**
+ * Cache scopes the MCP 2026-07-28 specification allows on a cacheable result.
+ * Any other value makes a validating client reject the result and fail to
+ * connect.
+ *
+ * @see https://modelcontextprotocol.io/specification/2026-07-28/server/utilities/caching
+ * @constant {ReadonlyArray<string>}
+ */
+const CACHE_SCOPES = Object.freeze(['public', 'private']);
+
+/**
+ * Cache scope of the modern tools/list and server/discover results.
+ *
+ * "public" is correct because neither result varies by caller: the tool
+ * catalog is built without a tier or authentication parameter (see
+ * buildToolCatalog in utils/tool-catalog.js), and the discover content is
+ * the same for everyone.
+ *
+ * >! "public" lets a shared cache or gateway serve the result across
+ * >! authorization contexts. If the catalog is ever filtered per tier or
+ * >! personalized per caller, change this to "private" in the same change,
+ * >! or the cache can hand one caller's list to another.
+ *
+ * Not operator-configurable on purpose: a bad value here is the exact
+ * failure this constant exists to prevent.
+ *
+ * @constant {string}
+ */
+const TOOLS_LIST_CACHE_SCOPE = 'public';
 
 /**
  * Create a JSON-RPC 2.0 success response
@@ -232,13 +265,27 @@ function initializeResult(id, { declaredRevision } = {}) {
 }
 
 /**
+ * Cache hints of a modern cacheable result. Both tools/list and server/discover
+ * read the hints from here, so one change moves both.
+ *
+ * @private
+ * @returns {{ttlMs: number, cacheScope: string}} Fresh object on every call
+ * @example
+ * modernCacheHints();
+ * // { ttlMs: 600000, cacheScope: 'public' }
+ */
+function modernCacheHints() {
+  return { ttlMs: TOOLS_LIST_TTL_MS, cacheScope: TOOLS_LIST_CACHE_SCOPE };
+}
+
+/**
  * Create an era-aware JSON-RPC 2.0 tools/list response.
  *
  * Legacy era (2024-11-05, 2025-11-25): Returns simple `{ tools }` payload
  * Modern era (2026-07-28+): Returns `CacheableResult` envelope with:
  *   - tools: Array of tool definitions
  *   - ttlMs: Advisory cache TTL
- *   - cacheScope: 'server' (tools are server-scoped)
+ *   - cacheScope: 'public' (the catalog is identical for every caller)
  *   - resultType: 'complete' (full catalog, not incremental)
  *   - _meta: Server identity metadata
  *
@@ -262,7 +309,7 @@ function initializeResult(id, { declaredRevision } = {}) {
  * //   result: {
  * //     tools: [...],
  * //     ttlMs: 600000,
- * //     cacheScope: 'server',
+ * //     cacheScope: 'public',
  * //     resultType: 'complete',
  * //     _meta: {
  * //       'io.modelcontextprotocol/serverInfo': {
@@ -278,8 +325,7 @@ function toolsListResult(id, { era, catalog }) {
     const caps = getCapabilities();
     return jsonRpcSuccess(id, {
       tools: catalog,
-      ttlMs: TOOLS_LIST_TTL_MS,
-      cacheScope: 'server',
+      ...modernCacheHints(),
       resultType: 'complete',
       _meta: {
         'io.modelcontextprotocol/serverInfo': caps.serverInfo
@@ -358,13 +404,18 @@ function toolsCallResult(id, { era, result }) {
  * (revision 2026-07-28 and later). It returns the server's capabilities,
  * supported protocol versions, and instructions without requiring a handshake.
  *
- * Requirements: 5.1, 5.2, 5.4, 7.1, 7.5
+ * The content is identical for every caller and changes only on deploy, which
+ * is why the "public" cache scope and the shared advisory TTL apply.
+ *
+ * Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 5.1, 5.2, 5.4, 7.1, 7.5
  *
  * @param {string|number|null} id - Request id
  * @returns {Object} JSON-RPC 2.0 response with discover result containing:
  *   - supportedVersions: Array of supported protocol revisions
  *   - capabilities: Server capabilities object
  *   - instructions: Server instructions string
+ *   - ttlMs: Advisory cache TTL
+ *   - cacheScope: 'public'
  *   - resultType: 'complete' (modern protocol requirement)
  *   - _meta: Server identity metadata
  * @example
@@ -377,6 +428,8 @@ function toolsCallResult(id, { era, result }) {
  * //     supportedVersions: ['2024-11-05', '2025-11-25', '2026-07-28'],
  * //     capabilities: { tools: { listChanged: false } },
  * //     instructions: '...',
+ * //     ttlMs: 600000,
+ * //     cacheScope: 'public',
  * //     resultType: 'complete',
  * //     _meta: {
  * //       'io.modelcontextprotocol/serverInfo': {
@@ -393,6 +446,7 @@ function discoverResult(id) {
     supportedVersions: caps.supportedVersions,
     capabilities: caps.capabilities,
     instructions: caps.instructions,
+    ...modernCacheHints(),
     resultType: 'complete',
     _meta: {
       'io.modelcontextprotocol/serverInfo': caps.serverInfo
@@ -608,6 +662,8 @@ module.exports = {
   MCP_TOOLS,
   JSON_RPC_ERRORS,
   TOOLS_LIST_TTL_MS,
+  CACHE_SCOPES,
+  TOOLS_LIST_CACHE_SCOPE,
   SUPPORTED_PROTOCOL_VERSIONS,
   ALLOWED_REVISIONS,
   LEGACY_REVISIONS,

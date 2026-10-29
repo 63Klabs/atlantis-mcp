@@ -51,6 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - During a shift (about 30 minutes by default, `FunctionGradualDeploymentType`) two versions answer API requests, so shared cache entries and table data must stay compatible with both. Set `FunctionGradualDeploymentType=AllAtOnce` for an urgent fix
   - `ReadLambdaPermissionLive` is removed; SAM's generated permission for the `McpV1Post` event already allows API Gateway to invoke the alias. `ReadLambdaPermission` (the unqualified function) is unused and scheduled for removal in v0.0.8
   - New test `read-function/tests/unit/architecture/openapi-integration-targets.test.js`, updated `openapi-spec-sync.md` guidance, and a new developer page, [gradual deployment](docs/developer/gradual-deployment.md)
+  - Observed on `beta` and `prod`: the first (migration) deploy of the alias integration took about 28 minutes and was not gradually protected, because CloudFormation waits for the whole CodeDeploy shift before it updates the REST API and the API called the unqualified ARN until then. Later PROD deploys take about 28 minutes in the Deploy stage and are protected. After a rolled-back deploy, start a new pipeline execution; the Deploy stage cannot be retried
 
 ### Fixed
 - **Server version reported to clients** — `serverInfo.version` was a stale, independently maintained value (`0.0.1`, later the Lambda `package.json` version) and could not match the deployed release; it is now the release version from `CHANGELOG.md`, identical on both eras
