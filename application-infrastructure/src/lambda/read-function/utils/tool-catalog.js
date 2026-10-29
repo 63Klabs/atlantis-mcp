@@ -156,6 +156,9 @@ function revisionSupportsTitleAndAnnotations(protocolVersion) {
  * 4. No tier-based filtering is applied or available — every manifest tool
  *    is always present in the output (Requirement 2.8). This function
  *    intentionally has no tier/auth parameter.
+ *    >! That is what makes TOOLS_LIST_CACHE_SCOPE ("public") in
+ *    >! utils/mcp-protocol.js correct. If a tier or caller filter is ever
+ *    >! added here, change that constant to "private" in the same change.
  * 5. Output order is exactly `settings.tools.availableToolsList`'s own
  *    order, which is already stable (Requirement 2.7).
  * 6. Each returned definition retains its own `inputSchema` from the

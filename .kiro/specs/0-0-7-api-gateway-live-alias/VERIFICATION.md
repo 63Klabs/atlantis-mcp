@@ -57,7 +57,7 @@ The raw URLs are built from the REST API id, region, and stage name above and ha
 |-------|------|------------|-------|
 | test | 2026-10-28 | 1-7 PASS | Pipeline execution `502a1c96-0f3d-486d-911d-b4bba69ae793` (Source, Build, Deploy, PostDeploy all Succeeded). Details in "Test stage results" below. |
 | beta | 2026-10-28 | 1-7 PASS | Merge commit `6bee209` (test into beta). Pipeline `prod63k-atlantis-mcp-beta-Pipeline` (Source, Build, Deploy, PostDeploy all Succeeded). CodeDeploy `d-TLW2MU68L`, Linear10PercentEvery3Minutes, 27 minutes. This merge also brought the other 0.0.7 work (dual-era protocol, tool discovery, post-deploy verification) to beta. Details in "Beta stage results" below. |
-| prod | | | |
+| prod | 2026-10-28 | 1-7 PASS | `origin/beta` (`9c9955a`) fast-forwarded into `main` at 18:02:06 UTC. Pipeline `prod63k-atlantis-mcp-prod-Pipeline` execution `e5b2b442-f5ef-4b33-90a1-aa0cdba38546` (Source, Build, Deploy, PostDeploy all Succeeded). CodeDeploy `d-M1SR6MA8L`, Linear10PercentEvery3Minutes, 27 minutes. No rollback drill on prod (by design). Details in "Prod stage results" below. |
 
 ### Test stage results (2026-10-28, UTC)
 
@@ -125,18 +125,152 @@ Other state at the end of the checks:
 
 Unexpected: nothing failed. Three observations. First, the alias update held the stack in `UPDATE_IN_PROGRESS` for 27 minutes, so the stack and pipeline Deploy stage took that long. Second, there was no API traffic at all during the shift, so nothing was exposed either way. Third, because the integration switched only after the shift completed, API callers did not get gradual protection for this one migration deploy (see the next section); they get it from the next deploy onward.
 
+### Prod stage results (2026-10-28, UTC)
+
+Stack update ran 18:07:07 to 18:35:10 (28 minutes 3 seconds), because the alias update stayed `UPDATE_IN_PROGRESS` for the whole gradual shift, as on beta. The merge to `main` brought the same commit (`9c9955a`) that beta already ran. Checks were run at about 18:40 to 18:50. All commands were read-only; the only requests sent were 6 ordinary `server/discover` POSTs. The CLI prints CodeDeploy, CloudWatch, and API Gateway times in the local offset (-05:00); every time below is converted to UTC.
+
+| # | Check | Result | Evidence |
+|---|-------|--------|----------|
+| 1 | Integration URI | PASS | `get-integration` on `gy3gpv7n1k` / `zigqku` / POST returns `arn:aws:apigateway:us-east-2:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-2:458901159113:function:prod63k-atlantis-mcp-prod-ReadFunction:live/invocations`. Baseline ended `:function:<fn>/invocations`. The `atlantis-mcp-prod` stage was last updated 18:35:05 (API Gateway deployment `gruhiw`). |
+| 2 | Alias carries traffic | PASS | Per-5-minute `Invocations` sums (UTC bucket start), identical `FunctionName`-only total in every bucket: unqualified `Resource=<fn>`: 17:10 = 4, then no datapoints from 17:15 to the end of the window. `Resource=<fn>:live`: no datapoints before 18:35, 18:35 = 25 (the PostDeploy verification run, 18:37:12 to 18:37:15), 18:45 = 6 (my requests). Nothing in the unqualified series after the last pre-deploy request, and everything after the integration switch (RestApi update 18:35:00 to 18:35:01, stage 18:35:05) is on `:live`. Earlier hours for context (hourly, unqualified and total equal): 12:00 = 39, 13:00 = 158, 14:00 = 47, 15:00 = 47, 16:00 = 4, 17:00 = 4; `:live` = 0 until 18:00. Baseline for prod was 224 unqualified and 0 `:live` over 24 hours. **There was no API traffic of any kind between 17:15 and 18:35**, which covers the whole 27 minute shift (18:07 to 18:35), so the series cannot show traffic moving from one resource to the other: the last unqualified request (17:10, 4 invocations) was about 57 minutes before the stack update, and the first `:live` traffic was the PostDeploy run. At 18:45:12 to 18:45:20 I sent 6 `server/discover` POSTs to the raw URL (all HTTP 200, no 429); the `:live` series gained exactly 6 (18:45 bucket) once CloudWatch caught up (it showed 5 for the first minute) and the unqualified series did not grow. |
+| 3 | Log stream naming | PASS | Newest streams: `2026/10/28/[45]b2c091720a5647099138c420292163ce` (last event 18:45:15.880, my requests) and `2026/10/28/[45]611abe964cab43e29b2f7b80ab82ec53` (last event 18:37:15.029, the PostDeploy run). The next stream is `2026/10/28/[$LATEST]0c35ca47eb8d4f568f71257c5ba76d39` (last event 17:14:53, the final pre-deploy traffic), and all older streams listed are `[$LATEST]`. Pattern `YYYY/MM/DD/[<version>]<32 hex>`. The bracketed version (45) equals the `live` alias version. |
+| 4 | CodeDeploy for the alias | PASS | `d-M1SR6MA8L`: status `Succeeded`, config `CodeDeployDefault.LambdaLinear10PercentEvery3Minutes`, creator `user` (CloudFormation), deployment style `BLUE_GREEN` / `WITH_TRAFFIC_CONTROL`, created 18:07:42.645, completed 18:34:46.727 (27 minutes 4 seconds, the gradual shift; `startTime` is not returned by the API for this deployment), overview 1 succeeded / 0 failed / 0 skipped, no error information, no rollback info. One Lambda target `prod63k-atlantis-mcp-prod-ReadFunction:live`, status `Succeeded`, `currentVersion` 44, `targetVersion` 45, `targetVersionWeight` 1.0. Lifecycle events: `BeforeAllowTraffic` 18:07:43.443 to 18:07:43.561, `AllowTraffic` 18:07:43.563 to 18:34:46.283 (the shift), `AfterAllowTraffic` 18:34:46.476 to 18:34:46.565, all `Succeeded`. Deployment group (`...ReadLambdaFunctionDeploymentGroup-JE5ngjfZoXee`): alarm configuration enabled, `ignorePollAlarmFailure` false, one alarm `prod63k-atlantis-mcp-prod-application-ReadLambdaErrorsAlarm-Ga8j3ygNcwK3`; auto rollback enabled for `DEPLOYMENT_FAILURE`, `DEPLOYMENT_STOP_ON_ALARM`, `DEPLOYMENT_STOP_ON_REQUEST`. Newest deployments on the group: `d-M1SR6MA8L`, `d-ZWPM0E4VK`, `d-RT6TXXN7K`, `d-D685M5G7K`, `d-FIM2W7D6K`, `d-9PZG4EOEJ`. |
+| 5 | Update ordering and permissions | PASS | See the ordering table below. The `RestApi` update waited for the alias update to complete, which means it waited for the whole gradual shift. `ReadLambdaPermissionLive` was deleted in the cleanup phase, after the `RestApi`, deployment, and stage updates. No 5xx and no function errors in the deploy window (see "Errors in the window" below). |
+| 6 | Stack status | PASS | `UPDATE_COMPLETE`, last updated 2026-10-28T18:07:07Z (finished 18:35:10). |
+| 7 | PostDeploy V1 | PASS | PostDeploy build `prod63k-atlantis-mcp-prod-PostDeploy:37af5b83-5f8a-4697-8a84-e6907c881f00` `SUCCEEDED` (18:35:41 to 18:37:15, source `9c9955a`, initiator the prod pipeline). `05-verify-deployment.sh` ran 18:37:09 to 18:37:15: skip switch `false` (SSM), expected version 0.0.7, raw target `https://gy3gpv7n1k.execute-api.us-east-2.amazonaws.com/atlantis-mcp-prod/mcp/v1`, edge target `https://mcp.atlantis.63klabs.net/mcp/v1`, `Verification key: no key configured: placeholder BLANK. Running at the public tier`. `Core: 36 passed, 0 failed, 0 skipped. Advisory: 6 passed, 0 warned, 3 skipped.` `Outcome: passed`. `VERIFY_REPORT` line: `failedCore` and `skippedCore` empty, no warnings, reported version 0.0.7 from `discover`, `initialize`, and the edge, 25 POSTs, 2 preflights, 0 retries, `rateLimit` null. V1.1 and V1.2 PASS, and the edge checks X2.1 to X2.4 PASS. The 3 skipped advisory checks are S2.1 to S2.3 (no stored key). No S2 warnings on prod. |
+
+Update ordering (stack events, UTC):
+
+| Time | Resource | Event |
+|------|----------|-------|
+| 18:07:07.125 | stack | `UPDATE_IN_PROGRESS` |
+| 18:07:38.932 | `ReadLambdaFunction` | `UPDATE_COMPLETE` (new code on `$LATEST`) |
+| 18:07:40.928 | `ReadLambdaFunctionVersion20261028T1` | `CREATE_COMPLETE` (version 45) |
+| 18:07:42.073 | `ReadLambdaFunctionAliaslive` | `UPDATE_IN_PROGRESS`; at 18:07:42.830 reason `CodeDeploy deployment started: d-M1SR6MA8L` |
+| 18:34:59.282 | `ReadLambdaFunctionAliaslive` | `UPDATE_COMPLETE` (12.6 seconds after CodeDeploy completed at 18:34:46.727) |
+| 18:35:00.205 | `WebApi` (`RestApi`) | `UPDATE_IN_PROGRESS` (0.92 seconds after the alias completed) |
+| 18:35:01.865 | `WebApi` | `UPDATE_COMPLETE` |
+| 18:35:03.499 | `WebApiDeploymentc8b3dcd0d0` | `CREATE_COMPLETE` |
+| 18:35:05.558 | `WebApiStage` | `UPDATE_COMPLETE` (the stage now serves the alias integration) |
+| 18:35:06.948 | stack | `UPDATE_COMPLETE_CLEANUP_IN_PROGRESS` |
+| 18:35:07.910 | `ReadLambdaPermissionLive` | `DELETE_IN_PROGRESS` |
+| 18:35:08.069 | `ReadLambdaFunctionVersion20261008T1` (old version 44) | `DELETE_SKIPPED` (retained) |
+| 18:35:08.866 | `ReadLambdaPermissionLive` | `DELETE_COMPLETE` |
+| 18:35:08.910 | old `WebApiDeploymentd89c45a5f8` | `DELETE_COMPLETE` (cleanup) |
+| 18:35:10.386 | stack | `UPDATE_COMPLETE` |
+
+Permission findings:
+
+- The integration switched to the alias (18:35:00 to 18:35:05) before `ReadLambdaPermissionLive` was deleted (18:35:07 to 18:35:08), and `<fn>:live` was covered throughout by the SAM-generated permission, as on beta.
+- `aws lambda get-policy` on `<fn>:live` holds one statement, `...ReadLambdaFunctionMcpV1PostPermissionStage-zg0c5vzILXi1`: `lambda:InvokeFunction` on `arn:aws:lambda:us-east-2:458901159113:function:prod63k-atlantis-mcp-prod-ReadFunction:live`, condition `ArnLike AWS:SourceArn` `arn:aws:execute-api:us-east-2:458901159113:gy3gpv7n1k/*/POST/mcp/v1`.
+- `aws lambda get-policy` on the unqualified function holds one statement, `...ReadLambdaPermission-s0oBhbHxr9Lu`: `lambda:InvokeFunction` on the unqualified function, source `arn:aws:execute-api:us-east-2:458901159113:gy3gpv7n1k/*`. It still exists, unchanged, for the scheduled v0.0.8 removal.
+
+Errors in the window (metrics, 5-minute periods, UTC; the API Gateway `ApiName` is `prod63k-atlantis-mcp-prod-WebApi`, stage `atlantis-mcp-prod`; the 17:00 to 19:30 range was queried):
+
+| Metric | Datapoints |
+|--------|------------|
+| Lambda `Errors` (`FunctionName`) | 17:10 = 0, 18:35 = 0, 18:45 = 0; no other datapoints |
+| API Gateway `Count` | 17:15 = 4, 18:35 = 27 (the 25 PostDeploy POSTs plus 2 preflights, matching the `VERIFY_REPORT`), 18:45 = 6 |
+| API Gateway `4XXError` | 17:15 = 0, 18:35 = 1, 18:45 = 0. The one 4xx fits the PostDeploy check S1.1 (an invalid key is rejected with HTTP 401); matched by timing and the report, not traced to a log line |
+| API Gateway `5XXError` | 17:15 = 0, 18:35 = 0, 18:45 = 0 |
+
+No Lambda errors and no 5xx at any point from 17:00 to 18:46. During the shift itself (18:07 to 18:35) there were no datapoints at all, because there were no requests.
+
+Other state at the end of the checks:
+
+- `live` alias: version 45, `RoutingConfig` null (no weighted routing left over). Version 44 before the deploy (baseline).
+- `ReadLambdaErrorsAlarm` (prod): `OK`, actions enabled; its last state change was 2026-03-16T17:51:36Z, so the deploy did not move it. The alarm was not touched.
+- Fresh `server/discover` (6 requests, 18:45:12 to 18:45:20, all HTTP 200): `resultType` `complete`, `supportedVersions` `2024-11-05`, `2025-11-25`, `2026-07-28`, `_meta["io.modelcontextprotocol/serverInfo"]` name `atlantis-mcp-server`, version `0.0.7`.
+
+Unexpected: nothing failed. Three observations. First, as on beta, the alias update held the stack in `UPDATE_IN_PROGRESS` for 27 minutes, so the stack update and the pipeline Deploy stage took about 28 minutes. Second, prod had no API traffic from 17:15 to 18:35, so the migration deploy exposed no caller to either version and the alias traffic proof rests on the PostDeploy run and my 6 requests, not on a live traffic hand-over; the unqualified series dropping to zero after the switch is true but would also have been true before it. Third, as on beta, the integration switched only after the shift completed, so API callers did not get gradual protection for this one migration deploy; they get it from the next deploy onward.
+
 ## Open runtime items settled
 
 | Item | Result |
 |------|--------|
 | AWS::Include expansion order | Settled on `test`. The deploy reached `UPDATE_COMPLETE` with both includes in the template (`template-openapi-spec.yml` in `WebApi.DefinitionBody`, and the top-level `Fn::Transform` for `template-dashboard.yml`). The OpenAPI include expanded correctly: the live integration URI carries the alias form (check 1) and the Lambda policy reflects it. The dashboard include caused no failure. Not separately proven: the dashboard resources themselves, which TEST does not create. |
 | CodeDeploy deployment group on test | Settled. `test` has a CodeDeploy application and Read deployment group (`...ReadLambdaFunctionDeploymentGroup-sqJAsDy8pksw`) with config `CodeDeployDefault.LambdaAllAtOnce`, and this deploy ran deployment `d-TOPV9Z58L` (`Succeeded`). The group existed before the migration deploy (see context table); it is not new on `test`. |
-| Alias-then-RestApi ordering on the migration deploy | Settled on `test` and `beta`. On `test` the alias update completed at 13:45:14.150 and the `RestApi` update started 0.97 seconds later (AllAtOnce, so no shift to wait for). On `beta`, under Linear10PercentEvery3Minutes, the alias update began 14:16:27, stayed `UPDATE_IN_PROGRESS` while CodeDeploy `d-TLW2MU68L` shifted traffic (14:16:28 to 14:43:32), completed 14:43:45.169, and the `RestApi` update started 14:43:46.077. CloudFormation waits for the whole gradual shift before updating the `RestApi`, because the alias resource does not complete until CodeDeploy finishes. Consequence for the migration deploy: during the shift the integration still targeted the unqualified ARN (`$LATEST`, already running the new code from 14:16:24), so API callers were not gradual-protected for this one deploy; the integration moved to the alias only when it already pointed 100% at the new version, so the switch itself exposed no mix of versions. On every later deploy the API already calls the alias, so the shift protects callers and the `ReadLambdaErrorsAlarm` rollback applies. Cost: the stack update and the pipeline Deploy stage take about 28 minutes on PROD stages. The plan's reading (alias before `RestApi`) held; the design's "better, not worse" branch (RestApi updating before the shift finishes) did not occur. |
-| `ReadLambdaPermissionLive` removal on a PROD stage | Settled on `beta`. Deleted in cleanup (14:43:55 to 14:43:56), after the `RestApi`, deployment, and stage updates, so no window existed where the integration pointed at the alias without an invoke permission. `<fn>:live` is covered by `ReadLambdaFunctionMcpV1PostPermissionStage` (source `i17st3itv0/*/POST/mcp/v1`), which was not touched. The unqualified `ReadLambdaPermission` stayed throughout. Not run on `prod` yet. |
+| Alias-then-RestApi ordering on the migration deploy | Settled on `test`, `beta`, and `prod` (same result on `prod`: alias `UPDATE_COMPLETE` 18:34:59.282, `RestApi` update started 18:35:00.205, after a 27 minute shift; see "Prod stage results"). On `test` the alias update completed at 13:45:14.150 and the `RestApi` update started 0.97 seconds later (AllAtOnce, so no shift to wait for). On `beta`, under Linear10PercentEvery3Minutes, the alias update began 14:16:27, stayed `UPDATE_IN_PROGRESS` while CodeDeploy `d-TLW2MU68L` shifted traffic (14:16:28 to 14:43:32), completed 14:43:45.169, and the `RestApi` update started 14:43:46.077. CloudFormation waits for the whole gradual shift before updating the `RestApi`, because the alias resource does not complete until CodeDeploy finishes. Consequence for the migration deploy: during the shift the integration still targeted the unqualified ARN (`$LATEST`, already running the new code from 14:16:24), so API callers were not gradual-protected for this one deploy; the integration moved to the alias only when it already pointed 100% at the new version, so the switch itself exposed no mix of versions. On every later deploy the API already calls the alias, so the shift protects callers and the `ReadLambdaErrorsAlarm` rollback applies. Cost: the stack update and the pipeline Deploy stage take about 28 minutes on PROD stages. The plan's reading (alias before `RestApi`) held; the design's "better, not worse" branch (RestApi updating before the shift finishes) did not occur. |
+| `ReadLambdaPermissionLive` removal on a PROD stage | Settled on `beta` and `prod`. On `beta` it was deleted in cleanup (14:43:55 to 14:43:56), on `prod` in cleanup too (18:35:07.910 to 18:35:08.866), in both cases after the `RestApi`, deployment, and stage updates, so no window existed where the integration pointed at the alias without an invoke permission. `<fn>:live` is covered by `ReadLambdaFunctionMcpV1PostPermissionStage` (source `i17st3itv0/*/POST/mcp/v1` on beta, `gy3gpv7n1k/*/POST/mcp/v1` on prod), which was not touched. The unqualified `ReadLambdaPermission` stayed throughout. On `prod` the first request after the removal (the PostDeploy run, 18:37) and my 6 requests (18:45) all returned HTTP 200 through the alias. |
 | Lambda log stream naming | Settled. Streams written through the alias are named `YYYY/MM/DD/[<version>]<32 hex>`, where `<version>` is the published version the alias points to (195 here). Streams from before the migration deploy are `[$LATEST]`. The admin-ops README sentence can state that new streams carry the alias version in brackets instead of `[$LATEST]`. |
 
 ## Rollback drill (beta)
 
 | Date | Method | Result (passed / inconclusive / failed) | Notes |
 |------|--------|------------------------------------------|-------|
-| | | | |
+| 2026-10-28 | Forced `set-alarm-state ALARM` on the beta `ReadLambdaErrorsAlarm` during an ordinary docs-only beta deploy (pipeline execution `9b521fb7-d9b7-48a5-b874-80c5e324f7fa`, merge `9c9955a`) while CodeDeploy `d-1ZWJ9R78L` (`Linear10PercentEvery3Minutes`) was shifting the `live` alias from 47 to 48. One try. | passed | CodeDeploy stopped the deployment with `ALARM_ACTIVE` 3.5 s after the alarm entered `ALARM` and started its own rollback deployment `d-MGNE7E88L`, which succeeded in 1.5 s. The alias stayed on 47 with no routing config. The stack ended `UPDATE_ROLLBACK_COMPLETE` 31 s after rollback began (15:39:51 UTC). Caveats: the alarm state was set by hand, not by a real error; 20% of traffic was on 48 at the stop; the only API request in the window was served by 48 before the alarm, and no request was made after the rollback, so the return of API responses to 47 is shown by alias state, not by traffic. Restore: new pipeline execution 0be921d5, complete 16:42 UTC. |
+
+### Drill details
+
+All times UTC, 2026-10-28, from read-only queries made after the drill (CodeDeploy, CloudFormation stack events, CloudWatch alarm history and metrics, CloudWatch Logs, Lambda, CodePipeline).
+
+**Timeline**
+
+| Time | Event | Source |
+|------|-------|--------|
+| 15:33:01.7 | Stack update started (`User Initiated`) | Stack events |
+| 15:33:32 | `ReadLambdaFunctionVersion20261028T1` created (Lambda version 48) | Stack events |
+| 15:33:33.7 | `ReadLambdaFunctionAliaslive` `UPDATE_IN_PROGRESS`; CodeDeploy `d-1ZWJ9R78L` started 15:33:34.5 (`CodeDeployDefault.LambdaLinear10PercentEvery3Minutes`) | Stack events, CodeDeploy |
+| 15:33:35 | Lifecycle `BeforeAllowTraffic` succeeded, `AllowTraffic` began (10% to 48) | CodeDeploy target |
+| 15:39:07.9 | The orchestrator's `server/discover` request ran as **Version: 48** (cold start, new log stream `[48]8591985253904f949a1258de1f67b94c`, response `200`) | Lambda log |
+| 15:39:11.99 | Alarm `OK` to `ALARM` (history timestamp of the manual `set-alarm-state`) | Alarm history |
+| 15:39:12.04 | Alarm action executed: SNS publish to the `ReadLambdaErrorAlarmNotification` topic succeeded | Alarm history |
+| 15:39:15.5 | `d-1ZWJ9R78L` complete: status `Stopped`, `ALARM_ACTIVE`; `AllowTraffic` `Failed`, `AfterAllowTraffic` `Skipped`; overview Failed 1 | CodeDeploy |
+| 15:39:16.0 to 15:39:17.5 | CodeDeploy rollback deployment `d-MGNE7E88L` (`LambdaAllAtOnce`, creator `codeDeployRollback`), `Succeeded`; its three lifecycle events all `Succeeded` | CodeDeploy |
+| 15:39:20.2 | Alias resource: `CodeDeploy rollback deployment started: d-MGNE7E88L` | Stack events |
+| 15:39:20.4 | Alias `UPDATE_FAILED`: `d-1ZWJ9R78L failed. One or more alarms have been activated ... Activated alarms: <...ReadLambdaErrorsAlarm-hGuyVX2dXBhb>` | Stack events |
+| 15:39:20.7 | Stack `UPDATE_ROLLBACK_IN_PROGRESS`: `The following resource(s) failed to update: [ReadLambdaFunctionAliaslive].` | Stack events |
+| 15:39:46.6 to 15:39:47.5 | Alias `UPDATE_IN_PROGRESS` then `UPDATE_COMPLETE` (rollback of the alias resource) | Stack events |
+| 15:39:49.9 to 15:39:50.9 | `ReadLambdaFunctionVersion20261028T1` and the two new layer versions `DELETE_COMPLETE` | Stack events |
+| 15:39:51.2 | Stack `UPDATE_ROLLBACK_COMPLETE` | Stack events |
+| 15:39:59.7 | Alarm `ALARM` to `OK` (next evaluation, Errors 0 against threshold 1) | Alarm history |
+
+**Evidence**
+
+- **Time to stop:** 3.5 s from the alarm's `ALARM` entry (15:39:11.99) to the deployment's complete time (15:39:15.5). About 9 s from the orchestrator's recorded call (about 15:39:06) to the stop, a difference that includes the gap between the call and the history timestamp.
+- **Time in rollback:** `UPDATE_ROLLBACK_IN_PROGRESS` 15:39:20.7 to `UPDATE_ROLLBACK_COMPLETE` 15:39:51.2, about 30.5 s. From the alarm to a complete stack rollback, about 39 s.
+- **Traffic at the stop:** `targetVersionWeight` 0.2 (`currentVersion` 47, `targetVersion` 48), the second step of the linear schedule. The stop came about 20 s before the third step (30%) would have started.
+- **Alias after the drill:** `FunctionVersion` 47, no `RoutingConfig`, read at 16:03:32 UTC (before any restore update had reached the alias; the stack had no new events after 15:39:51). The rollback deployment `d-MGNE7E88L` reports `currentVersion` 47, `targetVersion` 48, `targetVersionWeight` 1.0. That field pair is how CodeDeploy describes a rollback target and was not used as evidence of where the alias ended.
+- **Version 48:** it existed (log stream `Version: 48`, CloudWatch `ExecutedVersion=48`) and was deleted by the stack rollback at 15:39:50.9. `list-versions-by-function` now ends at 47 (published 2026-10-28T14:16:17 UTC), so version 48 is gone. This is the rolled-back-stack behaviour the plan expected.
+- **Which versions answered:** streams active in the window: one, `[48]8591985253904f949a1258de1f67b94c` (first event 15:39:07, last 15:39:08). It holds a single invocation, the orchestrator's `server/discover` poll. The `live` alias metric `Invocations` with `ExecutedVersion=48` is 1 in the 15:39 minute; `ExecutedVersion=47` has no datapoints between 15:30 and 16:02. The newest `[47]` stream's last event is 15:01:49, before the shift. So the one request in the window landed on the candidate, and there is no request after the rollback. Both versions report `serverInfo.version` 0.0.7, so the response body could not tell them apart; the stream prefix did.
+- **Alarm:** history shows exactly three items in the window: StateUpdate `OK` to `ALARM` (15:39:11.99), Action `Successfully executed action ...ReadLambdaErrorAlarmNotification` (15:39:12.04), StateUpdate `ALARM` to `OK` (15:39:59.7). Alarm settings: `Errors`, dimension `FunctionName` only (not version-scoped), period 900 s, 1 evaluation period, threshold 1.0, actions enabled.
+- **Pipeline:** execution `9b521fb7-d9b7-48a5-b874-80c5e324f7fa` `GenerateChangeSet` Succeeded, `ExecuteChangeSet` Failed at 15:40:23 UTC (the first attempt, started 15:32:57), so the Deploy stage Failed. The PostDeploy stage did not run for this execution (its latest execution is the older `f5821087-bd39-447e-ba13-ed1a0e58ddce`).
+
+**Judgement (Requirement 10.4, design V-D): passed.** CodeDeploy stopped the deployment on the alarm and rolled back (`d-MGNE7E88L` `Succeeded`), the alias is on the previous version 47 with no routing config, and the stack ended `UPDATE_ROLLBACK_COMPLETE`. Caveats, stated plainly:
+
+- The alarm was forced by hand with `set-alarm-state`, once, so the drill proves the CodeDeploy-to-CloudFormation rollback path wired to this alarm, not that real function errors would trip the alarm. The alarm is function-level (not scoped to a version), as the design recorded.
+- Traffic reached 20% on version 48 before the stop, and the one request in the window ran on 48. That request was made before the alarm, so it shows the shift was live, not that the rollback worked.
+- No API request was made after the rollback, so "responses return to the previous version" rests on the alias state (47, no routing config) and the succeeded rollback deployment, not on a post-rollback request. One `server/discover` request now would produce a `[47]` stream (new or existing) if a direct confirmation is wanted before the restore finishes; it would need the alias to still be on 47.
+- The restore deploy that runs after this will also create a new CodeDeploy deployment and a new stack update; none of its events are part of this record.
+
+### Restore
+
+Beta was restored to the current release on 2026-10-28 (UTC) with a new pipeline execution from the same source. Times are UTC; the facts in the first block come from the operator's run notes, the table from read-only queries made afterwards (CodeDeploy, CloudFormation, CodePipeline, CodeBuild and CloudWatch Logs, Lambda, CloudWatch alarms).
+
+**What happened**
+
+| Time | Event |
+|------|-------|
+| 16:02:21 | First attempt: retry of the Deploy stage of execution `9b521fb7`. Failed at 16:02:25 with `ChangeSet [pipeline-changeset] does not exist (ChangeSetNotFound)`. The failed execution's change set had already been consumed by the rolled-back deploy. |
+| 16:06:07 | One post-rollback `server/discover` request: HTTP 200, served by log stream `2026/10/28/[47]8e754c437a38448f8d73a9e4a0b7c67d` (alias on 47, no routing config). This is the direct confirmation that API responses returned to the previous version after the rollback, which the drill row could only show by alias state. |
+| 16:06:30 | Second attempt: new execution `0be921d5-d5aa-4090-92d4-fc88d608731e` (`aws codepipeline start-pipeline-execution`, trigger `StartPipelineExecution`, source revision `9c9955af1024b17e6b0aa64c69b15d548c22ba2b`). |
+
+**Result**
+
+| Item | Result |
+|------|--------|
+| Pipeline execution `0be921d5` | `Succeeded`. Source 16:06:30, Build 16:06:34 to 16:11:12, `GenerateChangeSet` 16:11:13 to 16:11:47, `ExecuteChangeSet` 16:11:48 to 16:39:56, PostDeploy 16:39:56 to 16:42:00 |
+| CodeDeploy `d-KHOY1798L` | `Succeeded`, creator `user` (CloudFormation), `CodeDeployDefault.LambdaLinear10PercentEvery3Minutes`, `BLUE_GREEN` / `WITH_TRAFFIC_CONTROL`, created 16:12:23, completed 16:39:27 (27 minutes 4 seconds, the full shift). Overview 1 succeeded / 0 failed / 0 skipped, no error information, no rollback. Target `prod63k-atlantis-mcp-beta-ReadFunction:live` `Succeeded`, `currentVersion` 47, `targetVersion` 49, `targetVersionWeight` 1.0. `BeforeAllowTraffic`, `AllowTraffic`, `AfterAllowTraffic` all `Succeeded`. No alarm forced it. |
+| Stack `prod63k-atlantis-mcp-beta-application` | `UPDATE_COMPLETE`, last updated 2026-10-28T16:11:49Z. Update finished about 16:40. |
+| `live` alias | Version 49, no `RoutingConfig`. Version 48 was deleted by the drill rollback, so the restore version was numbered 49. |
+| PostDeploy build `prod63k-atlantis-mcp-beta-PostDeploy:31582b65-9a46-452c-a8d2-15a50b52a6f9` | `SUCCEEDED`, 16:39:57 to 16:41:34, source `9c9955a`. `05-verify-deployment.sh`: expected version 0.0.7. `Core: 36 passed, 0 failed, 0 skipped. Advisory: 6 passed, 3 warned, 0 skipped.` `Outcome: passed`. V1.1, V1.2, and edge X2.2 PASS. |
+| `ReadLambdaErrorsAlarm` (beta) | `OK`, actions enabled. Last state change 15:39:59.7 (the drill), so the restore did not move it. |
+| `server/discover` after the restore | One request at 16:45:57: HTTP 200, `resultType` `complete`, `supportedVersions` `2024-11-05`, `2025-11-25`, `2026-07-28`, `_meta["io.modelcontextprotocol/serverInfo"]` name `atlantis-mcp-server`, version `0.0.7`. |
+
+**Observation: stored verification key.** The PostDeploy log says `Verification key: key configured; S2 checks it`, and S2.1, S2.2 and S2.3 all `WARN`: the stored key got HTTP 401 `Invalid API key` in both `X-API-Key` and Bearer form. The advisory split therefore differs from the earlier beta run (6 passed, 0 warned, 3 skipped, no key then). Advisory checks do not fail the build, so the outcome is `passed`. A key is now stored in `Mcp_PostDeployTestVerifyApiKey` (the parameter was the `BLANK` placeholder at the migration deploy check) and the server does not accept it; this is unrelated to the alias change. Likely cause (not checked): the account expiry in [#5](https://github.com/63Klabs/atlantis-mcp/issues/5), or a mistyped or rotated key.
+
+**Judgement (Requirement 10.7): restored.** Beta is on the current release (alias 49, stack `UPDATE_COMPLETE`, PostDeploy `Outcome: passed`, alarm `OK`), reached by a full gradual shift with no rollback.
+
+**Not verified:** that the 16:45:57 request was served by a `[49]` stream. The newest stream is `2026/10/28/[49]3b6f72c04b304960bc9710f5897c1db0`, but its `lastEventTimestamp` still read 16:41:34 (the PostDeploy run) at 16:46:35, which can lag. Version 49 is shown by the alias and by `serverInfo.version`, not by that stream. The 16:06:07 request and its `[47]` stream come from the operator's run notes, not from a re-query.
+
+**Lesson.** After a rolled-back deploy, restore with a new pipeline execution (`aws codepipeline start-pipeline-execution`), not a stage retry. `retry-stage-execution` on the Deploy stage fails immediately with `ChangeSetNotFound`, because the change set of the failed execution had already been consumed (the retry looks for `pipeline-changeset` and it is gone). A new execution runs `GenerateChangeSet` again against a stack in `UPDATE_ROLLBACK_COMPLETE` and deploys normally. Budget about 35 minutes on a PROD stage: about 5 for Build, about 28 for the Deploy shift, about 2 for PostDeploy. Expect the next Lambda version number to skip the deleted drill version (49 here, not 48).

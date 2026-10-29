@@ -29,6 +29,12 @@ How fast the alias moves depends on the stage, as set in `DeploymentPreference` 
 
 The Auth function and the other functions are not behind an alias and deploy at once. This page does not apply gradual deployment to them.
 
+Plan around the time this takes. CloudFormation waits for the whole shift before it finishes the alias update, so the stack update and the pipeline Deploy stage take about 28 minutes on `beta` and `prod`, and a push takes about 35 minutes to finish the pipeline. The `test` stage finishes in about a minute.
+
+### The first deploy of the alias integration
+
+The first deploy that moved the integration to the alias was slower and was not gradually protected. CloudFormation updates the alias first and waits for the shift to finish, and only then updates the REST API. Until then the API still called the unqualified function ARN, which was already running the new code, so callers were not shifted gradually. The integration moved to the alias after the shift completed. From the next deploy onward the API already calls the alias, so the shift protects callers.
+
 ## Two versions at once
 
 For the length of a PROD shift, version N (the previous release) and version N+1 (the new release) both answer API requests. Consecutive requests from the same client can reach different versions. For example, `serverInfo.version` can come from either one:
@@ -44,7 +50,15 @@ while true; do
 done
 ```
 
-If `ReadLambdaErrorsAlarm` (created in PROD stages) fires during the shift, CodeDeploy stops, the alias returns to N, and the stack ends in `UPDATE_ROLLBACK_COMPLETE`. Everything that N+1 wrote while it was serving traffic is then read by N.
+If `ReadLambdaErrorsAlarm` (created in PROD stages) fires during the shift, CodeDeploy stops the deployment within seconds (reason `ALARM_ACTIVE`) and runs its own rollback deployment. The alias stays on N, N+1 is deleted by the stack rollback, and the stack ends in `UPDATE_ROLLBACK_COMPLETE` about 40 seconds after the alarm. Everything that N+1 wrote while it was serving traffic is then read by N. The alarm watches the function's `Errors` metric and is not scoped to a version, so errors from N can also trigger it.
+
+After a rollback the pipeline's Deploy stage cannot be retried, because its change set was consumed (`ChangeSetNotFound`). Fix the cause, then push a new commit, or start a new execution of the same pipeline:
+
+```bash
+aws codepipeline start-pipeline-execution --name <pipeline-name> --region us-east-1
+```
+
+To see the rollback work on a stage, an operator can force `ReadLambdaErrorsAlarm` into `ALARM` with `aws cloudwatch set-alarm-state` during a shift. This triggers a real rollback and sends the alarm email, so tell the recipient first. The commands are in the [deployment guide](../admin-ops/deployment/README.md#testing-the-rollback).
 
 ## Compatibility rule
 

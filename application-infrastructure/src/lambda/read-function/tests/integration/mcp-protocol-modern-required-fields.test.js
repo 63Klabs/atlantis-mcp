@@ -18,6 +18,7 @@
 const { describe, it, expect } = require('@jest/globals');
 const { handleJsonRpc, TOOL_DISPATCH } = require('../../utils/json-rpc-router');
 const { DEFAULT_SIZE_THRESHOLD } = require('../../utils/content-sizer');
+const { CACHE_SCOPES, TOOLS_LIST_CACHE_SCOPE } = require('../../utils/mcp-protocol');
 
 /**
  * Create a mock ClientRequest for testing.
@@ -77,7 +78,9 @@ describe('Integration: Modern-Era Required Fields (Task 14.5)', () => {
       expect(typeof body.result.ttlMs).toBe('number');
       expect(body.result.ttlMs).toBeGreaterThan(0);
       
-      expect(body.result.cacheScope).toBe('server');
+      // >! cacheScope must be a value the specification allows, and must be the single defined constant
+      expect(CACHE_SCOPES).toContain(body.result.cacheScope);
+      expect(body.result.cacheScope).toBe(TOOLS_LIST_CACHE_SCOPE);
       expect(body.result.resultType).toBe('complete');
       
       expect(body.result._meta).toBeDefined();

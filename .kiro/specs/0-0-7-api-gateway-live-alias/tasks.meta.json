@@ -392,6 +392,16 @@
         "executionId": "38bb6b5c-b0d6-49c2-b3eb-8f75e6cca156",
         "chatSessionId": "sess_d0599468-a339-4178-833a-81d99acaaa1f",
         "timestamp": 1793143010704
+      },
+      {
+        "executionId": "b3ef1b14-fdd4-48ef-93b3-1a20391989ad",
+        "chatSessionId": "sess_d0599468-a339-4178-833a-81d99acaaa1f",
+        "timestamp": 1793209988774
+      },
+      {
+        "executionId": "b3ef1b14-fdd4-48ef-93b3-1a20391989ad",
+        "chatSessionId": "sess_d0599468-a339-4178-833a-81d99acaaa1f",
+        "timestamp": 1793213355585
       }
     ],
     "15.1 Update the documentation from the observed results": [
@@ -399,6 +409,16 @@
         "executionId": "38bb6b5c-b0d6-49c2-b3eb-8f75e6cca156",
         "chatSessionId": "sess_d0599468-a339-4178-833a-81d99acaaa1f",
         "timestamp": 1793143010821
+      },
+      {
+        "executionId": "b3ef1b14-fdd4-48ef-93b3-1a20391989ad",
+        "chatSessionId": "sess_d0599468-a339-4178-833a-81d99acaaa1f",
+        "timestamp": 1793213355366
+      },
+      {
+        "executionId": "b3ef1b14-fdd4-48ef-93b3-1a20391989ad",
+        "chatSessionId": "sess_d0599468-a339-4178-833a-81d99acaaa1f",
+        "timestamp": 1793213458821
       }
     ],
     "16.1 Confirm the preconditions in writing": [
@@ -428,6 +448,11 @@
         "executionId": "7e56eab0-529a-489b-9f1c-0af5453d84fd",
         "chatSessionId": "sess_d0599468-a339-4178-833a-81d99acaaa1f",
         "timestamp": 1793201260914
+      },
+      {
+        "executionId": "7e56eab0-529a-489b-9f1c-0af5453d84fd",
+        "chatSessionId": "sess_d0599468-a339-4178-833a-81d99acaaa1f",
+        "timestamp": 1793203319623
       }
     ],
     "16.3 Restore `beta` and record the result": [
@@ -435,6 +460,16 @@
         "executionId": "38bb6b5c-b0d6-49c2-b3eb-8f75e6cca156",
         "chatSessionId": "sess_d0599468-a339-4178-833a-81d99acaaa1f",
         "timestamp": 1793143011130
+      },
+      {
+        "executionId": "7e56eab0-529a-489b-9f1c-0af5453d84fd",
+        "chatSessionId": "sess_d0599468-a339-4178-833a-81d99acaaa1f",
+        "timestamp": 1793203338215
+      },
+      {
+        "executionId": "7e56eab0-529a-489b-9f1c-0af5453d84fd",
+        "chatSessionId": "sess_d0599468-a339-4178-833a-81d99acaaa1f",
+        "timestamp": 1793206055213
       }
     ],
     "17. Final checkpoint": [
@@ -442,6 +477,16 @@
         "executionId": "38bb6b5c-b0d6-49c2-b3eb-8f75e6cca156",
         "chatSessionId": "sess_d0599468-a339-4178-833a-81d99acaaa1f",
         "timestamp": 1793143011229
+      },
+      {
+        "executionId": "b3ef1b14-fdd4-48ef-93b3-1a20391989ad",
+        "chatSessionId": "sess_d0599468-a339-4178-833a-81d99acaaa1f",
+        "timestamp": 1793213458920
+      },
+      {
+        "executionId": "b3ef1b14-fdd4-48ef-93b3-1a20391989ad",
+        "chatSessionId": "sess_d0599468-a339-4178-833a-81d99acaaa1f",
+        "timestamp": 1793213537809
       }
     ],
     "1. Write the guard test and see it fail (Phase 1, red)": [
@@ -519,6 +564,27 @@
         "executionId": "8f8d9359-b238-4bfa-9a8e-c631b34539e7",
         "chatSessionId": "sess_d0599468-a339-4178-833a-81d99acaaa1f",
         "timestamp": 1793200070095
+      }
+    ],
+    "16. Rollback drill on `beta` (Phase 3, requires explicit approval)": [
+      {
+        "executionId": "7e56eab0-529a-489b-9f1c-0af5453d84fd",
+        "chatSessionId": "sess_d0599468-a339-4178-833a-81d99acaaa1f",
+        "timestamp": 1793206055494
+      }
+    ],
+    "14. Roll out to `prod` and verify (Phase 3)": [
+      {
+        "executionId": "b3ef1b14-fdd4-48ef-93b3-1a20391989ad",
+        "chatSessionId": "sess_d0599468-a339-4178-833a-81d99acaaa1f",
+        "timestamp": 1793213355733
+      }
+    ],
+    "15. Finalise documentation that depends on observed results (Phase 3)": [
+      {
+        "executionId": "b3ef1b14-fdd4-48ef-93b3-1a20391989ad",
+        "chatSessionId": "sess_d0599468-a339-4178-833a-81d99acaaa1f",
+        "timestamp": 1793213459012
       }
     ]
   }
