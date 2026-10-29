@@ -6,10 +6,12 @@ Target: November 2026
 
 - [X] post-deploy-smoke-verification - ready to execute tasks
 - [x] api-gateway-live-alias
+- [-] fix: tools-list-returns-cachescope
+- [ ] scheme-validation-of-modern-results
 - [ ] revive post deploy tests
+- [ ] address static site generation issue
 - [ ] lapsed tier downgrade
 - [ ] rate-limit-client-ip-spoofing
-- [ ] address static site generation issue
 
 ## 0-0-8
 

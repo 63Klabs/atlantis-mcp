@@ -9,6 +9,7 @@
  */
 
 const { handleJsonRpc } = require('../../../utils/json-rpc-router');
+const { CACHE_SCOPES, TOOLS_LIST_CACHE_SCOPE, TOOLS_LIST_TTL_MS } = require('../../../utils/mcp-protocol');
 
 /**
  * Helper: build a valid JSON-RPC 2.0 event body
@@ -87,6 +88,26 @@ describe('JSON-RPC Router - server/discover method', () => {
       expect(result._meta['io.modelcontextprotocol/serverInfo']).toBeDefined();
       expect(result._meta['io.modelcontextprotocol/serverInfo'].name).toBe('atlantis-mcp-server');
       expect(result._meta['io.modelcontextprotocol/serverInfo'].version).toBeDefined();
+    });
+
+    test('returns ttlMs and an allowed cacheScope through the router', async () => {
+      const clientRequest = makeClientRequest({
+        jsonrpc: '2.0',
+        method: 'server/discover',
+        id: 'discover-cache-hints'
+      });
+
+      const response = await handleJsonRpc(clientRequest);
+      expect(response.statusCode).toBe(200);
+
+      const result = parseBody(response).result;
+
+      // >! The discover result is cacheable: the schema requires ttlMs and a valid cacheScope
+      expect(Number.isInteger(result.ttlMs)).toBe(true);
+      expect(result.ttlMs).toBeGreaterThanOrEqual(0);
+      expect(result.ttlMs).toBe(TOOLS_LIST_TTL_MS);
+      expect(CACHE_SCOPES).toContain(result.cacheScope);
+      expect(result.cacheScope).toBe(TOOLS_LIST_CACHE_SCOPE);
     });
 
     test('works without prior handshake (Requirement 5.3)', async () => {

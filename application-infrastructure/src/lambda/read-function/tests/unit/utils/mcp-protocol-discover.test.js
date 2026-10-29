@@ -14,7 +14,10 @@ const {
   initializeResult,
   ALLOWED_REVISIONS,
   SERVER_NAME,
-  SERVER_VERSION
+  SERVER_VERSION,
+  TOOLS_LIST_TTL_MS,
+  CACHE_SCOPES,
+  TOOLS_LIST_CACHE_SCOPE
 } = require('../../../utils/mcp-protocol');
 
 /** Legacy keys that must never appear at the top level of JSON-RPC responses */
@@ -83,16 +86,33 @@ describe('discoverResult', () => {
     expect(response.result._meta['io.modelcontextprotocol/serverInfo']).toEqual(caps.serverInfo);
   });
 
-  it('result has exactly five keys: supportedVersions, capabilities, instructions, resultType, _meta', () => {
+  it('result has exactly seven keys: supportedVersions, capabilities, instructions, ttlMs, cacheScope, resultType, _meta', () => {
     const response = discoverResult('discover-8');
 
     expect(Object.keys(response.result).sort()).toEqual([
       '_meta',
+      'cacheScope',
       'capabilities',
       'instructions',
       'resultType',
-      'supportedVersions'
+      'supportedVersions',
+      'ttlMs'
     ]);
+  });
+
+  it('contains ttlMs as a non-negative integer equal to TOOLS_LIST_TTL_MS (Requirement 5.2)', () => {
+    const response = discoverResult('discover-8a');
+
+    expect(Number.isInteger(response.result.ttlMs)).toBe(true);
+    expect(response.result.ttlMs).toBeGreaterThanOrEqual(0);
+    expect(response.result.ttlMs).toBe(TOOLS_LIST_TTL_MS);
+  });
+
+  it('contains cacheScope from CACHE_SCOPES equal to TOOLS_LIST_CACHE_SCOPE (Requirement 5.2)', () => {
+    const response = discoverResult('discover-8b');
+
+    expect(CACHE_SCOPES).toContain(response.result.cacheScope);
+    expect(response.result.cacheScope).toBe(TOOLS_LIST_CACHE_SCOPE);
   });
 
   it('contains no legacy keys at top level', () => {

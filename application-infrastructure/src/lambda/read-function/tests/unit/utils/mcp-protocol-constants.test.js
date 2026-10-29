@@ -14,9 +14,13 @@ const {
   SUPPORTED_PROTOCOL_VERSIONS,
   ALLOWED_REVISIONS,
   SERVER_NAME,
+  TOOLS_LIST_TTL_MS,
+  CACHE_SCOPES,
+  TOOLS_LIST_CACHE_SCOPE,
   getCapabilities,
   negotiateProtocol,
-  discoverResult
+  discoverResult,
+  toolsListResult
 } = require('../../../utils/mcp-protocol');
 const era = require('../../../utils/mcp-era');
 
@@ -114,6 +118,32 @@ describe('MCP Protocol Constants', () => {
 
     it('server name has one definition shared by getCapabilities()', () => {
       expect(getCapabilities().serverInfo.name).toBe(SERVER_NAME);
+    });
+  });
+
+  describe('CACHE_SCOPES and TOOLS_LIST_CACHE_SCOPE (Requirements 5.2, 5.3)', () => {
+    it('CACHE_SCOPES is frozen', () => {
+      expect(Object.isFrozen(CACHE_SCOPES)).toBe(true);
+    });
+
+    it('CACHE_SCOPES has exactly the two scopes the specification allows', () => {
+      expect([...CACHE_SCOPES].sort()).toEqual(['private', 'public']);
+    });
+
+    it('TOOLS_LIST_CACHE_SCOPE is a member of CACHE_SCOPES', () => {
+      expect(CACHE_SCOPES).toContain(TOOLS_LIST_CACHE_SCOPE);
+    });
+
+    it('modern toolsListResult reports the constants as its cache hints', () => {
+      const { result } = toolsListResult('x', { era: 'modern', catalog: [] });
+      expect(result.cacheScope).toBe(TOOLS_LIST_CACHE_SCOPE);
+      expect(result.ttlMs).toBe(TOOLS_LIST_TTL_MS);
+    });
+
+    it('server/discover reports the same cache hints as the modern tools/list', () => {
+      const { result } = discoverResult('x');
+      expect(result.cacheScope).toBe(TOOLS_LIST_CACHE_SCOPE);
+      expect(result.ttlMs).toBe(TOOLS_LIST_TTL_MS);
     });
   });
 });
