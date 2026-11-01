@@ -414,6 +414,8 @@ function discoverResult(id) {
     supportedVersions: caps.supportedVersions,
     capabilities: caps.capabilities,
     instructions: caps.instructions,
+    ttlMs: TOOLS_LIST_TTL_MS,
+    cacheScope: TOOLS_LIST_CACHE_SCOPE,
     resultType: 'complete',                              // Requirement 7.1
     _meta: {
       'io.modelcontextprotocol/serverInfo': caps.serverInfo  // Requirement 2.4
@@ -433,7 +435,7 @@ function toolsListResult(id, { era, catalog, revision }) {
   return jsonRpcSuccess(id, {
     tools: catalog,
     ttlMs: TOOLS_LIST_TTL_MS,
-    cacheScope: 'server',                                // Requirement 7.3
+    cacheScope: TOOLS_LIST_CACHE_SCOPE,                  // Requirement 7.3 ('public')
     resultType: 'complete',                              // Requirement 7.1
     _meta: {
       'io.modelcontextprotocol/serverInfo': {
@@ -454,9 +456,11 @@ function toolsListResult(id, { era, catalog, revision }) {
 const TOOLS_LIST_TTL_MS = 10 * 60 * 1000;
 ```
 
-`cacheScope: 'server'` means "the response is identical for every client," which is true for this stateless, authentication-independent tool manifest. (The optional discovery-spec filters do not vary tools/list output; they vary `search_documentation` output.)
+`cacheScope: 'public'` means the response may be served from a shared cache across callers, which is true for this stateless, authentication-independent tool manifest ([caching](https://modelcontextprotocol.io/specification/2026-07-28/server/utilities/caching)). (The optional discovery-spec filters do not vary tools/list output; they vary `search_documentation` output.)
 
-Both TTL and scope come from this file-level constant and object literal — the "documented configuration source" of Requirement 7.3 is this module.
+> **Correction, 2026-10-29**: this design first specified `'server'`, which the specification does not allow. See [0-0-7-tools-list-returns-cachescope-server-which-kiro](../0-0-7-tools-list-returns-cachescope-server-which-kiro/).
+
+Both TTL and scope come from the file-level constants `TOOLS_LIST_TTL_MS` and `TOOLS_LIST_CACHE_SCOPE` — the "documented configuration source" of Requirement 7.3 is this module.
 
 **Modern `tools/call` result wrapping.** The existing `handleToolsCall` builds a `{ content: [...] }` result. Modern-era extension:
 
@@ -689,6 +693,8 @@ interface DiscoverResult {
   supportedVersions: string[];        // e.g. ['2024-11-05', '2025-11-25', '2026-07-28']
   capabilities: { tools: { listChanged: boolean } };
   instructions: string;
+  ttlMs: number;
+  cacheScope: 'public' | 'private';
   resultType: 'complete';
   _meta: {
     'io.modelcontextprotocol/serverInfo': { name: string, version: string }
@@ -713,7 +719,7 @@ interface InitializeResult {
 interface CacheableToolsList {
   tools: Array<Tool>;
   ttlMs: number;                      // 600000 — 10 minutes
-  cacheScope: 'server';
+  cacheScope: 'public' | 'private';   // this server emits 'public'
   resultType: 'complete';
   _meta: {
     'io.modelcontextprotocol/serverInfo': { name: string, version: string }
@@ -871,7 +877,7 @@ Append under the existing `## [v0.0.7] (unreleased)` → `### Added` section:
 - **MCP Protocol Dual-Era Support** [Spec: 0-0-7-mcp-protocol-dual-era](../.kiro/specs/0-0-7-mcp-protocol-dual-era/) — Serves both the legacy handshake-based MCP revisions (`2024-11-05`, `2025-11-25`) and the modern stateless revision (`2026-07-28`) from the same `POST /mcp/v1` endpoint, with real per-request version negotiation
   - New `server/discover` JSON-RPC method returning `supportedVersions`, `capabilities`, and `instructions` for modern clients that no longer send `initialize`
   - New error codes `-32020 HeaderMismatch` and `-32022 UnsupportedProtocolVersion` with `supportedVersions` enumerated in the error data; existing `-32700`/`-32600`/`-32601`/`-32602`/`-32603` codes unchanged
-  - Modern-era `tools/list` returns a `CacheableResult` envelope carrying `ttlMs` and `cacheScope: 'server'`; legacy `tools/list` is unchanged
+  - Modern-era `tools/list` returns a `CacheableResult` envelope carrying `ttlMs` and `cacheScope: 'public'`; legacy `tools/list` is unchanged
   - Modern-era results carry `resultType: 'complete'` and server identity under result-level `_meta.io.modelcontextprotocol/serverInfo`; legacy results carry neither
   - Modern-era requests are validated against `Mcp-Method` and `Mcp-Name` HTTP headers when present; legacy requests are not required to send them
   - Server-level `instructions` string now served on both `InitializeResult` (legacy) and `DiscoverResult` (modern), composed by `config/server-instructions.js` (shared by Requirement 1 of the tool-discovery-enhancement spec)

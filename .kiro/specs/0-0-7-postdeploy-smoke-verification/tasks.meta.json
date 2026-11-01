@@ -797,6 +797,11 @@
         "executionId": "6ceb86e7-558b-43c8-9976-31259af92fec",
         "chatSessionId": "sess_2d5c2724-a9a7-4725-91f9-9d4da27fa90e",
         "timestamp": 1793109564648
+      },
+      {
+        "executionId": "3f706f83-94c4-4fc1-a530-19babb6df7b4",
+        "chatSessionId": "sess_76c00b2b-1f0e-44a2-bd23-9b23bedf5148",
+        "timestamp": 1793561828620
       }
     ],
     "13.2 Run on `test` with a key": [
@@ -804,6 +809,11 @@
         "executionId": "6ceb86e7-558b-43c8-9976-31259af92fec",
         "chatSessionId": "sess_2d5c2724-a9a7-4725-91f9-9d4da27fa90e",
         "timestamp": 1793109564776
+      },
+      {
+        "executionId": "3f706f83-94c4-4fc1-a530-19babb6df7b4",
+        "chatSessionId": "sess_76c00b2b-1f0e-44a2-bd23-9b23bedf5148",
+        "timestamp": 1793561829553
       }
     ],
     "13.3 Run on `beta` with the edge subset": [
@@ -811,6 +821,11 @@
         "executionId": "6ceb86e7-558b-43c8-9976-31259af92fec",
         "chatSessionId": "sess_2d5c2724-a9a7-4725-91f9-9d4da27fa90e",
         "timestamp": 1793109564888
+      },
+      {
+        "executionId": "3f706f83-94c4-4fc1-a530-19babb6df7b4",
+        "chatSessionId": "sess_76c00b2b-1f0e-44a2-bd23-9b23bedf5148",
+        "timestamp": 1793561830348
       }
     ],
     "13.4 Run with the skip switch on": [
@@ -818,6 +833,11 @@
         "executionId": "6ceb86e7-558b-43c8-9976-31259af92fec",
         "chatSessionId": "sess_2d5c2724-a9a7-4725-91f9-9d4da27fa90e",
         "timestamp": 1793109565002
+      },
+      {
+        "executionId": "3f706f83-94c4-4fc1-a530-19babb6df7b4",
+        "chatSessionId": "sess_76c00b2b-1f0e-44a2-bd23-9b23bedf5148",
+        "timestamp": 1793561831329
       }
     ],
     "14. Final verification": [
@@ -825,6 +845,16 @@
         "executionId": "6ceb86e7-558b-43c8-9976-31259af92fec",
         "chatSessionId": "sess_2d5c2724-a9a7-4725-91f9-9d4da27fa90e",
         "timestamp": 1793109565120
+      },
+      {
+        "executionId": "1c5916fb-1989-453e-9f37-7a7dc79d2ca8",
+        "chatSessionId": "sess_8fd54507-b53a-4d24-9ba4-14d6460ab23e",
+        "timestamp": 1793561879605
+      },
+      {
+        "executionId": "1c5916fb-1989-453e-9f37-7a7dc79d2ca8",
+        "chatSessionId": "sess_8fd54507-b53a-4d24-9ba4-14d6460ab23e",
+        "timestamp": 1793562603667
       }
     ],
     "1. Scaffold the Verifier and its test package (Phase 1)": [
@@ -888,6 +918,13 @@
         "executionId": "6ceb86e7-558b-43c8-9976-31259af92fec",
         "chatSessionId": "sess_2d5c2724-a9a7-4725-91f9-9d4da27fa90e",
         "timestamp": 1793113606952
+      }
+    ],
+    "13. Live verification (Phase 4; needs deployments and a person)": [
+      {
+        "executionId": "3f706f83-94c4-4fc1-a530-19babb6df7b4",
+        "chatSessionId": "sess_76c00b2b-1f0e-44a2-bd23-9b23bedf5148",
+        "timestamp": 1793561831773
       }
     ]
   }

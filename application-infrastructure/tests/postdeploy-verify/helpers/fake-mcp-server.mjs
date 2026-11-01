@@ -51,8 +51,15 @@ export const DEFAULT_SUPPORTED_VERSIONS = Object.freeze([...LEGACY_REVISIONS, ..
 /** Oldest revision on which `Tool.title` and `Tool.annotations` are emitted. */
 export const TITLE_ANNOTATIONS_SINCE = '2025-11-25';
 
-/** Advisory `tools/list` TTL in milliseconds (10 minutes). */
+/** Advisory TTL in milliseconds (10 minutes) the modeled server reports on `tools/list` and `server/discover`. */
 export const TOOLS_LIST_TTL_MS = 10 * 60 * 1000;
+
+/**
+ * The `cacheScope` a conformant server may report on `tools/list` and
+ * `server/discover`. Written here from the published 2026-07-28 schema
+ * (`"public"` or `"private"`), not imported from the Read Function.
+ */
+export const CACHE_SCOPE = 'public';
 
 /** Default release version reported by the fake server. */
 export const DEFAULT_VERSION = '0.0.7';
@@ -679,6 +686,8 @@ export function createFakeMcpServer(options = {}) {
           supportedVersions: [...supportedVersions],
           capabilities: shared.capabilities,
           instructions,
+          ttlMs: TOOLS_LIST_TTL_MS,
+          cacheScope: CACHE_SCOPE,
           resultType: 'complete',
           _meta: modernMeta
         }));
@@ -688,7 +697,7 @@ export function createFakeMcpServer(options = {}) {
           return answer(rpcSuccess(id, {
             tools: catalog,
             ttlMs: TOOLS_LIST_TTL_MS,
-            cacheScope: 'server',
+            cacheScope: CACHE_SCOPE,
             resultType: 'complete',
             _meta: modernMeta
           }));

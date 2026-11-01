@@ -450,11 +450,11 @@ All envelope shaping lives in the formatters in `utils/mcp-protocol.js`. Control
 | Method | Legacy | Modern |
 |--------|--------|--------|
 | `initialize` | `protocolVersion`, `capabilities`, `serverInfo`, `instructions` | Not used |
-| `server/discover` | Always answered in the modern shape, regardless of era | `supportedVersions`, `capabilities`, `instructions`, `resultType`, `_meta` |
+| `server/discover` | Always answered in the modern shape, regardless of era | `supportedVersions`, `capabilities`, `instructions`, `ttlMs`, `cacheScope`, `resultType`, `_meta` |
 | `tools/list` | `{ tools }` | `tools`, `ttlMs`, `cacheScope`, `resultType`, `_meta` |
 | `tools/call` | `{ content }` | `content`, `resultType`, `_meta` |
 
-Modern results carry `resultType: "complete"` and the server identity under `_meta["io.modelcontextprotocol/serverInfo"]`. Legacy results carry neither. `ttlMs` (10 minutes) is advisory for the client; the Lambda does not cache `tools/list` itself.
+Modern results carry `resultType: "complete"` and the server identity under `_meta["io.modelcontextprotocol/serverInfo"]`. Legacy results carry neither. `ttlMs` (10 minutes) and `cacheScope` (`"public"`) on `tools/list` and `server/discover` are advisory for the client. Both results are identical for every caller, so a shared cache may reuse them. The Lambda does not cache `tools/list` itself.
 
 `Tool.title` and `Tool.annotations` are emitted by `tools/list` only when the declared revision is `2025-11-25` or `2026-07-28`. A request that declares no revision, or `2024-11-05`, receives the baseline fields only.
 

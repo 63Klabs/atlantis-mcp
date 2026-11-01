@@ -14,16 +14,19 @@ The Read Lambda serves legacy (`initialize`) and modern (`server/discover`) MCP 
 | Server version | `CHANGELOG.md` (see below) | `package.json`, `config/release-version.js` |
 | `instructions` text | `config/server-instructions.js` | `utils/mcp-protocol.js` |
 | Capabilities object | `MCP_CAPABILITIES_WIRE` in `utils/mcp-protocol.js` | Any formatter |
-| Modern `tools/list` cache hint | `TOOLS_LIST_TTL_MS` in `utils/mcp-protocol.js` | The router |
+| Modern cache hint on `tools/list` and `server/discover` | `TOOLS_LIST_TTL_MS`, `TOOLS_LIST_CACHE_SCOPE`, and the allowed set `CACHE_SCOPES` in `utils/mcp-protocol.js` | The formatters |
 | Revisions that may carry `Tool.title` and `Tool.annotations` | `REVISIONS_SUPPORTING_TITLE_ANNOTATIONS` in `utils/tool-catalog.js` | Controllers |
 
 `getCapabilities()` assembles the supported versions, capabilities, server identity, and `instructions`. `initializeResult()` and `discoverResult()` both call it.
 
-Three tests enforce the single definitions, so a duplicate fails CI:
+Four tests enforce the single definitions, so a duplicate fails CI:
 
 - `tests/unit/architecture/no-hardcoded-revisions.test.js` fails if a revision string appears outside `utils/mcp-protocol.js`, `utils/mcp-era.js`, or `utils/tool-catalog.js`.
 - `tests/unit/architecture/instructions-composition.test.js` fails if `instructions` is composed anywhere except `buildInstructions()`.
 - `tests/unit/utils/mcp-protocol-constants.test.js` fails if the advertised set, the era lists, or the values reported by each surface drift apart.
+- `tests/unit/architecture/no-hardcoded-cache-scope.test.js` fails if executable code assigns a string literal to `cacheScope`.
+
+The post-deploy verifier and its fake server restate the allowed scopes from the specification on purpose and do not import `CACHE_SCOPES`. If the server misreads the specification, a guard that shared its definition would pass the same mistake. See [post-deploy verification](post-deploy-verification.md).
 
 ## Server version
 

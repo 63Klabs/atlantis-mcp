@@ -122,6 +122,389 @@
         "chatSessionId": "sess_5c6fc58a-860f-4571-ac75-eaac35ac7cc8",
         "timestamp": 1793294825417
       }
+    ],
+    "4.1 Make the fake conformant": [
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793562799323
+      },
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793562812897
+      },
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793562865262
+      }
+    ],
+    "4.2 Update the fake's own tests": [
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793562799713
+      },
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793562868883
+      },
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793562907713
+      }
+    ],
+    "4.3 Run the verifier tests and observe the old gap": [
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793562799992
+      },
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793562911633
+      },
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793562996573
+      }
+    ],
+    "5.1 Add the failure cases and see them fail (red)": [
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793562800283
+      },
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793563000933
+      },
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793563066673
+      }
+    ],
+    "5.2 Implement the check (green)": [
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793562800640
+      },
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793563070223
+      },
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793563141744
+      }
+    ],
+    "5.3 Update the verifier's comments": [
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793562800951
+      },
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793563145223
+      },
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793563213303
+      }
+    ],
+    "5.4 Run the verifier tests and repeat the gap check": [
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793562801341
+      },
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793563217472
+      },
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793563391732
+      }
+    ],
+    "6. Phase 2 checkpoint": [
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793562801583
+      },
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793563407072
+      },
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793563481542
+      }
+    ],
+    "7.1 Edit its requirements and design": [
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793562801931
+      },
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793563488302
+      },
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793563560833
+      }
+    ],
+    "8.1 Edit `design.md`": [
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793562802183
+      },
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793563488986
+      },
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793563561792
+      }
+    ],
+    "8.2 Edit `TODO-MANUAL-VERIFY.md`": [
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793562802433
+      },
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793563490072
+      },
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793563562960
+      }
+    ],
+    "9.1 `ARCHITECTURE.md`": [
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793562802747
+      },
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793563491314
+      },
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793563564153
+      }
+    ],
+    "9.2 End-user page": [
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793562803073
+      },
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793563492072
+      },
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793563565452
+      }
+    ],
+    "9.3 Developer pages": [
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793562803444
+      },
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793563566558
+      },
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793563639033
+      }
+    ],
+    "9.4 Admin-ops page": [
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793562803813
+      },
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793563567769
+      },
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793563640092
+      }
+    ],
+    "9.5 Check the Markdown": [
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793562804140
+      },
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793563642092
+      },
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793563724802
+      }
+    ],
+    "10.1 Edit `CHANGELOG.md`": [
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793562804453
+      },
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793563568742
+      },
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793563641302
+      }
+    ],
+    "11.1 Run everything and search for leftovers": [
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793562804803
+      },
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793563725713
+      },
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793563886732
+      }
+    ],
+    "12.1 Deploy and read the PostDeploy result": [
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793562805083
+      }
+    ],
+    "12.2 Connect Kiro to `test`": [
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793562805463
+      }
+    ],
+    "13.1 Promote through `beta` to `main`": [
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793562805800
+      }
+    ],
+    "14. Final checkpoint": [
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793562806133
+      }
+    ],
+    "4. Update the fake server (Phase 2, test-first)": [
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793562996944
+      }
+    ],
+    "5. Tighten the verifier (Phase 2)": [
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793563391895
+      }
+    ],
+    "7. Correct the smoke spec text (Phase 3)": [
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793563561036
+      }
+    ],
+    "8. Correct the dual-era spec's design and manual script (Phase 3)": [
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793563563166
+      }
+    ],
+    "10. Update the changelog (Phase 3)": [
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793563641682
+      }
+    ],
+    "9. Update the documentation (Phase 3)": [
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793563725110
+      }
+    ],
+    "11. Final sweep before rollout": [
+      {
+        "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793563887080
+      }
     ]
   }
 }
