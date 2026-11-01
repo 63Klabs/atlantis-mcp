@@ -83,37 +83,37 @@ Do not commit unless the owner asks. Do not edit the Smoke spec's `tasks.md`, th
   - Search `RF` (excluding `node_modules`) for `cacheScope: 'server'`; there should be none
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 4. Update the fake server (Phase 2, test-first)
-  - [ ] 4.1 Make the fake conformant
+- [x] 4. Update the fake server (Phase 2, test-first)
+  - [x] 4.1 Make the fake conformant
     - In `application-infrastructure/tests/postdeploy-verify/helpers/fake-mcp-server.mjs`, add `export const CACHE_SCOPE = 'public'` beside `TOOLS_LIST_TTL_MS`, with a comment that it is written from the published schema and not imported from the Read Function
     - Use it for the modern `tools/list` (replacing `'server'`), and add `ttlMs: TOOLS_LIST_TTL_MS` and `cacheScope: CACHE_SCOPE` to the `server/discover` answer after `instructions`
     - Import nothing from the Read Function
     - _Requirements: 8.1, 8.2_
-  - [ ] 4.2 Update the fake's own tests
+  - [x] 4.2 Update the fake's own tests
     - In `fake-mcp-server-tests.jest.mjs`, change the two `toBe('server')` assertions to `toBe('public')`, and add `ttlMs` (`600000`) and `cacheScope` (`'public'`) assertions to the `server/discover` test. Use literals on purpose
     - _Requirements: 8.3_
-  - [ ] 4.3 Run the verifier tests and observe the old gap
+  - [x] 4.3 Run the verifier tests and observe the old gap
     - Run `timeout 600s npm test` in `application-infrastructure/tests/postdeploy-verify`: everything passes, because the old verifier accepts any non-empty `cacheScope`
     - Then temporarily set `CACHE_SCOPE` to `'server'` in the fake and run again: the healthy-run tests still pass. This shows the gap the verifier change closes (Design, V-B 3). Revert the fake to `'public'`
     - _Requirements: 8.1, 13.1_
 
-- [ ] 5. Tighten the verifier (Phase 2)
-  - [ ] 5.1 Add the failure cases and see them fail (red)
+- [x] 5. Tighten the verifier (Phase 2)
+  - [x] 5.1 Add the failure cases and see them fail (red)
     - In `checks-tests.jest.mjs`, add `FAILURES` rows: P1.2 with `cacheScope` of `'server'`; P1.2 with `ttlMs` deleted; P5.1 with `cacheScope` of `'server'`; P5.2 with `cacheScope` of `'server'`. Reason patterns are in Design, Components 6
     - Update the existing P5.2 empty-`cacheScope` row to `/^result\.cacheScope is "", expected "public" or "private"$/`
     - Run the package: the new rows fail against the old verifier, and nothing else does
     - _Requirements: 8.4, 8.5_
-  - [ ] 5.2 Implement the check (green)
+  - [x] 5.2 Implement the check (green)
     - In `application-infrastructure/postdeploy-scripts/verify-deployment.js`, add `ALLOWED_CACHE_SCOPES` beside `SERVER_NAME`, with the `>!` comment that it is restated from the schema on purpose
     - Add `cacheHintsProblem(result, secrets)` beside `judgeModernToolsList`, as in Design, Components 5
     - Replace the `ttlMs` and `cacheScope` blocks of `judgeModernToolsList` with a call to it; add the same call to P1.2 after the `resultType` check and before the handshake-key check
     - Do not import anything, and do not touch `SUB_CHECK_ROWS`, the request builders, or the report
     - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 7.8_
-  - [ ] 5.3 Update the verifier's comments
+  - [x] 5.3 Update the verifier's comments
     - Update the JSDoc of `judgeModernToolsList`, `checkP1`, and `checkP5` (including the header lines that say "a non-empty string `cacheScope`") to say `cacheScope` is `public` or `private` and that P1.2 also requires `ttlMs` and `cacheScope`
     - Run `grep -n "non-empty string" application-infrastructure/postdeploy-scripts/verify-deployment.js`; only the `instructions` mentions should remain
     - _Requirements: 7.7_
-  - [ ] 5.4 Run the verifier tests and repeat the gap check
+  - [x] 5.4 Run the verifier tests and repeat the gap check
     - Run `timeout 600s npm test` in `application-infrastructure/tests/postdeploy-verify`; all suites pass, including `outcome-and-report-tests.jest.mjs` (the 45 pinned IDs) and the budget tests, both unedited
     - Temporarily set the fake's `CACHE_SCOPE` to `'server'`: the healthy-run tests now fail on P1.2, P5.1, and P5.2 with the documented reasons. Revert the fake to `'public'` and run once more
     - _Requirements: 7.5, 8.6, 8.7, 8.8_
@@ -123,70 +123,70 @@ Do not commit unless the owner asks. Do not edit the Smoke spec's `tasks.md`, th
     - Delete the temporary test and stop the server and any Jest processes when done
     - _Requirements: 13.1_
 
-- [ ] 6. Phase 2 checkpoint
+- [x] 6. Phase 2 checkpoint
   - Confirm `verify-deployment.js` still has no `require` of anything under the Read Function and no new dependency
   - Confirm `git diff` shows no change to `SUB_CHECK_ROWS`, `EXPECTED_SUB_CHECK_IDS`, the budget tests, or the buildspecs
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 7. Correct the smoke spec text (Phase 3)
-  - [ ] 7.1 Edit its requirements and design
+- [x] 7. Correct the smoke spec text (Phase 3)
+  - [x] 7.1 Edit its requirements and design
     - In `.kiro/specs/0-0-7-postdeploy-smoke-verification/requirements.md`, change Requirement 4.2 so P1 also requires a non-negative integer `ttlMs` and a `cacheScope` equal to `public` or `private`, and change Requirement 7.2 from "a non-empty string `cacheScope`" to a `cacheScope` equal to `public` or `private`
     - In its `design.md`, change the P1.2 row (add `ttlMs` and `cacheScope`) and the P5.1 row (`cacheScope` is `public` or `private`). The P5.2 row says "The same" and needs no edit
     - Search both files for `non-empty string`; only the `instructions` mentions should remain. Do not edit its `tasks.md` or mark its task 13
     - _Requirements: 9.1, 9.2, 9.3, 9.4_
 
-- [ ] 8. Correct the dual-era spec's design and manual script (Phase 3)
-  - [ ] 8.1 Edit `design.md`
+- [x] 8. Correct the dual-era spec's design and manual script (Phase 3)
+  - [x] 8.1 Edit `design.md`
     - In `.kiro/specs/0-0-7-mcp-protocol-dual-era/design.md`: replace `cacheScope: 'server'` in the formatter sketch with `cacheScope: TOOLS_LIST_CACHE_SCOPE   // ('public')`; rewrite the sentence that defines `'server'` and add the dated correction note linking this spec; change "this file-level constant and object literal" to name `TOOLS_LIST_TTL_MS` and `TOOLS_LIST_CACHE_SCOPE`; change the `CacheableToolsList` interface to `'public' | 'private'`; change the quoted changelog draft to `cacheScope: 'public'`
     - Add `ttlMs` and `cacheScope` to the `discoverResult` sketch and to the `DiscoverResult` interface
     - Do not edit its `tasks.md` or `requirements.md`
     - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.6_
-  - [ ] 8.2 Edit `TODO-MANUAL-VERIFY.md`
+  - [x] 8.2 Edit `TODO-MANUAL-VERIFY.md`
     - Replace the F1 check with `printf '%s' "$M" | check "cacheScope is public"   '.result.cacheScope == "public"'`
     - In section C1, add after the `resultType` check: `ttlMs is 600000` (`'.result.ttlMs == 600000'`) and `cacheScope is public` (`'.result.cacheScope == "public"'`) against `$D`
     - _Requirements: 10.5_
 
-- [ ] 9. Update the documentation (Phase 3)
-  - [ ] 9.1 `ARCHITECTURE.md`
+- [x] 9. Update the documentation (Phase 3)
+  - [x] 9.1 `ARCHITECTURE.md`
     - Add `ttlMs` and `cacheScope` to the `server/discover` modern column, and extend the paragraph after the table as in Design, Components 9
     - _Requirements: 11.1_
-  - [ ] 9.2 End-user page
+  - [x] 9.2 End-user page
     - In `docs/end-user/supported-protocol-revisions.md`, change the `ttlMs`/`cacheScope` bullet to cover `server/discover`, say the result is the same for every client (`"public"`), and keep the sentence that legacy responses never include these fields
     - _Requirements: 11.2_
-  - [ ] 9.3 Developer pages
+  - [x] 9.3 Developer pages
     - `docs/developer/gradual-deployment.md`: `cacheScope: "server"` becomes `cacheScope: "public"`
     - `docs/developer/mcp-protocol-sources.md`: update the cache-hint row (covers `server/discover`; names `TOOLS_LIST_CACHE_SCOPE` and `CACHE_SCOPES`); change "Three tests enforce" to "Four", add the `no-hardcoded-cache-scope.test.js` bullet, and add the short paragraph that the verifier and its fake restate the allowed scopes on purpose
     - `docs/developer/post-deploy-verification.md`: update the P1 and P5 rows to say P1 also checks `server/discover`'s cache hints and P5 requires `cacheScope` to be `public` or `private`; keep the ranges and counts
     - _Requirements: 11.3, 11.4, 11.5, 11.7_
-  - [ ] 9.4 Admin-ops page
+  - [x] 9.4 Admin-ops page
     - In `docs/admin-ops/post-deploy-verification.md`, make the same P1 and P5 row updates. Keep 45, 36, and 9
     - _Requirements: 11.5, 11.7_
-  - [ ] 9.5 Check the Markdown
+  - [x] 9.5 Check the Markdown
     - For every Markdown file changed in tasks 7 to 9: relative links and anchors resolve, every code fence has a language, there is one H1, no heading level is skipped
     - _Requirements: 11.6_
 
-- [ ] 10. Update the changelog (Phase 3)
-  - [ ] 10.1 Edit `CHANGELOG.md`
+- [x] 10. Update the changelog (Phase 3)
+  - [x] 10.1 Edit `CHANGELOG.md`
     - Under `[v0.0.7] (unreleased)`, in the Added bullet for MCP Protocol Dual-Era Support, change only `` `cacheScope: "server"` `` to `` `cacheScope: "public"` ``. This is the one edit to existing text (decision Q5)
     - Add the new entry at the end of the unreleased **Fixed** list, with its four sub-bullets, exactly as in Design, Components 10
     - Do not edit the Post-Deploy Smoke Verification bullet or any released section. Follow `.kiro/steering/changelog-convention.md` and the neighbouring formatting
     - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.5_
 
-- [ ] 11. Final sweep before rollout
-  - [ ] 11.1 Run everything and search for leftovers
+- [x] 11. Final sweep before rollout
+  - [x] 11.1 Run everything and search for leftovers
     - Run the Read Function suite and the verifier package (commands above) and record that both pass
     - Search the working tree, excluding `node_modules` and `.git`, for `cacheScope: "server"`, `cacheScope: 'server'`, `"server"` next to `cacheScope`, and `cacheScope is server`. The only hits left should be this spec's own documents, the dual-era `tasks.md`, and the dual-era `design.md` correction note
     - Run `git status`. Confirm no change to `template.yml`, `template-openapi-spec.yml`, a buildspec, a `package.json`, or a lockfile, and no new dependency
     - Leave the commit to the owner
     - _Requirements: 13.1, 14.1, 14.2, 14.4, 14.5, 14.6, 14.7_
 
-- [ ] 12. Roll out to `test` and verify (Phase 4, owner)
-  - [ ] 12.1 Deploy and read the PostDeploy result
+- [x] 12. Roll out to `test` and verify (Phase 4, owner)
+  - [x] 12.1 Deploy and read the PostDeploy result
     - After the owner commits and the change reaches the `test` branch, let the pipeline deploy. The server fix and the tightened verifier are in the same commit
     - Read the PostDeploy log: the verifier tests pass in `pre_build`, and the verifier outcome is `passed`, with P1.2, P5.1, and P5.2 passing. Record the outcome and the `VERIFY_REPORT` line in a short `VERIFICATION.md` in this spec directory
     - If the stage fails because it still runs the previous build, deploy the new build and retry the PostDeploy stage; do not loosen a check
     - _Requirements: 13.2, 13.3, 13.8_
-  - [ ] 12.2 Connect Kiro to `test`
+  - [x] 12.2 Connect Kiro to `test`
     - Point Kiro at the `test` stage and confirm that the tools load. If they do not, capture the Kiro MCP log and report the finding before going further
     - Record the result in `VERIFICATION.md`. A passing verifier does not replace this step
     - _Requirements: 13.4_
@@ -195,12 +195,12 @@ Do not commit unless the owner asks. Do not edit the Smoke spec's `tasks.md`, th
     - _Requirements: 13.5_
 
 - [ ] 13. Promote (Phase 4, owner)
-  - [ ] 13.1 Promote through `beta` to `main`
+  - [~] 13.1 Promote through `beta` to `main`
     - Only after tasks 12.1 and 12.2 are met: promote through the normal flow (`test`, `beta`, `main`). Confirm each stage's PostDeploy passes. Nothing is sent to a deployed stage except by the pipeline and the checks above
     - The Smoke spec's open live runs (its task 13) are separate; when they are run, the expected outcomes of its 13.1 are unchanged
     - _Requirements: 13.6, 13.7, 13.9_
 
-- [ ] 14. Final checkpoint
+- [~] 14. Final checkpoint
   - Mark `fix: tools-list-returns-cachescope` complete in `TODO.md` under `## 0-0-7` (`- [x]`) once task 12 is done
   - Confirm `VERIFICATION.md` has the PostDeploy outcome and the Kiro result for `test`
   - Remind the owner of the follow-up this feature leaves: `0-0-7-schema-validation-of-modern-results` (ISSUE.md only; no PLAN, requirements, or tasks yet), and that the reporter on GitHub #7 can be told to retry once the fix reaches their stage

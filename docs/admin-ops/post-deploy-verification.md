@@ -19,12 +19,12 @@ A **core** check fails the build when it fails or gets no answer. An **advisory*
 
 | Check | Severity | Sub-checks | What it proves |
 |-------|----------|------------|----------------|
-| P1 discovery | Core | P1.1 to P1.5 | `server/discover` answers without a key, uses the modern response envelope, names `atlantis-mcp-server`, has non-empty `instructions`, and lists at least the revisions `2024-11-05`, `2025-11-25`, and `2026-07-28` |
+| P1 discovery | Core | P1.1 to P1.5 | `server/discover` answers without a key, uses the modern response envelope, names `atlantis-mcp-server`, has non-empty `instructions`, has the `ttlMs` (a non-negative integer) and `cacheScope` (`public` or `private`) that the schema requires on a discover result, and lists at least the revisions `2024-11-05`, `2025-11-25`, and `2026-07-28` |
 | V1 version | Core | V1.1, V1.2 | The live server reports the release version that was just built, both from `server/discover` and from the legacy `initialize` result. A mismatch means stale code is still running |
 | P2 legacy `initialize` | Core | P2.1 to P2.7 | The legacy handshake negotiates the right revision for `2025-11-25`, `2024-11-05`, an in-between revision, an unknown revision, and no parameters; the result has exactly the expected four keys; the `instructions` match `server/discover` |
 | P3 unsupported revision | Core | P3.1 to P3.3 | An unlisted revision, sent in the `MCP-Protocol-Version` header or in `params._meta`, gets error `-32022` that lists the advertised `supportedVersions` |
 | P4 header mismatch | Core | P4.1 to P4.5 | `Mcp-Method` and `Mcp-Name` headers that disagree with the body get error `-32020`, matching headers are accepted, header names are matched without regard to case, and a legacy request ignores the headers |
-| P5 `tools/list` | Core | P5.1 to P5.9 | Each revision gets the fields it should have and none it should not (`ttlMs`, `cacheScope`, `resultType`, `_meta`, tool `title` and `annotations`), every revision lists the same tools in the same order, and any extra advertised revision is accepted |
+| P5 `tools/list` | Core | P5.1 to P5.9 | Each revision gets the fields it should have and none it should not (`ttlMs`, `cacheScope`, `resultType`, `_meta`, tool `title` and `annotations`), a modern `cacheScope` is `public` or `private`, every revision lists the same tools in the same order, and any extra advertised revision is accepted |
 | P6 `tools/call` | Core | P6.1, P6.2 | The `list_tools` call returns the modern envelope for `2026-07-28` and the legacy shape for `2025-11-25` |
 | X1 CORS preflight | Core | X1.1 to X1.3 | The `OPTIONS` preflight on the API Gateway endpoint answers 200 and allows the origin, `POST`, and the `MCP-Protocol-Version`, `Mcp-Method`, and `Mcp-Name` headers |
 | T1 backend | Advisory | T1.1 | `list_templates` returns template data, so the S3 backend works |

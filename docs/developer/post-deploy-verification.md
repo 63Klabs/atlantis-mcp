@@ -20,12 +20,12 @@ The Verifier evaluates 45 sub-checks with stable IDs of the form `<check>.<n>`. 
 
 | Check | Severity | What it proves | Sub-checks |
 |-------|----------|----------------|------------|
-| P1 | Core | `server/discover` answers without a key, uses the modern envelope, names `atlantis-mcp-server`, has `instructions`, and `supportedVersions` contains `2024-11-05`, `2025-11-25`, and `2026-07-28` | P1.1 to P1.5 |
+| P1 | Core | `server/discover` answers without a key, uses the modern envelope, names `atlantis-mcp-server`, has `instructions`, carries the cache hints the schema requires on a discover result (`ttlMs` a non-negative integer, `cacheScope` `public` or `private`), and `supportedVersions` contains `2024-11-05`, `2025-11-25`, and `2026-07-28` | P1.1 to P1.5 |
 | V1 | Core | The release version reported by `server/discover` and by `initialize` equals the version `write_release_version.py` produced, so stale code is caught | V1.1, V1.2 |
 | P2 | Core | Legacy `initialize` negotiation for five requests, the exact four-key result, and `instructions` identical to P1's | P2.1 to P2.7 |
 | P3 | Core | `-32022` for an unlisted revision, declared in the header and in `params._meta`, listing the advertised `supportedVersions` | P3.1 to P3.3 |
 | P4 | Core | `-32020` for mismatched `Mcp-Method` and `Mcp-Name`, matching ones accepted, header names matched without regard to case, and legacy requests ignoring the headers | P4.1 to P4.5 |
-| P5 | Core | `tools/list` per revision: modern cacheable fields, legacy results without them, titles and annotations on `2025-11-25` and later, the same tools on every revision, and every extra advertised revision accepted | P5.1 to P5.9 |
+| P5 | Core | `tools/list` per revision: modern cacheable fields (`cacheScope` must be `public` or `private`), legacy results without them, titles and annotations on `2025-11-25` and later, the same tools on every revision, and every extra advertised revision accepted | P5.1 to P5.9 |
 | P6 | Core | `tools/call` for `list_tools` with the modern envelope on `2026-07-28` and without it on `2025-11-25` | P6.1, P6.2 |
 | X1 | Core | The CORS preflight on the API Gateway endpoint | X1.1 to X1.3 |
 | T1 | Advisory | `list_templates` returns template data, which needs the backends | T1.1 |

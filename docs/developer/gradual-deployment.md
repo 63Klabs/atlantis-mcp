@@ -94,7 +94,7 @@ Rules that follow from the shapes:
 Clients see both versions' answers, so responses have to be consistent enough that a client does not break when the next request lands on the other version:
 
 - Tool results: add fields, do not remove or rename them in the same release. A client that received a result from N+1 may send the follow-up request, such as a `get_template_chunk` call, to N.
-- `tools/list`: modern-era results carry `ttlMs` (10 minutes) and `cacheScope: "server"`, so a client can keep a list from N+1 for up to 10 minutes and then call a tool that N does not have, or the reverse. When you add or remove a tool, expect clients to see an unknown-tool error for that window.
+- `tools/list`: modern-era results carry `ttlMs` (10 minutes) and `cacheScope: "public"`, so a client can keep a list from N+1 for up to 10 minutes and then call a tool that N does not have, or the reverse. When you add or remove a tool, expect clients to see an unknown-tool error for that window.
 - Protocol revisions: if N+1 starts listing a new revision in `supportedVersions`, a client may see it advertised on one request and receive `-32022` on the next. See the [MCP protocol sources of truth](mcp-protocol-sources.md) for where the list lives and how revisions are advertised.
 - `serverInfo.version` is the release version from `CHANGELOG.md`, so it differs between N and N+1. Do not write code or checks that assume consecutive requests report the same value during a shift.
 

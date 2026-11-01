@@ -56,6 +56,18 @@ const REVISION_FLOOR = Object.freeze(['2024-11-05', '2025-11-25', '2026-07-28'])
 /** Server name the deployed server must report. */
 const SERVER_NAME = 'atlantis-mcp-server';
 
+/**
+ * Values the MCP 2026-07-28 schema allows for `cacheScope` on a cacheable result.
+ *
+ * >! Restated here from the published schema on purpose. The verifier must not read
+ * >! the server's own definition: a check that shares the server's reading of the
+ * >! specification cannot catch the server misreading it.
+ *
+ * @see https://modelcontextprotocol.io/specification/2026-07-28/server/utilities/caching
+ * @type {ReadonlyArray<string>}
+ */
+const ALLOWED_CACHE_SCOPES = Object.freeze(['public', 'private']);
+
 /** `User-Agent` sent on every request, so the traffic is recognizable in logs. */
 const USER_AGENT = 'atlantis-mcp-postdeploy-verify';
 
@@ -2160,7 +2172,10 @@ function judgeKeyAccepted(entry, secrets) {
  * Check P1, then V1.1: the first request of the run, a `server/discover` with no
  * key and no declared revision, sent to the raw target.
  *
- * Records P1.1 to P1.5 (design section 7), takes the baseline from the answer
+ * Records P1.1 to P1.5 (design section 7). P1.2, the modern envelope, requires
+ * `resultType` `complete`, a non-negative integer `ttlMs`, and a `cacheScope` of
+ * `public` or `private` (a `server/discover` result is cacheable), and no
+ * `protocolVersion` or `serverInfo` key. It then takes the baseline from the answer
  * (`ctx.establishBaseline`, which also sets `ctx.rawTargetDown` when P1 got no
  * response or HTTP 500 or higher after its retry), and records V1.1 right after
  * P1's own sub-checks. The version P1 reported is kept in
@@ -2207,6 +2222,11 @@ async function checkP1(ctx) {
   ctx.evaluate('P1.2', [p1], withResult((current) => {
     if (current.resultType !== 'complete') {
       return failVerdict(`result.resultType is ${formatValue(current.resultType, secrets)}, expected "complete"`);
+    }
+    // >! server/discover is a cacheable result: the schema requires ttlMs and a valid cacheScope
+    const hintsProblem = cacheHintsProblem(current, secrets);
+    if (hintsProblem !== null) {
+      return failVerdict(hintsProblem);
     }
     // >! The modern envelope has no handshake fields; either one means the legacy shape leaked in
     for (const key of ['protocolVersion', 'serverInfo']) {
@@ -2793,10 +2813,42 @@ function toolNameOf(tool) {
 }
 
 /**
+ * Describe why a modern result's cache hints are invalid, or return null.
+ *
+ * Asserts shape only: `ttlMs` is a non-negative integer and `cacheScope` is one of the
+ * values the specification allows. The `ttlMs` duration and which allowed scope the
+ * server chose are configured values and are never compared (Requirement 7.9 of the
+ * smoke spec).
+ *
+ * @private
+ * @param {Object} result - A modern JSON-RPC result
+ * @param {Array.<*>} secrets - Values to redact
+ * @returns {(string|null)} The failure reason, or null when the hints are valid
+ * @example
+ * cacheHintsProblem({ ttlMs: 600000, cacheScope: 'server' }, []);
+ * // 'result.cacheScope is "server", expected "public" or "private"'
+ */
+function cacheHintsProblem(result, secrets) {
+  if (!Number.isInteger(result.ttlMs) || result.ttlMs < 0) {
+    return `result.ttlMs is ${formatValue(result.ttlMs, secrets)}, expected a non-negative integer`;
+  }
+  if (!ALLOWED_CACHE_SCOPES.includes(result.cacheScope)) {
+    const allowed = ALLOWED_CACHE_SCOPES.map((scope) => JSON.stringify(scope)).join(' or ');
+    return `result.cacheScope is ${formatValue(result.cacheScope, secrets)}, expected ${allowed}`;
+  }
+  return null;
+}
+
+/**
  * Judge a `2026-07-28` `tools/list` answer: the modern cacheable envelope (P5.1 and P5.2).
  *
- * Only presence, type, and shape are asserted. The `ttlMs` duration and the
- * number of tools are configured values and are never compared (Requirement 7.9).
+ * Passes when the answer has `resultType` `complete`, a non-negative integer
+ * `ttlMs`, a `cacheScope` of `public` or `private` (`ALLOWED_CACHE_SCOPES`, checked
+ * by `cacheHintsProblem`), the `_meta` server name `atlantis-mcp-server`, and a
+ * non-empty `tools` array.
+ *
+ * Only presence, type, and shape are asserted. The `ttlMs` duration, which allowed
+ * scope the server chose, and the number of tools are never compared (Requirement 7.9).
  *
  * @private
  * @param {ExchangeEntry} entry - P5a or P5b, past its gate
@@ -2813,11 +2865,9 @@ function judgeModernToolsList(entry, secrets) {
   if (result.resultType !== 'complete') {
     return failVerdict(`result.resultType is ${formatValue(result.resultType, secrets)}, expected "complete"`);
   }
-  if (!Number.isInteger(result.ttlMs) || result.ttlMs < 0) {
-    return failVerdict(`result.ttlMs is ${formatValue(result.ttlMs, secrets)}, expected a non-negative integer`);
-  }
-  if (typeof result.cacheScope !== 'string' || result.cacheScope.trim() === '') {
-    return failVerdict(`result.cacheScope is ${formatValue(result.cacheScope, secrets)}, expected a non-empty string`);
+  const hintsProblem = cacheHintsProblem(result, secrets);
+  if (hintsProblem !== null) {
+    return failVerdict(hintsProblem);
   }
   const info = serverInfoMeta(result);
   const name = info === null ? undefined : info.name;
@@ -3005,8 +3055,9 @@ function extraRevisionsOf(ctx) {
  *
  * Records, in this order (design section 7):
  * - P5.1 and P5.2: the `2026-07-28` answers have no `error`, `resultType`
- *   `complete`, a non-negative integer `ttlMs`, a non-empty string `cacheScope`,
- *   the `_meta` server name `atlantis-mcp-server`, and a non-empty `tools` array
+ *   `complete`, a non-negative integer `ttlMs`, a `cacheScope` of `public` or
+ *   `private`, the `_meta` server name `atlantis-mcp-server`, and a non-empty
+ *   `tools` array
  * - P5.3 to P5.5: the `2025-11-25`, `2024-11-05`, and no-revision answers have no
  *   `error`, a non-empty `tools` array, and none of `ttlMs`, `cacheScope`,
  *   `resultType`, `_meta`
