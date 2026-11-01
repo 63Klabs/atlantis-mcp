@@ -180,13 +180,13 @@ Do not commit unless the owner asks. Do not edit the Smoke spec's `tasks.md`, th
     - Leave the commit to the owner
     - _Requirements: 13.1, 14.1, 14.2, 14.4, 14.5, 14.6, 14.7_
 
-- [ ] 12. Roll out to `test` and verify (Phase 4, owner)
-  - [~] 12.1 Deploy and read the PostDeploy result
+- [x] 12. Roll out to `test` and verify (Phase 4, owner)
+  - [x] 12.1 Deploy and read the PostDeploy result
     - After the owner commits and the change reaches the `test` branch, let the pipeline deploy. The server fix and the tightened verifier are in the same commit
     - Read the PostDeploy log: the verifier tests pass in `pre_build`, and the verifier outcome is `passed`, with P1.2, P5.1, and P5.2 passing. Record the outcome and the `VERIFY_REPORT` line in a short `VERIFICATION.md` in this spec directory
     - If the stage fails because it still runs the previous build, deploy the new build and retry the PostDeploy stage; do not loosen a check
     - _Requirements: 13.2, 13.3, 13.8_
-  - [~] 12.2 Connect Kiro to `test`
+  - [x] 12.2 Connect Kiro to `test`
     - Point Kiro at the `test` stage and confirm that the tools load. If they do not, capture the Kiro MCP log and report the finding before going further
     - Record the result in `VERIFICATION.md`. A passing verifier does not replace this step
     - _Requirements: 13.4_

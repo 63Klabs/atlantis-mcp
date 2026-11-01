@@ -434,6 +434,11 @@
         "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
         "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
         "timestamp": 1793562805083
+      },
+      {
+        "executionId": "cbb758c8-f713-494d-bcdc-4c8ff5f8c45a",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793568279337
       }
     ],
     "12.2 Connect Kiro to `test`": [
@@ -441,6 +446,16 @@
         "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
         "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
         "timestamp": 1793562805463
+      },
+      {
+        "executionId": "56327262-f005-44a5-a848-fae0f679c23d",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793568688797
+      },
+      {
+        "executionId": "56327262-f005-44a5-a848-fae0f679c23d",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793568714601
       }
     ],
     "13.1 Promote through `beta` to `main`": [
@@ -504,6 +519,13 @@
         "executionId": "c0759212-7580-4aec-8af6-db346283f8db",
         "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
         "timestamp": 1793563887080
+      }
+    ],
+    "12. Roll out to `test` and verify (Phase 4, owner)": [
+      {
+        "executionId": "56327262-f005-44a5-a848-fae0f679c23d",
+        "chatSessionId": "sess_08d484cd-0db8-4b27-90de-338a0e7b38c5",
+        "timestamp": 1793568715020
       }
     ]
   }

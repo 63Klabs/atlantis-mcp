@@ -6,7 +6,7 @@ Target: November 2026
 
 - [X] post-deploy-smoke-verification - ready to execute tasks
 - [x] api-gateway-live-alias
-- [-] fix: tools-list-returns-cachescope
+- [x] fix: tools-list-returns-cachescope
 - [ ] scheme-validation-of-modern-results
 - [ ] revive post deploy tests
 - [ ] address static site generation issue
