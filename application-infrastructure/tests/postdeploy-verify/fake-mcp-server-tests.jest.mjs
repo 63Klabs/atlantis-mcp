@@ -171,6 +171,9 @@ describe('Fake MCP server: server/discover', () => {
     expect(json.result.capabilities).toEqual({ tools: { listChanged: false } });
     expect(typeof json.result.instructions).toBe('string');
     expect(json.result.instructions.length).toBeGreaterThan(0);
+    // Literals on purpose: the fake models the specification, not the Read Function.
+    expect(json.result.ttlMs).toBe(600000);
+    expect(json.result.cacheScope).toBe('public');
     expect(json.result.resultType).toBe('complete');
     expect(json.result._meta[SERVER_INFO_KEY]).toEqual({ name: SERVER_NAME, version: DEFAULT_VERSION });
     expect(response.headers.get('content-type')).toBe('application/json');
@@ -264,7 +267,7 @@ describe('Fake MCP server: tools/list by revision', () => {
     expect(json.result.resultType).toBe('complete');
     expect(json.result.ttlMs).toBe(TOOLS_LIST_TTL_MS);
     expect(json.result.ttlMs).toBe(600000);
-    expect(json.result.cacheScope).toBe('server');
+    expect(json.result.cacheScope).toBe('public');
     expect(json.result._meta[SERVER_INFO_KEY].name).toBe(SERVER_NAME);
     expect(json.result.tools.length).toBe(DEFAULT_TOOL_NAMES.length);
     expect(json.result.tools.every((tool) => typeof tool.title === 'string' && tool.annotations)).toBe(true);
@@ -274,7 +277,7 @@ describe('Fake MCP server: tools/list by revision', () => {
     const { json } = await post(healthy(), rpc('tools/list', { _meta: { [PROTOCOL_KEY]: '2026-07-28' } }));
     expect(json.result.resultType).toBe('complete');
     expect(json.result.ttlMs).toBe(600000);
-    expect(json.result.cacheScope).toBe('server');
+    expect(json.result.cacheScope).toBe('public');
     expect(json.result._meta[SERVER_INFO_KEY].version).toBe(DEFAULT_VERSION);
   });
 

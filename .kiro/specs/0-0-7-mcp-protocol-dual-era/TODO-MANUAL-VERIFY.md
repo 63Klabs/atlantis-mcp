@@ -248,6 +248,8 @@ D=$(mcp -d '{"jsonrpc":"2.0","id":2,"method":"server/discover"}')
 printf '%s' "$D" | check "supportedVersions is the 3 revisions" \
   '.result.supportedVersions == ["2024-11-05","2025-11-25","2026-07-28"]'
 printf '%s' "$D" | check "resultType is complete"         '.result.resultType == "complete"'
+printf '%s' "$D" | check "ttlMs is 600000"                '.result.ttlMs == 600000'
+printf '%s' "$D" | check "cacheScope is public"           '.result.cacheScope == "public"'
 printf '%s' "$D" | check "server version = $EXPECTED_VERSION" \
   '.result._meta["io.modelcontextprotocol/serverInfo"].version == $ENV.EXPECTED_VERSION'
 printf '%s' "$D" | check "modern shape: no protocolVersion / serverInfo at top" \
@@ -366,7 +368,7 @@ Proves the `2026-07-28` response shape through the deployed stack, and that lega
 ```bash
 M=$(mcp -H 'MCP-Protocol-Version: 2026-07-28' -d '{"jsonrpc":"2.0","id":13,"method":"tools/list"}')
 printf '%s' "$M" | check "ttlMs is 600000"        '.result.ttlMs == 600000'
-printf '%s' "$M" | check "cacheScope is server"   '.result.cacheScope == "server"'
+printf '%s' "$M" | check "cacheScope is public"   '.result.cacheScope == "public"'
 printf '%s' "$M" | check "resultType is complete" '.result.resultType == "complete"'
 printf '%s' "$M" | check "_meta carries server identity" \
   '.result._meta["io.modelcontextprotocol/serverInfo"].name == "atlantis-mcp-server"'

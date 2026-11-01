@@ -474,7 +474,7 @@ Severity: C is core, A is advisory. "No `error`" means the JSON-RPC response has
 | ID | Sev | Title | Evaluates | Passes when |
 |----|-----|-------|-----------|-------------|
 | P1.1 | C | server/discover answers without a key | P1 | The gate passes and there is no `error` |
-| P1.2 | C | server/discover uses the modern envelope | P1 | `resultType` is `complete`, and there is no top-level `protocolVersion` or `serverInfo` |
+| P1.2 | C | server/discover uses the modern envelope | P1 | `resultType` is `complete`, `ttlMs` is a non-negative integer, `cacheScope` is `public` or `private`, and there is no top-level `protocolVersion` or `serverInfo` |
 | P1.3 | C | server name is atlantis-mcp-server | P1 | `_meta["io.modelcontextprotocol/serverInfo"].name` is `atlantis-mcp-server` |
 | P1.4 | C | instructions is a non-empty string | P1 | |
 | P1.5 | C | supportedVersions contains the revision floor | P1 | An array of strings containing `2024-11-05`, `2025-11-25`, and `2026-07-28` |
@@ -499,7 +499,7 @@ Severity: C is core, A is advisory. "No `error`" means the JSON-RPC response has
 | P4.3 | C | matching Mcp-Method and Mcp-Name are accepted | P4c | No `error`; `resultType` is `complete` |
 | P4.4 | C | Mcp-* header names are matched without regard to case | P4d | `-32020` |
 | P4.5 | C | a legacy request ignores mismatched Mcp-* headers | P4e | No `error`; a non-empty `tools` array |
-| P5.1 | C | tools/list for 2026-07-28 (header) is a modern cacheable result | P5a | No `error`; `resultType` is `complete`; `ttlMs` is a non-negative integer; `cacheScope` is a non-empty string; the `_meta` server name is `atlantis-mcp-server`; a non-empty `tools` array |
+| P5.1 | C | tools/list for 2026-07-28 (header) is a modern cacheable result | P5a | No `error`; `resultType` is `complete`; `ttlMs` is a non-negative integer; `cacheScope` is `public` or `private`; the `_meta` server name is `atlantis-mcp-server`; a non-empty `tools` array |
 | P5.2 | C | tools/list for 2026-07-28 (params._meta) is a modern cacheable result | P5b | The same |
 | P5.3 | C | tools/list for 2025-11-25 carries only tools | P5c | No `error`; a non-empty `tools` array; none of `ttlMs`, `cacheScope`, `resultType`, `_meta` |
 | P5.4 | C | tools/list for 2024-11-05 carries only tools | P5d | The same |

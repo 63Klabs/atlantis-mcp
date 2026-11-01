@@ -428,6 +428,18 @@ const FAILURES = [
     reason: /^result has unexpected key "protocolVersion"$/
   },
   {
+    id: 'P1.2',
+    name: 'server/discover has a cacheScope the specification does not allow',
+    server: { mutations: [[REQ.P1, (body) => { body.result.cacheScope = 'server'; }]] },
+    reason: /^result\.cacheScope is "server", expected "public" or "private"$/
+  },
+  {
+    id: 'P1.2',
+    name: 'server/discover has no ttlMs',
+    server: { mutations: [[REQ.P1, (body) => { delete body.result.ttlMs; }]] },
+    reason: /^result\.ttlMs is undefined, expected a non-negative integer$/
+  },
+  {
     id: 'P1.3',
     name: 'server/discover reports another server name',
     server: { mutations: [[REQ.P1, (body) => { body.result._meta[SERVER_INFO_META_KEY].name = 'other-server'; }]] },
@@ -619,10 +631,22 @@ const FAILURES = [
     reason: /^result\.ttlMs is -1, expected a non-negative integer$/
   },
   {
+    id: 'P5.1',
+    name: 'the modern tools/list has cacheScope "server"',
+    server: { mutations: [[REQ.P5a, (body) => { body.result.cacheScope = 'server'; }]] },
+    reason: /^result\.cacheScope is "server", expected "public" or "private"$/
+  },
+  {
     id: 'P5.2',
     name: 'the modern tools/list (params._meta) has an empty cacheScope',
     server: { mutations: [[REQ.P5b, (body) => { body.result.cacheScope = ''; }]] },
-    reason: /^result\.cacheScope is "", expected a non-empty string$/
+    reason: /^result\.cacheScope is "", expected "public" or "private"$/
+  },
+  {
+    id: 'P5.2',
+    name: 'the modern tools/list (params._meta) has cacheScope "server"',
+    server: { mutations: [[REQ.P5b, (body) => { body.result.cacheScope = 'server'; }]] },
+    reason: /^result\.cacheScope is "server", expected "public" or "private"$/
   },
   {
     id: 'P5.3',

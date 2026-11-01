@@ -294,30 +294,30 @@ timeout 300s node --experimental-vm-modules ./node_modules/jest/bin/jest.js
   - Ensure all tests pass, ask the user if questions arise.
   - _Requirements: 17.1, 17.2, 17.3, 17.4, 17.5, 17.6, 17.7, 17.8, 17.9_
 
-- [ ] 13. Live verification (Phase 4; needs deployments and a person)
+- [x] 13. Live verification (Phase 4; needs deployments and a person)
 
-  - [~] 13.1 Run on `test` without a key
+  - [x] 13.1 Run on `test` without a key
     - Deploy to `test` with the key parameter still `BLANK`
     - Expected: the PostDeploy log shows the verifier tests in `pre_build`, then outcome `passed`, S2 SKIP "no key configured: placeholder BLANK", X2 SKIP "no custom domain for this stage", and one `VERIFY_REPORT` line that the Logs Insights query finds in `/aws/codebuild/<Prefix>-<ProjectId>-test-PostDeploy`
     - _Requirements: 1.9, 16.9_
 
-  - [~] 13.2 Run on `test` with a key
+  - [x] 13.2 Run on `test` with a key
     - Register an account on the `test` site, have it promoted to the private tier, and store its key in `test`'s `Mcp_PostDeployTestVerifyApiKey` parameter, as the developer page describes. Retry the PostDeploy stage
     - Expected: S2.1 to S2.3 PASS, which also proves the post-deploy role can decrypt the parameter; the report's `key.used` is `true`
     - Never paste the key into this file, a ticket, or a log search
     - _Requirements: 11.2, 16.9_
 
-  - [~] 13.3 Run on `beta` with the edge subset
+  - [x] 13.3 Run on `beta` with the edge subset
     - Promote the change to `beta` through the normal branch flow
     - Expected: X2.1 to X2.4 PASS, which shows CloudFront forwards the three MCP headers on `beta`
     - _Requirements: 9.6, 16.9_
 
-  - [~] 13.4 Run with the skip switch on
+  - [x] 13.4 Run with the skip switch on
     - Set `test`'s `Mcp_PostDeployTestVerifySkip` parameter to `true` and retry the PostDeploy stage, then set it back to `false`
     - Expected: outcome `skipped`, the `WARN`, and no verification requests in the Read Function log. The next run verifies again
     - _Requirements: 12.6, 16.9_
 
-- [~] 14. Final verification
+- [x] 14. Final verification
   - The package's tests and the Read Function suite pass
   - Live runs 13.1 to 13.4 behaved as expected
   - No file contains a real key: search the working tree for `atl_[0-9a-f]{32}` outside test fixtures that generate keys

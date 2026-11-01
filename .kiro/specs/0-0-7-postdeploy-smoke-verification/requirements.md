@@ -120,7 +120,7 @@ Small refinements made while writing these requirements. Strike any you disagree
 #### Acceptance Criteria
 
 1. THE Verifier SHALL send P1, a `server/discover` request with no API key and no declared revision, to the raw target as the first request of the run.
-2. P1 SHALL pass only WHEN the response has HTTP status 200 and a JSON-RPC result with no `error`, `resultType` equal to `complete`, `_meta["io.modelcontextprotocol/serverInfo"].name` equal to `atlantis-mcp-server`, no top-level `protocolVersion` or `serverInfo`, a non-empty `instructions` string, and a `supportedVersions` array that contains every revision in the revision floor.
+2. P1 SHALL pass only WHEN the response has HTTP status 200 and a JSON-RPC result with no `error`, `resultType` equal to `complete`, a non-negative integer `ttlMs`, a `cacheScope` equal to `public` or `private`, `_meta["io.modelcontextprotocol/serverInfo"].name` equal to `atlantis-mcp-server`, no top-level `protocolVersion` or `serverInfo`, a non-empty `instructions` string, and a `supportedVersions` array that contains every revision in the revision floor.
 3. THE Verifier SHALL keep P1's `supportedVersions`, `instructions`, and `X-RateLimit-Limit` header as the baseline for later checks.
 4. V1 SHALL pass only WHEN P1's `_meta["io.modelcontextprotocol/serverInfo"].version` and the `serverInfo.version` of P2's `initialize` response for `2025-11-25` both equal the expected version. V1 SHALL send no requests of its own.
 5. IF V1 fails, THEN its reason SHALL give the expected version and each reported version.
@@ -161,7 +161,7 @@ Small refinements made while writing these requirements. Strike any you disagree
 #### Acceptance Criteria
 
 1. THE Verifier SHALL send P5 as five `tools/list` requests to the raw target, declaring in turn: `2026-07-28` in the `MCP-Protocol-Version` header; `2026-07-28` in `params._meta` with no header; `2025-11-25` in the header; `2024-11-05` in the header; and no revision.
-2. P5 SHALL require both `2026-07-28` responses to have no `error`, `resultType` equal to `complete`, a non-negative integer `ttlMs`, a non-empty string `cacheScope`, `_meta["io.modelcontextprotocol/serverInfo"].name` equal to `atlantis-mcp-server`, and a non-empty `tools` array.
+2. P5 SHALL require both `2026-07-28` responses to have no `error`, `resultType` equal to `complete`, a non-negative integer `ttlMs`, a `cacheScope` equal to `public` or `private`, `_meta["io.modelcontextprotocol/serverInfo"].name` equal to `atlantis-mcp-server`, and a non-empty `tools` array.
 3. P5 SHALL require the `2025-11-25`, `2024-11-05`, and no-revision responses to have no `error`, a non-empty `tools` array, and none of `ttlMs`, `cacheScope`, `resultType`, or `_meta` in the result.
 4. P5 SHALL require every tool in the `2026-07-28` and `2025-11-25` responses to have `title` and `annotations`, with `annotations.readOnlyHint` equal to `true` and `annotations.openWorldHint` equal to `false`, and SHALL require no tool in the `2024-11-05` and no-revision responses to have `title` or `annotations`.
 5. P5 SHALL require all five responses to list the same tool names in the same order.

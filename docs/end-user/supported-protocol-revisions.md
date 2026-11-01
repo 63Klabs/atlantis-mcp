@@ -105,7 +105,7 @@ Modern responses add:
 
 - `resultType`: always `"complete"`.
 - `_meta["io.modelcontextprotocol/serverInfo"]`: the server name and version.
-- `ttlMs` and `cacheScope` on `tools/list`: the tool list can be cached by the client for `600000` ms (10 minutes), and the list is the same for every client (`"server"`).
+- `ttlMs` and `cacheScope` on `tools/list` and `server/discover`: the result can be cached by the client for `600000` ms (10 minutes), and it is the same for every client (`"public"`).
 
 Legacy responses never include these fields, so existing clients see exactly what they saw before.
 
