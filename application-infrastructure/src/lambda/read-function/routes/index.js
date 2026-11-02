@@ -46,7 +46,8 @@ const process = async (clientRequest, response, authInfo) => {
     const jsonRpcResponse = await JsonRpcRouter.handleJsonRpc(clientRequest, authInfo);
 
     response.setStatusCode(jsonRpcResponse.statusCode);
-    response.setBody(JSON.parse(jsonRpcResponse.body));
+    // >! A notification's 202 has no body; JSON.parse('') would throw
+    response.setBody(jsonRpcResponse.body === '' ? null : JSON.parse(jsonRpcResponse.body));
     if (jsonRpcResponse.headers) {
       // >! Headers managed by cache-data Response.finalize():
       // >! - content-type: finalize() sets from body when unset

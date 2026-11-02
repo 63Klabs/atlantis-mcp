@@ -123,6 +123,13 @@ const ERROR_CODES = Object.freeze({
   INVALID_API_KEY: -32001
 });
 
+/**
+ * HTTP status of the protocol errors `-32020` and `-32022`. The 2026-07-28 MCP schema
+ * (UnsupportedProtocolVersionError and HeaderMismatchError) specifies HTTP 400 for
+ * them. Written here from the published schema, not imported from the Read Function.
+ */
+const PROTOCOL_ERROR_STATUS = 400;
+
 /** Request headers an edge that "drops the MCP headers" does not forward. */
 const MCP_HEADERS = Object.freeze(['mcp-protocol-version', 'mcp-method', 'mcp-name']);
 
@@ -388,18 +395,23 @@ function rpcSuccess(id, result) {
 /**
  * Build a JSON-RPC 2.0 error object.
  *
- * @param {string|number|null} id - Request id
+ * @param {string|number|null|undefined} id - Request id; `undefined` omits the `id` member
  * @param {number} code - Error code
  * @param {string} message - Short message
  * @param {*} [data] - Optional error data
- * @returns {{jsonrpc: string, id: (string|number|null), error: Object}} Response object
+ * @returns {{jsonrpc: string, id?: (string|number|null), error: Object}} Response object
  */
 function rpcError(id, code, message, data) {
   const error = { code, message };
   if (data !== undefined) {
     error.data = data;
   }
-  return { jsonrpc: '2.0', id, error };
+  const response = { jsonrpc: '2.0' };
+  if (id !== undefined) {
+    response.id = id;
+  }
+  response.error = error;
+  return response;
 }
 
 /* ------------------------------------------------------------------ */
@@ -447,6 +459,9 @@ function rpcError(id, code, message, data) {
  * @param {function(Object, Object, Object): (Object|undefined)} [options.mutate] - Escape hatch called with
  *   `(context, body, headers)` on every JSON-RPC answer before it is sent. It may change `body` in place or
  *   return a replacement, and may change `headers` (a plain object) in place
+ * @param {function(Object): (number|undefined)} [options.rpcStatus] - Called with the same context as
+ *   `mutate` on every JSON-RPC answer. An integer it returns replaces the HTTP status of that answer; any
+ *   other return value leaves the status as the model chose it (200, or 400 for `-32020` and `-32022`)
  * @param {function(): number} [options.now] - Clock in milliseconds (default `Date.now`)
  * @returns {{
  *   fetch: function(string|URL|Request, Object=): Promise<Response>,
@@ -600,7 +615,7 @@ export function createFakeMcpServer(options = {}) {
    *
    * @param {string} bodyText - Raw request body
    * @param {Object<string, string>} lowerHeaders - Lower-case request headers as forwarded
-   * @returns {{body: Object, rpcMethod: (string|null), toolName: (string|null)}} JSON-RPC answer and what it was about
+   * @returns {{body: Object, status: number, rpcMethod: (string|null), toolName: (string|null)}} JSON-RPC answer, its HTTP status, and what it was about
    */
   function route(bodyText, lowerHeaders) {
     let body;
@@ -608,14 +623,18 @@ export function createFakeMcpServer(options = {}) {
       body = JSON.parse(bodyText);
     } catch (parseError) {
       return {
-        body: rpcError(null, ERROR_CODES.PARSE_ERROR, 'Parse error', { details: parseError.message }),
+        // The id member is omitted: the request id could not be read
+        body: rpcError(undefined, ERROR_CODES.PARSE_ERROR, 'Parse error', { details: parseError.message }),
+        status: 200,
         rpcMethod: null,
         toolName: null
       };
     }
     if (body === null || typeof body !== 'object') {
       return {
-        body: rpcError(null, ERROR_CODES.INTERNAL_ERROR, 'Internal error', { details: 'Request body is not an object' }),
+        // The id member is omitted: a body that is not an object has no readable request id
+        body: rpcError(undefined, ERROR_CODES.INTERNAL_ERROR, 'Internal error', { details: 'Request body is not an object' }),
+        status: 200,
         rpcMethod: null,
         toolName: null
       };
@@ -627,6 +646,7 @@ export function createFakeMcpServer(options = {}) {
         body: rpcError(id, ERROR_CODES.INVALID_REQUEST, 'Invalid Request', {
           details: 'Missing or invalid "jsonrpc" or "method" field'
         }),
+        status: 200,
         rpcMethod: null,
         toolName: null
       };
@@ -634,7 +654,7 @@ export function createFakeMcpServer(options = {}) {
 
     const { method, params } = body;
     const toolName = method === 'tools/call' && typeof params?.name === 'string' ? params.name : null;
-    const answer = (rpc) => ({ body: rpc, rpcMethod: method, toolName });
+    const answer = (rpc, status = 200) => ({ body: rpc, status, rpcMethod: method, toolName });
     const { era, declaredRevision } = resolveEra(method, body, lowerHeaders);
 
     // Modern requests only: Mcp-Method and Mcp-Name must agree with the body
@@ -645,7 +665,7 @@ export function createFakeMcpServer(options = {}) {
           detail: 'Mcp-Method header disagrees with body method',
           headerValue: mcpMethod,
           bodyValue: method
-        }));
+        }), PROTOCOL_ERROR_STATUS);
       }
       const mcpName = lowerHeaders['mcp-name'];
       if (mcpName && method === 'tools/call') {
@@ -655,7 +675,7 @@ export function createFakeMcpServer(options = {}) {
             detail: 'Mcp-Name header disagrees with params.name',
             headerValue: mcpName,
             bodyValue: bodyName
-          }));
+          }), PROTOCOL_ERROR_STATUS);
         }
       }
     }
@@ -663,9 +683,9 @@ export function createFakeMcpServer(options = {}) {
     // A declared revision the server does not list: -32022, except on server/discover
     if (declaredRevision !== null && method !== 'server/discover' && !supportedVersions.includes(declaredRevision)) {
       return answer(rpcError(id, ERROR_CODES.UNSUPPORTED_PROTOCOL_VERSION, 'Unsupported protocol version', {
-        declaredRevision,
-        supportedVersions: [...supportedVersions]
-      }));
+        requested: declaredRevision,
+        supported: [...supportedVersions]
+      }), PROTOCOL_ERROR_STATUS);
     }
 
     const shared = capabilities();
@@ -795,8 +815,7 @@ export function createFakeMcpServer(options = {}) {
         // An unknown key is rejected before the rate limiter, and costs nothing
         return respond(call, 401, { 'content-type': 'application/json' }, {
           jsonrpc: '2.0',
-          error: { code: ERROR_CODES.INVALID_API_KEY, message: 'Invalid API key' },
-          id: null
+          error: { code: ERROR_CODES.INVALID_API_KEY, message: 'Invalid API key' }
         });
       }
     }
@@ -848,13 +867,21 @@ export function createFakeMcpServer(options = {}) {
     call.rpcMethod = routed.rpcMethod;
     call.toolName = routed.toolName;
     let rpcBody = routed.body;
+    const answerContext = { ...context, rpcMethod: routed.rpcMethod, toolName: routed.toolName };
     if (typeof options.mutate === 'function') {
-      const replacement = options.mutate({ ...context, rpcMethod: routed.rpcMethod, toolName: routed.toolName }, rpcBody, headers);
+      const replacement = options.mutate(answerContext, rpcBody, headers);
       if (replacement !== undefined) {
         rpcBody = replacement;
       }
     }
-    return respond(call, 200, headers, rpcBody);
+    let status = routed.status;
+    if (typeof options.rpcStatus === 'function') {
+      const override = options.rpcStatus(answerContext);
+      if (Number.isInteger(override)) {
+        status = override;
+      }
+    }
+    return respond(call, status, headers, rpcBody);
   }
 
   /**

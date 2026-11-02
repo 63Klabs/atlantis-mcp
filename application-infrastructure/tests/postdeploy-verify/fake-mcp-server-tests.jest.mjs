@@ -321,7 +321,7 @@ describe('Fake MCP server: tools/list by revision', () => {
 });
 
 describe('Fake MCP server: -32022 unsupported protocol version', () => {
-  it('answers on every method except server/discover, with the declared and supported revisions', async () => {
+  it('answers HTTP 400 on every method except server/discover, with the requested and supported revisions', async () => {
     const methods = [
       rpc('tools/list'),
       rpc('tools/call', { name: 'list_tools' }),
@@ -330,19 +330,36 @@ describe('Fake MCP server: -32022 unsupported protocol version', () => {
     ];
     for (const body of methods) {
       const { status, json } = await post(healthy(), body, { 'MCP-Protocol-Version': '2099-01-01' });
-      expect(status).toBe(200);
+      expect(status).toBe(400);
       expect(json.error.code).toBe(-32022);
       expect(json.error.message).toBe('Unsupported protocol version');
-      expect(json.error.data.declaredRevision).toBe('2099-01-01');
-      expect(json.error.data.supportedVersions).toEqual(['2024-11-05', '2025-11-25', '2026-07-28']);
+      expect(json.error.data.requested).toBe('2099-01-01');
+      expect(json.error.data.supported).toEqual(['2024-11-05', '2025-11-25', '2026-07-28']);
+      expect(json.error.data.declaredRevision).toBeUndefined();
+      expect(json.error.data.supportedVersions).toBeUndefined();
       expect(json.result).toBeUndefined();
     }
   });
 
   it('is raised for an unlisted revision declared in params._meta', async () => {
-    const { json } = await post(healthy(), rpc('tools/list', { _meta: { [PROTOCOL_KEY]: '2030-01-01' } }));
+    const { status, json } = await post(healthy(), rpc('tools/list', { _meta: { [PROTOCOL_KEY]: '2030-01-01' } }));
+    expect(status).toBe(400);
     expect(json.error.code).toBe(-32022);
-    expect(json.error.data.declaredRevision).toBe('2030-01-01');
+    expect(json.error.data.requested).toBe('2030-01-01');
+  });
+
+  it('is answered with HTTP 400 on the edge target too, when the edge forwards the headers', async () => {
+    const server = healthy();
+    const { status, json } = await post(server, rpc('tools/list'), { 'MCP-Protocol-Version': '2099-01-01' }, server.edgeUrl);
+    expect(status).toBe(400);
+    expect(json.error.code).toBe(-32022);
+    expect(json.error.data.requested).toBe('2099-01-01');
+  });
+
+  it('server/discover with an unlisted declared revision is still answered with HTTP 200', async () => {
+    const { status, json } = await post(healthy(), rpc('server/discover'), { 'MCP-Protocol-Version': '2099-01-01' });
+    expect(status).toBe(200);
+    expect(json.error).toBeUndefined();
   });
 });
 
@@ -351,19 +368,27 @@ describe('Fake MCP server: -32020 header mismatch', () => {
 
   it('rejects a modern request whose Mcp-Method disagrees with the body', async () => {
     const { status, json } = await post(healthy(), rpc('tools/list'), { ...modern, 'Mcp-Method': 'tools/call' });
-    expect(status).toBe(200);
+    expect(status).toBe(400);
     expect(json.error.code).toBe(-32020);
     expect(json.error.message).toBe('Header mismatch');
     expect(json.error.data.headerValue).toBe('tools/call');
     expect(json.error.data.bodyValue).toBe('tools/list');
   });
 
+  it('answers HTTP 400 on the edge target too, when the edge forwards the headers', async () => {
+    const server = healthy();
+    const { status, json } = await post(server, rpc('tools/list'), { ...modern, 'Mcp-Method': 'tools/call' }, server.edgeUrl);
+    expect(status).toBe(400);
+    expect(json.error.code).toBe(-32020);
+  });
+
   it('rejects a modern tools/call whose Mcp-Name disagrees with params.name', async () => {
-    const { json } = await post(
+    const { status, json } = await post(
       healthy(),
       rpc('tools/call', { name: 'list_tools' }),
       { ...modern, 'Mcp-Method': 'tools/call', 'Mcp-Name': 'list_categories' }
     );
+    expect(status).toBe(400);
     expect(json.error.code).toBe(-32020);
     expect(json.error.data.headerValue).toBe('list_categories');
     expect(json.error.data.bodyValue).toBe('list_tools');
@@ -380,11 +405,12 @@ describe('Fake MCP server: -32020 header mismatch', () => {
   });
 
   it('rejects a mismatch declared by params._meta as well', async () => {
-    const { json } = await post(
+    const { status, json } = await post(
       healthy(),
       rpc('tools/list', { _meta: { [PROTOCOL_KEY]: '2026-07-28' } }),
       { 'Mcp-Method': 'tools/call' }
     );
+    expect(status).toBe(400);
     expect(json.error.code).toBe(-32020);
   });
 
@@ -397,7 +423,8 @@ describe('Fake MCP server: -32020 header mismatch', () => {
   });
 
   it('server/discover is modern, so a mismatched Mcp-Method is rejected there', async () => {
-    const { json } = await post(healthy(), rpc('server/discover'), { 'Mcp-Method': 'tools/list' });
+    const { status, json } = await post(healthy(), rpc('server/discover'), { 'Mcp-Method': 'tools/list' });
+    expect(status).toBe(400);
     expect(json.error.code).toBe(-32020);
   });
 });
@@ -443,10 +470,10 @@ describe('Fake MCP server: request errors', () => {
     expect(json.id).toBe(1);
   });
 
-  it('a body that is not JSON is -32700 with a null id', async () => {
+  it('a body that is not JSON is -32700 with no id member', async () => {
     const { json } = await post(healthy(), '{not json');
     expect(json.error.code).toBe(-32700);
-    expect(json.id).toBeNull();
+    expect(json).not.toHaveProperty('id');
   });
 
   it('a body without jsonrpc 2.0 or a method is -32600', async () => {
@@ -571,7 +598,7 @@ describe('Fake MCP server: API keys and tiers', () => {
     const { status, json } = await post(healthy({ validKeys }), rpc('tools/list'), { 'X-API-Key': 'atl_unknown' });
     expect(status).toBe(401);
     expect(json.error.code).toBe(-32001);
-    expect(json.id).toBeNull();
+    expect(json).not.toHaveProperty('id');
   });
 
   it('rejects any key when validKeys is empty', async () => {
@@ -700,7 +727,7 @@ describe('Fake MCP server: identity options', () => {
     expect(discover.json.result.supportedVersions).toEqual(['2024-11-05', '2025-11-25']);
     const modern = await post(server, rpc('tools/list'), { 'MCP-Protocol-Version': '2026-07-28' });
     expect(modern.json.error.code).toBe(-32022);
-    expect(modern.json.error.data.supportedVersions).toEqual(['2024-11-05', '2025-11-25']);
+    expect(modern.json.error.data.supported).toEqual(['2024-11-05', '2025-11-25']);
     const legacy = await post(server, rpc('tools/list'), { 'MCP-Protocol-Version': '2025-11-25' });
     expect(legacy.json.error).toBeUndefined();
   });
@@ -1055,6 +1082,15 @@ describe('Fake MCP server: option mutate', () => {
   it('may change the response headers', async () => {
     const server = healthy({ mutate: (context, body, headers) => { headers['x-mcp-version'] = '9.9'; } });
     expect((await post(server, rpc('tools/list'))).response.headers.get('x-mcp-version')).toBe('9.9');
+  });
+
+  it('rpcStatus replaces the HTTP status of the answers it selects, and a non-integer leaves it alone', async () => {
+    const server = healthy({ rpcStatus: (context) => (context.rpcMethod === 'tools/list' ? 200 : undefined) });
+    const unlisted = { 'MCP-Protocol-Version': '2099-01-01' };
+    const replaced = await post(server, rpc('tools/list'), unlisted);
+    expect(replaced.status).toBe(200);
+    expect(replaced.json.error.code).toBe(-32022);
+    expect((await post(server, rpc('ping'), unlisted)).status).toBe(400);
   });
 
   it('receives the method and tool name of the request', async () => {

@@ -291,25 +291,27 @@ Proves the new error reaches the client with a useful payload. Spec: tasks 11.6,
 
 ```bash
 mcp -H 'MCP-Protocol-Version: 2099-01-01' -d '{"jsonrpc":"2.0","id":5,"method":"tools/list"}' \
-  | check "-32022 with declaredRevision and 3 supportedVersions" \
-    '.error.code == -32022 and .error.data.declaredRevision == "2099-01-01" and (.error.data.supportedVersions | length) == 3'
+  | check "-32022 with requested and 3 supported revisions" \
+    '.error.code == -32022 and .error.data.requested == "2099-01-01" and (.error.data.supported | length) == 3'
 ```
+
+> **Note**: The `-32022` `data` keys are `requested` and `supported`, as the 2026-07-28 schema requires. They were `declaredRevision` and `supportedVersions` before spec `0-0-7-schema-validation-of-modern-results` (2026-11-01).
 
 - [ ] **D2.** Unlisted revision in `params._meta` (the location the MCP specification uses)
 
 ```bash
 mcp -d '{"jsonrpc":"2.0","id":6,"method":"tools/list","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2099-01-01"}}}' \
-  | check "-32022 from params._meta" '.error.code == -32022 and .error.data.declaredRevision == "2099-01-01"'
+  | check "-32022 from params._meta" '.error.code == -32022 and .error.data.requested == "2099-01-01"'
 ```
 
-- [ ] **D3.** The error is returned with HTTP status `200` (JSON-RPC convention for this server)
+- [ ] **D3.** The error is returned with HTTP status `400`
 
 ```bash
 curl -s -o /dev/null -w 'HTTP %{http_code}\n' "$MCP_URL" -H 'Content-Type: application/json' \
   -H 'MCP-Protocol-Version: 2099-01-01' -d '{"jsonrpc":"2.0","id":7,"method":"tools/list"}'
 ```
 
-Expect `HTTP 200`.
+Expect `HTTP 400`.
 
 ## E. Header mismatch (`-32020`)
 
@@ -323,6 +325,11 @@ Proves `Mcp-Method` and `Mcp-Name` **reach the Lambda through API Gateway**. A `
 mcp -H 'MCP-Protocol-Version: 2026-07-28' -H 'Mcp-Method: tools/call' \
   -d '{"jsonrpc":"2.0","id":8,"method":"tools/list"}' \
   | check "-32020 and the header value was seen" '.error.code == -32020 and .error.data.headerValue == "tools/call"'
+
+# Status check: the response must be HTTP 400
+mcp -i -H 'MCP-Protocol-Version: 2026-07-28' -H 'Mcp-Method: tools/call' \
+  -d '{"jsonrpc":"2.0","id":8,"method":"tools/list"}' \
+  | head -1 | grep -Eq '^HTTP/[0-9.]+ 400' && echo "PASS  status 400" || echo "FAIL  status is not 400"
 ```
 
 - [ ] **E2.** `Mcp-Name` disagrees with `params.name`
@@ -331,6 +338,11 @@ mcp -H 'MCP-Protocol-Version: 2026-07-28' -H 'Mcp-Method: tools/call' \
 mcp -H 'MCP-Protocol-Version: 2026-07-28' -H 'Mcp-Method: tools/call' -H 'Mcp-Name: list_categories' \
   -d '{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"list_tools","arguments":{}}}' \
   | check "-32020 for Mcp-Name mismatch" '.error.code == -32020 and .error.data.headerValue == "list_categories"'
+
+# Status check: the response must be HTTP 400
+mcp -i -H 'MCP-Protocol-Version: 2026-07-28' -H 'Mcp-Method: tools/call' -H 'Mcp-Name: list_categories' \
+  -d '{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"list_tools","arguments":{}}}' \
+  | head -1 | grep -Eq '^HTTP/[0-9.]+ 400' && echo "PASS  status 400" || echo "FAIL  status is not 400"
 ```
 
 - [ ] **E3.** Matching headers are accepted
@@ -347,6 +359,11 @@ mcp -H 'MCP-Protocol-Version: 2026-07-28' -H 'Mcp-Method: tools/call' -H 'Mcp-Na
 mcp -H 'mcp-protocol-version: 2026-07-28' -H 'MCP-METHOD: tools/call' \
   -d '{"jsonrpc":"2.0","id":11,"method":"tools/list"}' \
   | check "-32020 with unusual header case" '.error.code == -32020'
+
+# Status check: the response must be HTTP 400
+mcp -i -H 'mcp-protocol-version: 2026-07-28' -H 'MCP-METHOD: tools/call' \
+  -d '{"jsonrpc":"2.0","id":11,"method":"tools/list"}' \
+  | head -1 | grep -Eq '^HTTP/[0-9.]+ 400' && echo "PASS  status 400" || echo "FAIL  status is not 400"
 ```
 
 - [ ] **E5.** A **legacy** request is never rejected for these headers (no revision declared)

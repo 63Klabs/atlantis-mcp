@@ -23,13 +23,13 @@ function wrapEvent(event) {
 describe('Feature: get-integration-working, Property 7: JSON-RPC 2.0 Round-Trip', () => {
 
   /**
-   * Arbitrary for generating valid JSON-RPC 2.0 id values.
-   * Per JSON-RPC 2.0 spec, id can be a string, number, or null.
+   * Arbitrary for generating valid request id values.
+   * >! MCP requires a string or integer id (the schema's RequestId). A null id is
+   * >! rejected with -32600 and is covered in unit/utils/json-rpc-router.test.js.
    */
   const idArb = fc.oneof(
     fc.string({ minLength: 0, maxLength: 50 }),
-    fc.integer({ min: -999999, max: 999999 }),
-    fc.constant(null)
+    fc.integer({ min: -999999, max: 999999 })
   );
 
   /**

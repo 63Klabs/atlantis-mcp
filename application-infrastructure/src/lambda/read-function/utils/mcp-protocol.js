@@ -177,22 +177,40 @@ function jsonRpcSuccess(id, result) {
 /**
  * Create a JSON-RPC 2.0 error response
  *
- * @param {string|number|null} id - Request id (null if missing or invalid type)
+ * The `id` member is included only when the request's id is known. When `id` is
+ * `null` or `undefined` (the id could not be read, as with a parse error), the
+ * response carries no `id` member at all, never `id: null`.
+ *
+ * @param {string|number|null|undefined} id - Request id (string or integer), or `null`/`undefined` when the id could not be read; the member is then omitted
  * @param {number} code - Integer error code
  * @param {string} message - Short error description
  * @param {*} [data] - Optional additional error data
- * @returns {Object} JSON-RPC 2.0 error response
+ * @returns {Object} JSON-RPC 2.0 error response, with `id` only when it is known
+ *
+ * @example
+ * // Parse error: the request id could not be read, so the response has no id
+ * jsonRpcError(null, -32700, 'Parse error');
+ * // => { jsonrpc: '2.0', error: { code: -32700, message: 'Parse error' } }
+ *
+ * @example
+ * // Known id is echoed
+ * jsonRpcError('req-1', -32601, 'Method not found');
+ * // => { jsonrpc: '2.0', id: 'req-1', error: { code: -32601, message: 'Method not found' } }
  */
 function jsonRpcError(id, code, message, data) {
   const error = { code, message };
   if (data !== undefined) {
     error.data = data;
   }
-  return {
-    jsonrpc: '2.0',
-    id: id,
-    error: error
-  };
+  // >! MCP 2025-11-25 and 2026-07-28 declare JSONRPCErrorResponse.id as optional
+  // >! (id?: RequestId, a string or an integer). When the request's id could not be
+  // >! read, the error carries no id at all, never id: null.
+  const response = { jsonrpc: '2.0' };
+  if (id !== null && id !== undefined) {
+    response.id = id;
+  }
+  response.error = error;
+  return response;
 }
 
 /**

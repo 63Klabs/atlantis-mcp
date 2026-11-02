@@ -46,6 +46,15 @@ This mapping only works for single-file skills, which is an accepted limitation 
 - [ ] Assets uploaded — `list_agent_asset_types` must report a non-zero count, since an advertised-but-empty type is a discovery anti-signal (`hooks` and `agents-md` are both enabled and empty today)
 - [ ] Precedence wording in `atlantis-platform-resources` reconciled with the server `instructions` string and the canonical `AGENTS.md` asset so all three agree
 
+## Project-specific skills (not published)
+
+These skills support this repository's own release process. They are not part of the published set in [Contents](#contents), are not uploaded as `skills` agent assets, and do not appear in the "Before publishing" checklist.
+
+| Skill | What it does | When it runs |
+|---|---|---|
+| [`update-mcp-schemas`](update-mcp-schemas/SKILL.md) | Compares the vendored MCP JSON Schemas in `application-infrastructure/tests/mcp-schemas` with upstream `main`, applies any change at the resolved commit, and runs the conformance tests. Never commits and never advertises a revision | On request, or as the fourth update skill run by `prepare-release` |
+| [`prepare-release`](prepare-release/SKILL.md) | Runs the prepare pass of a release: checks the preconditions, runs `audit-update-npm-packages`, `audit-update-python-packages`, `update-lambda-layers`, and `update-mcp-schemas` in that order, runs every test suite, and checks that only release-preparation files changed. Never commits | Started by the [`detect-release-transition`](../hooks/detect-release-transition.json) hook after the top `CHANGELOG.md` version is dated on `dev`, or on request |
+
 ## Format reference
 
 | Field | Required | Constraint |

@@ -107,6 +107,8 @@ git push
 git switch dev
 ```
 
+Maintainers cutting a release should also follow the [release process](docs/developer/release-process.md).
+
 ### Setting Up Pipelines
 
 For each branch you wish to deploy from, set up a pipeline using your organization's central Atlantis SAM Config repository.

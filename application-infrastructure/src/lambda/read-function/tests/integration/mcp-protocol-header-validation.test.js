@@ -4,8 +4,9 @@
  * Tests that modern-era requests validate Mcp-Method and Mcp-Name headers
  * against body fields, and return -32020 HeaderMismatch on disagreement.
  * Legacy requests skip header validation entirely.
+ * A -32020 answer carries HTTP 400; accepted requests keep HTTP 200.
  *
- * Requirements: 8.1, 8.2, 8.3, 15.8
+ * Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 8.1, 8.2, 8.3, 15.8
  */
 
 const { handleJsonRpc } = require('../../utils/json-rpc-router');
@@ -85,7 +86,8 @@ describe('MCP Protocol Header Validation (Task 15.2)', () => {
       const response = await handleJsonRpc(clientRequest, null);
       const body = JSON.parse(response.body);
 
-      expect(response.statusCode).toBe(200);
+      // HeaderMismatchError (-32020) MUST be sent as HTTP 400
+      expect(response.statusCode).toBe(400);
       expect(body.jsonrpc).toBe('2.0');
       expect(body.id).toBe('header-mismatch-method');
       expect(body.error).toBeDefined();
@@ -182,7 +184,8 @@ describe('MCP Protocol Header Validation (Task 15.2)', () => {
       const response = await handleJsonRpc(clientRequest, null);
       const body = JSON.parse(response.body);
 
-      expect(response.statusCode).toBe(200);
+      // HeaderMismatchError (-32020) MUST be sent as HTTP 400
+      expect(response.statusCode).toBe(400);
       expect(body.jsonrpc).toBe('2.0');
       expect(body.id).toBe('name-mismatch-1');
       expect(body.error).toBeDefined();
@@ -332,7 +335,7 @@ describe('MCP Protocol Header Validation (Task 15.2)', () => {
       const body = JSON.parse(response.body);
 
       // Should return -32020 - case-insensitive match detected mismatch
-      expect(response.statusCode).toBe(200);
+      expect(response.statusCode).toBe(400);
       expect(body.error).toBeDefined();
       expect(body.error.code).toBe(-32020);
     });
@@ -363,7 +366,7 @@ describe('MCP Protocol Header Validation (Task 15.2)', () => {
       const body = JSON.parse(response.body);
 
       // Should return -32020 - case-insensitive match detected mismatch
-      expect(response.statusCode).toBe(200);
+      expect(response.statusCode).toBe(400);
       expect(body.error).toBeDefined();
       expect(body.error.code).toBe(-32020);
     });

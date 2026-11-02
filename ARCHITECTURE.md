@@ -413,9 +413,11 @@ utils/json-rpc-router.js  handleJsonRpc()
   ├─ utils/mcp-era.js  resolveEra(method, body, headers)
   │     → { era: 'legacy' | 'modern', declaredRevision }
   │
-  ├─ era === 'modern'  → validateHeadersForModern()      -32020 HeaderMismatch on disagreement
+  ├─ era === 'modern'  → validateHeadersForModern()      -32020 HeaderMismatch on disagreement (HTTP 400)
   │
-  ├─ declaredRevision present → negotiateProtocol()       -32022 UnsupportedProtocolVersion if unlisted
+  ├─ declaredRevision present → negotiateProtocol()       -32022 UnsupportedProtocolVersion if unlisted (HTTP 400)
+  │
+  ├─ no `id` member    → notification                     HTTP 202, empty body (not dispatched)
   │
   ▼
 switch (method)
@@ -426,6 +428,12 @@ switch (method)
 ```
 
 All envelope shaping lives in the formatters in `utils/mcp-protocol.js`. Controllers return data and never construct a protocol envelope.
+
+A message with no `id` is a notification: after the header and revision checks it gets HTTP 202 with no body, and it is never dispatched. A notification that fails those checks still gets `-32020` or `-32022` (HTTP 400, no `id`).
+
+HTTP status is 200 for every result and every JSON-RPC error, with three exceptions: `-32022` and `-32020` use 400 (the specification requires it), and an accepted notification uses 202. The router owns the status (`PROTOCOL_ERROR_HTTP_STATUS` in `utils/json-rpc-router.js`); `utils/mcp-era.js` only builds the `-32020` error object.
+
+An error for a request whose `id` cannot be read carries no `id` member, never `id: null`, because no MCP schema accepts `null`. A request whose `id` is present but is not a string or an integer is rejected with `-32600` (HTTP 200, no `id`).
 
 ### Era resolution
 
@@ -442,7 +450,7 @@ All envelope shaping lives in the formatters in `utils/mcp-protocol.js`. Control
 
 ### Version negotiation
 
-- **Header or `_meta` declaration.** `negotiateProtocol()` checks it against `SUPPORTED_PROTOCOL_VERSIONS`. An unlisted value returns `-32022` with `data.declaredRevision` (what the client sent) and `data.supportedVersions`. This applies to every method, `initialize` included, except `server/discover`, which is always answered.
+- **Header or `_meta` declaration.** `negotiateProtocol()` checks it against `SUPPORTED_PROTOCOL_VERSIONS`. An unlisted value returns `-32022` with HTTP 400 and `data.requested` (what the client sent) and `data.supported` (the advertised list, in order), the key names the `2026-07-28` schema defines for `UnsupportedProtocolVersionError`. This applies to every method, `initialize` included, except `server/discover`, which is always answered with HTTP 200.
 - **`initialize` handshake.** `params.protocolVersion` is never rejected. A supported revision is echoed back. Otherwise the server offers the highest legacy revision that is not newer than the one requested, or the highest legacy revision when the request is newer than everything supported. A client on an in-between revision is therefore offered one it is likely to understand, and clients that worked before this release keep working.
 
 ### What differs between the eras

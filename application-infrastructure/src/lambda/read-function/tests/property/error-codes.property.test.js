@@ -105,7 +105,7 @@ describe('Feature: get-integration-working, Property 4: Standard Error Codes for
 
         // Error code must be -32700 (Parse error)
         expect(body.error.code).toBe(JSON_RPC_ERRORS.PARSE_ERROR);
-        expect(body.id).toBeNull();
+        expect(body).not.toHaveProperty('id');
       }),
       { numRuns: 100 }
     );

@@ -22,15 +22,15 @@ A **core** check fails the build when it fails or gets no answer. An **advisory*
 | P1 discovery | Core | P1.1 to P1.5 | `server/discover` answers without a key, uses the modern response envelope, names `atlantis-mcp-server`, has non-empty `instructions`, has the `ttlMs` (a non-negative integer) and `cacheScope` (`public` or `private`) that the schema requires on a discover result, and lists at least the revisions `2024-11-05`, `2025-11-25`, and `2026-07-28` |
 | V1 version | Core | V1.1, V1.2 | The live server reports the release version that was just built, both from `server/discover` and from the legacy `initialize` result. A mismatch means stale code is still running |
 | P2 legacy `initialize` | Core | P2.1 to P2.7 | The legacy handshake negotiates the right revision for `2025-11-25`, `2024-11-05`, an in-between revision, an unknown revision, and no parameters; the result has exactly the expected four keys; the `instructions` match `server/discover` |
-| P3 unsupported revision | Core | P3.1 to P3.3 | An unlisted revision, sent in the `MCP-Protocol-Version` header or in `params._meta`, gets error `-32022` that lists the advertised `supportedVersions` |
-| P4 header mismatch | Core | P4.1 to P4.5 | `Mcp-Method` and `Mcp-Name` headers that disagree with the body get error `-32020`, matching headers are accepted, header names are matched without regard to case, and a legacy request ignores the headers |
+| P3 unsupported revision | Core | P3.1 to P3.3 | An unlisted revision, sent in the `MCP-Protocol-Version` header or in `params._meta`, gets HTTP 400 and error `-32022`. `error.data.requested` is the revision that was sent (P3.1, P3.2), and `error.data.supported` is the same list, in the same order, as the `supportedVersions` of `server/discover` (P3.3) |
+| P4 header mismatch | Core | P4.1 to P4.5 | `Mcp-Method` and `Mcp-Name` headers that disagree with the body get HTTP 400 and error `-32020` (P4.1, P4.2, P4.4). Matching headers are accepted with HTTP 200 (P4.3), header names are matched without regard to case (P4.4), and a legacy request ignores the headers and gets HTTP 200 (P4.5) |
 | P5 `tools/list` | Core | P5.1 to P5.9 | Each revision gets the fields it should have and none it should not (`ttlMs`, `cacheScope`, `resultType`, `_meta`, tool `title` and `annotations`), a modern `cacheScope` is `public` or `private`, every revision lists the same tools in the same order, and any extra advertised revision is accepted |
 | P6 `tools/call` | Core | P6.1, P6.2 | The `list_tools` call returns the modern envelope for `2026-07-28` and the legacy shape for `2025-11-25` |
 | X1 CORS preflight | Core | X1.1 to X1.3 | The `OPTIONS` preflight on the API Gateway endpoint answers 200 and allows the origin, `POST`, and the `MCP-Protocol-Version`, `Mcp-Method`, and `Mcp-Name` headers |
 | T1 backend | Advisory | T1.1 | `list_templates` returns template data, so the S3 backend works |
 | S1 invalid key | Advisory | S1.1 | A made-up API key is rejected with HTTP 401 |
 | S2 stored key | Advisory | S2.1 to S2.3 | The stored key works in `X-API-Key` and as a Bearer token, and gets a higher rate limit than the public tier. Skipped when no key is stored |
-| X2 edge | Advisory | X2.1 to X2.4 | The same preflight, version, and `-32020` behavior through the stage's custom domain (CloudFront). Skipped when the stage has no custom domain |
+| X2 edge | Advisory | X2.1 to X2.4 | The same preflight, version, and `-32020` behavior through the stage's custom domain (CloudFront). The two `-32020` sub-checks (X2.3, X2.4) expect HTTP 400 with `-32020`. Skipped when the stage has no custom domain |
 
 In total there are 36 core and 9 advisory sub-checks.
 
@@ -54,7 +54,7 @@ Lines from the script are prefixed `[05-verify-deployment]` and carry a level. `
 [05-verify-deployment] INFO: Verification key: no key configured: placeholder BLANK. Running at the public tier
 PASS  P1.1   server/discover answers without a key
 SKIP  S2.1   the stored key is accepted in X-API-Key (no key configured: placeholder BLANK)
-WARN  X2.4   edge returns -32020 for a mismatched Mcp-Name (result instead of error -32020; the edge may not be forwarding the MCP-Protocol-Version or Mcp-* headers)
+WARN  X2.4   edge returns -32020 for a mismatched Mcp-Name (HTTP 200, expected 400; the edge may not be forwarding the MCP-Protocol-Version or Mcp-* headers; body: ...)
 [05-verify-deployment] INFO: Core: 36 passed, 0 failed, 0 skipped. Advisory: 5 passed, 1 warned, 3 skipped
 [05-verify-deployment] INFO: Outcome: passed
 [05-verify-deployment] INFO: Report: build/verify/report.json
@@ -80,11 +80,13 @@ Some reasons you may meet:
 |--------|---------------|
 | `no response (...) after 2 attempts` | The request timed out or the connection failed twice. The text in parentheses is `timeout` or the error code |
 | `HTTP <status>, expected <expected>; body: ...` | The endpoint answered with another status. Only a short excerpt of the body is shown |
+| `HTTP 200, expected 400; <hint>; body: ...` | A P3 or P4 request, or an X2.3 or X2.4 request, that must fail with `-32022` or `-32020` got HTTP 200. For P4 and X2 the hint is added when the body is a normal result, and is described in the last two rows of this table. A `-32022` or `-32020` error that arrives with HTTP 200 has no hint and means the server is not returning the status the MCP specification requires |
 | `redirect (HTTP <status>) to <host> was not followed` | Redirects are never followed, so the key cannot be sent to another host |
 | `not attempted: raw target did not answer P1` | P1 got no answer or an HTTP 5xx after its retry, so no more requests went to the raw endpoint. The X2 sub-checks still run |
 | `no answer: rate limited (HTTP 429)` | The request got HTTP 429. The sub-check is SKIP, and on a core check that makes the run inconclusive |
 | `no baseline: P1 had no answer` | A comparison against P1 could not be made because P1 was rate limited |
-| `the edge may not be forwarding the MCP-Protocol-Version or Mcp-* headers` | An X2 request got a normal result instead of `-32020`. Check the CloudFront behavior for `/mcp/*` |
+| `the MCP-Protocol-Version or Mcp-* headers may not be reaching the function` | A P4 request (P4.1, P4.2, or P4.4) got HTTP 200 and a normal result instead of HTTP 400 and `-32020`. The mismatched headers were probably not delivered to the Read Function. Because the raw API Gateway endpoint is the target, check the API Gateway integration and the request that was sent |
+| `the edge may not be forwarding the MCP-Protocol-Version or Mcp-* headers` | An X2 request (X2.3 or X2.4) got HTTP 200 and a normal result instead of HTTP 400 and `-32020`. Check the CloudFront behavior for `/mcp/*`. If P4 passed on the raw endpoint, the edge is the likely cause |
 
 ### Summary and outcome
 

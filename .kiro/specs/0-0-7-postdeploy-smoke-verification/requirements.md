@@ -144,15 +144,17 @@ Small refinements made while writing these requirements. Strike any you disagree
 #### Acceptance Criteria
 
 1. THE Verifier SHALL send P3 as two `tools/list` requests to the raw target: one with the header `MCP-Protocol-Version: 2099-01-01`, and one with `params._meta["io.modelcontextprotocol/protocolVersion"]` set to `2099-01-01` and no header.
-2. P3 SHALL pass only WHEN both responses have HTTP status 200 and `error.code` `-32022`, with `error.data.declaredRevision` equal to `2099-01-01` and `error.data.supportedVersions` equal to P1's `supportedVersions`.
+2. P3 SHALL pass only WHEN both responses have HTTP status 400 and `error.code` `-32022`, with `error.data.requested` equal to `2099-01-01` and `error.data.supported` equal to P1's `supportedVersions`.
 3. THE Verifier SHALL send P4 as five requests to the raw target:
-   1. `MCP-Protocol-Version: 2026-07-28` and `Mcp-Method: tools/call` on a `tools/list` body, expecting `-32020` with `error.data.headerValue` equal to `tools/call`
-   2. `MCP-Protocol-Version: 2026-07-28`, `Mcp-Method: tools/call`, and `Mcp-Name: list_categories` on a `tools/call` body for `list_tools`, expecting `-32020` with `error.data.headerValue` equal to `list_categories`
+   1. `MCP-Protocol-Version: 2026-07-28` and `Mcp-Method: tools/call` on a `tools/list` body, expecting `-32020` with HTTP 400 and `error.data.headerValue` equal to `tools/call`
+   2. `MCP-Protocol-Version: 2026-07-28`, `Mcp-Method: tools/call`, and `Mcp-Name: list_categories` on a `tools/call` body for `list_tools`, expecting `-32020` with HTTP 400 and `error.data.headerValue` equal to `list_categories`
    3. the second request with `Mcp-Name: list_tools` instead, expecting no `error` and `resultType` equal to `complete`
-   4. the first request with its header names written as `mcp-protocol-version` and `MCP-METHOD`, expecting `-32020`
+   4. the first request with its header names written as `mcp-protocol-version` and `MCP-METHOD`, expecting `-32020` with HTTP 400
    5. `Mcp-Method: tools/call` and `Mcp-Name: something_else` on a `tools/list` body with no revision declared, expecting no `error` and a non-empty `tools` array
 4. P4 SHALL pass only WHEN every request gets its expected answer.
 5. THE Verifier SHALL send header names exactly as written in criterion 3, without changing their case.
+
+> Updated 2026-11-02 by spec 0-0-7-schema-validation-of-modern-results: criteria 2 and 3 now expect HTTP 400 for `-32022` and `-32020`, and `error.data.requested` and `error.data.supported` (were `declaredRevision` and `supportedVersions`), as the 2026-07-28 schema requires.
 
 ### Requirement 7: Core checks P5 and P6, tool listing and tool calls
 
@@ -190,8 +192,10 @@ Small refinements made while writing these requirements. Strike any you disagree
 3. WHERE the key classification is `present`, THE Verifier SHALL send S2 as two `initialize` requests to the raw target, before any other request carries the key: the first with the key in `X-API-Key`, the second with `Authorization: Bearer <key>`. Each SHALL pass only WHEN the response has HTTP status 200, no `error`, and no `X-MCP-Auth-Status: degraded` header. A further S2 sub-check SHALL pass only WHEN the first response's `X-RateLimit-Limit` is greater than P1's.
 4. WHEN the first S2 request passes and the limit sub-check does not fail, THE Verifier SHALL send the key in `X-API-Key` on every later POST. Otherwise, THE Verifier SHALL run the remaining checks without a key, and S2's reason SHALL say so.
 5. WHERE the key classification is not `present`, THE Verifier SHALL report S2 as SKIP with the classification as the reason, for example "no key configured: placeholder BLANK".
-6. WHERE an edge target exists, THE Verifier SHALL run X2 against it as four sub-checks: a preflight with the same headers and pass conditions as X1; a `server/discover` whose reported version equals the expected version; a `tools/list` with `MCP-Protocol-Version: 2026-07-28` and `Mcp-Method: tools/call`, expecting `-32020`; and a `tools/call` for `list_tools` with `MCP-Protocol-Version: 2026-07-28`, `Mcp-Method: tools/call`, and `Mcp-Name: list_categories`, expecting `-32020`.
+6. WHERE an edge target exists, THE Verifier SHALL run X2 against it as four sub-checks: a preflight with the same headers and pass conditions as X1; a `server/discover` whose reported version equals the expected version; a `tools/list` with `MCP-Protocol-Version: 2026-07-28` and `Mcp-Method: tools/call`, expecting `-32020` with HTTP 400; and a `tools/call` for `list_tools` with `MCP-Protocol-Version: 2026-07-28`, `Mcp-Method: tools/call`, and `Mcp-Name: list_categories`, expecting `-32020` with HTTP 400.
 7. IF an X2 mismatch request gets a normal result instead of `-32020`, THEN its reason SHALL say that the edge may not be forwarding the `MCP-Protocol-Version` or `Mcp-*` headers.
+
+> Updated 2026-11-02 by spec 0-0-7-schema-validation-of-modern-results: criterion 6 now expects `-32020` with HTTP 400 for the two X2 mismatch requests.
 
 ### Requirement 10: Outcomes, severity, and exit codes
 

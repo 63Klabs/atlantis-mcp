@@ -43,6 +43,18 @@ const STANDARD_HEADERS = {
 };
 
 /**
+ * HTTP status for the protocol errors whose schema definitions state one.
+ *
+ * >! The MCP 2026-07-28 schema says UnsupportedProtocolVersionError (-32022) and
+ * >! HeaderMismatchError (-32020) MUST be sent with "400 Bad Request" over HTTP,
+ * >! and the 2025-06-18 and 2025-11-25 transports say the same for an unsupported
+ * >! MCP-Protocol-Version. Every other JSON-RPC error keeps HTTP 200.
+ *
+ * @constant {number}
+ */
+const PROTOCOL_ERROR_HTTP_STATUS = 400;
+
+/**
  * Base map of MCP tool names to their controller handler functions, covering
  * the templates, starters, documentation, naming, update-check, and
  * tool-listing tools.
@@ -147,15 +159,16 @@ function buildResponse(statusCode, body) {
 /**
  * Extract the JSON-RPC `id` from a parsed request body.
  *
- * Per JSON-RPC 2.0, valid id types are string and number.
- * Any other type (object, array, boolean, undefined) is treated as
- * missing and the response id is set to `null`.
+ * MCP defines a request id as a string or an integer (`RequestId`). Any other
+ * value (null, object, array, boolean, float, undefined) is not a usable id and
+ * `null` is returned. The caller decides whether that means "no id" (a notification)
+ * or "invalid id" (see `hasId` in `handleJsonRpc`).
  *
  * @param {*} rawId - The `id` value from the parsed request
- * @returns {string|number|null} Sanitised id value
+ * @returns {string|number|null} The id when it is a string or an integer, otherwise `null`
  */
 function extractId(rawId) {
-  if (typeof rawId === 'string' || typeof rawId === 'number') {
+  if (typeof rawId === 'string' || Number.isInteger(rawId)) {
     return rawId;
   }
   return null;
@@ -167,17 +180,28 @@ function extractId(rawId) {
  * Processing steps:
  * 1. Parse the event body as JSON (return `-32700` on failure).
  * 2. Validate required fields `jsonrpc` and `method` (return `-32600` if missing).
- * 3. Extract `id` (use `null` when missing or invalid type).
+ * 3. Extract `id` (a string or integer; otherwise unknown). An error for an unknown
+ *    id carries no `id` member. A present but invalid `id` is rejected with `-32600`.
  * 4. Resolve protocol era (legacy vs modern) from method and declared version.
  * 5. Validate modern-era headers (Mcp-Method, Mcp-Name) if era is modern.
  * 6. Negotiate protocol version if client declares a revision.
- * 7. Dispatch by `method`:
+ * 7. Notifications (step 4b): a message with no `id` member is a notification. After the
+ *    header (`-32020`) and revision (`-32022`) checks pass, it is answered with HTTP 202
+ *    and an empty body (`''`), and is not dispatched.
+ * 8. Dispatch by `method`:
  *    - `initialize`        → server capabilities via `initializeResult`
  *    - `server/discover`   → modern discovery via `discoverResult`
  *    - `tools/list`        → tool definitions via `toolsListResult`
  *    - `tools/call`        → delegate to the matching controller
  *    - anything else       → `-32601` Method not found
- * 8. Wrap every response with `Content-Type: application/json`.
+ * 9. Wrap every response with `Content-Type: application/json`.
+ *
+ * HTTP status: every response is 200 except:
+ * - 202 with an empty body for an accepted notification (a message with no `id`)
+ * - two protocol errors that the MCP schema requires to be sent with 400 Bad Request
+ *   (`PROTOCOL_ERROR_HTTP_STATUS`):
+ *   - `-32020` Header mismatch (modern-era `Mcp-Method` / `Mcp-Name` disagrees with the body)
+ *   - `-32022` Unsupported protocol version (any method except `server/discover`)
  *
  * @async
  * @param {ClientRequest} clientRequest - ClientRequest object
@@ -230,6 +254,8 @@ async function handleJsonRpc(clientRequest, authInfo) {
     }
 
     // --- Step 2: Extract id early ---------------------------------------------
+    // >! body may be any JSON value; a non-object is rejected by the envelope check in step 3
+    const hasId = body !== null && typeof body === 'object' && Object.hasOwn(body, 'id');
     id = extractId(body.id);
 
     // --- Step 3: Validate JSON-RPC 2.0 envelope -------------------------------
@@ -239,6 +265,16 @@ async function handleJsonRpc(clientRequest, authInfo) {
         MCPProtocol.JSON_RPC_ERRORS.INVALID_REQUEST,
         'Invalid Request',
         { details: 'Missing or invalid "jsonrpc" or "method" field' }
+      ));
+    }
+    // >! MCP 2025-11-25 and 2026-07-28: "Requests MUST include a string or integer ID".
+    // >! A present but invalid id is an invalid request; an absent id is a notification.
+    if (hasId && id === null) {
+      return buildResponse(200, MCPProtocol.jsonRpcError(
+        null,
+        MCPProtocol.JSON_RPC_ERRORS.INVALID_REQUEST,
+        'Invalid Request',
+        { details: 'The "id" must be a string or an integer' }
       ));
     }
 
@@ -252,7 +288,8 @@ async function handleJsonRpc(clientRequest, authInfo) {
     if (era === 'modern') {
       const headerErr = validateHeadersForModern(method, event.headers || {}, body);
       if (headerErr) {
-        return buildResponse(200, MCPProtocol.jsonRpcError(
+        // >! -32020 must be sent with HTTP 400 (HeaderMismatchError, 2026-07-28 schema)
+        return buildResponse(PROTOCOL_ERROR_HTTP_STATUS, MCPProtocol.jsonRpcError(
           id,
           headerErr.code,
           headerErr.message,
@@ -266,17 +303,27 @@ async function handleJsonRpc(clientRequest, authInfo) {
     if (declaredRevision !== null && method !== 'server/discover') {
       const decision = MCPProtocol.negotiateProtocol(declaredRevision);
       if (!decision.accepted) {
-        return buildResponse(200, MCPProtocol.jsonRpcError(
+        // >! -32022 must be sent with HTTP 400 (UnsupportedProtocolVersionError, 2026-07-28 schema)
+        return buildResponse(PROTOCOL_ERROR_HTTP_STATUS, MCPProtocol.jsonRpcError(
           id,
           MCPProtocol.JSON_RPC_ERRORS.UNSUPPORTED_PROTOCOL_VERSION,
           'Unsupported protocol version',
           {
-            // >! Echo what the client declared; negotiatedRevision is always null on rejection
-            declaredRevision,
-            supportedVersions: decision.supportedVersions
+            // >! Key names from UnsupportedProtocolVersionError (2026-07-28 schema):
+            // >! "requested" is what the client declared, "supported" what it may retry with
+            requested: declaredRevision,
+            supported: decision.supportedVersions
           }
         ));
       }
+    }
+
+    // --- Step 4b: Notifications -----------------------------------------------
+    // >! A JSON-RPC message with no id member is a notification. The 2025-11-25
+    // >! Streamable HTTP transport: an accepted notification MUST get "202 Accepted"
+    // >! with no body. Header and revision errors above still apply to it.
+    if (!hasId) {
+      return { statusCode: 202, headers: { ...STANDARD_HEADERS }, body: '' };
     }
 
     // --- Step 5: Dispatch by method -------------------------------------------

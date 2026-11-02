@@ -144,6 +144,8 @@ describe('Auth Resolver — resolveAuth()', () => {
 		expect(body.error).toBeDefined();
 		expect(body.error.code).toBe(-32001);
 		expect(body.error.message).toMatch(/invalid api key/i);
+		// Requirement 24.4: the 401 body has no known request id, so it carries no id member
+		expect(body).not.toHaveProperty('id');
 	});
 
 	/* -------------------------------------------------------------- */

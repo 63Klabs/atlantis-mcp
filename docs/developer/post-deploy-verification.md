@@ -23,17 +23,33 @@ The Verifier evaluates 45 sub-checks with stable IDs of the form `<check>.<n>`. 
 | P1 | Core | `server/discover` answers without a key, uses the modern envelope, names `atlantis-mcp-server`, has `instructions`, carries the cache hints the schema requires on a discover result (`ttlMs` a non-negative integer, `cacheScope` `public` or `private`), and `supportedVersions` contains `2024-11-05`, `2025-11-25`, and `2026-07-28` | P1.1 to P1.5 |
 | V1 | Core | The release version reported by `server/discover` and by `initialize` equals the version `write_release_version.py` produced, so stale code is caught | V1.1, V1.2 |
 | P2 | Core | Legacy `initialize` negotiation for five requests, the exact four-key result, and `instructions` identical to P1's | P2.1 to P2.7 |
-| P3 | Core | `-32022` for an unlisted revision, declared in the header and in `params._meta`, listing the advertised `supportedVersions` | P3.1 to P3.3 |
-| P4 | Core | `-32020` for mismatched `Mcp-Method` and `Mcp-Name`, matching ones accepted, header names matched without regard to case, and legacy requests ignoring the headers | P4.1 to P4.5 |
+| P3 | Core | HTTP 400 and `-32022` for an unlisted revision, declared in the header and in `params._meta`, with `error.data.requested` equal to the revision sent (P3.1, P3.2) and `error.data.supported` equal to the `supportedVersions` of `server/discover` (P1), in order (P3.3) | P3.1 to P3.3 |
+| P4 | Core | HTTP 400 and `-32020` for mismatched `Mcp-Method` and `Mcp-Name` (P4.1, P4.2, P4.4), matching ones accepted with HTTP 200 (P4.3), header names matched without regard to case, and legacy requests ignoring the headers with HTTP 200 (P4.5) | P4.1 to P4.5 |
 | P5 | Core | `tools/list` per revision: modern cacheable fields (`cacheScope` must be `public` or `private`), legacy results without them, titles and annotations on `2025-11-25` and later, the same tools on every revision, and every extra advertised revision accepted | P5.1 to P5.9 |
 | P6 | Core | `tools/call` for `list_tools` with the modern envelope on `2026-07-28` and without it on `2025-11-25` | P6.1, P6.2 |
 | X1 | Core | The CORS preflight on the API Gateway endpoint | X1.1 to X1.3 |
 | T1 | Advisory | `list_templates` returns template data, which needs the backends | T1.1 |
 | S1 | Advisory | An invalid key is rejected with HTTP 401 | S1.1 |
 | S2 | Advisory | The stored key is accepted in `X-API-Key` and as a Bearer token, and gets a higher rate limit than the public tier | S2.1 to S2.3 |
-| X2 | Advisory | The preflight and the `-32020` behavior also work through the stage's custom domain, which shows CloudFront forwards the headers | X2.1 to X2.4 |
+| X2 | Advisory | The preflight and the `-32020` behavior (HTTP 400 with `-32020` in X2.3 and X2.4) also work through the stage's custom domain, which shows CloudFront forwards the headers and passes the 400 status on unchanged | X2.1 to X2.4 |
 
-Without a stored key, S2.1 to S2.3 are SKIP. Without a custom domain (`test`), X2.1 to X2.4 are SKIP. The full catalog, with each request and its pass conditions, is in the [design](../../.kiro/specs/0-0-7-postdeploy-smoke-verification/design.md#7-check-catalog).
+Without a stored key, S2.1 to S2.3 are SKIP. Without a custom domain (`test`), X2.1 to X2.4 are SKIP. The full catalog, with each request and its pass conditions, is in the [design](../../.kiro/specs/0-0-7-postdeploy-smoke-verification/design.md#7-check-catalog). The P3, P4, and X2 conditions above are the current ones, set by [schema validation of modern results](../../.kiro/specs/0-0-7-schema-validation-of-modern-results/design.md).
+
+### Failure reasons for P3, P4, and X2
+
+A P3, P4, or X2 request that must fail with `-32022` or `-32020` is expected to get HTTP 400. When it gets another status, the reason is `HTTP <status>, expected 400; body: ...`. When the answer is HTTP 200 with a normal result instead of the error, the reason adds a hint between the status and the body: `HTTP 200, expected 400; <hint>; body: ...`.
+
+| Sub-checks | Hint added to a result with HTTP 200 | Likely cause |
+|------------|--------------------------------------|--------------|
+| P4.1, P4.2, P4.4 | `the MCP-Protocol-Version or Mcp-* headers may not be reaching the function` | The mismatched headers did not arrive at the Read Function |
+| X2.3, X2.4 | `the edge may not be forwarding the MCP-Protocol-Version or Mcp-* headers` | The custom domain (CloudFront) drops the headers |
+| P3.1, P3.2 | none | The server answered HTTP 200 for an unlisted revision, or did not check the revision |
+
+An error that has the right code but arrives with HTTP 200 gets no hint. It fails on the status and means the server is not returning the status the MCP specification requires.
+
+### Where the expected values come from
+
+The Verifier states the key names (`requested`, `supported`) and the status (400) itself, on purpose. It copies them from the published schema for revision `2026-07-28` and imports nothing from the Read Function's code, so a mistake in the server cannot also change what the Verifier expects. The fake server in `tests/postdeploy-verify` does the same. Its conformance is checked by `fake-mcp-server-schema-conformance.jest.mjs`, which validates the fake's responses against the vendored schemas in `application-infrastructure/tests/mcp-schemas`. See [MCP protocol sources of truth](mcp-protocol-sources.md).
 
 ### What stays manual
 
@@ -207,7 +223,7 @@ Make a check core only when the behavior is controlled by this repository and it
 To add or change a check:
 
 1. In `verify-deployment.js`, add the request to `REQUEST_BUILDERS`, add each sub-check to `SUB_CHECK_ROWS` with its ID, check, severity (`C` or `A`), and title, add the check to `CHECK_ORDER` if it is new, and register its function in `CHECK_FUNCTIONS`. Keep the order in the design: the key is used only after S2 has accepted it, and preflights never carry a key.
-2. Teach the fake server in `tests/postdeploy-verify/helpers/fake-mcp-server.mjs` the new request, using the response shapes in [supported protocol revisions](../end-user/supported-protocol-revisions.md) and [CORS and response headers](../admin-ops/cors-and-response-headers.md). `fake-mcp-server-tests.jest.mjs` keeps the fake honest.
+2. Teach the fake server in `tests/postdeploy-verify/helpers/fake-mcp-server.mjs` the new request, using the response shapes in [supported protocol revisions](../end-user/supported-protocol-revisions.md) and [CORS and response headers](../admin-ops/cors-and-response-headers.md). `fake-mcp-server-tests.jest.mjs` keeps the fake honest, and `fake-mcp-server-schema-conformance.jest.mjs` checks its responses against the vendored schemas, so a new response shape must pass both.
 3. In `checks-tests.jest.mjs`, show that a healthy server passes the sub-check and that a change to the fake fails it with the documented reason.
 4. In `budget-tests.jest.mjs`, update the expected counted requests if the check sends a new one.
 5. In `outcome-and-report-tests.jest.mjs`, update the fixed list of sub-check IDs and the counts (45 sub-checks, 36 core, 9 advisory).

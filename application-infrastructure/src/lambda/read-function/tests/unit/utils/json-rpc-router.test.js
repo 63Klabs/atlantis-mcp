@@ -246,7 +246,7 @@ describe('JSON-RPC Router', () => {
 
       expect(response.statusCode).toBe(200);
       expect(body.jsonrpc).toBe('2.0');
-      expect(body.id).toBeNull();
+      expect(body).not.toHaveProperty('id');
       expect(body.error.code).toBe(-32700);
       expect(body.error.message).toBe('Parse error');
     });
@@ -258,7 +258,7 @@ describe('JSON-RPC Router', () => {
       const body = parseBody(response);
 
       expect(body.jsonrpc).toBe('2.0');
-      expect(body.id).toBeNull();
+      expect(body).not.toHaveProperty('id');
       expect(body.error.code).toBe(-32700);
     });
 
@@ -315,6 +315,148 @@ describe('JSON-RPC Router', () => {
       const body = parseBody(response);
 
       expect(body.error.code).toBe(-32600);
+    });
+  });
+
+  // ---------------------------------------------------------------
+  // Invalid request id — Validates: Requirements 24.2, 24.3, 24.8
+  // ---------------------------------------------------------------
+  describe('Request id validation (Requirement 24)', () => {
+    const INVALID_IDS = [
+      ['null', null],
+      ['an object', {}],
+      ['true', true],
+      ['a non-integer number (1.5)', 1.5]
+    ];
+    test.each(INVALID_IDS)('an id of %s returns -32600 with no id and HTTP 200', async (_label, badId) => {
+      const clientRequest = makeClientRequest({
+        jsonrpc: '2.0',
+        method: 'tools/list',
+        id: badId
+      });
+      const response = await handleJsonRpc(clientRequest);
+      const body = parseBody(response);
+      expect(response.statusCode).toBe(200);
+      expect(body.jsonrpc).toBe('2.0');
+      expect(body.error.code).toBe(-32600);
+      expect(body.error.data.details).toMatch(/id/);
+      expect(body).not.toHaveProperty('id');
+      expect(body).not.toHaveProperty('result');
+    });
+    test('an invalid id is rejected on server/discover as well', async () => {
+      const clientRequest = makeClientRequest({
+        jsonrpc: '2.0',
+        method: 'server/discover',
+        id: true
+      });
+      const response = await handleJsonRpc(clientRequest);
+      const body = parseBody(response);
+      expect(response.statusCode).toBe(200);
+      expect(body.error.code).toBe(-32600);
+      expect(body).not.toHaveProperty('id');
+    });
+    test('an integer id is still echoed', async () => {
+      const clientRequest = makeClientRequest({
+        jsonrpc: '2.0',
+        method: 'tools/list',
+        id: 7
+      });
+      const response = await handleJsonRpc(clientRequest);
+      const body = parseBody(response);
+      expect(body.id).toBe(7);
+      expect(body).not.toHaveProperty('error');
+    });
+    test('a string id is still echoed', async () => {
+      const clientRequest = makeClientRequest({
+        jsonrpc: '2.0',
+        method: 'tools/list',
+        id: 'abc'
+      });
+      const response = await handleJsonRpc(clientRequest);
+      const body = parseBody(response);
+      expect(body.id).toBe('abc');
+      expect(body).not.toHaveProperty('error');
+    });
+    test('a parse error (-32700) carries no id', async () => {
+      const clientRequest = makeClientRequest('{not valid json');
+      const response = await handleJsonRpc(clientRequest);
+      const body = parseBody(response);
+      expect(response.statusCode).toBe(200);
+      expect(body.error.code).toBe(-32700);
+      expect(body).not.toHaveProperty('id');
+    });
+  });
+  // ---------------------------------------------------------------
+  // Notifications — Validates: Requirements 25.1, 25.2, 25.3, 25.5, 25.6
+  // A message with no id member is a notification: after the header and
+  // revision checks it gets HTTP 202 with an empty body.
+  // ---------------------------------------------------------------
+  describe('Notifications (Requirement 25)', () => {
+    /**
+     * Helper: build a clientRequest whose event carries request headers
+     */
+    function makeClientRequestWithHeaders(body, headers) {
+      const event = { ...makeEvent(body), headers };
+      return {
+        getEvent: () => event,
+        getProps: () => ({ path: 'mcp/v1', method: 'POST', headers }),
+        addQueryLog: jest.fn()
+      };
+    }
+
+    test('notifications/initialized with no id returns 202 and an empty body', async () => {
+      const clientRequest = makeClientRequest({
+        jsonrpc: '2.0',
+        method: 'notifications/initialized'
+      });
+
+      const response = await handleJsonRpc(clientRequest);
+
+      expect(response.statusCode).toBe(202);
+      expect(response.body).toBe('');
+    });
+
+    test('an unknown notification method with no id returns 202', async () => {
+      const clientRequest = makeClientRequest({
+        jsonrpc: '2.0',
+        method: 'notifications/some-unknown-method'
+      });
+
+      const response = await handleJsonRpc(clientRequest);
+
+      expect(response.statusCode).toBe(202);
+      expect(response.body).toBe('');
+    });
+
+    test('a notification declaring an unlisted revision returns -32022 with no id', async () => {
+      const clientRequest = makeClientRequestWithHeaders(
+        { jsonrpc: '2.0', method: 'notifications/initialized' },
+        { 'MCP-Protocol-Version': '2099-01-01' }
+      );
+
+      const response = await handleJsonRpc(clientRequest);
+      const body = parseBody(response);
+
+      expect(response.statusCode).toBe(400);
+      expect(body.error.code).toBe(-32022);
+      expect(body).not.toHaveProperty('id');
+    });
+
+    test('a modern notification whose Mcp-Method disagrees returns -32020 with no id', async () => {
+      const clientRequest = makeClientRequestWithHeaders(
+        { jsonrpc: '2.0', method: 'notifications/initialized' },
+        {
+          'MCP-Protocol-Version': '2026-07-28',
+          'Mcp-Method': 'tools/list'
+        }
+      );
+
+      const response = await handleJsonRpc(clientRequest);
+      const body = parseBody(response);
+
+      expect(response.statusCode).toBe(400);
+      expect(body.error.code).toBe(-32020);
+      expect(body).not.toHaveProperty('id');
     });
   });
 

@@ -129,6 +129,21 @@ describe('/mcp/v1 Routing', () => {
       expect(result).toBeUndefined();
     });
 
+    test('a notification 202 with an empty body sets a null body and does not throw (Requirement 25.5)', async () => {
+      // >! A notification's 202 has no body; JSON.parse('') would throw
+      mockHandleJsonRpc.mockResolvedValue({ statusCode: 202, headers: {}, body: '' });
+
+      let result;
+      await expect((async () => {
+        result = await Routes.process(mockClientRequest, mockResponse);
+      })()).resolves.toBeUndefined();
+
+      expect(mockHandleJsonRpc).toHaveBeenCalledWith(mockClientRequest, undefined);
+      expect(mockResponse.setStatusCode).toHaveBeenCalledWith(202);
+      expect(mockResponse.setBody).toHaveBeenCalledWith(null);
+      expect(result).toBeUndefined();
+    });
+
     test('still passes clientRequest to handleJsonRpc', async () => {
       const jsonRpcResponse = { statusCode: 200, body: '{}' };
       mockHandleJsonRpc.mockResolvedValue(jsonRpcResponse);

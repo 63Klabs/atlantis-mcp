@@ -219,7 +219,7 @@ function negotiateProtocol(declaredRevision) {
 }
 ```
 
-Caller (in `utils/mcp-era.js`) turns an unsupported result into `UnsupportedProtocolVersionError` with the full `supportedVersions` list in `data`.
+Caller (in `utils/mcp-era.js`) turns an unsupported result into `UnsupportedProtocolVersionError`. The router puts the declared revision in `error.data.requested` and the full supported list in `error.data.supported`, and sends the error with HTTP 400 (see the note under "`UNSUPPORTED_PROTOCOL_VERSION` data payload").
 
 ### 5. Era discriminator — `utils/mcp-era.js` (new)
 
@@ -371,11 +371,15 @@ Error-code name convention follows the existing uppercase-with-underscores patte
   code: -32022,
   message: 'Unsupported protocol version',
   data: {
-    declaredRevision: '2099-01-01',    // what the client sent
-    supportedVersions: ['2024-11-05', '2025-11-25', '2026-07-28']
+    requested: '2099-01-01',    // what the client sent
+    supported: ['2024-11-05', '2025-11-25', '2026-07-28']
   }
 }
 ```
+
+The error, and `-32020` (`HEADER_MISMATCH`), are sent with HTTP status `400 Bad Request`. Every other JSON-RPC error keeps HTTP `200`.
+
+> Corrected 2026-11-01 by `0-0-7-schema-validation-of-modern-results`: the `-32022` `data` keys are `requested` and `supported` (were `declaredRevision` and `supportedVersions`), and `-32022` and `-32020` use HTTP 400 (were 200). Key names and status now follow the published 2026-07-28 schema (`UnsupportedProtocolVersionError`, `HeaderMismatchError`).
 
 The error is raised whether the request's era is nominally legacy or modern — a legacy client that puts an unknown revision in `initialize.params.protocolVersion` gets the same error data, because `negotiateProtocol()` is called from both branches with the respective version source.
 
@@ -498,18 +502,18 @@ const { era, declaredRevision } = resolveEra(method, body, event.headers);
 if (era === 'modern') {
   const headerErr = validateHeadersForModern(method, event.headers, body);
   if (headerErr) {
-    return buildResponse(200, jsonRpcError(id, headerErr.code, headerErr.message, headerErr.data));
+    return buildResponse(400, jsonRpcError(id, headerErr.code, headerErr.message, headerErr.data));
   }
 }
 
 if (declaredRevision !== null) {
   const decision = negotiateProtocol(declaredRevision);
   if (!decision.supported) {
-    return buildResponse(200, jsonRpcError(
+    return buildResponse(400, jsonRpcError(
       id,
       JSON_RPC_ERRORS.UNSUPPORTED_PROTOCOL_VERSION,
       'Unsupported protocol version',
-      { declaredRevision: decision.declaredRevision, supportedVersions: decision.supportedVersions }
+      { requested: decision.declaredRevision, supported: decision.supportedVersions }
     ));
   }
 }
@@ -769,14 +773,16 @@ Legacy `tools/list` keeps its current shape: `{ tools: Array<Tool> }` with no ad
     "code": -32022,
     "message": "Unsupported protocol version",
     "data": {
-      "declaredRevision": "2099-01-01",
-      "supportedVersions": ["2024-11-05", "2025-11-25", "2026-07-28"]
+      "requested": "2099-01-01",
+      "supported": ["2024-11-05", "2025-11-25", "2026-07-28"]
     }
   }
 }
 ```
 
-Both error responses carry a `200 OK` HTTP status (the existing convention — JSON-RPC errors are not HTTP errors), consistent with every other error path in the router.
+Both error responses carry HTTP status `400 Bad Request`, as the 2026-07-28 schema requires for `UnsupportedProtocolVersionError` and `HeaderMismatchError`. Every other error path in the router keeps `200 OK` (the existing convention: JSON-RPC errors are not HTTP errors).
+
+> Corrected 2026-11-01 by `0-0-7-schema-validation-of-modern-results`: key names and status now follow the published schema. The `-32022` `data` keys were `declaredRevision` and `supportedVersions`, and both errors were sent with HTTP 200.
 
 ### Error-condition migration (Requirement 6.4)
 
@@ -812,9 +818,9 @@ Add under `tests/integration/`:
 | File | Covers |
 |---|---|
 | `mcp-protocol-dual-era.test.js` | End-to-end: a legacy `initialize` request through the router returns a legacy envelope with `instructions`; a `server/discover` request returns a modern envelope; the `instructions` string is byte-identical in both (Requirement 1, 15.3, 15.4). |
-| `mcp-protocol-unsupported-version.test.js` | A request with `_meta.protocolVersion: '2099-01-01'` returns `-32022` with `supportedVersions` in `data` (Requirement 15.5). |
+| `mcp-protocol-unsupported-version.test.js` | A request with `_meta.protocolVersion: '2099-01-01'` returns `-32022` with HTTP 400, `requested`, and `supported` in `data` (Requirement 15.5). |
 | `mcp-protocol-modern-required-fields.test.js` | A modern `tools/list` carries `ttlMs`, `cacheScope`, `resultType`, and `_meta`; a legacy `tools/list` carries none of them (Requirement 15.6, 15.7). |
-| `mcp-protocol-header-validation.test.js` | A modern request with `Mcp-Method` disagreeing with the body returns `-32020`; a legacy request without `Mcp-Method` is accepted (Requirement 15.8). |
+| `mcp-protocol-header-validation.test.js` | A modern request with `Mcp-Method` disagreeing with the body returns `-32020` with HTTP 400; a legacy request without `Mcp-Method` is accepted (Requirement 15.8). |
 | `mcp-protocol-discover-no-auth.test.js` | `server/discover` is answerable at the public tier (Requirement 15.9). |
 
 ### Existing-test updates
@@ -876,7 +882,7 @@ Append under the existing `## [v0.0.7] (unreleased)` → `### Added` section:
 ```markdown
 - **MCP Protocol Dual-Era Support** [Spec: 0-0-7-mcp-protocol-dual-era](../.kiro/specs/0-0-7-mcp-protocol-dual-era/) — Serves both the legacy handshake-based MCP revisions (`2024-11-05`, `2025-11-25`) and the modern stateless revision (`2026-07-28`) from the same `POST /mcp/v1` endpoint, with real per-request version negotiation
   - New `server/discover` JSON-RPC method returning `supportedVersions`, `capabilities`, and `instructions` for modern clients that no longer send `initialize`
-  - New error codes `-32020 HeaderMismatch` and `-32022 UnsupportedProtocolVersion` with `supportedVersions` enumerated in the error data; existing `-32700`/`-32600`/`-32601`/`-32602`/`-32603` codes unchanged
+  - New error codes `-32020 HeaderMismatch` and `-32022 UnsupportedProtocolVersion` with `requested` and `supported` in the error data (HTTP 400; corrected by `0-0-7-schema-validation-of-modern-results`); existing `-32700`/`-32600`/`-32601`/`-32602`/`-32603` codes unchanged
   - Modern-era `tools/list` returns a `CacheableResult` envelope carrying `ttlMs` and `cacheScope: 'public'`; legacy `tools/list` is unchanged
   - Modern-era results carry `resultType: 'complete'` and server identity under result-level `_meta.io.modelcontextprotocol/serverInfo`; legacy results carry neither
   - Modern-era requests are validated against `Mcp-Method` and `Mcp-Name` HTTP headers when present; legacy requests are not required to send them

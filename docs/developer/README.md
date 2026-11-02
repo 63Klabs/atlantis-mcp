@@ -19,3 +19,4 @@ Guides:
 - [MCP protocol sources of truth](mcp-protocol-sources.md) - Where supported revisions, server identity, and `instructions` are defined, and how to add or advertise a revision
 - [Post-deploy verification](post-deploy-verification.md) - Running the Verifier by hand, setting up a stage verification key, and adding or changing a check
 - [Gradual deployment](gradual-deployment.md) - What API traffic follows, the N and N+1 compatibility rule, cache key versioning, and the alias integration guard test
+- [Release process](release-process.md) - Verify and prepare passes, the allow-list, publishing on GitHub, the release gate, and starting the next cycle

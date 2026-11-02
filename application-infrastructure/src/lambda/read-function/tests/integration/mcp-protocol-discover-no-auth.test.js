@@ -156,9 +156,13 @@ describe('Integration: server/discover (public tier)', () => {
     });
   });
 
-  it('echoes numeric and string ids and returns null for an invalid id type', async () => {
+  it('echoes numeric and string ids and rejects an invalid id type with -32600 and no id', async () => {
     expect((await send({ ...DISCOVER, id: 7 }, null)).id).toBe(7);
     expect((await send({ ...DISCOVER, id: 'abc' }, null)).id).toBe('abc');
-    expect((await send({ ...DISCOVER, id: { bad: true } }, null)).id).toBeNull();
+    // Requirement 24.3: a present but invalid id is an Invalid Request, even on server/discover
+    const invalid = await send({ ...DISCOVER, id: { bad: true } }, null);
+    expect(invalid.error.code).toBe(-32600);
+    expect(invalid).not.toHaveProperty('id');
+    expect(invalid).not.toHaveProperty('result');
   });
 });

@@ -129,14 +129,14 @@ Every tool is read-only: `readOnlyHint` is `true` and `openWorldHint` is `false`
 
 | Code | Name | When |
 |------|------|------|
-| `-32022` | Unsupported protocol version | Your declared revision is not in `supportedVersions` |
+| `-32022` | Unsupported protocol version | Your declared revision is not one of the supported revisions (the `supportedVersions` list from `server/discover`) |
 | `-32020` | Header mismatch | `Mcp-Method` or `Mcp-Name` disagrees with the request body |
 
-Both come back with HTTP status `200` and the error in the JSON-RPC body, like every other error from this server.
+`-32022` and `-32020` come back with HTTP status `400 Bad Request`, as the specification requires. Every other error from this server uses HTTP status `200`, with the error in the JSON-RPC body.
 
 ### `-32022`: unsupported protocol version
 
-The `data` field reports what you sent and what is accepted, so a client can pick a revision and retry:
+The `data` field reports the revision you sent (`requested`) and the revisions the server accepts (`supported`), so a client can pick a revision and retry. This response has HTTP status `400`:
 
 ```json
 {
@@ -146,8 +146,8 @@ The `data` field reports what you sent and what is accepted, so a client can pic
     "code": -32022,
     "message": "Unsupported protocol version",
     "data": {
-      "declaredRevision": "2099-01-01",
-      "supportedVersions": ["2024-11-05", "2025-11-25", "2026-07-28"]
+      "requested": "2099-01-01",
+      "supported": ["2024-11-05", "2025-11-25", "2026-07-28"]
     }
   }
 }
@@ -156,6 +156,8 @@ The `data` field reports what you sent and what is accepted, so a client can pic
 > **Tip**: If a client that used to connect now fails with `-32022`, check what it puts in the `MCP-Protocol-Version` header. Some clients send a revision on every request, and that revision must be one of the three above. `server/discover` is the only method that is never rejected for this reason, so a client can always use it to find out what is accepted.
 
 ### `-32020`: header mismatch
+
+This response has HTTP status `400`:
 
 ```json
 {
@@ -174,6 +176,23 @@ The `data` field reports what you sent and what is accepted, so a client can pic
 ```
 
 Fix it by sending a header that matches the body, or by leaving the header off.
+
+### Request `id` and notifications
+
+- **Notifications.** A message with no `id` is a notification, such as `notifications/initialized`, which legacy clients send after `initialize`. After the `MCP-Protocol-Version` and routing-header checks, the server answers a notification with HTTP status `202 Accepted` and no body. A notification that fails those checks gets `-32020` or `-32022` with HTTP status `400`, as described above.
+- **Invalid `id`.** A request whose `id` is present but is not a string or an integer (for example `null`, an object, `true`, or `1.5`) is rejected with `-32600` Invalid Request and HTTP status `200`.
+- **Errors without an `id`.** When the server cannot read the `id` of a request, the error response has no `id` member. This applies to a parse error (`-32700`), to an invalid `id` as described above, and to a message that is not a valid JSON-RPC request and has no usable `id`. Otherwise the error carries the `id` you sent.
+
+```json
+{
+  "jsonrpc": "2.0",
+  "error": {
+    "code": -32600,
+    "message": "Invalid Request",
+    "data": { "details": "The \"id\" must be a string or an integer" }
+  }
+}
+```
 
 ## Not supported
 

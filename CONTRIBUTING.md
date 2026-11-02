@@ -40,6 +40,8 @@ Do not disable tests.
 Do not change tests.
 Do not break the build.
 
+Maintainers preparing a release should follow the [release process](./docs/developer/release-process.md).
+
 ## Testing
 
 This project uses Jest as its test framework.

@@ -139,7 +139,7 @@ describe('Feature: get-integration-working, Property 1: JSON-RPC 2.0 Response En
 
         const errorResponse = jsonRpcError(null, JSON_RPC_ERRORS.INVALID_REQUEST, 'Invalid Request');
         expect(errorResponse.jsonrpc).toBe('2.0');
-        expect(errorResponse.id).toBeNull();
+        expect(errorResponse).not.toHaveProperty('id');
         expect(errorResponse).toHaveProperty('error');
         expect(errorResponse).not.toHaveProperty('result');
       }),
@@ -171,7 +171,12 @@ describe('Feature: get-integration-working, Property 1: JSON-RPC 2.0 Response En
         const response = jsonRpcError(id, JSON_RPC_ERRORS.INTERNAL_ERROR, 'Internal error', data);
 
         expect(response.jsonrpc).toBe('2.0');
-        expect(response.id).toBe(id);
+        // Requirement 24.1: id is omitted from error responses when null/undefined
+        if (id === null) {
+          expect(response).not.toHaveProperty('id');
+        } else {
+          expect(response.id).toBe(id);
+        }
         expect(response.error).toHaveProperty('data');
         expect(response.error.data).toEqual(data);
         expect(response).not.toHaveProperty('result');

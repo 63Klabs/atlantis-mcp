@@ -122,8 +122,8 @@ describe('jsonRpcError', () => {
 
   it('works with null id', () => {
     const response = jsonRpcError(null, -32700, 'Parse error');
-
-    expect(response.id).toBeNull();
+    // Requirement 24.1: an error with no known request id carries no id member
+    expect(response).not.toHaveProperty('id');
     expect(response.error.code).toBe(-32700);
   });
 

@@ -95,7 +95,9 @@ const REQ = {
     && call.headersLower['mcp-protocol-version'] === '2026-07-28' && !call.headersLower['mcp-method'],
   P6b: (call) => call.target === 'raw' && call.toolName === 'list_tools' && call.headersLower['mcp-protocol-version'] === '2025-11-25',
   T1: (call) => call.target === 'raw' && call.toolName === 'list_templates',
-  X2b: (call) => call.target === 'edge' && call.rpcMethod === 'server/discover'
+  X2b: (call) => call.target === 'edge' && call.rpcMethod === 'server/discover',
+  // The edge's mismatched Mcp-Method request (a tools/list sent with Mcp-Method: tools/call)
+  X2c: (call) => call.target === 'edge' && call.rpcMethod === 'tools/list' && Object.hasOwn(call.headers, 'Mcp-Method')
 };
 
 /* ------------------------------------------------------------------ */
@@ -131,13 +133,24 @@ function asError(body, code, message) {
  * Each mutation is `[predicate, change]`. `predicate` receives the recorded call; `change`
  * receives `(body, headers, call)` and may change `body` in place or return a replacement.
  *
- * @param {Object} [options] - Options of `createFakeMcpServer`, plus `mutations`
+ * Each status override is `[predicate, status]`: for a request the predicate matches, the answer is sent
+ * with that HTTP status (the `rpcStatus` option of the fake server).
+ *
+ * @param {Object} [options] - Options of `createFakeMcpServer`, plus `mutations` and `statusOverrides`
  * @param {Array.<[function(Object): boolean, function(Object, Object, Object): (Object|undefined)]>} [options.mutations] - Answer changes
+ * @param {Array.<[function(Object): boolean, number]>} [options.statusOverrides] - HTTP status replacements
  * @returns {Object} The fake server
  */
-function makeServer({ mutations = [], ...options } = {}) {
+function makeServer({ mutations = [], statusOverrides = [], ...options } = {}) {
   const server = createFakeMcpServer({
     ...options,
+    rpcStatus: statusOverrides.length === 0
+      ? undefined
+      : (context) => {
+        const call = server.calls[context.index - 1];
+        const match = statusOverrides.find(([matches]) => matches(call));
+        return match === undefined ? undefined : match[1];
+      },
     mutate: mutations.length === 0
       ? undefined
       : (context, body, headers) => {
@@ -405,7 +418,7 @@ describe('healthy stage', () => {
  * One row per sub-check (some have more than one): the fake-server fault that fails it and
  * the pattern its documented reason matches.
  *
- * @type {Array.<{id: string, name: string, server: Object, env?: Object, reason: RegExp}>}
+ * @type {Array.<{id: string, name: string, server: Object, env?: Object, reason: RegExp, only?: boolean, alsoFails?: Object.<string, RegExp>}>}
  */
 const FAILURES = [
   // P1 and V1.1
@@ -578,11 +591,32 @@ const FAILURES = [
   },
   {
     id: 'P3.3',
-    name: '-32022 lists supportedVersions in another order',
+    name: '-32022 lists supported in another order',
     server: {
-      mutations: [[REQ.P3a, (body) => { body.error.data.supportedVersions = [...body.error.data.supportedVersions].reverse(); }]]
+      mutations: [[REQ.P3a, (body) => { body.error.data.supported = [...body.error.data.supported].reverse(); }]]
     },
-    reason: /^header response: error\.data\.supportedVersions is \[.*\], expected \[.*\] \(server\/discover's list\)$/
+    reason: /^header response: error\.data\.supported is \[.*\], expected \[.*\] \(server\/discover's list\)$/
+  },
+
+  {
+    id: 'P3.1',
+    name: 'the -32022 error is answered with HTTP 200',
+    server: { statusOverrides: [[REQ.P3a, 200]] },
+    reason: /^HTTP 200, expected 400/,
+    // P3.3 reads the same P3a answer, so it fails with "see P3.1"
+    only: true,
+    alsoFails: { 'P3.3': /^no usable response; see P3\.1$/ }
+  },
+  {
+    id: 'P3.1',
+    name: 'the -32022 data carries declaredRevision in place of requested',
+    server: {
+      mutations: [[REQ.P3a, (body) => {
+        body.error.data = { declaredRevision: body.error.data.requested, supported: body.error.data.supported };
+      }]]
+    },
+    reason: /^error\.data\.requested is undefined, expected "2099-01-01"$/,
+    only: true
   },
 
   // P4
@@ -591,6 +625,22 @@ const FAILURES = [
     name: 'a mismatched Mcp-Method gets a result',
     server: { mutations: [[REQ.P4a, (body) => asResult(body, { tools: [] })]] },
     reason: /^response has a result instead of error -32020; the MCP-Protocol-Version or Mcp-\* headers may not be reaching the function$/
+  },
+  {
+    id: 'P4.1',
+    name: 'the headers never reach the function (mismatched Mcp-Method gets a result with HTTP 200)',
+    server: {
+      statusOverrides: [[REQ.P4a, 200]],
+      mutations: [[REQ.P4a, (body) => asResult(body, { tools: [] })]]
+    },
+    reason: /^HTTP 200, expected 400; the MCP-Protocol-Version or Mcp-\* headers may not be reaching the function; body: /
+  },
+  {
+    id: 'P4.1',
+    name: 'the -32020 error is answered with HTTP 200',
+    server: { statusOverrides: [[REQ.P4a, 200]] },
+    reason: /^HTTP 200, expected 400/,
+    only: true
   },
   {
     id: 'P4.2',
@@ -790,13 +840,21 @@ const FAILURES = [
     id: 'X2.3',
     name: 'the edge drops the MCP headers (mismatched Mcp-Method gets a result)',
     server: { edgeDropsMcpHeaders: true },
-    reason: /^response has a result instead of error -32020; the edge may not be forwarding the MCP-Protocol-Version or Mcp-\* headers$/
+    // The status check comes first: the result arrives with HTTP 200, where 400 is expected, and the gate adds the forwarding hint
+    reason: /^HTTP 200, expected 400; the edge may not be forwarding the MCP-Protocol-Version or Mcp-\* headers; body: /
+  },
+  {
+    id: 'X2.3',
+    name: 'the edge answers the -32020 error with HTTP 200',
+    server: { statusOverrides: [[REQ.X2c, 200]] },
+    reason: /^HTTP 200, expected 400/,
+    only: true
   },
   {
     id: 'X2.4',
     name: 'the edge drops the MCP headers (mismatched Mcp-Name gets a result)',
     server: { edgeDropsMcpHeaders: true },
-    reason: /^response has a result instead of error -32020; the edge may not be forwarding the MCP-Protocol-Version or Mcp-\* headers$/
+    reason: /^HTTP 200, expected 400; the edge may not be forwarding the MCP-Protocol-Version or Mcp-\* headers; body: /
   }
 ];
 
@@ -811,6 +869,15 @@ describe('every sub-check can fail with its documented reason', () => {
     const run = await runStage({ server: row.server, env: row.env ?? NO_KEY_ENV });
 
     expectFailed(run, row.id, row.reason);
+    if (row.only) {
+      // Only this sub-check fails (plus the ones that read the same answer and say "see <owner>")
+      const dependents = Object.entries(row.alsoFails ?? {});
+      for (const [id, reason] of dependents) {
+        expectCheckFailed(run, id, reason);
+      }
+      const failedIds = run.report.checks.filter((entry) => entry.outcome === 'fail').map((entry) => entry.id);
+      expect(failedIds).toEqual([row.id, ...dependents.map(([id]) => id)]);
+    }
   });
 });
 

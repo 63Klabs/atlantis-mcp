@@ -59,6 +59,11 @@ describe('Architecture: No Hardcoded Protocol Revisions (Task 5.4)', () => {
         // >! Search for each protocol revision string
         PROTOCOL_REVISIONS.forEach(revision => {
           lines.forEach((line, lineIndex) => {
+            // >! Skip comment-only lines: `>!` comments cite the schema revision that
+            // >! defines a behavior. Only revision strings in code are a violation.
+            if (/^\s*(\/\/|\*|\/\*)/.test(line)) {
+              return;
+            }
             if (line.includes(revision)) {
               violations.push({
                 file: path.relative(lambdaRoot, filePath),

@@ -157,13 +157,14 @@ describe('Feature: 0-0-7-tool-discovery-enhancement, Property 11: tools/list and
    * **Validates: Requirements 2.4, 2.7**
    *
    * Repeating the comparison across several JSON-RPC request ids confirms
-   * the identity holds independent of the envelope id, i.e. it is a
+   * the identity holds independent of the envelope id (a string or integer;
+   * a null id is rejected with -32600), i.e. it is a
    * property of the catalog content itself and not an artifact of a single
    * fixed request.
    */
   test('tools/list and list_tools stay identical across repeated calls', async () => {
     await fc.assert(
-      fc.asyncProperty(fc.oneof(fc.string(), fc.integer(), fc.constant(null)), async (id) => {
+      fc.asyncProperty(fc.oneof(fc.string(), fc.integer()), async (id) => {
         const fromJsonRpc = await callToolsList(id);
         const fromController = await callListToolsController();
 

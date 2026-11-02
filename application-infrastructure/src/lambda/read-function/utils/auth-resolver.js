@@ -313,8 +313,7 @@ async function resolveAuth(event) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           jsonrpc: '2.0',
-          error: { code: -32001, message: 'Invalid API key' },
-          id: null
+          error: { code: -32001, message: 'Invalid API key' }
         })
       }
     };

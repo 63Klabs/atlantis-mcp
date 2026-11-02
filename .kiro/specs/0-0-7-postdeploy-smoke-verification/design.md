@@ -491,13 +491,13 @@ Severity: C is core, A is advisory. "No `error`" means the JSON-RPC response has
 | P2.6 | C | the legacy initialize result has exactly four keys | P2a | Keys are exactly `capabilities`, `instructions`, `protocolVersion`, `serverInfo`; `serverInfo.name` is `atlantis-mcp-server` |
 | P2.7 | C | initialize instructions match server/discover | P2a to P2e, baseline | Every `instructions` is byte-identical to P1's |
 | V1.2 | C | initialize reports the expected version | P2a | `serverInfo.version` equals the expected version |
-| P3.1 | C | -32022 for an unlisted revision in the header | P3a | HTTP 200; `error.code` is `-32022`; `error.data.declaredRevision` is `2099-01-01` |
+| P3.1 | C | -32022 for an unlisted revision in the header | P3a | HTTP 400; `error.code` is `-32022`; `error.data.requested` is `2099-01-01` |
 | P3.2 | C | -32022 for an unlisted revision in params._meta | P3b | The same |
-| P3.3 | C | -32022 lists the advertised supportedVersions | P3a, P3b, baseline | `error.data.supportedVersions` equals P1's, in the same order, in both responses |
-| P4.1 | C | -32020 for a mismatched Mcp-Method | P4a | `error.code` is `-32020`; `error.data.headerValue` is `tools/call` |
-| P4.2 | C | -32020 for a mismatched Mcp-Name | P4b | `-32020`; `headerValue` is `list_categories` |
+| P3.3 | C | -32022 error.data.supported lists the advertised revisions | P3a, P3b, baseline | `error.data.supported` equals P1's `supportedVersions`, in the same order, in both responses |
+| P4.1 | C | -32020 for a mismatched Mcp-Method | P4a | HTTP 400; `error.code` is `-32020`; `error.data.headerValue` is `tools/call` |
+| P4.2 | C | -32020 for a mismatched Mcp-Name | P4b | HTTP 400; `-32020`; `headerValue` is `list_categories` |
 | P4.3 | C | matching Mcp-Method and Mcp-Name are accepted | P4c | No `error`; `resultType` is `complete` |
-| P4.4 | C | Mcp-* header names are matched without regard to case | P4d | `-32020` |
+| P4.4 | C | Mcp-* header names are matched without regard to case | P4d | HTTP 400; `-32020` |
 | P4.5 | C | a legacy request ignores mismatched Mcp-* headers | P4e | No `error`; a non-empty `tools` array |
 | P5.1 | C | tools/list for 2026-07-28 (header) is a modern cacheable result | P5a | No `error`; `resultType` is `complete`; `ttlMs` is a non-negative integer; `cacheScope` is `public` or `private`; the `_meta` server name is `atlantis-mcp-server`; a non-empty `tools` array |
 | P5.2 | C | tools/list for 2026-07-28 (params._meta) is a modern cacheable result | P5b | The same |
@@ -516,10 +516,12 @@ Severity: C is core, A is advisory. "No `error`" means the JSON-RPC response has
 | X1.3 | C | preflight allows POST | X1 | `POST` in `Access-Control-Allow-Methods` |
 | X2.1 | A | edge preflight allows the origin, the MCP headers, and POST | X2a | The X1.1 to X1.3 conditions |
 | X2.2 | A | edge server/discover reports the expected version | X2b | No `error`; the reported version equals the expected version |
-| X2.3 | A | edge returns -32020 for a mismatched Mcp-Method | X2c | `-32020` |
-| X2.4 | A | edge returns -32020 for a mismatched Mcp-Name | X2d | `-32020` |
+| X2.3 | A | edge returns -32020 for a mismatched Mcp-Method | X2c | HTTP 400; `-32020` |
+| X2.4 | A | edge returns -32020 for a mismatched Mcp-Name | X2d | HTTP 400; `-32020` |
 
 That is 36 core and 9 advisory sub-checks. Without an edge target, X2.1 to X2.4 are SKIP "no custom domain for this stage" (Requirement 2.3). Without a key, S2.1 to S2.3 are SKIP with the key classification (Requirement 9.5). When X2.3 or X2.4 gets a normal result instead of `-32020`, the reason adds "the edge may not be forwarding the MCP-Protocol-Version or Mcp-* headers" (Requirement 9.7).
+
+> Updated 2026-11-02 by spec 0-0-7-schema-validation-of-modern-results: the P3.1 to P3.3, P4.1, P4.2, P4.4, X2.3, and X2.4 conditions now require HTTP 400 for `-32022` and `-32020`, and `error.data.requested` and `error.data.supported` (were `declaredRevision` and `supportedVersions`). Sub-check IDs and counts are unchanged.
 
 A failing assertion names the field, the expected value, and the actual value, each JSON-encoded and cut to 80 characters. Examples:
 

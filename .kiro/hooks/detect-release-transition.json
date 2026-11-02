@@ -1,0 +1,15 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Detect release-date edit",
+      "trigger": "UserPromptSubmit",
+      "description": "Prints a one-line instruction when the top CHANGELOG.md version has just been dated (it was \"unreleased\" at HEAD). Read-only: it never writes files, always exits 0, never blocks a prompt, and prints only fixed text.",
+      "action": {
+        "type": "command",
+        "command": "python3 application-infrastructure/build-scripts/detect_release_transition.py",
+        "timeout": 5
+      }
+    }
+  ]
+}

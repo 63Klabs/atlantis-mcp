@@ -25,7 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Documents that code search over raw repository source is out of scope — the indexed corpus is extracted sections (headings, functions, parameters), not full file-text search
 - **MCP Protocol Dual-Era Support** [Spec: 0-0-7-mcp-protocol-dual-era](../.kiro/specs/0-0-7-mcp-protocol-dual-era/) — Serves both the legacy handshake-based MCP revisions (`2024-11-05`, `2025-11-25`) and the modern stateless revision (`2026-07-28`) from the same `POST /mcp/v1` endpoint, with real per-request version negotiation. No session state is introduced; the era is chosen per request from the method and the declared protocol revision
   - New `server/discover` method returning `supportedVersions`, `capabilities`, and `instructions` for modern clients that no longer send `initialize`. It is answerable without authentication or any prior request, and is never rejected for an unlisted declared revision
-  - New error code `-32022` Unsupported protocol version, with the revision the client declared and the full `supportedVersions` list in `error.data`; new error code `-32020` Header mismatch for a modern request whose `Mcp-Method` or `Mcp-Name` header disagrees with the body. Existing `-32700`/`-32600`/`-32601`/`-32602`/`-32603` codes are unchanged
+  - New error code `-32022` Unsupported protocol version, with the revision the client declared (`requested`) and the supported revisions (`supported`) in `error.data`; new error code `-32020` Header mismatch for a modern request whose `Mcp-Method` or `Mcp-Name` header disagrees with the body. Existing `-32700`/`-32600`/`-32601`/`-32602`/`-32603` codes are unchanged
   - Modern-era `tools/list` returns a cacheable result carrying `ttlMs` (10 minutes, advisory to the client) and `cacheScope: "public"`; modern `tools/list`, `tools/call`, and `server/discover` results carry `resultType: "complete"` and the server identity under `_meta["io.modelcontextprotocol/serverInfo"]`. Legacy results carry none of these fields
   - Era resolution reads the declared revision from the `MCP-Protocol-Version` header or from `params._meta["io.modelcontextprotocol/protocolVersion"]` (a top-level `_meta` is also accepted); the header wins when both are present, and a blank value counts as not declared. A request that declares nothing is treated as legacy
   - Revision lists, server name, capabilities, and `instructions` each have a single definition, assembled by `getCapabilities()` and read by both eras, with tests that fail on a duplicate; a revision is advertised only once every field it requires is implemented
@@ -39,6 +39,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Runs locally against any stage with `node application-infrastructure/postdeploy-scripts/verify-deployment.js`
   - New test package `application-infrastructure/tests/postdeploy-verify`, run with a fake MCP server. The one existing assertion in `tests/postdeploy/unit/buildspec-structure.test.js` that expected four post-deploy scripts now expects five, in order, ending with `05-verify-deployment.sh`
   - New documentation: [post-deploy verification for developers](docs/developer/post-deploy-verification.md) and [for operators](docs/admin-ops/post-deploy-verification.md), with updates to `ARCHITECTURE.md` and `DEPLOYMENT.md`
+- **Schema conformance tests and release preparation** [Spec: 0-0-7-schema-validation-of-modern-results](../.kiro/specs/0-0-7-schema-validation-of-modern-results/) - Every response shape the server emits is now checked against pinned copies of the published MCP schemas (`2024-11-05`, `2025-11-25`, `2026-07-28`), in the Build stage
+  - Each check runs twice: against the published schema, and against a strict overlay that rejects property names the schema does not declare, so a misspelled optional field fails
+  - The fake server used by the post-deploy verifier's tests is checked against the same schemas
+  - `build-scripts/refresh_mcp_schemas.py` and the `update-mcp-schemas` skill report and apply upstream schema changes
+  - The `prepare-release` skill, started by a Kiro hook when the top `CHANGELOG.md` version is dated on `dev`, applies package, layer, and schema updates and checks that the prepare pass carries nothing else
+  - `.github/workflows/release-gate.yml` returns a published GitHub release to draft when a vendored schema has drifted semantically from upstream
+  - New documentation: [release process](docs/developer/release-process.md), and a schema section in [MCP protocol sources of truth](docs/developer/mcp-protocol-sources.md)
 
 ### Changed
 - **MCP Protocol Dual-Era Support: `initialize`** [Spec: 0-0-7-mcp-protocol-dual-era](../.kiro/specs/0-0-7-mcp-protocol-dual-era/) — The legacy `InitializeResult` now carries the server-level `instructions` string and echoes a supported requested revision instead of always answering `2024-11-05`
@@ -61,6 +68,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - The scope and its allowed set are code constants (`TOOLS_LIST_CACHE_SCOPE`, `CACHE_SCOPES`) in `utils/mcp-protocol.js`, not a setting. If the tool list is ever filtered per tier, the scope must become `"private"`
   - The post-deploy verifier now requires `cacheScope` to be `public` or `private` on `tools/list` and `server/discover`, and `ttlMs` to be a non-negative integer on `server/discover`, so a wrong value fails the PostDeploy stage. The sub-check IDs and counts are unchanged
   - Legacy-era results (`2024-11-05`, `2025-11-25`, no declared revision) are unchanged
+- **`-32022` and `-32020` did not follow the published schema** [Spec: 0-0-7-schema-validation-of-modern-results](../.kiro/specs/0-0-7-schema-validation-of-modern-results/) - The `-32022` error carried `declaredRevision` and `supportedVersions`; the 2026-07-28 schema requires `requested` and `supported`, so a client following it could not read the revisions to retry with. Both `-32022` and `-32020` were returned with HTTP 200; the specification requires `400 Bad Request`
+  - `-32022` now carries `requested` and `supported`, and both errors return HTTP 400. Every other error still returns HTTP 200
+  - An error for a request whose `id` could not be read (a parse error, for example) no longer carries `id: null`, which no MCP schema accepts; it carries no `id`, as the 2025-11-25 and 2026-07-28 schemas allow. A request whose `id` is not a string or an integer now gets `-32600` instead of a result with `id: null`. The 401 invalid-key body also drops `id: null`
+  - Notifications (a message with no `id`, such as `notifications/initialized`) now get HTTP 202 with no body, as the Streamable HTTP transport requires, instead of `-32601`
+  - The post-deploy verifier's P3, P4, and X2 checks now require the new keys and HTTP 400. Sub-check IDs and counts are unchanged
 
 ## [v0.0.6] (2026-09-02)
 

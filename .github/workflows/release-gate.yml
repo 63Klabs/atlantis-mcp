@@ -1,0 +1,132 @@
+# Release gate: checks the vendored MCP JSON Schemas (application-infrastructure/tests/mcp-schemas)
+# against upstream modelcontextprotocol/modelcontextprotocol `main` when a GitHub release is published.
+#
+# What a failure does:
+#   - Semantic drift (refresh_mcp_schemas.py exits 1): the run goes red and the release is returned to
+#     draft. Nothing else changes.
+#   - A failed unit test, or upstream unreachable or rate limited (exit 3): the run goes red, but the
+#     release stays published. Only real drift withdraws a release, so a GitHub outage cannot withdraw
+#     a good one.
+#   - Text-only changes and new upstream revisions (exit 0) pass with a warning in the step summary.
+#
+# This workflow never changes code, the tag, `main`, or any file in the repository. Nothing is published
+# from here: CodeCommit main already deployed this code to prod. Withdrawing the release only takes the
+# release page out of public view until the schemas are refreshed through a new prepare pass.
+#
+# The trigger (release: published) follows @63klabs/cache-data's npm-publish.yml. Publishing a draft
+# fires `published` again, so publishing after a fix re-runs the gate.
+#
+# See docs/developer/release-process.md.
+name: Release Gate
+
+on:
+  release:
+    types: [published]
+
+# >! Least privilege: read-only by default. Only withdraw-release is granted contents: write.
+permissions:
+  contents: read
+
+# >! One gate run per release tag. Never cancel a run in progress: a half-finished gate must not be
+# >! replaced by a newer event for the same tag. The expression sits in `concurrency:`, not in a script.
+concurrency:
+  group: release-gate-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
+jobs:
+  schema-drift:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      # `true` only when the refresh script exited 1 (semantic change). Empty or `false` otherwise.
+      drift: ${{ steps.refresh.outputs.drift }}
+    steps:
+      # >! Pinned to a full commit SHA so a moved tag cannot change what runs here
+      - name: Check out the release tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # >! The gate only reads files; do not leave a token in the checkout's git config
+          persist-credentials: false
+
+      # >! Pinned to a full commit SHA so a moved tag cannot change what runs here
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+
+      - name: Unit tests for the release scripts
+        working-directory: application-infrastructure/build-scripts
+        run: python3 -m unittest test_refresh_mcp_schemas test_detect_release_transition
+
+      - name: Compare vendored schemas with upstream main
+        id: refresh
+        env:
+          # >! Secret reaches the script through env only, never through the command line or run: text.
+          # >! The script sends it to api.github.com only and never prints it.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -u
+          # Capture the exit code without letting `set -e` end the step before the output is written.
+          set +e
+          python3 application-infrastructure/build-scripts/refresh_mcp_schemas.py \
+            --ref main --summary-file "$GITHUB_STEP_SUMMARY"
+          status=$?
+          set -e
+          # Exit codes: 0 ok, 1 semantic change, 2 usage error, 3 upstream unavailable.
+          # >! drift=true ONLY for exit 1. Exit 2 and 3 go red without withdrawing the release.
+          if [ "$status" -eq 1 ]; then
+            echo "drift=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "drift=false" >> "$GITHUB_OUTPUT"
+          fi
+          # Keep the job result red for any non-zero status.
+          exit "$status"
+
+  withdraw-release:
+    needs: schema-drift
+    if: failure() && needs.schema-drift.outputs.drift == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # >! Job-level grant: the only place in this workflow that can write to the repository
+    permissions:
+      contents: write
+    steps:
+      - name: Return the release to draft
+        env:
+          # >! Event values reach the script only through env, never interpolated into run: text
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+
+          # >! Validate the tag against an allow-list before use; a tag name is user-controlled input
+          tag_pattern='^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.]+)?$'
+          if [[ ! "$TAG" =~ $tag_pattern ]]; then
+            echo "Refusing to edit a release with an unexpected tag name." >&2
+            exit 1
+          fi
+          # >! Same for the repository slug (owner/name)
+          repo_pattern='^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$'
+          if [[ ! "$REPOSITORY" =~ $repo_pattern ]]; then
+            echo "Refusing to edit a release in an unexpected repository." >&2
+            exit 1
+          fi
+
+          # gh is preinstalled on GitHub-hosted runners; --repo avoids needing a checkout
+          gh release edit "$TAG" --repo "$REPOSITORY" --draft=true
+
+          {
+            echo "### Release returned to draft"
+            echo ""
+            echo "The vendored MCP schemas differ semantically from upstream, so release ${TAG} was returned to draft."
+            echo "CodeCommit prod already serves this code; only the GitHub release page was withdrawn."
+            echo ""
+            echo "To proceed:"
+            echo ""
+            echo "1. On dev, run the update-mcp-schemas skill and review the result."
+            echo "2. Ship the change through test, beta, and main as a new prepare pass."
+            echo "3. Push main to GitHub, then publish the release again. Publishing re-runs this gate."
+            echo ""
+            echo "See docs/developer/release-process.md."
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -68,6 +68,16 @@ const SERVER_NAME = 'atlantis-mcp-server';
  */
 const ALLOWED_CACHE_SCOPES = Object.freeze(['public', 'private']);
 
+/**
+ * HTTP status the specification requires for -32022 and -32020.
+ *
+ * >! Restated from the MCP 2026-07-28 schema (UnsupportedProtocolVersionError,
+ * >! HeaderMismatchError) on purpose; the verifier must not read Lambda code.
+ *
+ * @type {number}
+ */
+const PROTOCOL_ERROR_STATUS = 400;
+
 /** `User-Agent` sent on every request, so the traffic is recognizable in logs. */
 const USER_AGENT = 'atlantis-mcp-postdeploy-verify';
 
@@ -1505,7 +1515,7 @@ const SUB_CHECK_ROWS = [
   ['V1.2', 'V1', 'C', 'initialize reports the expected version'],
   ['P3.1', 'P3', 'C', '-32022 for an unlisted revision in the header'],
   ['P3.2', 'P3', 'C', '-32022 for an unlisted revision in params._meta'],
-  ['P3.3', 'P3', 'C', '-32022 lists the advertised supportedVersions'],
+  ['P3.3', 'P3', 'C', '-32022 error.data.supported lists the advertised revisions'],
   ['P4.1', 'P4', 'C', '-32020 for a mismatched Mcp-Method'],
   ['P4.2', 'P4', 'C', '-32020 for a mismatched Mcp-Name'],
   ['P4.3', 'P4', 'C', 'matching Mcp-Method and Mcp-Name are accepted'],
@@ -2408,6 +2418,28 @@ const INITIALIZE_EXPECTATIONS = Object.freeze([
 const HEADERS_NOT_REACHING_HINT = 'the MCP-Protocol-Version or Mcp-* headers may not be reaching the function';
 
 /**
+ * Build the `statusHint` of a request that expects an error status (HTTP 400)
+ * and gets HTTP 200 with a JSON-RPC result instead. That answer means the
+ * server never saw the MCP headers, so the hint names the likely cause. Any
+ * other wrong status gets no hint.
+ *
+ * @private
+ * @param {string} hint - Text to add to the reason, for example {@link HEADERS_NOT_REACHING_HINT}
+ * @returns {function(Exchange): (string|null)} A `statusHint` for {@link Gate} expectations
+ * @example
+ * resultInsteadOfErrorHint('the headers may not be reaching the function')({ status: 200, json: { result: {} } });
+ * // 'the headers may not be reaching the function'
+ */
+function resultInsteadOfErrorHint(hint) {
+  return (exchange) => {
+    const json = exchange.json;
+    const hasResult = json !== null && typeof json === 'object' && !Array.isArray(json)
+      && json.result !== undefined && json.error === undefined;
+    return exchange.status === 200 && hasResult ? hint : null;
+  };
+}
+
+/**
  * Read the JSON-RPC `result` object of an answer that carries no `error`.
  *
  * @private
@@ -2614,10 +2646,10 @@ async function checkP2(ctx) {
  * one in `params._meta` with no header.
  *
  * Records, in this order (design section 7):
- * - P3.1 (header) and P3.2 (`params._meta`): HTTP 200, `error.code` `-32022`, and
- *   `error.data.declaredRevision` equal to `2099-01-01`
- * - P3.3: `error.data.supportedVersions` of both answers equals P1's list, in
- *   the same order (SKIP or FAIL through the engine when P1 gave no valid list)
+ * - P3.1 (header) and P3.2 (`params._meta`): HTTP 400, `error.code` `-32022`, and
+ *   `error.data.requested` equal to `2099-01-01`
+ * - P3.3: `error.data.supported` of both answers equals P1's `supportedVersions`
+ *   list, in the same order (SKIP or FAIL through the engine when P1 gave no valid list)
  *
  * @async
  * @param {CheckContext} ctx - The check context; P1 must have run
@@ -2628,19 +2660,19 @@ async function checkP2(ctx) {
  */
 async function checkP3(ctx) {
   const secrets = ctx.secrets;
-  const p3a = await ctx.request(buildRequest('P3a'));
-  const p3b = await ctx.request(buildRequest('P3b'));
+  const p3a = await ctx.request(buildRequest('P3a'), { status: PROTOCOL_ERROR_STATUS });
+  const p3b = await ctx.request(buildRequest('P3b'), { status: PROTOCOL_ERROR_STATUS });
 
-  /** Judges one answer: error -32022 naming the declared revision. */
+  /** Judges one answer: error -32022 whose `data.requested` is the revision the request declared. */
   const judgeUnlisted = (entry) => () => {
     const problem = errorCodeProblem(entry, ERROR_CODE_UNSUPPORTED_VERSION, secrets);
     if (problem !== null) {
       return failVerdict(problem);
     }
-    const declared = errorDataMember(errorOf(entry), 'declaredRevision');
-    return declared === UNLISTED_REVISION
+    const requested = errorDataMember(errorOf(entry), 'requested');
+    return requested === UNLISTED_REVISION
       ? { ok: true }
-      : failVerdict(`error.data.declaredRevision is ${formatValue(declared, secrets)}, expected ${formatValue(UNLISTED_REVISION)}`);
+      : failVerdict(`error.data.requested is ${formatValue(requested, secrets)}, expected ${formatValue(UNLISTED_REVISION)}`);
   };
 
   ctx.evaluate('P3.1', [p3a], judgeUnlisted(p3a));
@@ -2654,12 +2686,12 @@ async function checkP3(ctx) {
       if (problem !== null) {
         return failVerdict(`${label} response: ${problem}`);
       }
-      const listed = errorDataMember(errorOf(entry), 'supportedVersions');
+      const listed = errorDataMember(errorOf(entry), 'supported');
       const isSame = Array.isArray(listed) && listed.length === advertised.length
         && listed.every((value, index) => value === advertised[index]);
       if (!isSame) {
         return failVerdict(
-          `${label} response: error.data.supportedVersions is ${formatValue(listed, secrets)}, expected ${formatValue(advertised)} (server/discover's list)`
+          `${label} response: error.data.supported is ${formatValue(listed, secrets)}, expected ${formatValue(advertised)} (server/discover's list)`
         );
       }
     }
@@ -2673,12 +2705,12 @@ async function checkP3(ctx) {
  * (Requirement 6.5).
  *
  * Records, in this order (design section 7):
- * - P4.1: a mismatched `Mcp-Method` gets `-32020` with `error.data.headerValue`
+ * - P4.1: a mismatched `Mcp-Method` gets HTTP 400 and `-32020` with `error.data.headerValue`
  *   `tools/call`
- * - P4.2: a mismatched `Mcp-Name` gets `-32020` with `headerValue` `list_categories`
- * - P4.3: a matching `Mcp-Method` and `Mcp-Name` get no `error` and `resultType` `complete`
- * - P4.4: the header names `mcp-protocol-version` and `MCP-METHOD` still give `-32020`
- * - P4.5: a request with no revision ignores mismatched `Mcp-*` headers: no
+ * - P4.2: a mismatched `Mcp-Name` gets HTTP 400 and `-32020` with `headerValue` `list_categories`
+ * - P4.3: a matching `Mcp-Method` and `Mcp-Name` get HTTP 200, no `error`, and `resultType` `complete`
+ * - P4.4: the header names `mcp-protocol-version` and `MCP-METHOD` still give HTTP 400 and `-32020`
+ * - P4.5: a request with no revision ignores mismatched `Mcp-*` headers: HTTP 200, no
  *   `error`, and a non-empty `tools` array
  *
  * When a mismatch is answered with a result, the reason adds that the headers
@@ -2693,10 +2725,19 @@ async function checkP3(ctx) {
  */
 async function checkP4(ctx) {
   const secrets = ctx.secrets;
-  const p4a = await ctx.request(buildRequest('P4a'));
-  const p4b = await ctx.request(buildRequest('P4b'));
+  const p4a = await ctx.request(buildRequest('P4a'), {
+    status: PROTOCOL_ERROR_STATUS,
+    statusHint: resultInsteadOfErrorHint(HEADERS_NOT_REACHING_HINT)
+  });
+  const p4b = await ctx.request(buildRequest('P4b'), {
+    status: PROTOCOL_ERROR_STATUS,
+    statusHint: resultInsteadOfErrorHint(HEADERS_NOT_REACHING_HINT)
+  });
   const p4c = await ctx.request(buildRequest('P4c'));
-  const p4d = await ctx.request(buildRequest('P4d'));
+  const p4d = await ctx.request(buildRequest('P4d'), {
+    status: PROTOCOL_ERROR_STATUS,
+    statusHint: resultInsteadOfErrorHint(HEADERS_NOT_REACHING_HINT)
+  });
   const p4e = await ctx.request(buildRequest('P4e'));
 
   /** Judges a mismatch answer: error -32020, and `headerValue` when one is expected. */
@@ -3393,8 +3434,9 @@ async function checkX1(ctx) {
  *   origin, the three MCP headers, and POST); it carries no key
  * - X2.2: `server/discover` reports the expected version
  * - X2.3: `tools/list` with `MCP-Protocol-Version: 2026-07-28` and a mismatched
- *   `Mcp-Method: tools/call` gets `-32020`
- * - X2.4: `tools/call` for `list_tools` with a mismatched `Mcp-Name: list_categories` gets `-32020`
+ *   `Mcp-Method: tools/call` gets HTTP 400 and `-32020`
+ * - X2.4: `tools/call` for `list_tools` with a mismatched `Mcp-Name: list_categories` gets
+ *   HTTP 400 and `-32020`
  *
  * When X2.3 or X2.4 gets a normal result instead of `-32020`, the reason says the
  * edge may not be forwarding the `MCP-Protocol-Version` or `Mcp-*` headers.
@@ -3429,8 +3471,14 @@ async function checkX2(ctx) {
 
   const x2a = await ctx.request(buildRequest('X2a', { origin }), { jsonRpc: false });
   const x2b = await ctx.request(buildRequest('X2b'));
-  const x2c = await ctx.request(buildRequest('X2c'));
-  const x2d = await ctx.request(buildRequest('X2d'));
+  const x2c = await ctx.request(buildRequest('X2c'), {
+    status: PROTOCOL_ERROR_STATUS,
+    statusHint: resultInsteadOfErrorHint(EDGE_NOT_FORWARDING_HINT)
+  });
+  const x2d = await ctx.request(buildRequest('X2d'), {
+    status: PROTOCOL_ERROR_STATUS,
+    statusHint: resultInsteadOfErrorHint(EDGE_NOT_FORWARDING_HINT)
+  });
 
   ctx.evaluate('X2.1', [x2a], () => {
     // All three header conditions are reported together, so one run shows everything the edge gets wrong

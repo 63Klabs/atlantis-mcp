@@ -248,7 +248,7 @@ describe('JSON-RPC 2.0 MCP Protocol Compliance', () => {
       expect(response.statusCode).toBe(200);
       const body = JSON.parse(response.body);
       expect(body.jsonrpc).toBe('2.0');
-      expect(body.id).toBeNull();
+      expect(body).not.toHaveProperty('id');
       expect(body.error).toBeDefined();
       expect(body.error.code).toBe(-32700);
     });
