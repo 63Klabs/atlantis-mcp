@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Atlantis MCP Server requires a GitHub Personal Access Token (PAT) to access GitHub repositories for retrieving starter code metadata, documentation, and repository information. This guide explains how to create and configure the token with the required permissions.
+The 63Klabs Atlantis MCP Server requires a GitHub Personal Access Token (PAT) to access GitHub repositories for retrieving starter code metadata, documentation, and repository information. This guide explains how to create and configure the token with the required permissions.
 
 ## When is a GitHub Token Required?
 
@@ -57,7 +57,7 @@ atlantis-mcp-server-prod
 
 **Description:**
 ```
-Token for Atlantis MCP Server to access templates, starters, and documentation
+Token for 63Klabs Atlantis MCP Server to access templates, starters, and documentation
 ```
 
 **Expiration:**
@@ -199,7 +199,7 @@ aws ssm put-parameter \
   --name "/atlantis/mcp/github-token" \
   --value "github_pat_11AAAA..." \
   --type "SecureString" \
-  --description "GitHub Personal Access Token for Atlantis MCP Server" \
+  --description "GitHub Personal Access Token for 63Klabs Atlantis MCP Server" \
   --tags "Key=Project,Value=atlantis-mcp-server" "Key=Environment,Value=prod" \
   --region us-east-1
 ```
@@ -218,7 +218,7 @@ aws ssm put-parameter \
 2. Click **Create parameter**
 3. Configure:
    - **Name:** `/atlantis/mcp/github-token`
-   - **Description:** `GitHub Personal Access Token for Atlantis MCP Server`
+   - **Description:** `GitHub Personal Access Token for 63Klabs Atlantis MCP Server`
    - **Tier:** Standard
    - **Type:** SecureString
    - **KMS key source:** My current account (or specify custom KMS key)
@@ -301,7 +301,7 @@ For production environments, consider using AWS Secrets Manager with automatic r
 # Create secret in Secrets Manager
 aws secretsmanager create-secret \
   --name "atlantis/mcp/github-token" \
-  --description "GitHub token for Atlantis MCP Server" \
+  --description "GitHub token for 63Klabs Atlantis MCP Server" \
   --secret-string "github_pat_11AAAA..." \
   --region us-east-1
 

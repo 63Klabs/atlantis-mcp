@@ -53,7 +53,7 @@ The automated script is a **smoke test**: it answers "is the thing that just dep
 
 ### Upstream pipeline
 
-Read through the Atlantis MCP server: `template-pipeline-github.yml` v2.0.5 (2026-08-15), which `docs/admin-ops/deployment/README.md` names, and the modules it includes. Your deployed pipeline may be on a different version.
+Read through the 63Klabs Atlantis MCP server: `template-pipeline-github.yml` v2.0.5 (2026-08-15), which `docs/admin-ops/deployment/README.md` names, and the modules it includes. Your deployed pipeline may be on a different version.
 
 | Fact | Source |
 |------|--------|
@@ -450,5 +450,5 @@ Q17 offered A (private key, an admin removes `ttl`), B (private key, regenerated
 - [Issue #5: private and paid user records expire after 120 days even when active](https://github.com/63Klabs/atlantis-mcp/issues/5) - findings 5 and 6
 - [Post-deploy buildspec](../../../application-infrastructure/buildspec-postdeploy.yml)
 - [SSM parameter script](../../../application-infrastructure/build-scripts/generate-put-ssm.py)
-- Upstream (read through the Atlantis MCP server): `atlantis/templates/v2/pipeline/template-pipeline-github.yml` v2.0.5, and the modules `pipeline/postdeploy-project.yml` and `pipeline/postdeploy-service-role.yml`
+- Upstream (read through the 63Klabs Atlantis MCP server): `atlantis/templates/v2/pipeline/template-pipeline-github.yml` v2.0.5, and the modules `pipeline/postdeploy-project.yml` and `pipeline/postdeploy-service-role.yml`
 - [AWS: UpdatePolicy attribute (CodeDeployLambdaAliasUpdate)](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-attribute-updatepolicy.html)

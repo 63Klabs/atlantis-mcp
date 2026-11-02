@@ -1,7 +1,7 @@
 {
   "name": "atlantis-mcp-s3-vectors-provisioner",
   "version": "0.0.1",
-  "description": "CloudFormation custom-resource Lambda that provisions the S3 Vectors vector bucket + index for Bedrock-assisted documentation semantic search (Atlantis MCP Server, spec 0-0-6).",
+  "description": "CloudFormation custom-resource Lambda that provisions the S3 Vectors vector bucket + index for Bedrock-assisted documentation semantic search (63Klabs Atlantis MCP Server, spec 0-0-6).",
   "main": "index.js",
   "scripts": {
     "test": "jest --passWithNoTests",

@@ -1,5 +1,5 @@
 /**
- * Configuration settings for Atlantis MCP Server Read Lambda
+ * Configuration settings for 63Klabs Atlantis MCP Server Read Lambda
  *
  * This module parses environment variables and provides structured configuration
  * for S3 buckets, GitHub organizations, cache TTLs, and template categories.

@@ -1,6 +1,6 @@
 # Supported protocol revisions
 
-> Which versions of the Model Context Protocol (MCP) the Atlantis MCP Server speaks, and what to expect from each. Read this if you are building an MCP client or debugging why one will not connect.
+> Which versions of the Model Context Protocol (MCP) the 63Klabs Atlantis MCP Server speaks, and what to expect from each. Read this if you are building an MCP client or debugging why one will not connect.
 
 The server speaks **both** families of MCP revisions at the same time, from the same endpoint:
 

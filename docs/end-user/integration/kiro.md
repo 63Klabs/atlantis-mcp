@@ -1,11 +1,11 @@
 # Kiro IDE Integration Guide
 
-This guide explains how to integrate the Atlantis MCP Server with Kiro IDE, enabling AI-assisted development with access to Atlantis templates and documentation.
+This guide explains how to integrate the 63Klabs Atlantis MCP Server with Kiro IDE, enabling AI-assisted development with access to Atlantis templates and documentation.
 
 ## Prerequisites
 
 - Kiro IDE installed
-- Access to the Atlantis MCP Server endpoint
+- Access to the 63Klabs Atlantis MCP Server endpoint
 - Basic understanding of MCP configuration
 
 ## Configuration Steps
@@ -17,7 +17,7 @@ In Kiro IDE:
 - Type "Open MCP Config"
 - Or navigate to Kiro panel → MCP Servers
 
-### 2. Add Atlantis MCP Server
+### 2. Add 63Klabs Atlantis MCP Server
 
 Click "Open MCP Config":
 
@@ -130,5 +130,5 @@ Configure which tools run without confirmation:
 ## Additional Resources
 
 - Kiro Documentation: [kiro.ai/docs](https://kiro.ai/docs)
-- [Atlantis MCP Server: GitHub](https://github.com/63klabs/atlantis-mcp/) ([Issues](https://github.com/63klabs/atlantis-mcp/issues))
+- [63Klabs Atlantis MCP Server: GitHub](https://github.com/63klabs/atlantis-mcp/) ([Issues](https://github.com/63klabs/atlantis-mcp/issues))
 - [63Klabs Atlantis DevOps Platform Documentation](https://github.com/63Klabs/atlantis)

@@ -2,7 +2,7 @@
 
 ## Introduction
 
-This document defines the requirements for enhancing the user profile page of the Atlantis MCP Server. The current profile page displays tier information, rate limit configuration for the user's tier, and tier expiration date, but it does not display the user's email address, remaining requests in the current rate limit window, or when the window resets. Currently, the profile page relies on client-side Cognito data and has no server-side endpoint for consolidated profile information.
+This document defines the requirements for enhancing the user profile page of the 63Klabs Atlantis MCP Server. The current profile page displays tier information, rate limit configuration for the user's tier, and tier expiration date, but it does not display the user's email address, remaining requests in the current rate limit window, or when the window resets. Currently, the profile page relies on client-side Cognito data and has no server-side endpoint for consolidated profile information.
 
 This feature introduces a new `GET /auth/profile` endpoint on the Auth Lambda that returns all profile data in a single API call — user email (server-confirmed from the Users Table), current tier, tier expiration, and real-time rate limit window statistics (remaining requests, window reset time) from the Sessions Table. The profile page is updated to call this endpoint and display the additional information.
 

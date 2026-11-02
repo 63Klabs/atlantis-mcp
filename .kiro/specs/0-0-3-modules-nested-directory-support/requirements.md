@@ -2,7 +2,7 @@
 
 ## Introduction
 
-The Atlantis MCP Server currently discovers CloudFormation templates by listing S3 objects at the path `{namespace}/templates/v2/{category}/{templateName}.yml`. This works for flat categories (storage, network, pipeline, service-role) where templates sit directly inside the category folder. However, the "modules" category organizes templates into subdirectories: `{namespace}/templates/v2/modules/{subcategory}/{templateName}.yml`. The current `parseTemplateMetadata()` function extracts the category from the second-to-last path segment, which means a template at `modules/vpc/module-vpc-endpoints.yml` would be parsed with category "vpc" instead of "modules". This feature ensures nested module templates are correctly discovered, retrieved, versioned, and indexed across all MCP tools.
+The 63Klabs Atlantis MCP Server currently discovers CloudFormation templates by listing S3 objects at the path `{namespace}/templates/v2/{category}/{templateName}.yml`. This works for flat categories (storage, network, pipeline, service-role) where templates sit directly inside the category folder. However, the "modules" category organizes templates into subdirectories: `{namespace}/templates/v2/modules/{subcategory}/{templateName}.yml`. The current `parseTemplateMetadata()` function extracts the category from the second-to-last path segment, which means a template at `modules/vpc/module-vpc-endpoints.yml` would be parsed with category "vpc" instead of "modules". This feature ensures nested module templates are correctly discovered, retrieved, versioned, and indexed across all MCP tools.
 
 ## Glossary
 

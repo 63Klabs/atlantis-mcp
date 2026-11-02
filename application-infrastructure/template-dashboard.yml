@@ -16,7 +16,7 @@ Dashboard:
                     "width": 24,
                     "height": 2,
                     "properties": {
-                        "markdown": "# ${Prefix}-${ProjectId}-${StageId} MCP Server Dashboard\n\nMonitoring for Atlantis MCP Server"
+                        "markdown": "# ${Prefix}-${ProjectId}-${StageId} MCP Server Dashboard\n\nMonitoring for 63Klabs Atlantis MCP Server"
                     }
                 },
                 {

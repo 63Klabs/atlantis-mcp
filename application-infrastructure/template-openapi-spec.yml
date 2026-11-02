@@ -1,7 +1,7 @@
 openapi: '3.0.0'
 info:
-  title: "Atlantis MCP Server API"
-  description: "Model Context Protocol server for Atlantis Templates and Scripts Platform - provides read-only operations for template discovery, starter code, and documentation search via JSON-RPC 2.0"
+  title: "63Klabs Atlantis MCP Server API"
+  description: "Model Context Protocol server for 63Klabs Atlantis DevOps Platform for Serverless on AWS - provides read-only operations for template discovery, starter code, and documentation search via JSON-RPC 2.0"
   version: "0.0.1"
   contact:
     name: "63klabs.net"

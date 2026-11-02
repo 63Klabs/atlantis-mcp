@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document provides a comprehensive reference for all CloudFormation parameters used in the Atlantis MCP Server deployment. These parameters control the behavior, configuration, and resource naming of the deployed MCP server.
+This document provides a comprehensive reference for all CloudFormation parameters used in the 63Klabs Atlantis MCP Server deployment. These parameters control the behavior, configuration, and resource naming of the deployed MCP server.
 
 ## Parameter Categories
 
@@ -180,7 +180,7 @@ aws ssm put-parameter \
   --name "/atlantis/mcp/github-token" \
   --value "ghp_your_token_here" \
   --type "SecureString" \
-  --description "GitHub Personal Access Token for Atlantis MCP Server"
+  --description "GitHub Personal Access Token for 63Klabs Atlantis MCP Server"
 ```
 
 **See Also:**

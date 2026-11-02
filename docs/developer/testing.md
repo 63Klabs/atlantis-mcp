@@ -1,6 +1,6 @@
 # Testing Guide
 
-This guide covers how to run, write, and maintain tests for the Atlantis MCP Server.
+This guide covers how to run, write, and maintain tests for the 63Klabs Atlantis MCP Server.
 
 ## Prerequisites
 

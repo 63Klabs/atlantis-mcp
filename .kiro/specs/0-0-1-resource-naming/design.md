@@ -2,7 +2,7 @@
 
 ## Overview
 
-This design addresses two interrelated problems in the Atlantis MCP Server's resource naming validation system:
+This design addresses two interrelated problems in the 63Klabs Atlantis MCP Server's resource naming validation system:
 
 1. **Broken hyphen-based parsing**: The current `naming-rules.js` uses `name.split('-')` to decompose resource names into components. This fails when components (OrgPrefix, Prefix, ProjectId, StageId, ResourceName/ResourceSuffix) themselves contain hyphens. The fix replaces naive splitting with anchor-based parsing that uses known values and fixed-format patterns to identify component boundaries.
 

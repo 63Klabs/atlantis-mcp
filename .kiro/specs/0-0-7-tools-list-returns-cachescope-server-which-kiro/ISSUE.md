@@ -37,7 +37,7 @@ tools/list returns cacheScope "server", which Kiro rejects (connection fails)
 ````text
 ## Summary
 
-Kiro IDE fails to connect to the Atlantis MCP server. The connection and `initialize` succeed, but Kiro then rejects the `tools/list` response and closes the connection because `cacheScope` has the value `"server"`.
+Kiro IDE fails to connect to the 63Klabs Atlantis MCP server. The connection and `initialize` succeed, but Kiro then rejects the `tools/list` response and closes the connection because `cacheScope` has the value `"server"`.
 
 ## Environment
 

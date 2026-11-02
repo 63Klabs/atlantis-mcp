@@ -2,7 +2,7 @@
 
 ## Overview
 
-This design converts the Atlantis MCP Server from a hybrid layout (multi-src directory structure with centralized test tooling) to a fully decoupled multi-src layout compliant with the `atlantis-multi-resource-src` steering document. Each Lambda function and the static site become self-contained units with their own Node version pin, test runner config, lint config, and dependencies. The `buildspec.yml` adopts the prescribed loop pattern, and static-site build/test/audit moves to `buildspec-postdeploy.yml`.
+This design converts the 63Klabs Atlantis MCP Server from a hybrid layout (multi-src directory structure with centralized test tooling) to a fully decoupled multi-src layout compliant with the `atlantis-multi-resource-src` steering document. Each Lambda function and the static site become self-contained units with their own Node version pin, test runner config, lint config, and dependencies. The `buildspec.yml` adopts the prescribed loop pattern, and static-site build/test/audit moves to `buildspec-postdeploy.yml`.
 
 The change is structural. No Lambda handler logic, controller, service, model, or view code changes. No CloudFormation logical IDs, `FunctionName` values, roles, alarms, permissions, or API events change. This keeps the deployment free of resource replacement.
 
@@ -221,7 +221,7 @@ When the static suite runs from `src/static/` (its new working directory), the c
   {
     "name": "atlantis-mcp-server-static",
     "version": "0.0.1",
-    "description": "Static site assets and tests for Atlantis MCP Server",
+    "description": "Static site assets and tests for 63Klabs Atlantis MCP Server",
     "private": true,
     "type": "module",
     "scripts": {

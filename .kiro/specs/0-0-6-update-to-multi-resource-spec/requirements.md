@@ -2,7 +2,7 @@
 
 ## Introduction
 
-The `atlantis-multi-resource-src` steering document formalizes how a project's `application-infrastructure/src/` directory must be organized when it contains more than one deployable resource (multiple Lambda functions, Lambda Layers, or static sites). The Atlantis MCP Server already contains four Lambda functions and a static site, and already satisfies several requirements (descriptive logical IDs, per-function `package.json` and `node_modules`, correct `CodeUri` paths, separate execution roles).
+The `atlantis-multi-resource-src` steering document formalizes how a project's `application-infrastructure/src/` directory must be organized when it contains more than one deployable resource (multiple Lambda functions, Lambda Layers, or static sites). The 63Klabs Atlantis MCP Server already contains four Lambda functions and a static site, and already satisfies several requirements (descriptive logical IDs, per-function `package.json` and `node_modules`, correct `CodeUri` paths, separate execution roles).
 
 This spec closes the remaining gaps so the repository fully complies with the steering document and remains maintainable as each function evolves independently. The guiding principle from the answered clarifying questions is **decoupling**: each function is treated as a fully self-contained unit that could be moved to a different stack without dragging shared configuration with it.
 

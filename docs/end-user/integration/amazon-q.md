@@ -1,12 +1,12 @@
 # Amazon Q Developer Integration Guide
 
-This guide explains how to integrate the Atlantis MCP Server with Amazon Q Developer, enabling AI-assisted development with access to Atlantis templates and documentation.
+This guide explains how to integrate the 63Klabs Atlantis MCP Server with Amazon Q Developer, enabling AI-assisted development with access to Atlantis templates and documentation.
 
 ## Prerequisites
 
 - Amazon Q Developer
 - AWS account with appropriate permissions
-- Access to the Atlantis MCP Server endpoint
+- Access to the 63Klabs Atlantis MCP Server endpoint
 - VS Code or JetBrains IDE with Amazon Q extension
 
 ## Configuration Steps
@@ -25,7 +25,7 @@ This guide explains how to integrate the Atlantis MCP Server with Amazon Q Devel
 
 #### 2. Configure MCP Integration
 
-To add the Atlantis MCP (Model Context Protocol) server to Amazon Q Developer, the easiest is to use the MCP Tools configuration (wrench icon in Q Chat window).
+To add the 63Klabs Atlantis MCP (Model Context Protocol) server to Amazon Q Developer, the easiest is to use the MCP Tools configuration (wrench icon in Q Chat window).
 
 This will open "MCP Servers" configuration panel. Click on the plus `+` sign to add the new server with the following options:
 
@@ -131,5 +131,5 @@ If you need to regenerate your key, visit your [profile page](https://mcp.atlant
 ## Additional Resources
 
 - Amazon Q Documentation: [aws.amazon.com/q/developer](https://aws.amazon.com/q/developer/)
-- [Atlantis MCP Server: GitHub](https://github.com/63klabs/atlantis-mcp/) ([Issues](https://github.com/63klabs/atlantis-mcp/issues))
+- [63Klabs Atlantis MCP Server: GitHub](https://github.com/63klabs/atlantis-mcp/) ([Issues](https://github.com/63klabs/atlantis-mcp/issues))
 - [Atlantis DevOps Platform Documentation](https://github.com/63Klabs/atlantis)

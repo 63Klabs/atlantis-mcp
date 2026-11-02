@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Atlantis MCP Server discovers CloudFormation templates from S3 buckets at the path `{namespace}/templates/v2/{category}/{templateName}.yml`. This flat structure works for categories like storage, network, pipeline, and service-role. However, the "modules" category organizes templates into subdirectories: `{namespace}/templates/v2/modules/{subcategory}/{templateName}.yml`.
+The 63Klabs Atlantis MCP Server discovers CloudFormation templates from S3 buckets at the path `{namespace}/templates/v2/{category}/{templateName}.yml`. This flat structure works for categories like storage, network, pipeline, and service-role. However, the "modules" category organizes templates into subdirectories: `{namespace}/templates/v2/modules/{subcategory}/{templateName}.yml`.
 
 The current `parseTemplateMetadata()` function extracts the category from the second-to-last path segment, which means a template at `modules/vpc/module-vpc-endpoints.yml` is incorrectly parsed with category "vpc" instead of "modules". Similarly, `buildTemplateKey()` constructs flat S3 keys that cannot locate templates in subdirectories, and `deduplicateTemplates()` uses `category/name` as a dedup key which doesn't account for subcategories.
 

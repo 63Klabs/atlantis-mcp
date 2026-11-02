@@ -2,7 +2,7 @@
 
 ## Introduction
 
-The `getChunk` controller in the Atlantis MCP Server Read Lambda currently serializes and chunks template content on every request, even when the underlying template data has not changed. This is process-intensive and redundant because the template data is already cached upstream via `CacheableDataAccess`. This feature introduces internal caching for the chunking operation itself using the established `@63klabs/cache-data` `CacheableDataAccess` pattern, so that repeated chunk requests for the same template return cached results instead of re-serializing and re-chunking.
+The `getChunk` controller in the 63Klabs Atlantis MCP Server Read Lambda currently serializes and chunks template content on every request, even when the underlying template data has not changed. This is process-intensive and redundant because the template data is already cached upstream via `CacheableDataAccess`. This feature introduces internal caching for the chunking operation itself using the established `@63klabs/cache-data` `CacheableDataAccess` pattern, so that repeated chunk requests for the same template return cached results instead of re-serializing and re-chunking.
 
 ## Glossary
 

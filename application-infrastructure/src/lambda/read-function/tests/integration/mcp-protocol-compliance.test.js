@@ -1,7 +1,7 @@
 /**
  * MCP Protocol Compliance Tests
  *
- * Tests that the Atlantis MCP Server complies with the Model Context Protocol v1.0 specification.
+ * Tests that the 63Klabs Atlantis MCP Server complies with the Model Context Protocol v1.0 specification.
  * These tests verify protocol negotiation, capability discovery, tool listing, tool invocation,
  * error responses, and JSON Schema validation.
  */

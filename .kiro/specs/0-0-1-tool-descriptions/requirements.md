@@ -2,11 +2,11 @@
 
 ## Introduction
 
-This feature improves the MCP tool descriptions served by the Atlantis MCP Server so that AI agents and LLMs can accurately determine which tool to invoke and when. The current short descriptions in `settings.js` remain unchanged. A new, separate module stores longer, AI-optimized descriptions that include action-oriented summaries, usage guidance, failure modes, and examples. The `list_tools` endpoint merges these longer descriptions into its response, giving agents the context they need without bloating the settings configuration.
+This feature improves the MCP tool descriptions served by the 63Klabs Atlantis MCP Server so that AI agents and LLMs can accurately determine which tool to invoke and when. The current short descriptions in `settings.js` remain unchanged. A new, separate module stores longer, AI-optimized descriptions that include action-oriented summaries, usage guidance, failure modes, and examples. The `list_tools` endpoint merges these longer descriptions into its response, giving agents the context they need without bloating the settings configuration.
 
 ## Glossary
 
-- **MCP_Server**: The Atlantis MCP Server read Lambda that handles tool discovery and invocation requests from AI agents.
+- **MCP_Server**: The 63Klabs Atlantis MCP Server read Lambda that handles tool discovery and invocation requests from AI agents.
 - **Tool_Description_Module**: A new JavaScript module that exports a map of tool names to their extended description strings. Stored separately from `settings.js`.
 - **Short_Description**: The existing concise `description` field on each tool definition in `settings.js`.
 - **Extended_Description**: A longer, AI-optimized description containing an action-oriented summary, usage guidance, input parameter notes, failure modes, and examples. May contain Markdown formatting.

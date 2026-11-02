@@ -2,7 +2,7 @@
 
 ## Problem Statement
 
-The Atlantis MCP server is failing with the error:
+The 63Klabs Atlantis MCP server is failing with the error:
 
 ```
 Error sending prompt: tools.33.custom.input_schema: input_schema does not support oneOf, allOf, or anyOf at the top level

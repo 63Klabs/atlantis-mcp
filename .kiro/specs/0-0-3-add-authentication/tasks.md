@@ -2,7 +2,7 @@
 
 ## Overview
 
-This plan implements tiered authentication for the Atlantis MCP Server. Tasks are ordered to build infrastructure first (CloudFormation, SSM), then core auth utilities, then the Auth Lambda, then Read Lambda integration, then static site pages, and finally admin documentation. Each task builds on previous steps with no orphaned code.
+This plan implements tiered authentication for the 63Klabs Atlantis MCP Server. Tasks are ordered to build infrastructure first (CloudFormation, SSM), then core auth utilities, then the Auth Lambda, then Read Lambda integration, then static site pages, and finally admin documentation. Each task builds on previous steps with no orphaned code.
 
 The implementation language is JavaScript (CommonJS/Node.js), matching the existing codebase.
 

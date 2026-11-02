@@ -4,7 +4,7 @@ Documentation Index Enhancement
 
 ## Introduction
 
-This feature improves the efficiency, cost, and usefulness of the Atlantis MCP documentation
+This feature improves the efficiency, cost, and usefulness of the 63Klabs Atlantis MCP documentation
 search and indexing pipeline. It is driven by the analysis in `RECOMMENDATIONS.md` and the
 decisions recorded in `QUESTIONS.md` (all answers incorporated below).
 

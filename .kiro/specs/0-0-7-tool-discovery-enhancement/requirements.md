@@ -2,7 +2,7 @@
 
 ## Introduction
 
-**Tool Discovery Enhancement.** This feature makes the Atlantis MCP Server the first place an AI agent looks for resources when working in an Atlantis-scaffolded repository, and makes `@63klabs/cache-data` reliably discoverable despite its name not containing "atlantis".
+**Tool Discovery Enhancement.** This feature makes the 63Klabs Atlantis MCP Server the first place an AI agent looks for resources when working in an Atlantis-scaffolded repository, and makes `@63klabs/cache-data` reliably discoverable despite its name not containing "atlantis".
 
 It addresses three independent failures identified in [PLAN.md](PLAN.md): the server never announces its own scope or precedence to an agent; `AGENTS.md` directives are client-side conventions the server has no leverage over and cannot even surface through search; and `cache-data` is structurally unreachable by the queries an agent would naturally write, with no mechanism by which an agent could learn the package exists.
 

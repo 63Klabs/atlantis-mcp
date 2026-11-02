@@ -1,6 +1,6 @@
 # Tool Discovery Enhancement
 
-Planning document for v0.0.7. Scope: make the Atlantis MCP server the first place an agent looks for resources in an Atlantis-scaffolded repository, and make `@63klabs/cache-data` reliably discoverable even though its name does not contain "atlantis".
+Planning document for v0.0.7. Scope: make the 63Klabs Atlantis MCP server the first place an agent looks for resources in an Atlantis-scaffolded repository, and make `@63klabs/cache-data` reliably discoverable even though its name does not contain "atlantis".
 
 All open questions from the first draft are now resolved; see [section 7](#7-resolved-decisions). Protocol-revision work has been split into its own spec, [`0-0-7-mcp-protocol-dual-era`](../0-0-7-mcp-protocol-dual-era/PLAN.md), which this spec depends on for WS1 and WS2.
 

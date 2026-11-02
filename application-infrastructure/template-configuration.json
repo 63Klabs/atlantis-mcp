@@ -1,6 +1,6 @@
 {
   "Parameters": {
-    "UserAgent": "Atlantis MCP - $STAGE_ID$",
+    "UserAgent": "63Klabs Atlantis MCP - $STAGE_ID$",
     "ApiPathBase": "$PROJECT_ID$-$STAGE_ID$",
     "FunctionMaxMemoryInMB": "2048",
     "FunctionTimeOutInSeconds": "15",
@@ -12,9 +12,9 @@
   },
   "Tags": {
 
-    "Application":"Atlantis MCP",
-    "Name":"Atlantis MCP Service $PREFIX$-$PROJECT_ID$",
-    "Project": "Atlantis MCP",
+    "Application":"63Klabs Atlantis MCP",
+    "Name":"63Klabs Atlantis MCP Service $PREFIX$-$PROJECT_ID$",
+    "Project": "63Klabs Atlantis MCP",
     "Owner": "teamlead@yourorg.com",
     "Creator":"you@yourorg.com",
     "CostCenter":"7G",

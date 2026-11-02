@@ -1,6 +1,6 @@
 # Troubleshooting Guide
 
-This guide helps you diagnose and resolve common issues when using the Atlantis MCP Server.
+This guide helps you diagnose and resolve common issues when using the 63Klabs Atlantis MCP Server.
 
 ## Table of Contents
 
@@ -109,7 +109,7 @@ X-RateLimit-Reset: <unix-timestamp>
 3. **Self-Host for Higher Limits**
    - Deploy your own instance
    - Configure custom rate limits
-   - [Atlantis MCP on GitHub](https://github.com/63klabs/atlantis-mcp)
+   - [63Klabs Atlantis MCP on GitHub](https://github.com/63klabs/atlantis-mcp)
 
 **Prevention:**
 

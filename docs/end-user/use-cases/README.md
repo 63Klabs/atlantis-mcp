@@ -1,6 +1,6 @@
 # Common Use Cases and Patterns
 
-This document provides practical examples of how to use the Atlantis MCP Server for common development scenarios.
+This document provides practical examples of how to use the 63Klabs Atlantis MCP Server for common development scenarios.
 
 ## Table of Contents
 

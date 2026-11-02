@@ -2,7 +2,7 @@
 
 ## Introduction
 
-**MCP Protocol Dual-Era Support.** This feature makes the Atlantis MCP Server speak both the legacy handshake-based MCP revisions (`2025-11-25` and earlier) and the modern stateless revision (`2026-07-28`) from the same endpoint, with real per-request version negotiation and shared server-level `instructions` on both. See [PLAN.md](PLAN.md) for the full analysis, including the inventory in section 3 and the sequencing in section 7.
+**MCP Protocol Dual-Era Support.** This feature makes the 63Klabs Atlantis MCP Server speak both the legacy handshake-based MCP revisions (`2025-11-25` and earlier) and the modern stateless revision (`2026-07-28`) from the same endpoint, with real per-request version negotiation and shared server-level `instructions` on both. See [PLAN.md](PLAN.md) for the full analysis, including the inventory in section 3 and the sequencing in section 7.
 
 Dual-era is required rather than optional. The target clients — Kiro, Claude Code, ChatGPT, and Cursor — are not all on the same revision: modern-capable clients are in the field (Anthropic has brought `2026-07-28` to Claude), and at the same time Cursor has been reported to fail against modern-only `2026-07-28` servers because its legacy `initialize` is rejected. A legacy client has no fall-forward mechanism, so a server that speaks only modern is unreachable from a legacy client without any usable error signal. The MCP specification names the dual-era pattern directly and endorses serving both eras from one endpoint.
 

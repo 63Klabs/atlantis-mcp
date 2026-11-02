@@ -1,11 +1,11 @@
 # Claude Desktop Integration Guide
 
-This guide explains how to integrate the Atlantis MCP Server with Claude Desktop, enabling Claude to access Atlantis templates, documentation, and starter code.
+This guide explains how to integrate the 63Klabs Atlantis MCP Server with Claude Desktop, enabling Claude to access Atlantis templates, documentation, and starter code.
 
 ## Prerequisites
 
 - Claude Desktop application installed
-- Access to the Atlantis MCP Server endpoint (public or self-hosted)
+- Access to the 63Klabs Atlantis MCP Server endpoint (public or self-hosted)
 - Basic understanding of JSON configuration
 
 ## Configuration Steps
@@ -29,16 +29,16 @@ Claude Desktop stores MCP server configurations in a JSON file:
 ~/.config/Claude/claude_desktop_config.json
 ```
 
-### 2. Add Atlantis MCP Server Configuration
+### 2. Add 63Klabs Atlantis MCP Server Configuration
 
-Open the configuration file and add the Atlantis MCP Server:
+Open the configuration file and add the 63Klabs Atlantis MCP Server:
 
 ```json
 {
   "mcpServers": {
     "atlantis": {
       "url": "https://mcp.atlantis.63klabs.net/mcp/v1",
-      "description": "Atlantis Templates and Scripts Platform MCP Server"
+      "description": "63Klabs Atlantis DevOps Platform for Serverless on AWS MCP Server"
     }
   }
 }
@@ -70,7 +70,7 @@ Claude should respond with a list of templates from the MCP server.
       "headers": {
         "x-api-key": "atl_your_api_key_here"
       },
-      "description": "Atlantis Templates and Scripts Platform MCP Server"
+      "description": "63Klabs Atlantis DevOps Platform for Serverless on AWS MCP Server"
     }
   }
 }
@@ -87,5 +87,5 @@ If you need to regenerate your key, visit your [profile page](https://mcp.atlant
 ## Additional Resources
 
 - [Claude Desktop Documentation](https://claude.ai/docs)
-- [Atlantis MCP Server: GitHub](https://github.com/63klabs/atlantis-mcp/) ([Issues](https://github.com/63klabs/atlantis-mcp/issues))
+- [63Klabs Atlantis MCP Server: GitHub](https://github.com/63klabs/atlantis-mcp/) ([Issues](https://github.com/63klabs/atlantis-mcp/issues))
 - [63Klabs Atlantis DevOps Platform Documentation](https://github.com/63Klabs/atlantis)

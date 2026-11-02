@@ -2,13 +2,13 @@
 
 ## Introduction
 
-This document defines the requirements for adding tiered authentication to the Atlantis MCP Server. The system currently supports only public (unauthenticated) access with IP-based rate limiting. This feature introduces four access tiers — public, registered, paid, and private — using Amazon Cognito for user management, static API keys for MCP client authentication, and a DynamoDB Users table for key-to-user lookups. The existing `POST /mcp/v1` endpoint remains unchanged; authentication is opt-in via an API key header.
+This document defines the requirements for adding tiered authentication to the 63Klabs Atlantis MCP Server. The system currently supports only public (unauthenticated) access with IP-based rate limiting. This feature introduces four access tiers — public, registered, paid, and private — using Amazon Cognito for user management, static API keys for MCP client authentication, and a DynamoDB Users table for key-to-user lookups. The existing `POST /mcp/v1` endpoint remains unchanged; authentication is opt-in via an API key header.
 
 Phase 1 covers the core authentication infrastructure, user registration, API key lifecycle, tier-aware rate limiting, voucher code redemption, and static site pages. Phase 2 covers scheduled cleanup, payment integration, admin dashboard, usage analytics, and API key scoping.
 
 ## Glossary
 
-- **MCP_Server**: The Atlantis MCP Server application — the Read Lambda, API Gateway, and supporting infrastructure that serves MCP tool requests
+- **MCP_Server**: The 63Klabs Atlantis MCP Server application — the Read Lambda, API Gateway, and supporting infrastructure that serves MCP tool requests
 - **Read_Lambda**: The existing Lambda function that handles all `POST /mcp/v1` requests, performs rate limiting, and routes to MCP tool controllers
 - **Auth_Lambda**: A new Lambda function that handles server-side authentication operations including API key regeneration, voucher redemption, and the Cognito Post-Confirmation trigger
 - **User_Pool**: The Amazon Cognito User Pool that manages user registration, email verification, login, and password policies

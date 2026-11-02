@@ -1,12 +1,12 @@
 # ChatGPT Integration Guide
 
-This guide explains how to integrate the Atlantis MCP Server with ChatGPT, enabling ChatGPT to access Atlantis templates, documentation, and starter code.
+This guide explains how to integrate the 63Klabs Atlantis MCP Server with ChatGPT, enabling ChatGPT to access Atlantis templates, documentation, and starter code.
 
 ## Prerequisites
 
 - ChatGPT Plus or Enterprise subscription
 - Access to Custom GPTs feature
-- Access to the Atlantis MCP Server endpoint
+- Access to the 63Klabs Atlantis MCP Server endpoint
 
 ## Configuration Steps
 
@@ -25,10 +25,10 @@ This guide explains how to integrate the Atlantis MCP Server with ChatGPT, enabl
 
 **Instructions:**
 ```
-You are an expert assistant for the Atlantis Templates and Scripts Platform by 63Klabs. 
+You are an expert assistant for the 63Klabs Atlantis DevOps Platform for Serverless on AWS. 
 You help developers discover CloudFormation templates, application starters, and documentation.
 
-You have access to the Atlantis MCP Server which provides:
+You have access to the 63Klabs Atlantis MCP Server which provides:
 - CloudFormation template discovery and retrieval
 - Application starter code information
 - Documentation and code pattern search
@@ -52,12 +52,12 @@ Click "Create new action" and add the following OpenAPI specification:
 ```yaml
 openapi: 3.0.0
 info:
-  title: Atlantis MCP Server API
+  title: 63Klabs Atlantis MCP Server API
   version: 1.0.0
-  description: MCP Server for Atlantis Templates and Scripts Platform
+  description: MCP Server for 63Klabs Atlantis DevOps Platform for Serverless on AWS
 servers:
   - url: https://mcp.atlantis.63klabs.net/mcp/v1
-    description: Production Atlantis MCP Server
+    description: 63Klabs Atlantis MCP Server
 ```
 
 ### 4. Configure Authentication
@@ -109,5 +109,5 @@ If you need to regenerate your key, visit your [profile page](https://mcp.atlant
 ## Additional Resources
 
 - Documentation: [Full Docs](../README.md)
-- [Atlantis MCP Server: GitHub](https://github.com/63klabs/atlantis-mcp/) ([Issues](https://github.com/63klabs/atlantis-mcp/issues))
+- [63Klabs Atlantis MCP Server: GitHub](https://github.com/63klabs/atlantis-mcp/) ([Issues](https://github.com/63klabs/atlantis-mcp/issues))
 - [63Klabs Atlantis DevOps Platform Documentation](https://github.com/63Klabs/atlantis)

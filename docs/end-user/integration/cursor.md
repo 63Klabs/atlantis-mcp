@@ -1,11 +1,11 @@
 # Cursor IDE Integration Guide
 
-This guide explains how to integrate the Atlantis MCP Server with Cursor IDE, enabling AI-assisted development with access to Atlantis templates and documentation.
+This guide explains how to integrate the 63Klabs Atlantis MCP Server with Cursor IDE, enabling AI-assisted development with access to Atlantis templates and documentation.
 
 ## Prerequisites
 
 - Cursor IDE installed (version 0.30.0 or later)
-- Access to the Atlantis MCP Server endpoint
+- Access to the 63Klabs Atlantis MCP Server endpoint
 - Basic understanding of JSON configuration
 
 ## Configuration Steps
@@ -20,7 +20,7 @@ This guide explains how to integrate the Atlantis MCP Server with Cursor IDE, en
 - Search for "MCP" in settings
 - Or go to: Extensions → Model Context Protocol
 
-### 3. Add Atlantis MCP Server
+### 3. Add 63Klabs Atlantis MCP Server
 
 Click "Edit in settings.json" and add:
 
@@ -29,7 +29,7 @@ Click "Edit in settings.json" and add:
   "mcp.servers": {
     "atlantis": {
       "url": "https://mcp.atlantis.63klabs.net/mcp/v1",
-      "name": "Atlantis",
+      "name": "63Klabs Atlantis",
       "description": "CloudFormation templates, starters, and documentation",
       "enabled": true
     }
@@ -82,5 +82,5 @@ If you need to regenerate your key, visit your [profile page](https://mcp.atlant
 ## Additional Resources
 
 - Cursor Documentation: [cursor.sh/docs](https://cursor.sh/docs)
-- [Atlantis MCP Server: GitHub](https://github.com/63klabs/atlantis-mcp/) ([Issues](https://github.com/63klabs/atlantis-mcp/issues))
+- [63Klabs Atlantis MCP Server: GitHub](https://github.com/63klabs/atlantis-mcp/) ([Issues](https://github.com/63klabs/atlantis-mcp/issues))
 - [63Klabs Atlantis DevOps Platform Documentation](https://github.com/63Klabs/atlantis)

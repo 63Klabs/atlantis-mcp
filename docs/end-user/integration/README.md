@@ -1,6 +1,6 @@
 # Integration Guides
 
-Connect the Atlantis MCP Server to your preferred AI assistant. Each guide walks through setup, configuration, and verification.
+Connect the 63Klabs Atlantis MCP Server to your preferred AI assistant. Each guide walks through setup, configuration, and verification.
 
 ## Available Integrations
 
@@ -14,13 +14,13 @@ Connect the Atlantis MCP Server to your preferred AI assistant. Each guide walks
 
 Before setting up any integration, ensure:
 
-1. The Atlantis MCP Server is deployed and accessible
+1. The 63Klabs Atlantis MCP Server is deployed and accessible
 2. You have the server URL (e.g., `https://mcp.atlantis.63klabs.net/mcp/v1`)
 3. Your AI assistant supports MCP or custom API actions
 
 ## API Key Authentication
 
-The Atlantis MCP Server works without authentication at the public tier. Registering for an account and adding your API key to your MCP configuration unlocks higher rate limits and additional capabilities.
+The 63Klabs Atlantis MCP Server works without authentication at the public tier. Registering for an account and adding your API key to your MCP configuration unlocks higher rate limits and additional capabilities.
 
 | Tier | How to access |
 |------|---------------|

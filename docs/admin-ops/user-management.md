@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document covers administrative operations for managing users in the Atlantis MCP Server authentication system. All operations use the AWS CLI and target the Users table and Cognito User Pool directly.
+This document covers administrative operations for managing users in the 63Klabs Atlantis MCP Server authentication system. All operations use the AWS CLI and target the Users table and Cognito User Pool directly.
 
 ## Prerequisites
 

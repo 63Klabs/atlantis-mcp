@@ -1,12 +1,12 @@
-# Self-Hosting Guide for Atlantis MCP Server
+# Self-Hosting Guide for 63Klabs Atlantis MCP Server
 
 ## Overview
 
-This comprehensive guide walks you through deploying and managing your own instance of the Atlantis MCP Server. Self-hosting gives you complete control over your MCP server deployment, allowing you to customize configurations, integrate with your organization's infrastructure, and maintain data sovereignty.
+This comprehensive guide walks you through deploying and managing your own instance of the 63Klabs Atlantis MCP Server. Self-hosting gives you complete control over your MCP server deployment, allowing you to customize configurations, integrate with your organization's infrastructure, and maintain data sovereignty.
 
 ## Why Self-Host?
 
-Self-hosting the Atlantis MCP Server provides several benefits:
+Self-hosting the 63Klabs Atlantis MCP Server provides several benefits:
 
 1. **Data Sovereignty**: Keep all data within your AWS account
 2. **Custom Configuration**: Configure S3 buckets, GitHub orgs, and rate limits for your needs
@@ -56,30 +56,30 @@ Before self-hosting, ensure you have:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Your AWS Account                          │
-│                                                              │
+│                    Your AWS Account                         │
+│                                                             │
 │  ┌────────────────────────────────────────────────────────┐ │
-│  │              Atlantis MCP Server Stack                 │ │
+│  │          63Klabs Atlantis MCP Server Stack             │ │
 │  │                                                        │ │
-│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐│ │
-│  │  │ API Gateway  │→ │Read Lambda   │→ │  DynamoDB    ││ │
-│  │  │(Rate Limit)  │  │(Node.js 24.x)│  │(Cache Table) ││ │
-│  │  └──────────────┘  └──────────────┘  └──────────────┘│ │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │ │
+│  │  │ API Gateway  │→ │Read Lambda   │→ │  DynamoDB    │  │ │
+│  │  │(Rate Limit)  │  │(Node.js 24.x)│  │(Cache Table) │  │ │
+│  │  └──────────────┘  └──────────────┘  └──────────────┘  │ │
 │  │                           │                            │ │
 │  │                           ▼                            │ │
-│  │                    ┌──────────────┐                   │ │
-│  │                    │  S3 Cache    │                   │ │
-│  │                    │   Bucket     │                   │ │
-│  │                    └──────────────┘                   │ │
+│  │                    ┌──────────────┐                    │ │
+│  │                    │  S3 Cache    │                    │ │
+│  │                    │   Bucket     │                    │ │
+│  │                    └──────────────┘                    │ │
 │  └────────────────────────────────────────────────────────┘ │
-│                           │                                  │
-│                           ▼                                  │
+│                           │                                 │
+│                           ▼                                 │
 │  ┌────────────────────────────────────────────────────────┐ │
 │  │           Your S3 Buckets (Templates & Starters)       │ │
-│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐│ │
-│  │  │   Bucket 1   │  │   Bucket 2   │  │   Bucket 3   ││ │
-│  │  │  (atlantis)  │  │  (finance)   │  │  (devops)    ││ │
-│  │  └──────────────┘  └──────────────┘  └──────────────┘│ │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │ │
+│  │  │   Bucket 1   │  │   Bucket 2   │  │   Bucket 3   │  │ │
+│  │  │  (atlantis)  │  │  (finance)   │  │  (devops)    │  │ │
+│  │  └──────────────┘  └──────────────┘  └──────────────┘  │ │
 │  └────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────┘
                            │
@@ -197,7 +197,7 @@ aws ssm put-parameter \
   --name "/atlantis/mcp/github-token" \
   --value "ghp_your_token_here" \
   --type "SecureString" \
-  --description "GitHub Personal Access Token for Atlantis MCP Server" \
+  --description "GitHub Personal Access Token for 63Klabs Atlantis MCP Server" \
   --region us-east-1
 ```
 

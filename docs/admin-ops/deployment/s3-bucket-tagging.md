@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Atlantis MCP Server uses S3 bucket tags to control access and configure namespace indexing. Two tags are required for the MCP server to discover and index templates and starters from S3 buckets.
+The 63Klabs Atlantis MCP Server uses S3 bucket tags to control access and configure namespace indexing. Two tags are required for the MCP server to discover and index templates and starters from S3 buckets.
 
 ## Required Tags
 

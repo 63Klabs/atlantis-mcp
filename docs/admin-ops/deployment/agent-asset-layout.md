@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Atlantis MCP Server's `list_agent_assets` and `get_agent_asset` tools serve example Kiro AI "agent assets" — steering documents, hooks, and `AGENTS.md` files today, with `skills` shipped but disabled by default — from the **same S3 buckets and namespaces** already used for CloudFormation templates and application starters (see [S3 Bucket Tagging Guide](./s3-bucket-tagging.md) and [Multiple S3 Bucket Configuration](./multiple-s3-buckets.md)).
+The 63Klabs Atlantis MCP Server's `list_agent_assets` and `get_agent_asset` tools serve example Kiro AI "agent assets" — steering documents, hooks, and `AGENTS.md` files today, with `skills` shipped but disabled by default — from the **same S3 buckets and namespaces** already used for CloudFormation templates and application starters (see [S3 Bucket Tagging Guide](./s3-bucket-tagging.md) and [Multiple S3 Bucket Configuration](./multiple-s3-buckets.md)).
 
 Agent assets live under a dedicated `utilities/v2/agent_assets/` prefix within each namespace, alongside the existing `templates/v2/` and `app-starters/v2/` prefixes. No new S3 buckets, bucket tags, or CloudFormation resources are required to support this feature — it reuses the buckets and namespaces you have already configured with `atlantis-mcp:Allow` and `atlantis-mcp:IndexPriority` tags.
 

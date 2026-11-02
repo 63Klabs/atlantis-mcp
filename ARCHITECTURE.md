@@ -1,6 +1,6 @@
 # Architecture
 
-The Atlantis MCP Server is a serverless application that exposes 63Klabs Atlantis DevOps Platform resources (CloudFormation templates, starter code, documentation) to AI assistants via the [Model Context Protocol](https://modelcontextprotocol.io/) (MCP). It is built entirely on AWS managed services and deployed through the Atlantis CI/CD pipeline.
+The 63Klabs Atlantis MCP Server is a serverless application that exposes 63Klabs Atlantis DevOps Platform resources (CloudFormation templates, starter code, documentation) to AI assistants via the [Model Context Protocol](https://modelcontextprotocol.io/) (MCP). It is built entirely on AWS managed services and deployed through the Atlantis CI/CD pipeline.
 
 ## High-Level Architecture
 
@@ -922,7 +922,7 @@ S3 buckets include AccountId and Region (and optionally, an Organization Prefix)
 
 ## Operating Cost Estimate
 
-This section estimates the monthly operating cost of the full Atlantis MCP Server application stack. All resources use serverless, pay-per-use pricing with no fixed infrastructure costs. The application can sit completely idle at zero cost.
+This section estimates the monthly operating cost of the full 63Klabs Atlantis MCP Server application stack. All resources use serverless, pay-per-use pricing with no fixed infrastructure costs. The application can sit completely idle at zero cost.
 
 Prices are for **us-east-1** (N. Virginia). Other regions may vary by up to 25%. Estimates exclude data transfer out, which is negligible for API-only workloads.
 

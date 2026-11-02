@@ -1,5 +1,5 @@
 /**
- * Configuration initialization module for Atlantis MCP Server Read Lambda
+ * Configuration initialization module for 63Klabs Atlantis MCP Server Read Lambda
  *
  * This module handles async initialization of:
  * - AppConfig.init() (Response, ClientRequest, Connections, Settings)
@@ -33,7 +33,7 @@ const connections = require("./connections.js");
 const responses = require("./responses.js");
 
 /**
- * Configuration class for Atlantis MCP Server Read Lambda.
+ * Configuration class for 63Klabs Atlantis MCP Server Read Lambda.
  * 
  * Extends tools.AppConfig from @63klabs/cache-data to provide:
  * - Config.settings() - Getter for accessing application settings

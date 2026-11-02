@@ -1,5 +1,5 @@
 /**
- * Lambda handler for Atlantis MCP Server Read-Only Operations
+ * Lambda handler for 63Klabs Atlantis MCP Server Read-Only Operations
  *
  * This Lambda function handles all read-only MCP protocol operations including:
  * - Template discovery and retrieval

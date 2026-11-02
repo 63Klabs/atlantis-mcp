@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-This document provides detailed information about each MCP tool available through the Atlantis MCP Server.
+This document provides detailed information about each MCP tool available through the 63Klabs Atlantis MCP Server.
 
 ## Table of Contents
 
@@ -34,7 +34,7 @@ None.
 ### Example Usage
 
 ```
-Ask your AI: "What tools does the Atlantis MCP server provide?"
+Ask your AI: "What tools does the 63Klabs Atlantis MCP server provide?"
 ```
 
 ### Use Cases
@@ -78,7 +78,7 @@ List all CloudFormation templates available for deployment via Atlantis scripts,
 | `versionId` | string | No | Filter by S3 version ID |
 | `s3Buckets` | array[string] | No | Filter to specific S3 buckets from configured list |
 
-> **Note:** `63klabs` is the only bucket and `atlantis` is the only namespace available via the public Atlantis MCP server. If your organization hosts its own Atlantis MCP server there may be additional namespaces and S3 buckets available.
+> **Note:** `63klabs` is the only bucket and `atlantis` is the only namespace available via the public 63Klabs Atlantis MCP server. If your organization hosts its own 63Klabs Atlantis MCP server there may be additional namespaces and S3 buckets available.
 
 ### Example Usage
 
@@ -123,7 +123,7 @@ If the template is too large to return in a single response, a summary is return
 
 > **Note:** If both `version` and `versionId` are provided, they are treated as an OR condition (returns template matching either).
 
-> **Note:** `63klabs` is the only bucket and `atlantis` is the only namespace available via the public Atlantis MCP server. If your organization hosts its own Atlantis MCP server there may be additional namespaces and S3 buckets available.
+> **Note:** `63klabs` is the only bucket and `atlantis` is the only namespace available via the public 63Klabs Atlantis MCP server. If your organization hosts its own 63Klabs Atlantis MCP server there may be additional namespaces and S3 buckets available.
 
 ### Example Usage
 
@@ -187,7 +187,7 @@ List all available versions of a specific CloudFormation template, returning ver
 | `category` | string | Yes | Template category (storage, network, pipeline, service-role, modules) |
 | `s3Buckets` | array[string] | No | Filter to specific S3 buckets from configured list |
 
-> **Note:** `63klabs` is the only bucket and `atlantis` is the only namespace available via the public Atlantis MCP server. If your organization hosts its own Atlantis MCP server there may be additional namespaces and S3 buckets available.
+> **Note:** `63klabs` is the only bucket and `atlantis` is the only namespace available via the public 63Klabs Atlantis MCP server. If your organization hosts its own 63Klabs Atlantis MCP server there may be additional namespaces and S3 buckets available.
 
 ### Example Usage
 
@@ -217,7 +217,7 @@ Check whether newer versions are available for a CloudFormation template and ret
 | `currentVersion` | string | Yes | Current version you're using (e.g., "v1.2.3/2024-01-15") |
 | `s3Buckets` | array[string] | No | Filter to specific S3 buckets from configured list |
 
-> **Note:** `63klabs` is the only bucket and `atlantis` is the only namespace available via the public Atlantis MCP server. If your organization hosts its own Atlantis MCP server there may be additional namespaces and S3 buckets available.
+> **Note:** `63klabs` is the only bucket and `atlantis` is the only namespace available via the public 63Klabs Atlantis MCP server. If your organization hosts its own 63Klabs Atlantis MCP server there may be additional namespaces and S3 buckets available.
 
 ### Example Usage
 
@@ -251,7 +251,7 @@ List all available application starter code repositories with metadata including
 | `s3Buckets` | array[string] | No | Filter to specific S3 buckets from configured list |
 | `namespace` | string | No | Filter to a specific namespace (S3 root prefix) |
 
-> **Note:** `63klabs` is the only bucket and `atlantis` is the only namespace available via the public Atlantis MCP server. If your organization hosts its own Atlantis MCP server there may be additional namespaces and S3 buckets available.
+> **Note:** `63klabs` is the only bucket and `atlantis` is the only namespace available via the public 63Klabs Atlantis MCP server. If your organization hosts its own 63Klabs Atlantis MCP server there may be additional namespaces and S3 buckets available.
 
 ### Example Usage
 
@@ -281,7 +281,7 @@ Retrieve detailed information about a specific starter code repository, includin
 | `s3Buckets` | array[string] | No | Filter to specific S3 buckets from configured list |
 | `namespace` | string | No | Filter to a specific namespace (S3 root prefix) |
 
-> **Note:** `63klabs` is the only bucket and `atlantis` is the only namespace available via the public Atlantis MCP server. If your organization hosts its own Atlantis MCP server there may be additional namespaces and S3 buckets available.
+> **Note:** `63klabs` is the only bucket and `atlantis` is the only namespace available via the public 63Klabs Atlantis MCP server. If your organization hosts its own 63Klabs Atlantis MCP server there may be additional namespaces and S3 buckets available.
 
 ### Example Usage
 
@@ -310,7 +310,7 @@ List available Kiro agent assets — reusable example steering documents, hooks,
 | `s3Buckets` | array[string] | No | Filter to specific S3 buckets from configured list |
 | `namespace` | string | No | Filter to a specific namespace (S3 root prefix) |
 
-> **Note:** `63klabs` is the only bucket and `atlantis` is the only namespace available via the public Atlantis MCP server. If your organization hosts its own Atlantis MCP server there may be additional namespaces and S3 buckets available.
+> **Note:** `63klabs` is the only bucket and `atlantis` is the only namespace available via the public 63Klabs Atlantis MCP server. If your organization hosts its own 63Klabs Atlantis MCP server there may be additional namespaces and S3 buckets available.
 
 ### Example Usage
 
@@ -345,7 +345,7 @@ Retrieve one Kiro agent asset's full content by `assetType` and `name`. Both par
 | `s3Buckets` | array[string] | No | Filter to specific S3 buckets from configured list |
 | `namespace` | string | No | Filter to a specific namespace (S3 root prefix) |
 
-> **Note:** `63klabs` is the only bucket and `atlantis` is the only namespace available via the public Atlantis MCP server. If your organization hosts its own Atlantis MCP server there may be additional namespaces and S3 buckets available.
+> **Note:** `63klabs` is the only bucket and `atlantis` is the only namespace available via the public 63Klabs Atlantis MCP server. If your organization hosts its own 63Klabs Atlantis MCP server there may be additional namespaces and S3 buckets available.
 
 > **Tip — keeping a local copy in sync:** If you maintain a local copy of a steering document, hook, or AGENTS.md file, compare its cached `size` and `etag` (from a prior `list_agent_assets` or `get_agent_asset` call) against the latest response before overwriting it. For a stronger check, compute the SHA-256 of your local file's bytes and compare it to the returned `sha256` — a match means your local copy is already current and no re-fetch or overwrite is needed.
 

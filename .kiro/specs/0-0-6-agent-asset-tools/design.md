@@ -3,7 +3,7 @@
 ## Overview
 
 **Agent Assets MCP Tools** adds a read-only, registry-driven family of MCP tools to the
-Atlantis MCP Server's `read-function` Lambda. The tools let AI assistants discover and
+63Klabs Atlantis MCP Server's `read-function` Lambda. The tools let AI assistants discover and
 retrieve example Kiro "agent assets" — steering documents, hooks, and `AGENTS.md` files
 today, with `skills` and future types addable through a single registry entry.
 

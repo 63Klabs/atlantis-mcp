@@ -2,7 +2,7 @@
 
 ## Overview
 
-This guide explains how to integrate the sidecar metadata generation script into your AWS CodeBuild pipeline for app starter repositories. The script generates metadata JSON files that the Atlantis MCP Server uses to provide rich information about starters without extracting ZIP files.
+This guide explains how to integrate the sidecar metadata generation script into your AWS CodeBuild pipeline for app starter repositories. The script generates metadata JSON files that the 63Klabs Atlantis MCP Server uses to provide rich information about starters without extracting ZIP files.
 
 ## Prerequisites
 

@@ -1,7 +1,7 @@
 {
   "name": "atlantis-mcp-server-static",
   "version": "0.0.1",
-  "description": "Static site for Atlantis MCP Server documentation portal",
+  "description": "Static site for the 63Klabs Atlantis MCP Server documentation portal",
   "type": "module",
   "scripts": {
     "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js",

@@ -2,7 +2,7 @@
 
 ## Overview
 
-**Tool Discovery Enhancement** makes the Atlantis MCP Server the first place an AI agent looks for platform resources, and makes `@63klabs/cache-data` reachable by the queries an agent would naturally write.
+**Tool Discovery Enhancement** makes the 63Klabs Atlantis MCP Server the first place an AI agent looks for platform resources, and makes `@63klabs/cache-data` reachable by the queries an agent would naturally write.
 
 The work divides into four independent mechanisms:
 

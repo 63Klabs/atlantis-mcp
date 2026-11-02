@@ -2,15 +2,15 @@
 # either express or implied. See the License for the specific language governing permissions 
 # and limitations under the License.
 #
-# Atlantis for AWS SAM Deployments
-# Atlantis MCP Server
+# 63Klabs Atlantis DevOps Platform for Serverless on AWS
+# 63Klabs Atlantis MCP Server
 # Author: 63klabs.net
 # Version: v0.0.1/2026-02-24
 
 # Documentation, Issues/Feature Requests, Latest Updates, and Security Reports on GitHub:
 # https://github.com/63klabs/atlantis-mcp
 
-# Creates an MCP (Model Context Protocol) server for Atlantis Templates and Scripts Platform
+# Creates an MCP (Model Context Protocol) server for 63Klabs Atlantis DevOps Platform for Serverless on AWS
 # Provides tools for template and starter code discovery and documentation
 # This template is designed to be used with 63KLabs Atlantis for automated deployments.
 
@@ -21,7 +21,7 @@
 
 AWSTemplateFormatVersion: "2010-09-09"
 Transform:  AWS::Serverless-2016-10-31
-Description: "Atlantis MCP Server - Model Context Protocol server for AI-assisted development"
+Description: "63Klabs Atlantis MCP Server - Model Context Protocol server for AI-assisted development"
 
 # =============================================================================
 # META DATA

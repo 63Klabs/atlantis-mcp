@@ -1,12 +1,12 @@
-# Atlantis MCP Server - Deployment Guide
+# 63Klabs Atlantis MCP Server - Deployment Guide
 
 ## Overview
 
-This guide provides step-by-step instructions for deploying the Atlantis MCP Server to AWS using the Atlantis SAM Configuration Repository. The MCP server is deployed as a serverless application using AWS Lambda, API Gateway, DynamoDB, and S3.
+This guide provides step-by-step instructions for deploying the 63Klabs Atlantis MCP Server to AWS using the Atlantis SAM Configuration Repository. The MCP server is deployed as a serverless application using AWS Lambda, API Gateway, DynamoDB, and S3.
 
 ## Prerequisites
 
-Before deploying the Atlantis MCP Server, ensure you have:
+Before deploying the 63Klabs Atlantis MCP Server, ensure you have:
 
 1. **AWS Account** with appropriate permissions
 2. **Atlantis SAM Configuration Repository** cloned locally
@@ -19,7 +19,7 @@ Before deploying the Atlantis MCP Server, ensure you have:
 
 ## Deployment Architecture
 
-The Atlantis MCP Server follows the 63Klabs Atlantis DevOps Platform deployment pattern:
+The 63Klabs Atlantis MCP Server follows the 63Klabs Atlantis DevOps Platform deployment pattern:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -57,7 +57,7 @@ The Atlantis MCP Server follows the 63Klabs Atlantis DevOps Platform deployment 
 
 ## Branch-to-Environment Mapping
 
-The Atlantis MCP Server uses branch-based deployments:
+The 63Klabs Atlantis MCP Server uses branch-based deployments:
 
 | Branch | Environment | Stage | Deployment Type |
 |--------|-------------|-------|-----------------|
@@ -249,7 +249,7 @@ aws ssm put-parameter \
   --name "/atlantis/mcp/github-token" \
   --value "ghp_your_token_here" \
   --type "SecureString" \
-  --description "GitHub Personal Access Token for Atlantis MCP Server"
+  --description "GitHub Personal Access Token for 63Klabs Atlantis MCP Server"
 ```
 
 **Required GitHub Token Scopes:**

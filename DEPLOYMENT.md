@@ -1,6 +1,6 @@
 # Deployment Guide
 
-This application is **Ready-to-Deploy-and-Run** with the [63Klabs Atlantis DevOps Templates and Scripts Platform for Serverless Deployments on AWS](https://github.com/63Klabs/atlantis)
+This application is **Ready-to-Deploy-and-Run** with the [63Klabs Atlantis DevOps Platform for Serverless on AWS](https://github.com/63Klabs/atlantis)
 
 - Use the Atlantis scripts from your organizations central SAM Config infrastructure repository to manage your application's repository and deployment.
 - Add a pipeline to each branch in your repository you want to deploy from (`test`, `beta`, `main`)
@@ -16,7 +16,7 @@ Like any other project, you can skip the Atlantis platform and go at it on your 
 
 However, if you are managing many projects manually (especially on your own or part of a small team), the Atlantis platform is highly recommended as it implements Platform Engineering and AWS best practices. Plus it utilizes AWS native resources including SAM deployments and CloudFormation without the need of proprietary DevOps tools. Everything is API, CloudFormation template, and SAM CLI based.
 
-If this is your first time deploying to AWS, or deployments have been difficult to manage in the past and you are looking into automating some of your tasks, please look at the 63Klabs Atlantis Templates and Scripts Platform. (If you traditionally deploy applications through the Web Console, **PLEASE** look into Atlantis! We have many, many tutorials to get you started deploying production-ready applications!) using Platform Engineering and CI/CD best practices with scripts as easy as `create_repo.py`, `config.py`, and `deploy.py` that all use `samconfig` files written in `TOML` and the AWS API as the backbone.
+If this is your first time deploying to AWS, or deployments have been difficult to manage in the past and you are looking into automating some of your tasks, please look at the 63Klabs Atlantis DevOps Platform for Serverless on AWS. (If you traditionally deploy applications through the Web Console, **PLEASE** look into Atlantis! We have many, many tutorials to get you started deploying production-ready applications!) using Platform Engineering and CI/CD best practices with scripts as easy as `create_repo.py`, `config.py`, and `deploy.py` that all use `samconfig` files written in `TOML` and the AWS API as the backbone.
 
 ## Cache-Data Stack
 

@@ -1,7 +1,7 @@
 {
   "name": "atlantis-mcp-server-auth-lambda",
   "version": "0.0.3",
-  "description": "Auth Lambda function for Atlantis MCP Server - Key regeneration, voucher redemption, Cognito Post-Confirmation",
+  "description": "Auth Lambda function for 63Klabs Atlantis MCP Server - Key regeneration, voucher redemption, Cognito Post-Confirmation",
   "main": "index.js",
   "scripts": {
     "test": "jest",

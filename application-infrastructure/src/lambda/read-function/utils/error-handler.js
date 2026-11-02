@@ -1,5 +1,5 @@
 /**
- * Error Handling Utilities for Atlantis MCP Server
+ * Error Handling Utilities for 63Klabs Atlantis MCP Server
  *
  * Provides centralized error handling, categorization, and logging utilities.
  * Implements comprehensive error handling patterns including:

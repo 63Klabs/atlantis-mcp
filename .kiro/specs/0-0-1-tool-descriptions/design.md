@@ -2,7 +2,7 @@
 
 ## Overview
 
-This design adds extended, AI-optimized tool descriptions to the Atlantis MCP Server without modifying the existing `settings.js` file. A new `config/tool-descriptions.js` module stores longer Markdown-rich descriptions keyed by tool name. The `controllers/tools.js` `list()` function merges these extended descriptions into the response at runtime, replacing the short `description` field on each tool object while preserving `name` and `inputSchema` unchanged.
+This design adds extended, AI-optimized tool descriptions to the 63Klabs Atlantis MCP Server without modifying the existing `settings.js` file. A new `config/tool-descriptions.js` module stores longer Markdown-rich descriptions keyed by tool name. The `controllers/tools.js` `list()` function merges these extended descriptions into the response at runtime, replacing the short `description` field on each tool object while preserving `name` and `inputSchema` unchanged.
 
 The approach keeps `settings.js` as the single source of truth for tool names and input schemas, while giving AI agents the richer context they need to select the right tool.
 

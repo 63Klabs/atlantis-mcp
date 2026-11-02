@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Atlantis MCP Server uses GitHub custom properties to identify and categorize repositories. The `atlantis_repository-type` custom property determines how repositories are discovered and indexed by the MCP server.
+The 63Klabs Atlantis MCP Server uses GitHub custom properties to identify and categorize repositories. The `atlantis_repository-type` custom property determines how repositories are discovered and indexed by the MCP server.
 
 **Key Concept:** Repositories WITHOUT the `atlantis_repository-type` custom property are deliberately excluded from MCP server discovery. This allows you to control which repositories are accessible through the MCP server.
 
@@ -18,7 +18,7 @@ GitHub custom properties are organization-level metadata that can be applied to 
 
 ## Repository Types
 
-The Atlantis MCP Server recognizes the following repository types:
+The 63Klabs Atlantis MCP Server recognizes the following repository types:
 
 | Type | Description | Discovered By |
 |------|-------------|---------------|
@@ -351,7 +351,7 @@ gh api orgs/acme-org/repos --paginate | \
 - May include MCP-specific documentation
 
 **Examples:**
-- `atlantis-mcp-server-phase-1` - Atlantis MCP Server
+- `atlantis-mcp-server-phase-1` - 63Klabs Atlantis MCP Server
 
 **MCP Tools:** `search_documentation`
 

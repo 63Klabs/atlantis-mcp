@@ -8,10 +8,11 @@ Target: November 2026
 - [x] api-gateway-live-alias
 - [x] fix: tools-list-returns-cachescope
 - [x] schema-validation-of-modern-results
-- [ ] address static site generation issue for API specs
-- [ ] lapsed tier downgrade
 - [ ] rate-limit-client-ip-spoofing
+- [ ] lapsed tier downgrade
+- [ ] address static site generation issue for API specs
 - [ ] add a GET method endpoint (should just be for discovery, no body or query string. init and discovery?)
+- [ ] dependabot findings
 
 ## 0-0-8
 

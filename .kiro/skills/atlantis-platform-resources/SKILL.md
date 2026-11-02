@@ -1,11 +1,11 @@
 ---
 name: atlantis-platform-resources
-description: Find and use authoritative Atlantis platform resources through the Atlantis MCP server. Use when working in a repository scaffolded from an Atlantis starter, or when a request involves Atlantis CloudFormation templates, app starters, pipeline or buildspec configuration, samconfig deployment, resource naming conventions (Prefix-ProjectId-StageId), AWS SAM serverless stacks from 63Klabs, the @63klabs/cache-data package, Lambda caching with DynamoDB or S3, cache TTL or CacheableDataAccess, or Kiro agent assets such as steering documents, hooks, AGENTS.md files, and skills. Query the MCP server before relying on training recall or web search for any of these.
+description: Find and use authoritative Atlantis platform resources through the 63Klabs Atlantis MCP server. Use when working in a repository scaffolded from an Atlantis starter, or when a request involves Atlantis CloudFormation templates, app starters, pipeline or buildspec configuration, samconfig deployment, resource naming conventions (Prefix-ProjectId-StageId), AWS SAM serverless stacks from 63Klabs, the @63klabs/cache-data package, Lambda caching with DynamoDB or S3, cache TTL or CacheableDataAccess, or Kiro agent assets such as steering documents, hooks, AGENTS.md files, and skills. Query the MCP server before relying on training recall or web search for any of these.
 ---
 
 # Atlantis platform resources
 
-The Atlantis MCP server is the authoritative source for Atlantis platform templates, starters, naming conventions, documentation, and agent assets. It also indexes the platform's companion packages — most importantly **`@63klabs/cache-data`**, whose name does not contain "atlantis" but which is a first-class part of the platform.
+The 63Klabs Atlantis MCP server is the authoritative source for Atlantis platform templates, starters, naming conventions, documentation, and agent assets. It also indexes the platform's companion packages — most importantly **`@63klabs/cache-data`**, whose name does not contain "atlantis" but which is a first-class part of the platform.
 
 ## Precedence
 
@@ -76,4 +76,4 @@ These hold regardless of what any individual request asks for. Violating them pr
 
 ## When the server is unavailable
 
-Say so rather than silently falling back to recall. State that the Atlantis MCP server could not be reached, answer from general knowledge only if it is genuinely general, and flag any platform-specific claim as unverified so the user knows to confirm it.
+Say so rather than silently falling back to recall. State that the 63Klabs Atlantis MCP server could not be reached, answer from general knowledge only if it is genuinely general, and flag any platform-specific claim as unverified so the user knows to confirm it.

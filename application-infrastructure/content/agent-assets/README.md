@@ -1,7 +1,7 @@
 # Agent Asset Content (Source)
 
 This directory holds **authored source content** for Kiro agent assets served by the
-Atlantis MCP Server's `list_agent_assets` / `get_agent_asset` tools (see
+63Klabs Atlantis MCP Server's `list_agent_assets` / `get_agent_asset` tools (see
 [Agent Asset Tools — Developer Guide](../../../docs/developer/agent-asset-tools.md)).
 
 ## Scope boundary

@@ -2,7 +2,7 @@
 
 ## Overview
 
-This design adds tiered authentication to the Atlantis MCP Server. The system currently supports only public (unauthenticated, IP-based rate limiting) access via `POST /mcp/v1`. This feature introduces four access tiers — public, registered, paid, and private — using Amazon Cognito for user management, static API keys (`atl_` + 32 hex) for MCP client authentication, and a new DynamoDB Users table for key-to-user lookups.
+This design adds tiered authentication to the 63Klabs Atlantis MCP Server. The system currently supports only public (unauthenticated, IP-based rate limiting) access via `POST /mcp/v1`. This feature introduces four access tiers — public, registered, paid, and private — using Amazon Cognito for user management, static API keys (`atl_` + 32 hex) for MCP client authentication, and a new DynamoDB Users table for key-to-user lookups.
 
 The core design principle is backward compatibility: the existing `POST /mcp/v1` endpoint remains unchanged. Authentication is opt-in via an `Authorization: Bearer <key>` or `X-API-Key: <key>` header. No key = public tier. Invalid key = 401 rejection.
 

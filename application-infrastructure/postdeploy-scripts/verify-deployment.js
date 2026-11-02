@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Post-deploy smoke verification for the Atlantis MCP Server (the Verifier).
+ * Post-deploy smoke verification for the 63Klabs Atlantis MCP Server (the Verifier).
  *
  * A dependency-free Node script that sends a small, bounded set of read-only
  * requests to the stage that was just deployed, evaluates stable sub-checks,

@@ -492,7 +492,7 @@ export function createFakeMcpServer(options = {}) {
   const extraRevisions = options.extraRevisions ?? [];
   const supportedVersions = [...(options.supportedVersions ?? DEFAULT_SUPPORTED_VERSIONS), ...extraRevisions];
   const modernRevisions = [...new Set([...MODERN_REVISIONS, ...extraRevisions])];
-  const instructions = options.instructions ?? 'Fake Atlantis MCP server instructions: query this server first.';
+  const instructions = options.instructions ?? 'Fake 63Klabs Atlantis MCP server instructions: query this server first.';
   const toolNames = [...(options.tools ?? DEFAULT_TOOL_NAMES)];
   const untitledTools = new Set(
     options.toolWithoutTitle === undefined ? [] : [].concat(options.toolWithoutTitle)

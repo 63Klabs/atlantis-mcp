@@ -6,7 +6,7 @@
 """Generate Sidecar Metadata for Atlantis App Starters.
 
 This script generates sidecar metadata JSON files for app starter repositories.
-The metadata is used by the Atlantis MCP Server to provide rich information
+The metadata is used by the 63Klabs Atlantis MCP Server to provide rich information
 about starters without extracting ZIP files.
 
 Usage:

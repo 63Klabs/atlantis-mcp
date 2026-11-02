@@ -107,7 +107,7 @@ function fixtureWithRepoMetadata() {
 				namespace: null, owner: '63klabs'
 			},
 			doc2: {
-				title: 'Atlantis MCP Overview', excerpt: 'x', type: 'documentation', subType: 'guide',
+				title: '63Klabs Atlantis MCP Overview', excerpt: 'x', type: 'documentation', subType: 'guide',
 				path: 'repo/README.md', repository: 'atlantis-mcp', repositoryType: 'mcp',
 				namespace: null, owner: '63klabs'
 			},
@@ -142,7 +142,7 @@ describe('DocIndex.queryIndex() — repository/repositoryType/namespace filters 
 
 		const result = await DocIndex.queryIndex({ query: 'cache', repositoryType: 'mcp', limit: 10 });
 
-		expect(result.results.map((r) => r.title)).toEqual(['Atlantis MCP Overview']);
+		expect(result.results.map((r) => r.title)).toEqual(['63Klabs Atlantis MCP Overview']);
 		expect(result.totalResults).toBe(1);
 	});
 
@@ -232,7 +232,7 @@ describe('DocIndex.queryIndex() — ghusers as an owner filter (R5.3)', () => {
 
 		const result = await DocIndex.queryIndex({ query: 'cache', ghusers: ['63klabs'], limit: 10 });
 
-		expect(result.results.map((r) => r.title).sort()).toEqual(['Atlantis MCP Overview', 'Cache Data Install']);
+		expect(result.results.map((r) => r.title).sort()).toEqual(['63Klabs Atlantis MCP Overview', 'Cache Data Install']);
 		expect(result.totalResults).toBe(2);
 	});
 

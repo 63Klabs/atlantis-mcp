@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Atlantis MCP Server supports multiple S3 buckets for templates and app starters, allowing organizations to use custom templates alongside 63klabs templates with priority ordering. This guide explains how to configure and manage multiple S3 buckets.
+The 63Klabs Atlantis MCP Server supports multiple S3 buckets for templates and app starters, allowing organizations to use custom templates alongside 63klabs templates with priority ordering. This guide explains how to configure and manage multiple S3 buckets.
 
 ## Use Cases
 
@@ -18,12 +18,12 @@ Multiple S3 bucket support enables:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                   Atlantis MCP Server                        │
-│                                                              │
-│  AtlantisS3Buckets: "bucket1,bucket2,bucket3"              │
-│                                                              │
+│               63Klabs Atlantis MCP Server                   │
+│                                                             │
+│  AtlantisS3Buckets: "bucket1,bucket2,bucket3"               │
+│                                                             │
 │  Priority Order: 1 → 2 → 3                                  │
-└──────────────────┬───────────────────────────────────────────┘
+└──────────────────┬──────────────────────────────────────────┘
                    │
         ┌──────────┼──────────┐
         │          │          │

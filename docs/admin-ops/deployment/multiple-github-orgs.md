@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Atlantis MCP Server supports multiple GitHub users and organizations for repository discovery, allowing organizations to aggregate starters and documentation from multiple sources with priority ordering. This guide explains how to configure and manage multiple GitHub users/organizations.
+The 63Klabs Atlantis MCP Server supports multiple GitHub users and organizations for repository discovery, allowing organizations to aggregate starters and documentation from multiple sources with priority ordering. This guide explains how to configure and manage multiple GitHub users/organizations.
 
 ## Use Cases
 
@@ -18,12 +18,12 @@ Multiple GitHub user/org support enables:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                   Atlantis MCP Server                        │
-│                                                              │
-│  AtlantisGitHubUserOrgs: "63klabs,acme-org,acme-finance"   │
-│                                                              │
+│              63Klabs Atlantis MCP Server                    │
+│                                                             │
+│  AtlantisGitHubUserOrgs: "63klabs,acme-org,acme-finance"    │
+│                                                             │
 │  Priority Order: 1 → 2 → 3                                  │
-└──────────────────┬───────────────────────────────────────────┘
+└──────────────────┬──────────────────────────────────────────┘
                    │
         ┌──────────┼──────────┐
         │          │          │
@@ -171,7 +171,7 @@ aws ssm put-parameter \
   --name "/atlantis/mcp/github-token" \
   --value "ghp_your_token_here" \
   --type "SecureString" \
-  --description "GitHub Personal Access Token for Atlantis MCP Server"
+  --description "GitHub Personal Access Token for 63Klabs Atlantis MCP Server"
 ```
 
 ### CloudFormation Configuration

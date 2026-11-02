@@ -1,5 +1,5 @@
 /**
- * Cache-data connection and cache profile configurations for Atlantis MCP Server
+ * Cache-data connection and cache profile configurations for 63Klabs Atlantis MCP Server
  *
  * This module defines connection profiles for different data sources (S3, GitHub API)
  * and their associated cache profiles with appropriate TTLs and caching strategies.
@@ -36,7 +36,7 @@ const TTL_NON_PROD = IS_PRODUCTION ? 3600 : 60;
  * Connection and cache profile definitions.
  *
  * This array defines all data source connections and their associated cache
- * profiles for the Atlantis MCP Server. Each connection represents a data
+ * profiles for the 63Klabs Atlantis MCP Server. Each connection represents a data
  * source (S3 buckets, GitHub API, documentation index) with multiple cache
  * profiles for different access patterns.
  *
