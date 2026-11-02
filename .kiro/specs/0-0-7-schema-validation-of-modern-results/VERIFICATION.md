@@ -288,12 +288,31 @@ Hits that were not on the expected list:
 
 All checks pass. The commit is left to the owner.
 
-## User verified results:
+## Release gate check (task 24.1)
 
-In test, P3, P4, P5 are green and X2 is skipped. Tools load connecting Kiro to test
+- Date: 2026-11-02 (run time per GitHub log, UTC)
+- Repo: `63Klabs/atlantis-mcp`, default branch `main`, commit used: `0cc8eedbd0d582fed3ff0d5fbce4d17d302328d1`. `release-gate.yml` was present on `main`.
+- Edit (throwaway branch `release-gate-check`, one line removed): in `application-infrastructure/tests/mcp-schemas/2026-07-28/schema.json`, definition `BlobResourceContents`, `required` array: removed `"blob"` (left `["uri"]`). Diff: 1 deletion. Commit `a3c1146` "test: gate check, do not merge".
+- Local sanity check (run from the worktree, report mode against upstream main): exit code 1. Output: `2024-11-05  unchanged`, `2025-11-25  unchanged`, `2026-07-28  semantic change`, plus `new upstream revision (not vendored)` for 2025-03-26 and 2025-06-18; `result: semantic change in 1 vendored revision (exit 1)`.
+- Pre-release `v0.0.0-gatecheck` created with `--target release-gate-check`.
+- Run: id 41538883283, https://github.com/63Klabs/atlantis-mcp/actions/runs/41538883283 (event `release`, run conclusion `failure`, as expected).
+  - Job `schema-drift`: failure. Steps: checkout success, Python setup success, "Unit tests for the release scripts" success, "Compare vendored schemas with upstream main" failure (exit 1).
+  - Job `withdraw-release`: success; step "Return the release to draft" success.
+- Drift output: `drift=true` (inferred: the refresh step exited 1, which the step maps to `drift=true`, and `withdraw-release` ran and succeeded). The step log showed the same per-revision output as the local run, ending `result: semantic change in 1 vendored revision (exit 1)`.
+- Release final state: `isDraft=true`, `isPrerelease=true`, `tagName=v0.0.0-gatecheck`.
+- Step summary text: not retrieved separately. The refresh step writes it to `$GITHUB_STEP_SUMMARY`, and the log carried the same revision lines (`2026-07-28  semantic change`).
+- Cleanup: release and tag deleted (`--cleanup-tag`), remote branch deleted, worktree removed, local branch deleted. `git ls-remote github` shows no `release-gate-check` or `gatecheck` ref, `gh release list` shows no gate release, `git worktree list` shows only the main tree. Main working tree `git status` was unchanged (only the pre-existing `tasks.md` and `tasks.meta.json` modifications).
+- Outcome: passed. Drift fails the job and the release is returned to draft.
 
-In beta:
-PASS  X2.1   edge preflight allows the origin, the MCP headers, and POST
-PASS  X2.2   edge server/discover reports the expected version
-PASS  X2.3   edge returns -32020 for a mismatched Mcp-Method
-PASS  X2.4   edge returns -32020 for a mismatched Mcp-Name
+## Rollout results (tasks 22, 23)
+
+These results were reported by the owner, who performed the deploys. No log excerpts were available to the recorder.
+
+- `test` stage: PostDeploy passed. P3, P4, and P5 were green. X2 was skipped (no custom domain on `test`).
+- Kiro connected to `test`: tools load.
+- `beta` stage: X2.1, X2.2, X2.3, and X2.4 all PASS.
+  - X2.1: the edge preflight allows the origin, the MCP headers, and POST.
+  - X2.2: edge `server/discover` reports the expected version.
+  - X2.3: the edge returns `-32020` for a mismatched `Mcp-Method`.
+  - X2.4: the edge returns `-32020` for a mismatched `Mcp-Name`.
+  - This shows a 400 passes through `beta`'s CloudFront unchanged.

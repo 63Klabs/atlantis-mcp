@@ -100,8 +100,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          # >! Validate the tag against an allow-list before use; a tag name is user-controlled input
-          tag_pattern='^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.]+)?$'
+          # >! Validate the tag against an allow-list before use; a tag name is user-controlled input (vX.Y.Z plus an optional suffix of letters, digits, dots, hyphens)
+          tag_pattern='^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$'
           if [[ ! "$TAG" =~ $tag_pattern ]]; then
             echo "Refusing to edit a release with an unexpected tag name." >&2
             exit 1

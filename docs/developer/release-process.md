@@ -98,7 +98,7 @@ The pipelines deploy from CodeCommit. The GitHub repository holds the public rel
    git switch dev
    ```
 
-2. On GitHub, create and publish release `vX.Y.Z` against `main`, with the matching `CHANGELOG.md` section as its notes. Use a tag of the form `vX.Y.Z`. The gate refuses to edit a release whose tag does not have that form.
+2. On GitHub, create and publish release `vX.Y.Z` against `main`, with the matching `CHANGELOG.md` section as its notes. Use a tag of the form `vX.Y.Z`; a pre-release suffix such as `-rc-1` or `-beta.1` is also allowed. The gate refuses to edit a release whose tag does not have that form (with an optional suffix of letters, digits, dots, and hyphens).
 3. Publishing starts the [release gate](../../.github/workflows/release-gate.yml). Read its result on the Actions tab.
 
 ### What the release gate does

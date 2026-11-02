@@ -856,6 +856,16 @@
         "executionId": "c5a250f2-6ae4-4dcd-87d0-8d60a1f007a7",
         "chatSessionId": "sess_01cf949f-b732-4a39-9092-694c30f4d9ce",
         "timestamp": 1793647478571
+      },
+      {
+        "executionId": "99577f53-0496-4102-998b-90b3a0aaf2ee",
+        "chatSessionId": "sess_01cf949f-b732-4a39-9092-694c30f4d9ce",
+        "timestamp": 1793659425990
+      },
+      {
+        "executionId": "99577f53-0496-4102-998b-90b3a0aaf2ee",
+        "chatSessionId": "sess_01cf949f-b732-4a39-9092-694c30f4d9ce",
+        "timestamp": 1793659475123
       }
     ],
     "22.2 Connect Kiro to `test`": [
@@ -863,6 +873,16 @@
         "executionId": "c5a250f2-6ae4-4dcd-87d0-8d60a1f007a7",
         "chatSessionId": "sess_01cf949f-b732-4a39-9092-694c30f4d9ce",
         "timestamp": 1793647479013
+      },
+      {
+        "executionId": "99577f53-0496-4102-998b-90b3a0aaf2ee",
+        "chatSessionId": "sess_01cf949f-b732-4a39-9092-694c30f4d9ce",
+        "timestamp": 1793659478550
+      },
+      {
+        "executionId": "99577f53-0496-4102-998b-90b3a0aaf2ee",
+        "chatSessionId": "sess_01cf949f-b732-4a39-9092-694c30f4d9ce",
+        "timestamp": 1793659482155
       }
     ],
     "23.1 Promote through `beta` to `main`": [
@@ -870,6 +890,16 @@
         "executionId": "c5a250f2-6ae4-4dcd-87d0-8d60a1f007a7",
         "chatSessionId": "sess_01cf949f-b732-4a39-9092-694c30f4d9ce",
         "timestamp": 1793647479316
+      },
+      {
+        "executionId": "99577f53-0496-4102-998b-90b3a0aaf2ee",
+        "chatSessionId": "sess_01cf949f-b732-4a39-9092-694c30f4d9ce",
+        "timestamp": 1793659486084
+      },
+      {
+        "executionId": "99577f53-0496-4102-998b-90b3a0aaf2ee",
+        "chatSessionId": "sess_01cf949f-b732-4a39-9092-694c30f4d9ce",
+        "timestamp": 1793659489894
       }
     ],
     "24.1 Run the throwaway pre-release check": [
@@ -877,6 +907,16 @@
         "executionId": "c5a250f2-6ae4-4dcd-87d0-8d60a1f007a7",
         "chatSessionId": "sess_01cf949f-b732-4a39-9092-694c30f4d9ce",
         "timestamp": 1793647479777
+      },
+      {
+        "executionId": "a1310aa5-bb07-4f84-8bc0-26d42444810d",
+        "chatSessionId": "sess_01cf949f-b732-4a39-9092-694c30f4d9ce",
+        "timestamp": 1793659004165
+      },
+      {
+        "executionId": "a1310aa5-bb07-4f84-8bc0-26d42444810d",
+        "chatSessionId": "sess_01cf949f-b732-4a39-9092-694c30f4d9ce",
+        "timestamp": 1793659165642
       }
     ],
     "25. Final checkpoint": [
@@ -884,6 +924,16 @@
         "executionId": "c5a250f2-6ae4-4dcd-87d0-8d60a1f007a7",
         "chatSessionId": "sess_01cf949f-b732-4a39-9092-694c30f4d9ce",
         "timestamp": 1793647480248
+      },
+      {
+        "executionId": "99577f53-0496-4102-998b-90b3a0aaf2ee",
+        "chatSessionId": "sess_01cf949f-b732-4a39-9092-694c30f4d9ce",
+        "timestamp": 1793659493897
+      },
+      {
+        "executionId": "99577f53-0496-4102-998b-90b3a0aaf2ee",
+        "chatSessionId": "sess_01cf949f-b732-4a39-9092-694c30f4d9ce",
+        "timestamp": 1793659518698
       }
     ],
     "1. Write the protocol-fix tests and see them fail (Phase 1, red)": [
@@ -1003,6 +1053,27 @@
         "executionId": "c5a250f2-6ae4-4dcd-87d0-8d60a1f007a7",
         "chatSessionId": "sess_01cf949f-b732-4a39-9092-694c30f4d9ce",
         "timestamp": 1793653558281
+      }
+    ],
+    "24. Check the release gate once (Phase 6, owner, with go-ahead)": [
+      {
+        "executionId": "a1310aa5-bb07-4f84-8bc0-26d42444810d",
+        "chatSessionId": "sess_01cf949f-b732-4a39-9092-694c30f4d9ce",
+        "timestamp": 1793659166041
+      }
+    ],
+    "22. Roll out to `test` and verify (Phase 6, owner)": [
+      {
+        "executionId": "99577f53-0496-4102-998b-90b3a0aaf2ee",
+        "chatSessionId": "sess_01cf949f-b732-4a39-9092-694c30f4d9ce",
+        "timestamp": 1793659482520
+      }
+    ],
+    "23. Promote (Phase 6, owner)": [
+      {
+        "executionId": "99577f53-0496-4102-998b-90b3a0aaf2ee",
+        "chatSessionId": "sess_01cf949f-b732-4a39-9092-694c30f4d9ce",
+        "timestamp": 1793659490329
       }
     ]
   }

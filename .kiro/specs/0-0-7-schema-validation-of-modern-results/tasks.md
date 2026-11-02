@@ -369,27 +369,27 @@ Line numbers were read on 2026-11-01 at `dev` `3658616`; find each edit by its t
     - Leave the commit to the owner.
     - _Requirements: 22.1, 23.1, 23.2, 23.3, 23.4, 23.5, 23.6, 23.7, 23.8_
 
-- [ ] 22. Roll out to `test` and verify (Phase 6, owner)
-  - [~] 22.1 Deploy and read the PostDeploy result
+- [x] 22. Roll out to `test` and verify (Phase 6, owner)
+  - [x] 22.1 Deploy and read the PostDeploy result
     - After the owner commits and the change reaches `test`, let the pipeline run.
     - Build runs the conformance tests. PostDeploy runs the verifier tests in `pre_build`, then the verifier.
     - Record the outcome and the `VERIFY_REPORT` line in `VERIFICATION.md` in this spec directory: `passed`, with P3, P4, and P5 green and X2 skipped.
     - If the stage still runs the previous build, deploy the new build and retry PostDeploy. Do not loosen a check.
     - _Requirements: 22.3, 22.4_
-  - [~] 22.2 Connect Kiro to `test`
+  - [x] 22.2 Connect Kiro to `test`
     - Confirm that the tools load. This also exercises `notifications/initialized` (202) with a real client.
     - If they do not load, capture the client log and stop.
     - Record the result in `VERIFICATION.md`.
     - _Requirements: 22.5_
 
-- [ ] 23. Promote (Phase 6, owner)
-  - [~] 23.1 Promote through `beta` to `main`
+- [x] 23. Promote (Phase 6, owner)
+  - [x] 23.1 Promote through `beta` to `main`
     - Only after 22.1 and 22.2 are met: promote through `beta` and `main`, confirming each stage's PostDeploy.
     - On `beta`, record X2.3 and X2.4 in `VERIFICATION.md`. Passing confirms that a 400 crosses the stage's CloudFront distribution unchanged.
     - _Requirements: 22.4, 22.8_
 
-- [ ] 24. Check the release gate once (Phase 6, owner, with go-ahead)
-  - [~] 24.1 Run the throwaway pre-release check
+- [x] 24. Check the release gate once (Phase 6, owner, with go-ahead)
+  - [x] 24.1 Run the throwaway pre-release check
     - After v0.0.7 reaches GitHub `main`, so the workflow is on the default branch, follow Design V-E 2:
       1. Push a test branch whose vendored `2026-07-28/schema.json` has one `required` entry removed.
       2. Publish pre-release `v0.0.0-gate-check` against it.
@@ -399,7 +399,7 @@ Line numbers were read on 2026-11-01 at `dev` `3658616`; find each edit by its t
     - Only with the owner's go-ahead at that time, because the repository is public.
     - _Requirements: 22.6_
 
-- [~] 25. Final checkpoint
+- [x] 25. Final checkpoint
   - Mark `schema-validation-of-modern-results` complete in `TODO.md` under `## 0-0-7` (`- [x]`) once tasks 22 and 23 are done. Task 24 may follow the release.
   - Confirm `VERIFICATION.md` has the PostDeploy outcome, the Kiro result for `test`, and the `beta` X2 results.
   - Remind the owner of two things:
