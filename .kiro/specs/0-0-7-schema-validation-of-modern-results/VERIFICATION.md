@@ -287,3 +287,13 @@ Hits that were not on the expected list:
 `config/release-version.js` is gitignored and does not appear. The 40 modified tracked files map to tasks 1 to 7 (server, verifier, fake server, tests, dev dependencies), 14.4 (`.kiro/skills/README.md`), 17.2 (`DEPLOYMENT.md`, `CONTRIBUTING.md`, `docs/developer/README.md`), 18 (`ARCHITECTURE.md`, the three docs pages, `mcp-protocol-sources.md`), 19 (Smoke and Dual-era specs), 20 (`CHANGELOG.md`), and the task checkboxes in this spec's `tasks.md`.
 
 All checks pass. The commit is left to the owner.
+
+## User verified results:
+
+In test, P3, P4, P5 are green and X2 is skipped. Tools load connecting Kiro to test
+
+In beta:
+PASS  X2.1   edge preflight allows the origin, the MCP headers, and POST
+PASS  X2.2   edge server/discover reports the expected version
+PASS  X2.3   edge returns -32020 for a mismatched Mcp-Method
+PASS  X2.4   edge returns -32020 for a mismatched Mcp-Name
