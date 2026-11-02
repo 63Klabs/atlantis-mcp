@@ -194,13 +194,13 @@ Do not commit unless the owner asks. Do not edit the Smoke spec's `tasks.md`, th
     - Run the corrected F1 and C1 blocks of the dual-era `TODO-MANUAL-VERIFY.md` against `test` and record the result
     - _Requirements: 13.5_
 
-- [ ] 13. Promote (Phase 4, owner)
-  - [~] 13.1 Promote through `beta` to `main`
+- [x] 13. Promote (Phase 4, owner)
+  - [x] 13.1 Promote through `beta` to `main`
     - Only after tasks 12.1 and 12.2 are met: promote through the normal flow (`test`, `beta`, `main`). Confirm each stage's PostDeploy passes. Nothing is sent to a deployed stage except by the pipeline and the checks above
     - The Smoke spec's open live runs (its task 13) are separate; when they are run, the expected outcomes of its 13.1 are unchanged
     - _Requirements: 13.6, 13.7, 13.9_
 
-- [~] 14. Final checkpoint
+- [x] 14. Final checkpoint
   - Mark `fix: tools-list-returns-cachescope` complete in `TODO.md` under `## 0-0-7` (`- [x]`) once task 12 is done
   - Confirm `VERIFICATION.md` has the PostDeploy outcome and the Kiro result for `test`
   - Remind the owner of the follow-up this feature leaves: `0-0-7-schema-validation-of-modern-results` (ISSUE.md only; no PLAN, requirements, or tasks yet), and that the reporter on GitHub #7 can be told to retry once the fix reaches their stage

@@ -1,5 +1,5 @@
 ---
-name: automate-audit-update-npm-packages
+name: audit-update-npm-packages
 description: Scans all package.json files in the repository (excluding node_modules), runs npm audit to identify vulnerabilities, and updates packages to remediate them. Production dependencies are prioritized over devDependencies. Respects existing version pinning strategies (exact pins, caret ranges, tilde ranges). Reports what was changed and why. Use when asked to audit, patch, or update npm or Node.js dependencies, fix npm audit findings, remediate CVEs or security advisories in package.json, or bring packages up to date.
 metadata:
   convertedFrom: steering/automate-audit-update-npm-packages.md

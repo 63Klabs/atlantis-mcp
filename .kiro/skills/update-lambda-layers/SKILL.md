@@ -1,5 +1,5 @@
 ---
-name: automate-update-lambda-layers
+name: update-lambda-layers
 description: Fetches the latest Lambda Insights extension and AWS Parameters and Secrets extension layer ARNs from AWS documentation and updates the Mappings section in application-infrastructure/template.yml. Handles both x86-64 and ARM64 architectures for all regions currently defined in the template. Use when asked to update, refresh, or check Lambda layer ARNs or extension versions for Lambda Insights or the AWS Parameters and Secrets extension.
 metadata:
   convertedFrom: steering/automate-update-lambda-layers.md

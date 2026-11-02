@@ -4,19 +4,20 @@
 
 Target: November 2026
 
-- [X] post-deploy-smoke-verification - ready to execute tasks
+- [x] post-deploy-smoke-verification - ready to execute tasks
 - [x] api-gateway-live-alias
 - [x] fix: tools-list-returns-cachescope
-- [ ] scheme-validation-of-modern-results
-- [ ] revive post deploy tests
-- [ ] address static site generation issue
+- [-] schema-validation-of-modern-results
+- [ ] address static site generation issue for API specs
 - [ ] lapsed tier downgrade
 - [ ] rate-limit-client-ip-spoofing
+- [ ] add a GET method endpoint (should just be for discovery, no body or query string. init and discovery?)
 
 ## 0-0-8
 
 Target: December 2026
 
+- [ ] Fold revive-postdeploy-tests into prune-tests-and-ensure...
 - [ ] Remove `ReadLambdaPermission` (unqualified grant) from `template.yml` - unused since 0-0-7-api-gateway-live-alias, kept one release for revert safety (v0.0.8)
 - [ ] version-scoped-rollback-alarms - the PROD rollback alarm is function-level (see specs/0-0-8-version-scoped-rollback-alarms)
 - [ ] upstream-alias-integration-report - report the starter alias pattern and permission-pair convention to Atlantis (see specs/0-0-8-upstream-alias-integration-report)
