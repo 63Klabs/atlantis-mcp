@@ -1,6 +1,6 @@
 # Clients can choose their public rate-limit bucket with X-Forwarded-For
 
-> **Status**: Draft, 6 open questions
+> **Status**: Draft, 7 open questions (Q7 was added after review feedback on the range list; answer it first, since it can replace Q3 and Q5)
 > **Issue**: [ISSUE.md](ISSUE.md)
 > **Reviewed against**: `dev` at `3094714` on 2026-11-02 (the issue was checked against `7acaf7d`; the only change to an implicated file since then is an unrelated `id: null` removal in `auth-resolver.js`)
 
@@ -29,7 +29,7 @@ Two findings change the scope the issue assumed:
 | 6 | CloudFront appends the viewer address to the end of a client-sent header; API Gateway appends the forwarding edge | Confirmed by AWS docs | [CloudFront: client IP addresses](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/RequestAndResponseBehaviorCustomOrigin.html#RequestCustomIPAddresses). The runtime observation is taken from the issue |
 | 7 | `WebApi` is edge-optimized; all three distributions use `AllViewerExceptHostHeader` | Confirmed in the template (no `EndpointConfiguration`, `template.yml:656-693`) and in Atlantis docs; deployed values taken from the issue, not re-queried | Atlantis `template-network-route53-cloudfront-s3-apigw` README v0.0.45 |
 | 8 | No throttling and no WAF protect keyless traffic | Confirmed | `MethodSettings` sets logging and metrics only, and only when `ApiGatewayLoggingIsEnabled` (`template.yml:686-693`); no WAF resources in the template. WAF also cannot attach to an edge-optimized stage: API Gateway requires a Regional web ACL ([docs](https://docs.aws.amazon.com/apigateway/latest/developerguide/apigateway-control-access-aws-waf.html)) |
-| 9 | `CloudFront-Viewer-Address` does not reach the function | Consistent with AWS docs | `AllViewerExceptHostHeader` forwards viewer-sent headers; CloudFront-generated headers arrive only when a policy lists them ([headers](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-cloudfront-headers.html)). Not testable here without a network-stack change |
+| 9 | `CloudFront-Viewer-Address` does not reach the function | Confirmed as observed; the cause is not established | The Atlantis template hard-codes `AllViewerExceptHostHeader` (`b689b0a8-…`) on both the default and the `/${PathApi}/*` behavior (atlantis-sam-templates `main`, `OriginRequestPolicyId`); there is no parameter for it. AWS says that policy adds "device type and viewer location headers" without listing them, and lists `CloudFront-Viewer-Address` among the viewer location headers. Yet the set seen at the function lacks `City`, `TLS`, and `Http-Version`, which the same policy should add. That points to API Gateway's own CloudFront layer filtering `CloudFront-*` headers, but it is unproven (R5). See Section 6.4 and Q7 |
 | 10 | The first-entry rule is deliberate (v0.0.1 fix) | Confirmed | `git show e459cf9:.kiro/specs/0-0-1-fix-rate-limiter-client-ip-resolution/bugfix.md`: requirements 2.1 to 2.3 and 3.3 |
 | 11 | Authenticated and invalid-key requests are not affected | Confirmed, except the nuance in row 3 | `index.js:133-143` |
 | 12 | Tests encode the first-entry rule | Confirmed | 12 test files reference the header or `extractSourceIp` (list in Section 5). The two v0.0.1 property suites run; `integration/rate-limiting-integration.test.js` and `unit/lambda/rate-limiting.test.js` are `describe.skip` |
@@ -45,6 +45,7 @@ None of these block the plan, but R1 and R3 can change the design. Q2 asks wheth
 | R1 | Which range set (`CLOUDFRONT`, `CLOUDFRONT_ORIGIN_FACING`, or both) do the observed CloudFront entries and `sourceIp` fall in? | Classify the CloudFront addresses already in the `test` Read function DEBUG log against `ip-ranges.json`. The ranges differ: `CLOUDFRONT_ORIGIN_FACING` has 49 IPv4 prefixes and only 15 of them are also in `CLOUDFRONT` (checked 2026-11-02) | None (read-only log query) |
 | R2 | Does an IPv6 viewer reach the API on either path, and what does the header look like? | `curl -6` to both URLs, read the DEBUG event | 2 counted requests, only if this machine has IPv6 |
 | R3 | If a client sends two separate `X-Forwarded-For` header lines, where does the infrastructure append? Does `multiValueHeaders` show it? | Two header lines on each path, read the DEBUG event | 2 to 4 counted requests |
+| R5 | Which `CloudFront-*` headers sent by a client survive each path, and on the distribution path are `CloudFront-Viewer-Country` and `-ASN` the client's or Amazon's? Does a client-sent header with the same name as one our own edge function would set get replaced? | Read the existing `test` DEBUG events for the values (no traffic). Then 2 requests per path with forged `CloudFront-Viewer-Address` and a forged custom header, read the event | 4 counted requests |
 | R4 | Do `beta` and `prod` show the same chain shape? | Not readable (INFO logging). Verify by rate-limit behavior after the fix is deployed, using the regression probe in Section 6.5 | After deploy |
 
 ## 3. Current state
@@ -150,7 +151,8 @@ What the rule guarantees: a client's bucket cannot be changed by anything the cl
 | Positional rule (third from the right) with no ranges | Cannot tell the raw URL from the distribution without trusting something the client writes. |
 | `sourceIp` only | Behind a distribution it is the CloudFront edge: the v0.0.1 bug. |
 | Regional endpoint (issue fix 2) | Still needs range logic; unverified header behavior; live endpoint-type change on three stages. |
-| `CloudFront-Viewer-Address` | Not forwarded by the deployed policy, and the policy belongs to the upstream template. |
+| `CloudFront-Viewer-Address` through `AllViewerAndCloudFrontHeaders-2022-06` | That policy lists `CloudFront-Viewer-Address`, but it also forwards `Host`. AWS built `AllViewerExceptHostHeader` for API Gateway origins because forwarding `Host` can stop them working. The Atlantis template hard-codes the policy ID, so using any other policy (including a custom one that adds only the viewer address) needs an upstream template change. It also does not establish trust: the header is client-sendable on the raw URL and, if the managed CloudFront layer lets it through, via a client's own distribution. See Q7 |
+| Edge-signed header (S1, now Q7 option B) | Needs infrastructure in this repo and a parameter change on three network stacks. Closes the residual bypass and removes the range list, so Q7 asks whether it should replace the range rule. |
 | Second counter keyed by `sourceIp` as a cap on a whole edge | Extra DynamoDB write per request, a tuning number nobody has data for, and honest users share the cap. Revisit under S1 if needed. |
 | Runtime fetch of `ip-ranges.json` | See Q5. |
 
@@ -170,7 +172,8 @@ What the rule guarantees: a client's bucket cannot be changed by anything the cl
 | Fallback log line and metric filter | Include | Makes a stale range list visible | S | Low |
 | Docs corrections (Section 5) | Include | Same files and behavior as this change | S | Low |
 | Update `tests/integration/test-helpers.js` event shape | Include | Stops encoding a chain nobody observed | S | Low |
-| **S1.** Signed viewer address from the Atlantis distribution | Spin off | Closes the residual bypass. The network template already accepts a CloudFront Function ARN for API behaviors (`CloudFrontApiFunctionViewerRequest`), so no upstream edit is needed: a viewer-request function we own could add the viewer address plus a value only our distribution can produce, which the Read function verifies with a secret kept in SSM. Needs a new function, secret handling, and a parameter change on three separately deployed network stacks | L | Medium |
+| **S4.** `RequestInfo.getClientIp()` in `@63klabs/cache-data` uses the first `X-Forwarded-For` entry (`RequestInfo.class.js:272-320`, same code on `main`) | Spin off (separate repository) | It feeds `ClientRequest` props and the `clientIp` field that `Response.finalize()` logs, so every Atlantis app's logs show a client-chosen address. This app's rate limiter does not use it, so the fix does not depend on it. Opt-in option for a trusted header or a custom resolver | M | Low |
+| **S1.** Signed viewer address from the Atlantis distribution (see Q7: may move into this spec) | Spin off | Closes the residual bypass. The network template already accepts a CloudFront Function ARN for API behaviors (`CloudFrontApiFunctionViewerRequest`), so no upstream edit is needed: a viewer-request function we own could add the viewer address plus a value only our distribution can produce, which the Read function verifies with a secret kept in SSM. Needs a new function, secret handling, and a parameter change on three separately deployed network stacks | L | Medium |
 | **S2.** Post-deploy check for the spoofing property | Spin off | Needs an exception to the verifier's "never send `X-Forwarded-For`" rule, a new sub-check, and updates to its fake server and pinned ID list | M | Low |
 | **S3.** Abuse protection for keyless traffic (stage throttling, WAF on a Regional endpoint) | Spin off or note only | Cost and tuning with no traffic data; a global throttle is also a way to starve honest users | M | Medium |
 | Revive skipped rate-limit suites | Note only | Already inventoried in `0-0-8-prune-tests-and-ensure-automation` | M | Low |
@@ -206,11 +209,11 @@ None yet. D1 to D10 in Section 6.3 stand unless you change them.
 **Recommendation:** B. The weakness is a rate-limit bypass with cost and availability impact and no data exposure, so an advisory is heavy, but people deploying this repository need to know to upgrade, and `Security` is the changelog category for that. The earlier no-advisory decision stays intact.
 **Answer:** _pending_
 
-### Q2. May I run the read-only and low-volume checks R1 to R3 on `test`?
+### Q2. May I run the read-only and low-volume checks R1 to R3 and R5 on `test`?
 
-**Why it matters:** R1 decides which range sets the list must contain. R3 decides how header values are gathered. Both can change the design before requirements are written.
+**Why it matters:** R1 decides which range sets the list must contain. R3 decides how header values are gathered. R5 decides whether Q7 option B works as described. Each can change the design before requirements are written.
 **Options:**
-- **A. Yes, now.** R1 is a read-only log query over events already recorded (no traffic). R2 and R3 send at most about 8 counted keyless requests to `test` (raw URL and distribution), from this machine's address.
+- **A. Yes, now.** R1 and the first half of R5 are read-only log queries over events already recorded (no traffic). R2, R3, and the second half of R5 send at most about 12 counted keyless requests to `test` (raw URL and distribution), from this machine's address.
 - **B. R1 only.** No traffic sent; R2 and R3 become tasks in the implementation phase.
 - **C. You run them**, from the commands in Section 2.
 - **D. Defer all** to implementation, and build the first tests from documented behavior.
@@ -257,4 +260,30 @@ None yet. D1 to D10 in Section 6.3 stand unless you change them.
 - **C. Create S1 only.**
 - **D. Drop all three** and rely on the changelog statement of the limit.
 **Recommendation:** B. S1 closes the real gap and S2 guards it after deploy. S3 has no traffic data behind it, and a global throttle can hurt honest users.
+**Answer:** _pending_
+
+### Q7. Should the CloudFront range list be replaced by an address the Atlantis distribution adds and signs?
+
+**Why it matters:** Added after your question about avoiding a CloudFront IP list. If you choose B, Q3 and Q5 fall away, and the walk in 6.1 is replaced by the rule below. If you choose A, Q3 and Q5 stand as written.
+
+How option B works, using only what exists today:
+- The Atlantis network template already accepts a CloudFront Function ARN for the API behavior (`CloudFrontApiFunctionViewerRequest`), so no upstream edit is needed. `/mcp/*` has no edge function today (checked 2026-11-01).
+- This repo's template creates an `AWS::CloudFront::Function` that runs on every viewer request. It sets two headers, replacing anything the client sent: the viewer address from `event.viewer.ip` (documented as the address of the client that connected to CloudFront) and a secret value.
+- The Read function trusts the address header only when the secret matches (constant-time compare). Otherwise it uses `sourceIp`. There is no `X-Forwarded-For` parsing and no range list.
+- Raw `execute-api` clients still get `sourceIp` (the client). A request through a distribution the client controls cannot present the secret, so it is bucketed by `sourceIp`, which is a CloudFront edge address: it cannot pick its bucket, and it shares one with others at that edge.
+- Custom headers already cross both CloudFront layers: the `Mcp-*` headers reached the Read function through the distribution and API Gateway's managed CloudFront (verified on `test`, 2026-11-01).
+
+What it costs and what is unknown:
+- A new function, a shared secret (the Read function reads it from SSM; the function needs the same value, and how to inject it into function code without exposing it is the main design question), and a parameter change on three network stacks that are deployed outside this repo.
+- Until a stage's network stack has the function attached, traffic through its distribution is bucketed per CloudFront edge address. Attach the function to each stage's network stack right after that stage's app deploy, `test` first.
+- Only one viewer-request function can be attached per behavior. The secret appears in function code, so rotation means updating the function and SSM together; the Read function should accept the old and new value during a change.
+- CloudFront Functions cost $0.10 per million invocations after a free allowance (check current pricing); negligible at this volume.
+- The pipeline's CloudFormation service role needs CloudFront function permissions through `CloudFormationSvcRoleIncludeManagedPolicyArns` (`AGENTS.md` 2.1); these are not granted today.
+
+**Options:**
+- **A. Keep the range-based rule** (6.1) in this spec; Q3, Q5, and S1 stay as written.
+- **B. Edge-signed address replaces the range rule** in this spec. No list, no header parsing, no residual bypass through a client's own distribution.
+- **C. Both.** Signed address when present and valid, range walk otherwise. Most robust, most code, and it keeps the list.
+- **D. Other**, for example asking for a custom origin request policy or an origin-custom-header parameter in the upstream template, which you maintain.
+**Recommendation:** B, after R5 confirms that a client-sent header of the same name is replaced by the function and that custom headers survive both layers on `test`. It removes the item you objected to and closes the one gap A cannot, and it uses a parameter the template already offers. If you want v0.0.7 to stay code-only, choose A now and treat B as S1.
 **Answer:** _pending_
