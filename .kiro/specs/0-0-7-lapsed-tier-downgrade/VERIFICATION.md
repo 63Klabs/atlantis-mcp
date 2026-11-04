@@ -144,3 +144,26 @@ No new rule category was introduced.
 No other modified or untracked file exists. `TODO.md` is not modified. `template.yml`, every `package.json`, and every lockfile are unchanged.
 
 The commit is left to the owner.
+
+## Manual renewal checks
+
+### test
+
+records: 4
+non-registered without end date: 2
+earliest ttl: 2027-02-25T14:06:06Z (113 days)
+records with an end date in the past: 1
+
+### beta
+
+records: 1
+non-registered without end date: 1
+earliest ttl: 2027-02-25T17:19:37Z (113 days)
+records with an end date in the past: 0
+
+### prod
+
+records: 4
+non-registered without end date: 3
+earliest ttl: 2027-01-28T14:08:07Z (85 days)
+records with an end date in the past: 0
