@@ -108,6 +108,8 @@ When a user redeems a voucher through the profile page (`POST /auth/voucher/rede
 
 A voucher with `maxUses` set to 0 allows unlimited redemptions. The voucher's own `expiresAt` controls when the voucher itself can no longer be redeemed, independent of the `durationDays` granted to each user.
 
+A voucher user's record is not renewed by use yet, so the account is removed 120 days after redemption if it is not redeemed again or regenerated.
+
 ---
 
 ## Related documentation

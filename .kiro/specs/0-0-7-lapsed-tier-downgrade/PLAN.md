@@ -1,6 +1,6 @@
 # Lapsed voucher tiers and account lifetime for non-registered tiers
 
-> **Status**: Locked, 2026-11-02
+> **Status**: Locked, 2026-11-02 (amended 2026-11-02 for U6, the remembered lower tier)
 > **Issue**: [ISSUE.md](ISSUE.md) (lapsed tiers) and [GitHub issue #5](https://github.com/63Klabs/atlantis-mcp/issues/5) (account lifetime), now planned together
 > **Reviewed against**: `dev` at `71251f0` on 2026-11-02 (the issue was checked against `7acaf7d`; the files it cites are unchanged since, see row 14 of section 2)
 
@@ -16,7 +16,7 @@ You asked for one plan with two phases, each deployable on its own through `dev 
 | Phase | What changes | Template change | Fixes |
 |-------|--------------|-----------------|-------|
 | **1** | On use, renew `ttl` for every authenticated record **that has no end date** (`tierExpiresAt` null or absent) by the existing rule (fewer than 90 days left, set to now + 120 days). Add an `attribute_exists(pk)` guard to the update | None | Issue #5 for users without an end date (permanent `private`, admin `paid`, `registered`) |
-| **2** | Read `tierExpiresAt` correctly through a shared `tier-common` layer. When a tier has lapsed, persist the downgrade: `tier = registered`, `tierExpiresAt = null`, `ttl = now + 120 days` (no 90-day check). From then on the user is an ordinary registered user. Renew finite-expiry users while their tier is active. Voucher redemption never lowers a tier or shortens an expiry (N7, L8). Narrow the Read role's Users table access (N11) | One layer, two `Layers` entries, one narrowed IAM statement | The lapsed-tier issue; issue #5 for voucher and temporary users; N7; N11 |
+| **2** | Read `tierExpiresAt` correctly through a shared `tier-common` layer. When a tier has lapsed, persist the downgrade: `tier = registered`, `tierExpiresAt = null`, `ttl = now + 120 days` (no 90-day check). From then on the user is an ordinary registered user. Renew finite-expiry users while their tier is active. Voucher redemption never lowers a tier or shortens an expiry, and a higher voucher remembers the lower tier it replaces so that the lapse restores it (N7, L8, U6). Narrow the Read role's Users table access (N11) | One layer, two `Layers` entries, one narrowed IAM statement | The lapsed-tier issue; issue #5 for voucher and temporary users; N7; N11 |
 
 Phase 1 skips records that have an end date (Q9 = A). Renewing a user whose voucher has lapsed would keep them on paid limits indefinitely, which issue #5 warns about, and phase 1 ships before the expiry check is fixed. Voucher and temporary users therefore keep today's behavior until phase 2.
 
@@ -62,6 +62,8 @@ Phase 1 skips records that have an end date (Q9 = A). Renewing a user whose vouc
 | N11 | The Read function's role may `GetItem` and `UpdateItem` on the whole Users table with no attribute or key condition. It can already change any user's `tier`. Phase 2 makes that capability intentional, so the policy is worth narrowing | `template.yml:1956-1962` |
 | N13 | `strategyLabelFor` ranks tiers with `{ public, authenticated, paid, private }`. The tier name used everywhere else is `registered`, so a `registered` caller ranks 0 (same as public), and `DOC_AI_MIN_TIER=registered` (an allowed value in `settings.js:155-159`) silently falls back to `paid`. No effect at the default `paid`; this plan does not touch it. Noted so the shared rank table in the new layer is not mistaken for the same bug | `services/documentation.js:181-183` |
 | N12 | The renewal write is fire-and-forget (the promise is not awaited in `index.js`), so Lambda can freeze before it completes. The write is idempotent and is retried on the next request while fewer than 90 days remain, so a lost write only delays renewal | `auth-resolver.js:183-193`, `index.js:133` |
+| N14 | **A higher voucher replaced the lower tier outright** (found in the final review). A `paid` user, including a permanent admin-granted `paid`, who redeems a `private` voucher ends at `registered` when the private tier lapses, because the paid tier and its end date were overwritten. Requirement 11.10 as first written checked only the rank at redemption and the same-tier end date, so it passed while this happened. Resolved by U6 | `voucher-redeem.js:98-103` |
+| N15 | Key regeneration copies `email`, `tier`, `cognitoSub`, and `tierExpiresAt` by name into a new record, so any other attribute is dropped. The fallback attributes of U6 would be lost the first time a user regenerates a key. Resolved by D27 | `key-regenerate.js:70-82` |
 
 ## 3. Current state
 
@@ -89,11 +91,11 @@ Layers already in the repository: `doc-ai-common` and `search-common` under `src
 ### 4.1 Security
 
 - **Trust boundary.** `tierExpiresAt` and `ttl` are written only by the auth function (after Cognito authentication, from admin-created vouchers) and by admins with DynamoDB write access. A caller cannot supply either. The flaws are entitlement retention (lapsed tier) and unintended account deletion (issue #5), not injection paths.
-- **Phase 2 adds a privileged write on the public hot path.** The Read function will change `tier` on a user record. Controls: write only when `tierExpiresAt` parses as valid ISO 8601 **and** has passed (never on a malformed value, so bad data is not silently overwritten); a conditional update (`attribute_exists(pk)`, stored `tier` and stored `tierExpiresAt` unchanged) so a concurrent voucher redemption or key regeneration is never clobbered; the only value ever written is `registered`, so the write can lower a tier but never raise one.
+- **Phase 2 adds a privileged write on the public hot path.** The Read function will change `tier` on a user record. Controls: write only when `tierExpiresAt` parses as valid ISO 8601 **and** has passed (never on a malformed value, so bad data is not silently overwritten); a conditional update (`attribute_exists(pk)`, stored `tier` and stored `tierExpiresAt` unchanged) so a concurrent voucher redemption or key regeneration is never clobbered; the Downgrade writes `registered`, or restores a tier the Auth function recorded earlier and only when that tier ranks below the lapsed one (U6, D24), so the Read function never grants a tier the user did not already hold.
 - **IAM (N11, folded into phase 2 by Q8).** No new action is needed; `UsersTableAuthAccess` (`template.yml:1956-1962`) already grants `GetItem` and `UpdateItem` on the whole table and is the only statement that covers it. The Read function touches the Users table in exactly two places: a `GetItem` (`auth-resolver.js:292`) and the `UpdateItem` (`:184`). The fix splits the statement and adds DynamoDB condition keys, per the [AWS fine-grained access control guide](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/specifying-conditions.html):
   - `dynamodb:LeadingKeys` limited to `KEY#*` on both actions (`ForAllValues` is required; with a prefix this needs `StringLike`), so the role can no longer reach `VOUCHER#` items.
-  - `dynamodb:Attributes` on `UpdateItem` limited to `pk`, `tier`, `tierExpiresAt`, `ttl`. The guide says the key attribute must be listed, and that the key counts attributes named anywhere in the request, including the condition expression.
-  - `dynamodb:Attributes` is evaluated against the request's attribute list, and a `GetItem` with no `ProjectionExpression` has none, so applying it to `GetItem` requires the code to send `ProjectionExpression: 'pk, tier, tierExpiresAt, ttl, cognitoSub'` (the fields `resolveAuth` uses). Pair it with `dynamodb:Select` / `dynamodb:ReturnValues` conditions as the guide recommends so the restriction cannot be sidestepped.
+  - `dynamodb:Attributes` on `UpdateItem` limited to `pk`, `tier`, `tierExpiresAt`, `ttl`, `fallbackTier`, `fallbackExpiresAt`. The guide says the key attribute must be listed, and that the key counts attributes named anywhere in the request, including the condition expression.
+  - `dynamodb:Attributes` is evaluated against the request's attribute list, and a `GetItem` with no `ProjectionExpression` has none, so applying it to `GetItem` requires the code to send `ProjectionExpression: 'pk, tier, tierExpiresAt, ttl, cognitoSub, fallbackTier, fallbackExpiresAt'` (the fields `resolveAuth` uses). Pair it with `dynamodb:Select` / `dynamodb:ReturnValues` conditions as the guide recommends so the restriction cannot be sidestepped.
   - Failure modes: a wrong `GetItem` condition turns every authenticated request into `degraded` public-tier traffic (loud, caught on `test` at once); a wrong `UpdateItem` condition makes renewal and downgrade fail with only a warning log (quiet). The `test` verification in section 6 therefore checks both. If the attribute conditions misbehave, the fallback is `LeadingKeys` alone, which still removes access to voucher records.
   - I could not evaluate the policy offline; IAM condition keys for DynamoDB are verified on `test`, not simulated.
 - **Fail open versus closed (locked, Q2 = A).** A non-null value that does not parse is treated as expired for limits and tier gating, with one warning log.
@@ -128,6 +130,7 @@ Layers already in the repository: `doc-ai-common` and `search-common` under `src
 - Phase 2 downgrades a user on first use after a lapse. A lapsed user who never makes an API request keeps the stored tier until `ttl` deletes the record. That is correct (an inactive account is cleaned up) but means the stored table can contain lapsed rows; the profile endpoint computes the effective tier and stays read-only (D13).
 - The issue's "How to re-check" snippet works as written (prints `paid` today). After phase 2 it prints `registered`; it becomes the first line of the verification section in `design.md`.
 - The deployed-state numbers in `ISSUE.md` are 12 days old; the pre-merge scans in section 6 refresh them.
+- The final review (2026-11-02) added U6 after asking what happens to a `paid` user who redeems a `private` voucher. `requirements.md`, `design.md`, and `tasks.md` were amended together with this plan. The Downgrade now has two shapes (restore or `registered`), which changes the layer's result, the Read function's `GetItem` projection, the IAM attribute lists, and the Auth function's key regeneration.
 - `TODO.md` lists two 0.0.8 items that touch the same area: "Ensure keys expire after 120 days" and "Display api key expiration date on profile page". This plan renews a record while its key is in use (U2), so a key in regular use does not expire at 120 days; only an unused one does. If the 0.0.8 item means a hard 120-day key lifetime regardless of use, it will change the renewal rule introduced here. That is a later policy change, not a conflict for 0.0.7: the 90-day / 120-day constants stay in one place (section 8), and the docs written in phase 1 should say "renewed while the key is in use" rather than "keys never expire".
 
 ## 6. Proposed approach
@@ -164,7 +167,7 @@ Layers already in the repository: `doc-ai-common` and `search-common` under `src
 |------------------------|----------------|-----------------------------|
 | `null` or absent | stored tier | renew `ttl` if due |
 | Valid ISO 8601 and after now | stored tier | renew `ttl` if due |
-| Valid ISO 8601 and at or before now | `registered` | **downgrade**: `tier = registered`, `tierExpiresAt = null`, `ttl = now + 120 days` |
+| Valid ISO 8601 and at or before now | the remembered lower tier if it still holds (U6), otherwise `registered` | **downgrade**: `tier = registered` (or restore the remembered tier and its end date), `tierExpiresAt = null` (or the restored end date), `ttl = now + 120 days`, and remove the fallback attributes |
 | Anything else non-null (number, `""`, unparseable string, boolean, object) | `registered` (fail closed) | renew `ttl` if due; **no downgrade**; one warning log |
 
 Accepted ISO grammar (D2): `YYYY-MM-DD`, or `YYYY-MM-DDTHH:mm[:ss[.fff]]` with a mandatory `Z` or `±HH:mm`. Date-only means 00:00 UTC. An offset-less date-time is malformed.
@@ -204,7 +207,7 @@ await AWS.dynamo.update({
 
 | Voucher `targetTier` compared with the user's effective tier | Result |
 |--------------------------------------------------------------|--------|
-| Higher | Apply: `tier = targetTier`, `tierExpiresAt = now + durationDays`, `ttl = now + 120 days`, update Cognito `custom:tier` (as today) |
+| Higher | Apply: `tier = targetTier`, `tierExpiresAt = now + durationDays`, `ttl = now + 120 days`, update Cognito `custom:tier` when the stored tier changes. When the user holds a tier above `registered`, also remember it (`fallbackTier`, `fallbackExpiresAt`); otherwise remove any fallback attributes (U6) |
 | Same, user's current expiry is a date | Extend: `tierExpiresAt = later of (current expiry, now + durationDays)`, `ttl = now + 120 days`; Cognito `custom:tier` is not changed |
 | Same, user has no expiry (permanent) | Reject: HTTP 400, message names the user's current tier |
 | Lower | Reject: HTTP 400, message names the user's current tier |
@@ -212,6 +215,29 @@ await AWS.dynamo.update({
 Rejections write nothing and do not increment `currentUses` (D20). A voucher whose `targetTier` is `registered` ranks as the same tier or lower for every user and is therefore always rejected.
 - The write becomes conditional on the stored `tier` and `tierExpiresAt`, the same shape as the downgrade, so it cannot clobber a concurrent lapse-downgrade or a second redemption. A failed condition returns a retryable error.
 - Cognito `custom:tier` is updated only when the stored tier actually changes.
+
+**Remembered lower tier (U6, L9):**
+
+The final review (2026-11-02) asked what happens when a `paid` user redeems a `private` voucher and the private tier ends. As first written, the paid tier and its end date were overwritten, so the user ended at `registered` even if the paid tier had months left, or was permanent (N14). Option B fixes it: a higher voucher remembers the tier it replaces, and the lapse restores it.
+
+- **Record.** Two optional attributes on the User record: `fallbackTier` (string) and `fallbackExpiresAt` (ISO 8601 string, or `NULL` for a tier with no end date). Both absent means nothing is remembered (D22).
+- **Capture.** When a redemption applies a tier and the user currently holds a tier ranked above `registered`, the written record carries `fallbackTier` = that tier and `fallbackExpiresAt` = its end date (or `NULL`). "Holds" means the effective tier, including a tier that is only held through a remembered fallback (D23). When the user holds nothing above `registered`, the redemption removes both attributes.
+- **Effective tier and restore** (one rule, both functions):
+
+| Main tier end date | Remembered tier | Effective tier | Downgrade writes |
+|--------------------|-----------------|----------------|------------------|
+| `none` or `active` | any | stored tier | none (renewal as usual) |
+| `lapsed` | valid | the remembered tier | `tier` = remembered tier, `tierExpiresAt` = its end date (or `NULL`), `ttl` = now + 120 days, remove both fallback attributes |
+| `lapsed` | absent, lapsed, malformed, or invalid | `registered` | `tier = registered`, `tierExpiresAt = NULL`, `ttl` = now + 120 days, remove both fallback attributes |
+| `malformed` | any | `registered` | none (fail closed, warning) |
+
+- **Valid** means: the tier is a known tier ranked above `registered` and below the lapsed tier, and the end date is `none` or `active` (D24). The "below the lapsed tier" test means the Read function can restore only a tier the user held under a higher one, never raise a tier past what the record says.
+- **Examples.** Paid until 2027-08-29, then a 30-day private voucher: private for 30 days, then paid until 2027-08-29, then `registered`. Permanent paid, then a 30-day private voucher: private for 30 days, then permanent paid. Paid with 10 days left, then a 30-day private voucher: `registered` after 30 days, because the paid time ran out first.
+- **Same-tier voucher on a restored tier.** If the user holds `paid` only through a remembered fallback (the private tier has lapsed but not yet been written back) and redeems a `paid` voucher, the redemption writes `tier = paid` with the later end date and removes the fallback attributes (D26).
+- **Key regeneration** copies both attributes to the new record when present (D27, N15). `key-regenerate.js` therefore joins the scope.
+- **Admin edits.** The admin commands in `user-management.md` gain `REMOVE fallbackTier, fallbackExpiresAt`, so a hand promotion does not carry a stale fallback (D28).
+- **Profile and Cognito.** The profile computes the same result through the layer, reading the two attributes, and returns neither (D30). Cognito `custom:tier` is not changed on a restore, as for any lapse (L4, D29).
+- **Verified by simulation.** I modelled the rule outside the repository and ran 83,185 random records and vouchers: after every successful redemption, and after the Downgrade on the first request after the new tier lapses, the user's tier was never lower than before the redemption at any later instant (0 violations). Requirement 11.10 and design property P8 now state that property.
 
 **Narrowed IAM for the Read role (N11, folded in by Q8):**
 - `UsersTableAuthAccess` splits into a `GetItem` statement and an `UpdateItem` statement with the condition keys in 4.1. `auth-resolver.js:292` gains a `ProjectionExpression`.
@@ -233,6 +259,7 @@ I run none of these without your go-ahead. Each is read-only except the steps ma
 | Phase 2 on `test`, renewal and downgrade | Log in as the lapsed `paid` user, regenerate the key (copies `tierExpiresAt`, resets `ttl`), send one request; expect `X-RateLimit-Limit: 100`, the record now `registered`, `tierExpiresAt` null, `ttl` about 120 days out |
 | Phase 2 on `test`, IAM | After the same request, search the Read function's log group for `AccessDeniedException` against the Users table (read-only); expect none. A `degraded: true` auth result means the `GetItem` condition is wrong; a renewal or downgrade that never lands with a warning log means the `UpdateItem` condition is wrong |
 | Phase 2 on `test`, voucher | Redeem a lower-tier voucher as a higher-tier user; expect the Q10 outcome and the voucher's `currentUses` unchanged |
+| Phase 2 on `test`, restore | With a throwaway `paid` user, redeem a `private` voucher (write), read the record (tier `private`, `fallbackTier` `paid`), set `tierExpiresAt` to a past instant (write), send one request; expect `X-RateLimit-Limit` of the paid tier, and the record back to `paid` with its original end date, the fallback attributes gone, and `ttl` about 120 days ahead. This also proves the narrowed IAM allows the `REMOVE` and the larger projection |
 | Before the phase 2 merge to `main` | Repeat the lapsed-record scan |
 
 ### Order and release path
@@ -249,6 +276,8 @@ Each phase is a normal verify pass: commit on `dev`, merge `dev → test → bet
 | Accept epoch seconds as well as ISO | Rejected by Q1 = A |
 | Persist the downgrade from the auth function's profile endpoint | Only runs when a user opens the profile page, not when they use the key, so an active API user who never opens the page would stay un-downgraded |
 | A scheduled sweep that downgrades lapsed records | Adds a Lambda, schedule, and IAM for something use-triggered renewal already covers; the design chose TTL over a scheduler |
+| Reject a higher voucher while the user holds a lower tier | Blocks the common upgrade (a paid user buying a private promotion), and the user must wait for the paid tier to end |
+| Reject only when the lower tier is permanent | Does not help a user whose paid tier is dated; leaves months of paid lost |
 | Put the layer in phase 1 | Phase 1 needs no shared code; keeping it out keeps phase 1 free of template changes |
 
 ## 7. Related improvements
@@ -262,6 +291,8 @@ Each phase is a normal verify pass: commit on `dev`, merge `dev → test → bet
 | Cognito `custom:tier` stays at the voucher tier after a lapse | Note only (Q5 = A) | Document it as a display hint that can be stale; fix `user-management.md:133` | S | Low |
 | Narrow the Read role's Users table access (N11) | Include, phase 2 (Q8 = C) | Phase 2 makes the capability intentional | S | Med (silent failure on `UpdateItem`; fallback is `LeadingKeys` alone) |
 | `redeemVoucher` overwrites a higher stored tier (N7) | Include, phase 2 (Q8 = C, Q10 = A) | After phase 2 the overwrite would otherwise end at `registered` | M | Med |
+| Carry the fallback attributes through key regeneration (N15) | Include, phase 2 (U6) | Without it, regenerating a key silently discards the remembered tier | S | Low |
+| Admin commands remove the fallback attributes when a tier is set by hand (D28) | Include, phase 2 (U6) | A stale fallback would otherwise be restored later | S | Low |
 | Profile shows a past "Tier expires" date between lapse and first request (N6) | Note only (Q8 = A) | Phase 2 clears it on the user's first request after a lapse | S | Low |
 | Unknown stored `tier` throws in the profile (N8) | Note only (Q8 = A) | Needs a bad record | S | Low |
 | `strategyLabelFor` ranks `authenticated`, not `registered` (N13) | Note only | No effect at the default `DocAiMinTier=paid` | S | Low |
@@ -278,6 +309,8 @@ Each phase is a normal verify pass: commit on `dev`, merge `dev → test → bet
 | The voucher rule (Q10) rejects a redemption an admin expected to work | Error text names the user's current tier; the voucher's use count is not consumed; `voucher-management.md` documents the rule |
 | Phase 2 overwrites a user's tier after a concurrent voucher redemption or key regeneration | Conditional update on `attribute_exists(pk)`, stored `tier`, and stored `tierExpiresAt`; failed condition is a no-op |
 | Phase 2 rewrites a record whose `tierExpiresAt` was hand-written in a bad format | No downgrade write on malformed values; fail closed for limits only; warning log; docs state the format |
+| A restore returns a user to a tier they should no longer have (stale or hand-edited fallback) | The fallback is restored only if it ranks above `registered`, below the lapsed tier, and its end date is `none` or `active`; admin commands remove the attributes; a bad fallback gives `registered` and a warning |
+| Key regeneration drops the fallback attributes (N15) | `key-regenerate.js` copies them when present; tested in the Auth function's key-regeneration tests |
 | The renewal or downgrade write is lost when Lambda freezes | Idempotent and retried on the next request while the condition still holds (N12) |
 | Fail-closed downgrades a user whose `tierExpiresAt` was hand-written in a non-ISO form | Warning log names the tier and truncated value; the only deployed non-null value is a valid string |
 | A layer load failure breaks every request on the new version (phase 2) | Fail-fast at cold start as `search-common` does; PROD `ReadLambdaErrorsAlarm` rolls the alias back; `test` deploys first |
@@ -304,6 +337,7 @@ Each phase is a normal verify pass: commit on `dev`, merge `dev → test → bet
 | U4 | Phase 1 replaces the "Until #5 is fixed…" sentence in the existing v0.0.7 Post-Deploy Smoke Verification changelog entry; the only exception to the changelog convention in this spec | Your message of 2026-11-02, after requirements.md |
 | U5 | The Sessions-record collision across tiers (found while writing requirements.md) becomes `0-0-8-rate-limit-record-shared-across-tiers/ISSUE.md` and a 0.0.8 `TODO.md` item; out of scope here | Your message of 2026-11-02 |
 | L8 (Q10 = A) | Voucher redemption never lowers a tier or shortens an expiry: higher tier applies, same tier extends to the later expiry (rejected if the user already has it permanently), lower tier is rejected; rejections return HTTP 400, write nothing, and do not consume a voucher use | Easy to state and test; covers both the lower-tier and shortened-expiry cases of N7 |
+| U6 | **A higher voucher remembers the lower tier it replaces; when the higher tier lapses, the user is restored to the remembered tier if it still holds, otherwise to `registered`.** Option B of the final review. Amends L8 (Q10) and D11 | Your message of 2026-11-02, after tasks.md |
 
 ### Decided in this plan (veto any row)
 
@@ -331,6 +365,16 @@ Each phase is a normal verify pass: commit on `dev`, merge `dev → test → bet
 | D20 | A rejected or no-op voucher redemption does not increment `currentUses` and writes nothing | A voucher use is consumed only when it changes the account |
 | D21 | The redemption write is conditional on the stored `tier` and `tierExpiresAt`; a failed condition returns a retryable error | Same protection as the downgrade against concurrent changes |
 
+| D22 | The record gains optional `fallbackTier` (string) and `fallbackExpiresAt` (ISO 8601 string, or `NULL` for no end date). Both absent means nothing is remembered | Smallest addition; same format as `tierExpiresAt` |
+| D23 | A redemption remembers the user's current holding when it ranks above `registered`. The holding is the effective tier, including a tier held only through a remembered fallback, with its end date | The remembered tier then carries over any chain of redemptions |
+| D24 | A fallback is valid only if its tier is a known tier ranked above `registered` and below the lapsed tier, and its end date is `none` or `active`. Otherwise it is ignored (a malformed end date also logs a warning) | The Read function can restore only what the user held under a higher tier |
+| D25 | The Downgrade restores or falls back to `registered` in one conditional `UpdateItem` that also removes both fallback attributes. The request is served at the restored tier | One write per request (P7) |
+| D26 | A redemption that applies a tier over a user holding no tier above `registered` removes any fallback attributes. A same-tier redemption leaves the fallback untouched, except when the held tier is itself a restored fallback: then the record is rewritten as that tier with the later end date, and the fallback attributes are removed | The record never holds a fallback that no longer applies |
+| D27 | Key regeneration copies `fallbackTier` and `fallbackExpiresAt` to the new record when present. `key-regenerate.js` is in scope for this one change | N15 |
+| D28 | The admin commands in `user-management.md` remove the fallback attributes when they set a tier by hand | A stale fallback would be restored later |
+| D29 | Cognito `custom:tier` is not updated by a restore (L4 still applies) | Display hint only |
+| D30 | The profile computes the effective tier through the layer with the fallback and returns neither fallback attribute | API contract unchanged (D9), no writes (D13) |
+| D31 | `TIER_LAPSE_DOWNGRADE` carries `toTier` as well as `fromTier` | The log shows whether a restore happened |
 
 ## 10. Open questions and recommendations
 

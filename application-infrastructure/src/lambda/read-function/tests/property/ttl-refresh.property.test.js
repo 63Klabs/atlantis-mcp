@@ -114,15 +114,17 @@ describe('Property 14: User record format invariant', () => {
 /**
  * Validates: Requirements R19 UPDATE
  *
- * Property 15: TTL refresh for free registered users
+ * Property 15: TTL refresh for every record without an end date
  *
- * For any authenticated request from a free registered user (effective
- * tier = registered, tierExpiresAt is null): if the record's ttl is
- * less than 90 days from now, the system SHALL update ttl to now + 120
- * days. If ttl is 90 or more days from now, the system SHALL NOT
- * update the ttl.
+ * For any record with no end date (tierExpiresAt is null or absent), of
+ * any tier: if the record's ttl is less than 90 days from now, the
+ * system SHALL update ttl to now + 120 days, conditional on the record
+ * existing. If ttl is 90 or more days from now, or absent, the system
+ * SHALL NOT write. Records with an end date are not renewed in phase 1.
+ *
+ * Validates: Requirements 3.1, 3.2, 3.5 (0-0-7-lapsed-tier-downgrade)
  */
-describe('Property 15: TTL refresh for free registered users', () => {
+describe('Property 15: TTL refresh for every record without an end date', () => {
 
 	beforeEach(() => {
 		AWS.dynamo.update.mockReset();
@@ -152,7 +154,7 @@ describe('Property 15: TTL refresh for free registered users', () => {
 						tierExpiresAt: null
 					};
 
-					refreshTtl(pk, record, 'registered');
+					refreshTtl(pk, record);
 
 					// >! dynamo.update should have been called
 					expect(AWS.dynamo.update).toHaveBeenCalledTimes(1);
@@ -192,7 +194,7 @@ describe('Property 15: TTL refresh for free registered users', () => {
 						tierExpiresAt: null
 					};
 
-					refreshTtl(pk, record, 'registered');
+					refreshTtl(pk, record);
 
 					// >! dynamo.update should NOT have been called
 					expect(AWS.dynamo.update).not.toHaveBeenCalled();
@@ -202,29 +204,75 @@ describe('Property 15: TTL refresh for free registered users', () => {
 		);
 	});
 
-	it('non-registered tiers do NOT trigger TTL refresh', () => {
+	it('every tier with no end date and ttl within 90 days is renewed', () => {
 		const nowSec = Math.floor(Date.now() / 1000);
 
 		fc.assert(
 			fc.property(
 				hexHash64Arb,
-				fc.constantFrom('paid', 'private', 'public'),
-				// >! TTL that would normally trigger refresh
+				fc.constantFrom('registered', 'paid', 'private'),
+				fc.constantFrom(null, undefined),
+				// >! TTL that triggers a renewal (less than 90 days from now)
 				fc.integer({ min: nowSec - 30 * 24 * 60 * 60, max: nowSec + NINETY_DAYS_SEC - 1 }),
-				(hash, tier, ttl) => {
+				(hash, tier, tierExpiresAt, ttl) => {
 					AWS.dynamo.update.mockReset();
 					AWS.dynamo.update.mockResolvedValue({});
 
 					const pk = `KEY#${hash}`;
-					const record = {
-						ttl,
-						tier,
-						tierExpiresAt: null
-					};
+					const record = { ttl, tier, tierExpiresAt };
 
-					refreshTtl(pk, record, tier);
+					refreshTtl(pk, record);
 
-					// >! dynamo.update should NOT have been called for non-registered tiers
+					// >! Exactly one write, whatever the tier
+					expect(AWS.dynamo.update).toHaveBeenCalledTimes(1);
+
+					const callArgs = AWS.dynamo.update.mock.calls[0][0];
+					expect(callArgs.Key).toEqual({ pk });
+
+					// >! New TTL is now + 120 days (1 second tolerance)
+					const newTtl = callArgs.ExpressionAttributeValues[':newTtl'];
+					const expectedTtl = Math.floor(Date.now() / 1000) + ONE_TWENTY_DAYS_SEC;
+					expect(newTtl).toBeGreaterThanOrEqual(expectedTtl - 1);
+					expect(newTtl).toBeLessThanOrEqual(expectedTtl + 1);
+
+					// >! The write must not recreate a deleted record
+					expect(callArgs.ConditionExpression).toBe('attribute_exists(#pk)');
+					expect(callArgs.ExpressionAttributeNames).toEqual({ '#pk': 'pk', '#ttl': 'ttl' });
+				}
+			),
+			{ numRuns: 100 }
+		);
+	});
+
+	it('records with an end date are not renewed (phase 1)', () => {
+		const nowSec = Math.floor(Date.now() / 1000);
+
+		// >! End dates as ISO strings, plus other non-null values of any type
+		const endDateArb = fc.oneof(
+			fc.date({ min: new Date('2020-01-01'), max: new Date('2035-12-31'), noInvalidDate: true })
+				.map(d => d.toISOString()),
+			fc.integer({ min: nowSec - 365 * 24 * 60 * 60, max: nowSec + 365 * 24 * 60 * 60 }),
+			fc.string(),
+			fc.boolean()
+		);
+
+		fc.assert(
+			fc.property(
+				hexHash64Arb,
+				fc.constantFrom('registered', 'paid', 'private'),
+				// >! TTL that would otherwise trigger a renewal
+				fc.integer({ min: nowSec - 30 * 24 * 60 * 60, max: nowSec + NINETY_DAYS_SEC - 1 }),
+				endDateArb,
+				(hash, tier, ttl, tierExpiresAt) => {
+					AWS.dynamo.update.mockReset();
+					AWS.dynamo.update.mockResolvedValue({});
+
+					const pk = `KEY#${hash}`;
+					const record = { ttl, tier, tierExpiresAt };
+
+					refreshTtl(pk, record);
+
+					// >! dynamo.update should NOT have been called when an end date exists
 					expect(AWS.dynamo.update).not.toHaveBeenCalled();
 				}
 			),
@@ -232,32 +280,22 @@ describe('Property 15: TTL refresh for free registered users', () => {
 		);
 	});
 
-	it('registered users with tierExpiresAt set (downgraded paid) do NOT trigger refresh', () => {
-		const nowSec = Math.floor(Date.now() / 1000);
-
+	it('a record with no ttl attribute causes no write', () => {
 		fc.assert(
 			fc.property(
 				hexHash64Arb,
-				// >! TTL that would normally trigger refresh
-				fc.integer({ min: nowSec - 30 * 24 * 60 * 60, max: nowSec + NINETY_DAYS_SEC - 1 }),
-				// >! tierExpiresAt in the past (downgraded paid user)
-				fc.integer({ min: nowSec - 365 * 24 * 60 * 60, max: nowSec - 1 }),
-				(hash, ttl, tierExpiresAt) => {
+				fc.constantFrom('registered', 'paid', 'private'),
+				fc.constantFrom(null, undefined),
+				(hash, tier, tierExpiresAt) => {
 					AWS.dynamo.update.mockReset();
 					AWS.dynamo.update.mockResolvedValue({});
 
 					const pk = `KEY#${hash}`;
-					const record = {
-						ttl,
-						tier: 'paid',
-						tierExpiresAt
-					};
+					// >! No ttl property at all
+					const record = { tier, tierExpiresAt };
 
-					// >! effectiveTier is 'registered' because tierExpiresAt is in the past,
-					// but tierExpiresAt is non-null so this is a downgraded paid user
-					refreshTtl(pk, record, 'registered');
+					refreshTtl(pk, record);
 
-					// >! dynamo.update should NOT have been called for downgraded paid users
 					expect(AWS.dynamo.update).not.toHaveBeenCalled();
 				}
 			),

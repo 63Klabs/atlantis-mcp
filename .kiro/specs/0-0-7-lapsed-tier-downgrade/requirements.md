@@ -15,6 +15,7 @@ This feature ships in two phases. Each is deployable on its own through `dev →
    - When a tier has lapsed, the Read Function writes the record back as `registered`, with `tierExpiresAt` cleared and `ttl` set to now + 120 days.
    - Users with an active end date are renewed like everyone else.
    - Voucher redemption never lowers a tier or shortens an expiry.
+   - A voucher of a higher tier remembers the tier it replaces, and the lapse restores it.
    - The Read Function's access to the Users table is narrowed to the items and attributes it uses.
 
 See [ISSUE.md](ISSUE.md) for the lapsed-tier report, [issue #5](https://github.com/63Klabs/atlantis-mcp/issues/5) for the account-lifetime report, and [PLAN.md](PLAN.md) for the analysis, the evidence, and the locked decisions. The plan is locked.
@@ -28,6 +29,7 @@ See [ISSUE.md](ISSUE.md) for the lapsed-tier report, [issue #5](https://github.c
 5. **No data migration.** Every stored `tierExpiresAt` is an ISO 8601 string or `null` (D1).
 6. **Existing conventions.** Atlantis naming (`${Prefix}-${ProjectId}-${StageId}-*`), `>!` security comments, CommonJS `*.test.js` with Jest and fast-check in each Lambda package, the `search-common` layer pattern, the documentation and changelog steering, and the `dev → test → beta → main` branch flow.
 7. **Nothing touches a deployed stage without the owner.** Scans, test-stage writes, GitHub comments, commits, and merges are done or approved by the owner.
+8. **A higher tier never destroys a lower one.** A tier that a user held before a promotion is restored when the promotion ends, for as long as that tier would have lasted (U6).
 
 ### Decisions carried forward from PLAN.md
 
@@ -45,8 +47,9 @@ See [ISSUE.md](ISSUE.md) for the lapsed-tier report, [issue #5](https://github.c
 | L7 (Q9) | Phase 1 renews only records with no end date | 1 |
 | L8 (Q10) | Voucher redemption never lowers a tier or shortens an expiry | 11 |
 | U4 | Replace the "Until #5 is fixed" sentence in the existing v0.0.7 changelog entry (exception to the changelog convention) | 4.4 |
+| U6 | A higher voucher remembers the lower tier it replaces, and the lapse restores it | 8, 9, 11, 13, 19 |
 | U5 | The rate-limit shared-record defect becomes its own 0.0.8 spec (`ISSUE.md` only) and a `TODO.md` item | 18.6 |
-| D1 to D21 | See PLAN.md section 9 | Cited where they apply |
+| D1 to D31 | See PLAN.md section 9 | Cited where they apply |
 
 ### Additions beyond PLAN.md
 
@@ -59,6 +62,7 @@ These came up while writing the requirements. Strike any you disagree with.
 - **The phase 1 scan runs before promotion starts**, not only before the merge to `main` (Requirement 5.3). `beta` and `prod` hold the permanent `private` users, and their records can expire while the change waits on `test`. Scanning first covers every stage.
 - **An architecture test reads the IAM statements and layer wiring from `template.yml`** (Requirement 15.9). DynamoDB condition keys cannot be simulated offline, so this test is the only automated check of the policy shape before `test`. It follows `read-function/tests/unit/architecture/openapi-integration-targets.test.js`.
 - **The 0-0-3 authentication design gets a superseded note** at the two passages this spec reverses: "do not update `tierExpiresAt`" (TTL Strategy, item 4) and Property 15 (Requirement 16.7). This follows the earlier 0.0.7 specs, which kept prior designs consistent with the code. Strike it to leave the old spec untouched.
+- **The remembered lower tier (U6) came from the final review.** Asking what happens to a `paid` user who redeems a `private` voucher showed that the paid tier and its end date were overwritten, so the user ended at `registered` even with months of paid left, or a permanent paid tier. Requirement 19 fixes it. It adds two record attributes, a larger `GetItem` projection, longer IAM attribute lists, and one change to `key-regenerate.js`, which would otherwise drop the attributes. I checked the rule by simulation outside the repository (83,185 random records and vouchers, no case where a user was worse off at any later instant).
 - **The profile page's success text stays as it is.** After a same-tier extension, the page says "Upgraded to paid tier until <new date>". "Upgraded" is slightly off for an extension, but the date is right, and changing the text is a static-site change, which Requirement 18.2 excludes.
 - **Changelog convention (decided, U4).** The v0.0.7 Post-Deploy Smoke Verification entry says "Until #5 is fixed, a private key's account expires about 120 days after the key was set up; the developer guide gives the workarounds". `.kiro/steering/changelog-convention.md` says existing changelog text is never updated. You approved an exception on 2026-11-02: phase 1 replaces that one sentence, in the same change that fixes it (Requirement 4.4). Every other existing line stays as it is.
 - **Found while checking the rate limiter: a tier change can reuse the previous tier's rate-limit record (spun off, U5).** The Sessions key is `sha256(cognitoSub + windowStart + salt)`, with no tier in it. `paid` and `private` both use a daily window, so they always share a record. `registered` (hourly) shares it with them between 00:00 and 00:59 UTC. A user who changes tier inherits the old tier's remaining count until the window ends. You asked for this to be its own spec: [`0-0-8-rate-limit-record-shared-across-tiers/ISSUE.md`](../0-0-8-rate-limit-record-shared-across-tiers/ISSUE.md), listed in `TODO.md` under 0-0-8. Requirement 18.6 keeps it out of this spec.
@@ -82,10 +86,12 @@ These came up while writing the requirements. Strike any you disagree with.
   - `active`: a valid ISO 8601 timestamp after `now`;
   - `lapsed`: a valid ISO 8601 timestamp at or before `now`;
   - `malformed`: any other value.
-- **Effective tier**: The tier used for a request: the Stored tier for `none` and `active`, otherwise `registered`.
+- **Effective tier**: The tier used for a request: the Stored tier for `none` and `active`; for `lapsed`, the Fallback's tier when a valid Fallback exists, otherwise `registered`; and `registered` for `malformed`.
 - **Tier rank**: `public` 0, `registered` 1, `paid` 2, `private` 3.
 - **Renewal**: The Read Function write that sets `ttl` to now + 120 days when `ttl` is less than now + 90 days.
-- **Downgrade**: The Read Function write that sets `tier = registered`, `tierExpiresAt = null`, and `ttl = now + 120 days` for a `lapsed` record.
+- **Downgrade**: The Read Function write for a `lapsed` record. It restores the Fallback when one is valid, otherwise sets `tier = registered` and `tierExpiresAt = null`. Both shapes set `ttl = now + 120 days` and remove the fallback attributes.
+- **Fallback**: The lower tier a redemption remembers, held in the optional `fallbackTier` and `fallbackExpiresAt` attributes.
+- **Holding**: The tier a user has at a moment, with its end date: the Stored tier for `none` and `active`, the Fallback's tier when the Stored tier has lapsed and the Fallback is valid, otherwise `registered`.
 - **Owner**: The repository owner, who commits, merges, and approves any action against a deployed stage or GitHub.
 - **Scan**: A read-only DynamoDB scan of a stage's Users table that projects only `pk` prefix, `tier`, `tierExpiresAt`, and `ttl`, and reports counts and dates without identifiers.
 
@@ -177,7 +183,7 @@ These came up while writing the requirements. Strike any you disagree with.
 2. THE layer module SHALL be pure: no AWS SDK, no I/O, no logging, no reading of the clock except through a `now` argument that defaults to `Date.now()`.
 3. THE layer SHALL export:
    - an expiry parser that returns the Expiry state and, for a valid value, the instant in milliseconds;
-   - an effective-tier function that returns the Effective tier and the Expiry state;
+   - an effective-tier function that returns the Effective tier, the Expiry state, and what to restore when a valid Fallback applies;
    - the Tier rank.
 4. `template.yml` SHALL define `TierCommonLayer` as an `AWS::Serverless::LayerVersion` with these properties:
    - `LayerName: !Sub '${Prefix}-${ProjectId}-${StageId}-TierCommon'`;
@@ -220,7 +226,8 @@ These came up while writing the requirements. Strike any you disagree with.
 
 1. THE effective-tier function SHALL return:
    - the Stored tier, for `none` and `active`;
-   - `registered`, for `lapsed` (the expiry instant is at or before `now`, D3) and for `malformed` (L2).
+   - for `lapsed` (the expiry instant is at or before `now`, D3): the Fallback's tier when the Fallback is valid (Requirement 19.4), otherwise `registered`;
+   - `registered`, for `malformed` (L2).
 2. THE Auth Resolver SHALL use the layer's Effective tier as the request's tier. That tier selects the rate limit and semantic-search eligibility.
 3. THE Profile Service SHALL use the layer's Effective tier for the tier and rate limits it returns.
 4. FOR every stored value, THE Auth Resolver and the Profile Service SHALL report the same Effective tier.
@@ -234,13 +241,13 @@ These came up while writing the requirements. Strike any you disagree with.
 
 #### Acceptance Criteria
 
-1. WHEN an authenticated request finds a `lapsed` User record, THE Auth Resolver SHALL issue one `UpdateItem` that sets `tier` to `registered`, `tierExpiresAt` to `null`, and `ttl` to now + 120 days, whatever the current `ttl` (U3, D11).
+1. WHEN an authenticated request finds a `lapsed` User record with no valid Fallback, THE Auth Resolver SHALL issue one `UpdateItem` that sets `tier` to `registered`, `tierExpiresAt` to `null`, and `ttl` to now + 120 days, whatever the current `ttl`, and removes the fallback attributes (U3, D11). WHEN a valid Fallback exists, Requirement 19.6 applies instead.
 2. THE Downgrade SHALL be conditional on three things: the item exists, its `tier` equals the value read, and its `tierExpiresAt` equals the value read.
-3. THE Downgrade SHALL be non-blocking. The current request SHALL be served at `registered` whether or not the write succeeds.
+3. THE Downgrade SHALL be non-blocking. The current request SHALL be served at the Effective tier (`registered`, or the Fallback's tier) whether or not the write succeeds.
 4. WHEN the condition fails, THE Auth Resolver SHALL treat it as a no-op and log at debug level. WHEN the write fails for any other reason, it SHALL log a warning. It SHALL NOT retry within the request.
 5. THE Auth Resolver SHALL NOT issue a Downgrade for `none`, `active`, or `malformed`.
 6. THE Downgrade SHALL apply whatever the Stored tier, including a `registered` record with a lapsed date.
-7. THE only tier value the Read Function writes SHALL be `registered`.
+7. THE only tier values the Read Function writes SHALL be `registered` and a valid Fallback's tier (Requirement 19.9).
 8. THE Downgrade SHALL replace the 0-0-3 design statement that `tierExpiresAt` is never rewritten on lapse (D5 superseded).
 
 ### Requirement 10: Renewal after phase 2
@@ -260,20 +267,21 @@ These came up while writing the requirements. Strike any you disagree with.
 
 #### Acceptance Criteria
 
-1. THE Redemption Service SHALL compute the user's Effective tier with the layer before any write. A `lapsed` or `malformed` record counts as `registered`.
+1. THE Redemption Service SHALL compute the user's Holding with the layer before any write. A `lapsed` record without a valid Fallback, and a `malformed` record, count as `registered`.
 2. WHEN the voucher's `targetTier` is not `paid` or `private`, THE Redemption Service SHALL reject the redemption with HTTP 400.
-3. WHEN `targetTier` ranks above the Effective tier, THE Redemption Service SHALL apply it:
+3. WHEN `targetTier` ranks above the Holding's tier, THE Redemption Service SHALL apply it:
    - `tier = targetTier`;
    - `tierExpiresAt = now + durationDays`;
    - `ttl = now + 120 days`;
-   - Cognito `custom:tier` updated to `targetTier`.
-4. WHEN `targetTier` equals the Effective tier and the record is `active`, THE Redemption Service SHALL extend it: `tierExpiresAt` becomes the later of the current expiry and now + `durationDays`, and `ttl` becomes now + 120 days. Cognito `custom:tier` SHALL NOT be updated.
-5. WHEN `targetTier` equals the Effective tier and the record's Expiry state is `none`, THE Redemption Service SHALL reject the redemption with HTTP 400. The message SHALL name the user's current tier.
-6. WHEN `targetTier` ranks below the Effective tier, THE Redemption Service SHALL reject the redemption with HTTP 400. The message SHALL name the user's current tier.
+   - Cognito `custom:tier` updated to `targetTier` WHEN the Stored tier changes;
+   - the Holding remembered as the Fallback, or the fallback attributes removed (Requirements 19.2, 19.3).
+4. WHEN `targetTier` equals the Holding's tier and the Holding has an `active` end date, THE Redemption Service SHALL extend it: `tierExpiresAt` becomes the later of the Holding's end date and now + `durationDays`, and `ttl` becomes now + 120 days. Cognito `custom:tier` SHALL be updated only WHEN the Stored tier changes (Requirement 19.10).
+5. WHEN `targetTier` equals the Holding's tier and the Holding has no end date, THE Redemption Service SHALL reject the redemption with HTTP 400. The message SHALL name the user's current tier.
+6. WHEN `targetTier` ranks below the Holding's tier, THE Redemption Service SHALL reject the redemption with HTTP 400. The message SHALL name the user's current tier.
 7. A rejected redemption SHALL write nothing to the Users table, SHALL NOT increment the voucher's `currentUses`, and SHALL NOT update Cognito (D20).
 8. THE existing checks (voucher exists, not expired, uses remaining) SHALL run first, with their current messages and statuses.
 9. THE success response SHALL keep its shape, `{ tier, tierExpiresAt, message }`. `tier` and `tierExpiresAt` SHALL be the values written.
-10. FOR every Effective tier, expiry, and voucher, a successful redemption SHALL NOT lower the Tier rank and SHALL NOT make an existing expiry earlier.
+10. FOR every record and voucher, a successful redemption SHALL NOT lower the Tier rank of the Holding and SHALL NOT make its end date earlier. Requirement 19.15 states the same property over time.
 
 ### Requirement 12: Voucher redemption write safety
 
@@ -281,7 +289,7 @@ These came up while writing the requirements. Strike any you disagree with.
 
 #### Acceptance Criteria
 
-1. THE User record write SHALL succeed only if three things still hold: the item exists, its `tier` is unchanged since it was read, and its `tierExpiresAt` is unchanged since it was read. A null or absent `tierExpiresAt` SHALL be matched as null or absent (D21).
+1. THE User record write SHALL succeed only if three things still hold: the item exists, its `tier` is unchanged since it was read, and its `tierExpiresAt` is unchanged since it was read. A null or absent `tierExpiresAt` SHALL be matched as null or absent (D21). THE write SHALL set or remove the fallback attributes in the same `UpdateItem`.
 2. WHEN that condition fails, THE Auth Function SHALL return HTTP 409 with a message asking the user to try again. It SHALL NOT increment `currentUses` and SHALL NOT update Cognito.
 3. THE order SHALL be:
    1. validate the voucher;
@@ -302,9 +310,9 @@ These came up while writing the requirements. Strike any you disagree with.
 
 1. `UsersTableAuthAccess` in `ReadLambdaExecutionRole` SHALL be replaced by two statements on `!GetAtt UsersTable.Arn` only, one for `dynamodb:GetItem` and one for `dynamodb:UpdateItem` (D18).
 2. Both statements SHALL require `ForAllValues:StringLike` `dynamodb:LeadingKeys` equal to `KEY#*`.
-3. THE `GetItem` statement SHALL require `ForAllValues:StringEquals` `dynamodb:Attributes` within `pk`, `tier`, `tierExpiresAt`, `ttl`, and `cognitoSub`, and `StringEqualsIfExists` `dynamodb:Select` equal to `SPECIFIC_ATTRIBUTES`.
-4. THE `UpdateItem` statement SHALL require `ForAllValues:StringEquals` `dynamodb:Attributes` within `pk`, `tier`, `tierExpiresAt`, and `ttl`, and `StringEqualsIfExists` `dynamodb:ReturnValues` equal to `NONE`.
-5. THE Auth Resolver's `GetItem` SHALL send a `ProjectionExpression` naming exactly `pk`, `tier`, `tierExpiresAt`, `ttl`, and `cognitoSub`.
+3. THE `GetItem` statement SHALL require `ForAllValues:StringEquals` `dynamodb:Attributes` within `pk`, `tier`, `tierExpiresAt`, `ttl`, `cognitoSub`, `fallbackTier`, and `fallbackExpiresAt`, and `StringEqualsIfExists` `dynamodb:Select` equal to `SPECIFIC_ATTRIBUTES`.
+4. THE `UpdateItem` statement SHALL require `ForAllValues:StringEquals` `dynamodb:Attributes` within `pk`, `tier`, `tierExpiresAt`, `ttl`, `fallbackTier`, and `fallbackExpiresAt`, and `StringEqualsIfExists` `dynamodb:ReturnValues` equal to `NONE`.
+5. THE Auth Resolver's `GetItem` SHALL send a `ProjectionExpression` naming exactly `pk`, `tier`, `tierExpiresAt`, `ttl`, `cognitoSub`, `fallbackTier`, and `fallbackExpiresAt`.
 6. THE Read Function SHALL access the Users table only through the Auth Resolver's `GetItem` and `UpdateItem`.
 7. Each statement SHALL carry a `# >!` comment citing the DynamoDB fine-grained access control guide.
 8. THE IAM change SHALL be the last change made in phase 2, so that a failure on `test` is attributable to it alone.
@@ -316,8 +324,8 @@ These came up while writing the requirements. Strike any you disagree with.
 
 #### Acceptance Criteria
 
-1. WHEN a Downgrade write succeeds, THE Read Function SHALL log one info line: `TIER_LAPSE_DOWNGRADE {"fromTier":"<stored tier>"}`.
-2. WHEN a request finds a `malformed` record, the Read Function or the Profile Service SHALL log one warning line: `TIER_EXPIRY_MALFORMED {"storedTier":"<tier>","valueType":"<typeof>","value":"<first 40 characters>"}`.
+1. WHEN a Downgrade write succeeds, THE Read Function SHALL log one info line: `TIER_LAPSE_DOWNGRADE {"fromTier":"<stored tier>","toTier":"<new tier>"}` (D31).
+2. WHEN a request finds a `malformed` record, the Read Function or the Profile Service SHALL log one warning line: `TIER_EXPIRY_MALFORMED {"field":"<tierExpiresAt or fallbackExpiresAt>","storedTier":"<tier>","valueType":"<typeof>","value":"<first 40 characters>"}`.
 3. THE lines SHALL be a fixed token, one space, then compact JSON, the shape of existing Read Function events.
 4. NO line written by this feature SHALL contain a `pk`, key hash, API key, email address, or `cognitoSub` (D6).
 5. Conditional-check failures SHALL be logged at debug level only.
@@ -356,6 +364,13 @@ These came up while writing the requirements. Strike any you disagree with.
    - `TierCommonLayer` in the `Layers` lists of `ReadLambdaFunction` and `AuthLambdaFunction`, and in no other function's;
    - the layer's name pattern.
 10. `npm test` and `npm run lint` SHALL pass in the Read Function, the Auth Function, and the layer. Property tests SHALL use at least 100 runs.
+11. THE layer tests SHALL cover the Fallback: a valid Fallback is returned as the Effective tier for a `lapsed` record; a Fallback that is absent, `lapsed`, or `malformed`, has an unknown tier, ranks at or below `registered`, or ranks at or above the Stored tier is ignored; a Fallback never applies to an `active`, `none`, or `malformed` record.
+12. THE tests SHALL also cover:
+   - the restoring Downgrade (attributes, `REMOVE`, condition, `toTier` in the log line);
+   - key regeneration copying the fallback attributes when present and writing none when absent;
+   - each redemption outcome with and without a held tier above `registered`, including the restored-Holding extension;
+   - the profile reporting the Fallback's tier;
+   - a property test of Requirement 19.15: for generated records and vouchers, the rank of the user's tier at every sampled later instant is not lower after a successful redemption, nor after the Downgrade on the first request after the new tier lapses.
 
 ### Requirement 16: Phase 2 documentation and changelog
 
@@ -368,21 +383,23 @@ These came up while writing the requirements. Strike any you disagree with.
    - state that any other value gives the user `registered` limits and logs `TIER_EXPIRY_MALFORMED`;
    - state that a lapsed tier is written back as `registered` on the user's first API request after it lapses;
    - state that Cognito `custom:tier` can be stale after a lapse and is only a display hint (L4);
+   - describe the `fallbackTier` and `fallbackExpiresAt` attributes, and give the commands that set a tier by hand with the two `REMOVE` clauses (Requirement 19.13);
    - remove the stale sentence that the profile page reads the tier from Cognito.
 2. `docs/admin-ops/voucher-management.md` SHALL document:
    - the redemption rule as a table;
    - that a rejected redemption does not use up the voucher;
    - the 409 response;
-   - that an active voucher user is renewed by use.
+   - that an active voucher user is renewed by use;
+   - that a higher-tier voucher remembers the tier it replaces and the user returns to it when the voucher ends, with the three examples from PLAN.md.
 3. `ARCHITECTURE.md` SHALL:
    - add a `tier-common` layer section, next to the existing `search-common` section;
    - show the persisted Downgrade in the authentication flowchart;
    - describe the User record lifecycle: renewal, downgrade, and TTL deletion.
-4. `docs/end-user/troubleshooting/README.md` SHALL gain entries for a promotion code that was not applied and for a tier that returned to `registered` when a promotion ended.
+4. `docs/end-user/troubleshooting/README.md` SHALL gain entries for a promotion code that was not applied and for a tier that changed when a promotion ended (back to the previous tier if it still applied, otherwise to `registered`).
 5. JSDoc SHALL describe the layer's exports, both `computeEffectiveTier` wrappers, `refreshTtl`, the Downgrade, and `redeemVoucher`. The text "Unix epoch seconds" SHALL no longer describe `tierExpiresAt`.
 6. `CHANGELOG.md` SHALL gain entries under `[v0.0.7] (unreleased)`, each linking this spec. Existing text SHALL NOT be edited.
    - **Fixed:** lapsed tiers are downgraded, and the Read Function and the profile now agree.
-   - **Changed:** the downgrade is persisted, which reverses the 0-0-3 design; voucher redemption never lowers a tier; redemption conflicts return 409.
+   - **Changed:** the downgrade is persisted, which reverses the 0-0-3 design; voucher redemption never lowers a tier, and a higher voucher remembers the lower tier so the user returns to it when the voucher ends; redemption conflicts return 409.
    - **Added:** the `tier-common` layer.
    - **Security:** the narrowed Read Function access to the Users table.
 7. `.kiro/specs/0-0-3-add-authentication/design.md` SHALL get a one-line superseded note, linking this spec, at TTL Strategy item 4 and at Property 15. The rest of that file SHALL NOT change.
@@ -402,9 +419,10 @@ These came up while writing the requirements. Strike any you disagree with.
    - the record reads back as `registered`, with `tierExpiresAt` null and `ttl` about 120 days ahead.
 3. WHEN 17.2 is done, the Read Function's `test` log group SHALL be searched read-only, with the Owner's approval. It SHALL show one `TIER_LAPSE_DOWNGRADE` line and no `AccessDeniedException` for the Users table.
 4. WHEN phase 2 is on `test`, THE Owner SHALL redeem a lower-tier voucher as a higher-tier user. THE expected result is HTTP 400, with the voucher's `currentUses` unchanged.
-5. Phase 2 SHALL NOT be merged to `beta` until 17.2 to 17.4 pass, or until the Owner has chosen the fallback in Requirement 13.9.
+5. Phase 2 SHALL NOT be merged to `beta` until 17.2 to 17.4 and 17.8 pass, or until the Owner has chosen the fallback in Requirement 13.9.
 6. BEFORE the phase 2 merge to `main`, a Scan SHALL be repeated on `beta` and `prod`, with the Owner's approval. It SHALL report the number of `lapsed` records.
 7. WHEN phase 2 reaches `main`, issue #5 SHALL be closed with a comment, with the Owner's approval.
+8. WHEN phase 2 is on `test`, THE Owner SHALL check the restore with a throwaway `paid` user: redeem a `private` voucher, read the record (`tier` `private`, `fallbackTier` `paid`), set `tierExpiresAt` to a past instant, and send one authenticated request. THE expected results: the paid tier's rate limit, no `X-MCP-Auth-Status: degraded` header, and the record back to `paid` with its original end date, no fallback attributes, and `ttl` about 120 days ahead.
 
 ### Requirement 18: Scope boundaries
 
@@ -412,8 +430,8 @@ These came up while writing the requirements. Strike any you disagree with.
 
 #### Acceptance Criteria
 
-1. THE System SHALL NOT migrate stored data or change how registration, key regeneration, or admin commands write `tierExpiresAt` or `ttl`.
-2. THE System SHALL NOT change `post-confirmation.js`, `key-regenerate.js`, the cleanup function, the static site, or `services/documentation.js` (N13 is note only).
+1. THE System SHALL NOT migrate stored data or change how registration, key regeneration, or admin commands write `tierExpiresAt` or `ttl`. (Admin commands gain only the `REMOVE` clauses of Requirement 19.13, in documentation.)
+2. THE System SHALL NOT change `post-confirmation.js`, the cleanup function, the static site, or `services/documentation.js` (N13 is note only). THE only change to `key-regenerate.js` SHALL be carrying the fallback attributes (Requirement 19.11).
 3. THE System SHALL NOT reset Cognito `custom:tier` on a lapse (L4), and the profile endpoint SHALL NOT write.
 4. THE System SHALL NOT add a Lambda function, schedule, table, parameter, or alarm.
 5. Phase 1 SHALL NOT change `template.yml`. Phase 2's template changes are limited to `TierCommonLayer`, the two `Layers` entries, and the Users table statements in `ReadLambdaExecutionRole`.
@@ -421,3 +439,34 @@ These came up while writing the requirements. Strike any you disagree with.
 7. THE System SHALL NOT change key lifetime beyond the Renewal rule. The 0.0.8 key-lifetime work in `TODO.md` is separate.
 8. THE System SHALL NOT edit `ISSUE.md`.
 9. THE implementer SHALL NOT commit, push, merge, scan a deployed table, write to a deployed table, or post on GitHub without the Owner's approval.
+
+### Requirement 19: Remembered lower tier
+
+**User Story:** As a `paid` user who redeems a `private` voucher, I want my paid tier back when the private tier ends, so that a promotion never leaves me with less than I had before.
+
+#### Acceptance Criteria
+
+1. THE User record MAY carry two optional attributes: `fallbackTier` (a string) and `fallbackExpiresAt` (an ISO 8601 string, or the DynamoDB `NULL` type for a tier with no end date). Both absent SHALL mean that nothing is remembered (D22).
+2. WHEN a redemption applies a tier (Requirement 11.3) and the user's Holding ranks above `registered`, THE written record SHALL carry `fallbackTier` equal to the Holding's tier and `fallbackExpiresAt` equal to the Holding's end date, or `NULL` when the Holding has none (D23).
+3. WHEN a redemption applies a tier and the user's Holding is `registered`, THE write SHALL remove `fallbackTier` and `fallbackExpiresAt` (D26).
+4. A Fallback SHALL be valid only WHEN all of these hold (D24):
+   - `fallbackTier` is a string that names a tier in the Tier rank;
+   - that tier ranks above `registered` and below the Stored tier;
+   - `fallbackExpiresAt` is null, absent, or an `active` ISO 8601 timestamp.
+5. WHEN a record's `tierExpiresAt` is `lapsed` and its Fallback is valid, THE effective-tier function SHALL return the Fallback's tier, and SHALL return what to restore: the Fallback's tier, its end date (or null), and its Expiry state.
+6. WHEN the Auth Resolver finds a `lapsed` record with a valid Fallback, THE Downgrade SHALL be one conditional `UpdateItem` that:
+   - sets `tier` to the Fallback's tier;
+   - sets `tierExpiresAt` to the Fallback's end date, or `NULL` when it has none;
+   - sets `ttl` to now + 120 days;
+   - removes `fallbackTier` and `fallbackExpiresAt`.
+
+   THE condition SHALL be the one in Requirement 9.2. THE request SHALL be served at the Fallback's tier.
+7. WHEN the Auth Resolver finds a `lapsed` record with no valid Fallback, THE Downgrade SHALL be the write of Requirement 9.1 and SHALL also remove `fallbackTier` and `fallbackExpiresAt` (D25).
+8. WHEN a `lapsed` record has a Fallback that is present but not valid, THE effective tier SHALL be `registered`. IF the cause is a `fallbackExpiresAt` that does not parse, one `TIER_EXPIRY_MALFORMED` warning SHALL be logged with the field name `fallbackExpiresAt`.
+9. THE Read Function SHALL write only these tier values: `registered`, or a Fallback's tier that ranks below the Stored tier. THE Read Function SHALL NOT write a Fallback that fails 19.4.
+10. WHEN a redemption extends the Holding (Requirement 11.4) and the Holding comes from a restorable Fallback, THE written record SHALL have `tier` equal to the Holding's tier, `tierExpiresAt` equal to the later end date, and no fallback attributes (D26). WHEN the Holding comes from the Stored tier, THE fallback attributes SHALL be left unchanged.
+11. KEY regeneration SHALL copy `fallbackTier` and `fallbackExpiresAt` to the new record WHEN the old record has `fallbackTier`, and SHALL write neither otherwise (D27).
+12. THE Profile Service SHALL pass the record's Fallback to the effective-tier function, so that it reports the same tier as the Auth Resolver. IT SHALL NOT return the fallback attributes (D30).
+13. THE admin commands in `docs/admin-ops/user-management.md` that set a tier by hand SHALL also remove `fallbackTier` and `fallbackExpiresAt` (D28).
+14. A restore SHALL NOT update Cognito `custom:tier` (D29, L4).
+15. FOR every record and voucher, and for every later instant, THE tier the user holds after a successful redemption SHALL rank at least as high as the tier they held before it at the same instant, assuming no other change to the record. THE same SHALL hold after the Downgrade has run on the first request after the new tier lapses.

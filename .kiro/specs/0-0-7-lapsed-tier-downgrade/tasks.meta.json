@@ -1,0 +1,441 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 Change the renewal property tests": [
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808777513
+      },
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808798339
+      },
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808863682
+      }
+    ],
+    "1.2 Change the auth-resolver unit tests": [
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808777977
+      },
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808866579
+      },
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808935949
+      }
+    ],
+    "1.3 Run the changed files against the unchanged code and confirm they fail": [
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808778240
+      },
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808938960
+      },
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808985955
+      }
+    ],
+    "2.1 Rewrite `refreshTtl` and add `onUserWriteError`": [
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808778578
+      },
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808988974
+      },
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793809046587
+      }
+    ],
+    "2.2 Run the changed files, then the whole suite": [
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808778888
+      },
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793809052156
+      },
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793809175643
+      }
+    ],
+    "3.1 Admin documentation": [
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808779178
+      },
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793809180214
+      },
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793809212404
+      }
+    ],
+    "3.2 Post-deploy verification pages": [
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808779488
+      },
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793809215675
+      },
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793809273605
+      }
+    ],
+    "3.3 End-user troubleshooting": [
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808779734
+      },
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793809276246
+      },
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793809311415
+      }
+    ],
+    "3.4 Changelog": [
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808780086
+      },
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793809314247
+      },
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793809375956
+      }
+    ],
+    "4. Phase 1 checkpoint": [
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808780379
+      },
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793809379044
+      },
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793809449006
+      }
+    ],
+    "5.1 Scan before promotion": [
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808780686
+      }
+    ],
+    "5.2 Deploy to `test` and check renewal": [
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808781016
+      }
+    ],
+    "5.3 Promote through `beta` to `main`": [
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808781346
+      }
+    ],
+    "5.4 Comment on issue #5": [
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808781658
+      }
+    ],
+    "6.1 Create the layer package": [
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808782142
+      }
+    ],
+    "6.2 Write the layer tests": [
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808782437
+      }
+    ],
+    "6.3 Write `nodejs/effective-tier.js`": [
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808782782
+      }
+    ],
+    "7.1 Add the loaders and test paths": [
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808783096
+      }
+    ],
+    "7.2 Add the layer to the template": [
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808783447
+      }
+    ],
+    "7.3 Prove the wiring": [
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808783816
+      }
+    ],
+    "8.1 Convert and add the effective-tier tests": [
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808784146
+      }
+    ],
+    "8.2 Delegate to the layer": [
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808784509
+      }
+    ],
+    "9.1 Write the tests": [
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808784850
+      }
+    ],
+    "9.2 Implement": [
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808785296
+      }
+    ],
+    "10.1 Write the tests": [
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808785696
+      }
+    ],
+    "10.2 Implement": [
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808786016
+      }
+    ],
+    "10.3 Document the responses in OpenAPI": [
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808786437
+      }
+    ],
+    "10.4 Carry the fallback attributes through key regeneration (test-first)": [
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808786839
+      }
+    ],
+    "11. Phase 2 code checkpoint": [
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808787233
+      }
+    ],
+    "12.1 Write the architecture test": [
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808787570
+      }
+    ],
+    "12.2 Replace the IAM statement": [
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808787906
+      }
+    ],
+    "12.3 Run the offline template check": [
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808788262
+      }
+    ],
+    "13.1 Admin documentation": [
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808788658
+      }
+    ],
+    "13.2 Architecture": [
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808789017
+      }
+    ],
+    "13.3 End-user troubleshooting": [
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808789388
+      }
+    ],
+    "13.4 JSDoc sweep": [
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808789727
+      }
+    ],
+    "13.5 Earlier spec": [
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808790108
+      }
+    ],
+    "13.6 Changelog": [
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808790399
+      }
+    ],
+    "14.1 Run everything and search for leftovers": [
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808790777
+      }
+    ],
+    "15.1 Deploy to `test` and check the Downgrade": [
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808791129
+      }
+    ],
+    "15.2 Check the voucher rule and the restore on `test`": [
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808791378
+      }
+    ],
+    "15.3 Decide on IAM if a check failed": [
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808791682
+      }
+    ],
+    "15.4 Scan, then promote": [
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808791919
+      }
+    ],
+    "15.5 Close issue #5": [
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808792267
+      }
+    ],
+    "16. Final checkpoint": [
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808792617
+      }
+    ],
+    "1. Write the renewal tests and see them fail (Phase 1, red)": [
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793808986333
+      }
+    ],
+    "2. Change the renewal (Phase 1, green)": [
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793809176053
+      }
+    ],
+    "3. Update the phase 1 documentation and changelog": [
+      {
+        "executionId": "2fbd9cbd-abdc-4bc0-8058-96082d8fa935",
+        "chatSessionId": "sess_2a786583-531f-4016-a3f9-555df39d7f37",
+        "timestamp": 1793809376267
+      }
+    ]
+  }
+}

@@ -258,7 +258,7 @@ Verification is designed to stay small. These counts are for POST requests that 
 - **No client verification.** Verification checks the protocol from a script. It does not prove that a real MCP client connects, and it cannot see CloudWatch alarms or repository state. Those checks stay manual.
 - **Runs only when the PostDeploy stage is enabled.** Stages deployed with `PostDeployStageEnabled` set to false are not verified.
 - **Advisory checks do not block.** A broken backend (T1), a lapsed key (S2), or an edge that drops the MCP headers (X2) produces only a `WARN`. Read the warnings after a deploy that touched those areas.
-- **A private-tier key can lapse.** Use does not renew private keys today ([issue #5](https://github.com/63Klabs/atlantis-mcp/issues/5)), so the account behind a stored key expires about 120 days after the key was set up. S2 then warns, and the run continues without the key at the public tier. The [developer guide](../developer/post-deploy-verification.md) explains how to get and store a key and the workarounds.
+- **The key is renewed by each verification run.** A stage with no deployment for 120 days loses the key's account; register it again and store the new key. S2 then warns, and the run continues without the key at the public tier. The [developer guide](../developer/post-deploy-verification.md#key-lifetime) explains how to get and store a key.
 - **Rate limits can make a run inconclusive.** An `inconclusive` run fails the build until it is retried, as described in [Retrying the stage](#retrying-the-stage).
 - **A key that cannot be read is a warning.** If the key parameter cannot be read (for example, access denied), the run logs a `WARN` and goes on without a key.
 

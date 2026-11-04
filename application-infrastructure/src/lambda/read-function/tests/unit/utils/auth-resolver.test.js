@@ -30,7 +30,7 @@ jest.mock('@63klabs/cache-data', () => ({
 
 const { resolveAuth, TestHarness } = require('../../../utils/auth-resolver');
 const { apiKeyHashSalt } = TestHarness.getInternals();
-const { tools: { AWS } } = require('@63klabs/cache-data');
+const { tools: { AWS, DebugAndLog } } = require('@63klabs/cache-data');
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                           */
@@ -63,6 +63,8 @@ describe('Auth Resolver — resolveAuth()', () => {
 		apiKeyHashSalt.getValue.mockReset();
 		AWS.dynamo.get.mockReset();
 		AWS.dynamo.update.mockReset();
+		DebugAndLog.warn.mockClear();
+		DebugAndLog.debug.mockClear();
 	});
 
 	afterEach(() => {
@@ -293,5 +295,146 @@ describe('Auth Resolver — resolveAuth()', () => {
 
 		// dynamo.update should NOT have been called
 		expect(AWS.dynamo.update).not.toHaveBeenCalled();
+	});
+
+	/* -------------------------------------------------------------- */
+	/*  Test 9: TTL refresh for paid and private tiers                */
+	/*  (spec 0-0-7-lapsed-tier-downgrade, Requirements 2.2, 3.3)     */
+	/* -------------------------------------------------------------- */
+
+	describe.each(['paid', 'private'])('%s record with no end date', (tier) => {
+
+		it('should call dynamo.update once with the existence condition when ttl < 90 days from now', async () => {
+			const event = createEvent({
+				headers: { authorization: 'Bearer atl_ttlrefreshkey000000000000000' }
+			});
+
+			apiKeyHashSalt.getValue.mockResolvedValue('unit-test-salt-value');
+
+			const nowSec = Math.floor(Date.now() / 1000);
+			AWS.dynamo.get.mockResolvedValue({
+				Item: {
+					tier,
+					cognitoSub: `sub-${tier}-renew`,
+					tierExpiresAt: null,
+					ttl: nowSec + 30 * 24 * 60 * 60
+				}
+			});
+			AWS.dynamo.update.mockResolvedValue({});
+
+			const result = await resolveAuth(event);
+
+			expect(result.tier).toBe(tier);
+			expect(result.isAuthenticated).toBe(true);
+
+			expect(AWS.dynamo.update).toHaveBeenCalledTimes(1);
+			const updateCall = AWS.dynamo.update.mock.calls[0][0];
+			expect(updateCall.ConditionExpression).toBe('attribute_exists(#pk)');
+			expect(updateCall.ExpressionAttributeNames).toEqual({ '#pk': 'pk', '#ttl': 'ttl' });
+			expect(updateCall.ExpressionAttributeValues[':newTtl']).toBeGreaterThan(nowSec + 100 * 24 * 60 * 60);
+		});
+
+		it('should NOT call dynamo.update when ttl >= 90 days from now', async () => {
+			const event = createEvent({
+				headers: { authorization: 'Bearer atl_ttlnorefreshkey0000000000000' }
+			});
+
+			apiKeyHashSalt.getValue.mockResolvedValue('unit-test-salt-value');
+
+			const nowSec = Math.floor(Date.now() / 1000);
+			AWS.dynamo.get.mockResolvedValue({
+				Item: {
+					tier,
+					cognitoSub: `sub-${tier}-norenew`,
+					tierExpiresAt: null,
+					ttl: nowSec + 100 * 24 * 60 * 60
+				}
+			});
+
+			const result = await resolveAuth(event);
+
+			expect(result.tier).toBe(tier);
+			expect(AWS.dynamo.update).not.toHaveBeenCalled();
+		});
+	});
+
+	/* -------------------------------------------------------------- */
+	/*  Test 10: TTL refresh write failures are non-blocking          */
+	/*  (Requirements 2.2, 2.3, 3.4)                                  */
+	/* -------------------------------------------------------------- */
+
+	describe('TTL refresh write outcome', () => {
+
+		const TTL_REFRESH_FAILED = 'Auth resolver: TTL refresh failed (non-blocking)';
+
+		/**
+		 * Resolve a request for a registered user whose renewal is due, with the
+		 * given outcome for the fire-and-forget `update`, then flush pending promises.
+		 *
+		 * @param {function(): Promise<Object>} updateImpl - Implementation for AWS.dynamo.update
+		 * @returns {Promise<Object>} The resolveAuth result
+		 */
+		async function resolveWithRenewalDue(updateImpl) {
+			const event = createEvent({
+				headers: { authorization: 'Bearer atl_ttlwriteoutcomekey00000000000' }
+			});
+
+			apiKeyHashSalt.getValue.mockResolvedValue('unit-test-salt-value');
+
+			const nowSec = Math.floor(Date.now() / 1000);
+			AWS.dynamo.get.mockResolvedValue({
+				Item: {
+					tier: 'registered',
+					cognitoSub: 'sub-write-outcome',
+					tierExpiresAt: null,
+					ttl: nowSec + 30 * 24 * 60 * 60
+				}
+			});
+			AWS.dynamo.update.mockImplementation(updateImpl);
+
+			const result = await resolveAuth(event);
+
+			// Let the un-awaited update promise and its catch handler run
+			await new Promise(setImmediate);
+
+			return result;
+		}
+
+		it('should not warn when update rejects with ConditionalCheckFailedException', async () => {
+			const conditionalFailure = Object.assign(new Error('The conditional request failed'), {
+				name: 'ConditionalCheckFailedException'
+			});
+
+			const result = await resolveWithRenewalDue(() => Promise.reject(conditionalFailure));
+
+			expect(AWS.dynamo.update).toHaveBeenCalledTimes(1);
+			expect(DebugAndLog.warn).not.toHaveBeenCalled();
+			expect(result.tier).toBe('registered');
+			expect(result.isAuthenticated).toBe(true);
+		});
+
+		it('should warn once when update rejects with another error', async () => {
+			const result = await resolveWithRenewalDue(() => Promise.reject(new Error('Throttled')));
+
+			expect(AWS.dynamo.update).toHaveBeenCalledTimes(1);
+			expect(DebugAndLog.warn).toHaveBeenCalledTimes(1);
+			expect(DebugAndLog.warn.mock.calls[0][0]).toBe(TTL_REFRESH_FAILED);
+			expect(result.tier).toBe('registered');
+			expect(result.isAuthenticated).toBe(true);
+		});
+
+		it('should return the same result whether update resolves or rejects', async () => {
+			const resolved = await resolveWithRenewalDue(() => Promise.resolve({}));
+			expect(DebugAndLog.warn).not.toHaveBeenCalled();
+
+			const conditional = await resolveWithRenewalDue(() => Promise.reject(
+				Object.assign(new Error('The conditional request failed'), { name: 'ConditionalCheckFailedException' })
+			));
+
+			const otherError = await resolveWithRenewalDue(() => Promise.reject(new Error('Throttled')));
+
+			expect(conditional).toEqual(resolved);
+			expect(otherError).toEqual(resolved);
+		});
 	});
 });

@@ -190,29 +190,15 @@ aws ssm describe-parameters \
 
 To stop using a key, store `BLANK` again. Do not read the value back with `--with-decryption` to check it, and never paste the key into a ticket, a log search, or a shared terminal recording.
 
-## The 120-day limit
+## Key lifetime
 
-> **Known limit** until [issue #5](https://github.com/63Klabs/atlantis-mcp/issues/5) is fixed: a user's record, and with it the account, is deleted 120 days after its last write, even for a private-tier user who uses the key every day.
+The Users table sets `ttl` to 120 days ahead when an account is registered, when a key is regenerated, and when a tier is changed. DynamoDB deletes the record once `ttl` passes, and the cleanup function then deletes the Cognito account. The key stops working.
 
-The Users table sets `ttl` to 120 days ahead when an account is registered, when a key is regenerated, and when a tier is changed. Using the key does not renew it. DynamoDB later deletes the record, and the cleanup function deletes the Cognito account. The key then stops working.
+The key is renewed while it is in use. When a request authenticated with the key arrives and fewer than 90 days remain on the record's `ttl`, the Read function sets `ttl` to 120 days ahead. This applies to any record without a `tierExpiresAt`, which includes a private-tier account with no end date. Every verification run that has a stored key sends authenticated requests, so each run renews the record once fewer than 90 days remain. A stage that is deployed at least once every 120 days therefore keeps its key.
+
+If a stage goes 120 days without a deployment, the key's account is removed. Register the account again, promote it to the private tier, and store the new key as described above.
 
 A lapsed key does not break the build. S2.1 and S2.2 no longer get an accepted answer and print `WARN`, S2.3 points at S2.1, and the reason says the remaining checks run without the key. The run continues at the public tier, so it passes unless the public rate limit is exhausted. The warning in the log is the only sign that the key has lapsed.
-
-There are two workarounds.
-
-**Workaround 1: an admin removes `ttl` from the verification account's record.** Look up the record by email as described in [user management](../admin-ops/user-management.md#look-up-a-user-by-email), then run:
-
-```bash
-aws dynamodb update-item \
-  --table-name "{Prefix}-{ProjectId}-{StageId}-Users" \
-  --key '{"pk":{"S":"KEY#<hash>"}}' \
-  --update-expression "REMOVE #ttl" \
-  --expression-attribute-names '{"#ttl":"ttl"}'
-```
-
-Without a `ttl`, the record never expires. A later key regeneration writes a new record with a `ttl` again, and so do the tier commands in user management, so repeat the command after either. Do it after promoting the account to the private tier, not before.
-
-**Workaround 2: regenerate the key and update the parameter before 120 days pass.** Count from the last registration, regeneration, or tier change of the account, set a reminder well before the date, regenerate at `/profile/`, and store the new key as described above.
 
 ## Changing or adding a check
 

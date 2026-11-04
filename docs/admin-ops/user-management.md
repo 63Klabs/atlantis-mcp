@@ -37,7 +37,7 @@ User records use the following structure:
 | `cognitoSub` | String | Cognito user sub ID |
 | `createdAt` | String (ISO 8601) | Record creation timestamp |
 | `tierExpiresAt` | String (ISO 8601) or null | When the current tier expires |
-| `ttl` | Number | DynamoDB TTL in Unix epoch seconds (120 days from last activity) |
+| `ttl` | Number | DynamoDB TTL in Unix epoch seconds. Renewed while the key is in use: when fewer than 90 days remain, an authenticated request sets it to 120 days ahead. Records with a `tierExpiresAt` are not renewed until the lapsed-tier fix ships. |
 
 ---
 
@@ -141,7 +141,7 @@ aws cognito-idp list-user-pools --max-results 20 \
 | `public` | 50/hr (IP-based) | N/A (unauthenticated) |
 | `registered` | 100/hr (user-based) | Default for all new users. No expiration. |
 | `paid` | 3000/day (user-based) | Set `tierExpiresAt` to end of billing period. Read Lambda treats expired paid users as `registered`. |
-| `private` | 6000/day (user-based) | Set `tierExpiresAt` to `null` for permanent access, or a date for temporary access. |
+| `private` | 6000/day (user-based) | Set `tierExpiresAt` to `null` for no tier expiry (the account is kept while the key is used at least once every 120 days), or to a date for temporary access. |
 
 The Read Lambda computes the effective tier at request time. If `tierExpiresAt` is set and has passed, the user is treated as `registered` regardless of the stored tier value. The stored `tierExpiresAt` is not updated by the Read Lambda.
 

@@ -3,7 +3,7 @@
  *
  * Resolves API key authentication from incoming requests, performing
  * scrypt key hashing, DynamoDB user lookup, tier computation,
- * and TTL refresh for free registered users.
+ * and TTL refresh for every record without an end date.
  *
  * Supports two header formats:
  * - `Authorization: Bearer <key>`
@@ -139,57 +139,75 @@ function extractSourceIp(event) {
 }
 
 /**
- * Background TTL refresh for free registered users.
+ * Build the catch handler for a fire-and-forget Users table write.
  *
- * If the user's TTL is less than 90 days from now, updates it to
- * now + 120 days. This is a fire-and-forget operation — errors are
- * caught and logged silently.
+ * A failed condition means the record changed or was removed since it was read.
+ * That is expected, so it is logged at debug level without any identifying
+ * values. Any other error is logged as a warning.
  *
- * Only applies to free registered users (effectiveTier === 'registered'
- * AND tierExpiresAt is null/undefined, meaning not a downgraded paid user).
+ * @private
+ * @param {string} write - Short write name for the log line (for example 'TTL refresh')
+ * @returns {function(Error): void} Promise rejection handler
+ * @example
+ * // In tests only via TestHarness
+ * const { onUserWriteError } = TestHarness.getInternals();
+ * AWS.dynamo.update(params).catch(onUserWriteError('TTL refresh'));
+ */
+function onUserWriteError(write) {
+  return (err) => {
+    // >! A failed condition is a normal race (record changed or removed); log without pk, email, or cognitoSub
+    if (err && err.name === 'ConditionalCheckFailedException') {
+      DebugAndLog.debug(`Auth resolver: ${write} skipped, user record changed or removed`);
+      return;
+    }
+    DebugAndLog.warn(`Auth resolver: ${write} failed (non-blocking)`, { error: err && err.message });
+  };
+}
+
+/**
+ * Renew a user record's DynamoDB TTL while its key is in use.
+ *
+ * TTL refresh for every record without an end date: when the record's TTL is
+ * less than 90 days from now, it is set to now + 120 days. Any tier is renewed.
+ * In phase 1, a record with an end date (`tierExpiresAt` non-null) is left alone,
+ * because a lapsed voucher would otherwise be kept on its old tier
+ * (spec 0-0-7-lapsed-tier-downgrade). Fire-and-forget: errors are logged, never thrown.
  *
  * @private
  * @param {string} pk - DynamoDB partition key (`KEY#<hash>`)
  * @param {Object} record - User record from DynamoDB
  * @param {number} [record.ttl] - Current TTL as Unix epoch seconds
- * @param {string} record.tier - Stored tier value
- * @param {number|null|undefined} [record.tierExpiresAt] - Tier expiration
- * @param {string} effectiveTier - Computed effective tier
+ * @param {string|null|undefined} [record.tierExpiresAt] - ISO 8601 tier end date or null
  * @returns {void}
  * @example
  * // In tests only via TestHarness
  * const { refreshTtl } = TestHarness.getInternals();
- * refreshTtl('KEY#abc123', { ttl: oldTtl, tier: 'registered' }, 'registered');
+ * refreshTtl('KEY#abc123', { ttl: soonEpochSec, tier: 'private', tierExpiresAt: null });
  */
-function refreshTtl(pk, record, effectiveTier) {
-  // >! Only refresh TTL for free registered users (not downgraded paid users)
-  if (effectiveTier !== 'registered') {
-    return;
-  }
-
-  // >! If tierExpiresAt is set, this is a downgraded paid user — skip refresh
+function refreshTtl(pk, record) {
+  // >! Phase 1 only: do not renew a record with an end date until the expiry check is fixed
   if (record.tierExpiresAt != null) {
     return;
   }
 
   const nowSec = Math.floor(Date.now() / 1000);
-  const ttl = record.ttl;
 
-  // >! Check if TTL is within 90 days from now
-  if (ttl != null && ttl < (nowSec + NINETY_DAYS_SEC)) {
-    const newTtl = nowSec + ONE_TWENTY_DAYS_SEC;
-
-    // >! Fire and forget — don't await, catch errors silently
-    AWS.dynamo.update({
-      TableName: usersTableName,
-      Key: { pk },
-      UpdateExpression: 'SET #ttl = :newTtl',
-      ExpressionAttributeNames: { '#ttl': 'ttl' },
-      ExpressionAttributeValues: { ':newTtl': newTtl }
-    }).catch(err => {
-      DebugAndLog.warn('Auth resolver: TTL refresh failed (non-blocking)', { error: err.message });
-    });
+  // >! No numeric ttl, or at least 90 days left: nothing to renew
+  if (typeof record.ttl !== 'number' || record.ttl >= nowSec + NINETY_DAYS_SEC) {
+    return;
   }
+
+  // >! Fire and forget — don't await; failures are handled by onUserWriteError
+  AWS.dynamo.update({
+    TableName: usersTableName,
+    Key: { pk },
+    UpdateExpression: 'SET #ttl = :newTtl',
+    // >! UpdateItem creates a missing item. Without this condition, a renewal that races
+    // >! key regeneration would recreate the deleted record and revive the revoked key.
+    ConditionExpression: 'attribute_exists(#pk)',
+    ExpressionAttributeNames: { '#pk': 'pk', '#ttl': 'ttl' },
+    ExpressionAttributeValues: { ':newTtl': nowSec + ONE_TWENTY_DAYS_SEC }
+  }).catch(onUserWriteError('TTL refresh'));
 }
 
 /* ------------------------------------------------------------------ */
@@ -205,7 +223,8 @@ function refreshTtl(pk, record, effectiveTier) {
  * 3. Key present → retrieve hash salt from SSM
  * 4. Hash key with scrypt → DynamoDB GetItem on Users table
  * 5. Key not found → return 401 error
- * 6. Key found → compute effective tier, trigger TTL refresh if needed
+ * 6. Key found → compute effective tier, trigger TTL refresh for every record
+ *    without an end date if needed
  * 7. Return authenticated result with tier and cognitoSub
  *
  * Degradation: SSM or DynamoDB failures fall back to public tier
@@ -322,8 +341,8 @@ async function resolveAuth(event) {
   // >! Compute effective tier (handles tier expiration)
   const effectiveTier = computeEffectiveTier(record.tier, record.tierExpiresAt);
 
-  // >! Background TTL refresh for free registered users
-  refreshTtl(pk, record, effectiveTier);
+  // >! Background TTL refresh for every record without an end date
+  refreshTtl(pk, record);
 
   return {
     tier: effectiveTier,
@@ -349,7 +368,7 @@ class TestHarness {
    * Get access to internal functions for testing purposes.
    * WARNING: This method is for testing only and should never be used in production.
    *
-   * @returns {{extractApiKey: Function, computeEffectiveTier: Function, refreshTtl: Function, extractSourceIp: Function, apiKeyHashSalt: CachedSsmParameter, NINETY_DAYS_SEC: number, ONE_TWENTY_DAYS_SEC: number}} Object containing internal functions and constants
+   * @returns {{extractApiKey: Function, computeEffectiveTier: Function, refreshTtl: Function, onUserWriteError: Function, extractSourceIp: Function, apiKeyHashSalt: CachedSsmParameter, NINETY_DAYS_SEC: number, ONE_TWENTY_DAYS_SEC: number}} Object containing internal functions and constants
    * @private
    * @example
    * // In tests only — DO NOT use in production
@@ -361,6 +380,7 @@ class TestHarness {
       extractApiKey,
       computeEffectiveTier,
       refreshTtl,
+      onUserWriteError,
       extractSourceIp,
       apiKeyHashSalt,
       NINETY_DAYS_SEC,

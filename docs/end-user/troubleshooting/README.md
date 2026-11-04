@@ -9,6 +9,7 @@ This guide helps you diagnose and resolve common issues when using the 63Klabs A
 - [Tool Errors](#tool-errors)
 - [Performance Issues](#performance-issues)
 - [Authentication Problems](#authentication-problems)
+  - [API key returns 401 after a long break](#problem-api-key-returns-401-after-a-long-break)
   - [Forgot your password](#problem-forgot-your-password)
   - [Change your password while signed in](#problem-want-to-change-your-password-while-signed-in)
 - [Data Quality Issues](#data-quality-issues)
@@ -348,6 +349,25 @@ If you see authentication errors:
 1. **Verify URL**
    - Ensure using public endpoint
    - Check for typos
+
+---
+
+### Problem: API key returns 401 after a long break
+
+**Symptoms:**
+- A key that used to work now returns HTTP 401 Unauthorized
+- You haven't used the key for more than 120 days
+- Signing in at [/login/](https://mcp.atlantis.63klabs.net/login/) fails as well
+
+**Cause:**
+
+Your account is kept while your API key is in use. Each time you make an authenticated request, the account's retention period is renewed. An account whose key is not used for 120 days is removed for inactivity, along with its sign-in. The key cannot be recovered, and resetting your password won't bring the account back.
+
+**Solution:**
+
+[Register again](https://mcp.atlantis.63klabs.net/register/) with your email address, verify it, and copy the new API key from your [profile page](https://mcp.atlantis.63klabs.net/profile/). Then update the key in your AI assistant's configuration.
+
+> **Note**: A key that returns 401 after less than 120 days of non-use has a different cause. Check that the key was copied completely and that it hasn't been regenerated since. Regenerating a key revokes the old one.
 
 ---
 
