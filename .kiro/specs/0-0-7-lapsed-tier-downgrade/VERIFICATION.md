@@ -154,6 +154,8 @@ non-registered without end date: 2
 earliest ttl: 2027-02-25T14:06:06Z (113 days)
 records with an end date in the past: 1
 
+No records within 30 days
+
 ### beta
 
 records: 1
@@ -161,9 +163,92 @@ non-registered without end date: 1
 earliest ttl: 2027-02-25T17:19:37Z (113 days)
 records with an end date in the past: 0
 
+No records within 30 days
+
 ### prod
 
 records: 4
 non-registered without end date: 3
 earliest ttl: 2027-01-28T14:08:07Z (85 days)
 records with an end date in the past: 0
+
+No records within 30 days
+
+### User check
+
+PostDeploy result on test, beta, and prod is a success.
+Set user ttl to 60 days from now (11/4/2026) and perform a request - Done
+Verify ttl change: Before 58 days out, after 120 days out
+
+Before:
+```json
+{
+    "Items": [
+        {
+            "pk": {
+                "S": "<KEY>"
+            },
+            "cognitoSub": {
+                "S": "<ID>"
+            },
+            "ttl": {
+                "N": "1798828918"
+            },
+            "email": {
+                "S": "<EMAIL>"
+            },
+            "tier": {
+                "S": "registered"
+            },
+            "createdAt": {
+                "S": "2026-11-04T18:26:13.172Z"
+            },
+            "tierExpiresAt": {
+                "NULL": true
+            }
+        }
+    ],
+    "Count": 1,
+    "ScannedCount": 1,
+    "ConsumedCapacity": null
+}
+```
+
+This result shows a ttl 58 days from now
+
+After:
+
+```json
+{
+    "Items": [
+        {
+            "tierExpiresAt": {
+                "NULL": true
+            },
+            "ttl": {
+                "N": "1804185970"
+            },
+            "pk": {
+                "S": "<KEY>"
+            },
+            "cognitoSub": {
+                "S": "<ID>"
+            },
+            "createdAt": {
+                "S": "2026-11-04T18:26:13.172Z"
+            },
+            "tier": {
+                "S": "registered"
+            },
+            "email": {
+                "S": "<EMAIL>"
+            }
+        }
+    ],
+    "Count": 1,
+    "ScannedCount": 1,
+    "ConsumedCapacity": null
+}
+```
+
+This result shows a ttl of 120 days from now

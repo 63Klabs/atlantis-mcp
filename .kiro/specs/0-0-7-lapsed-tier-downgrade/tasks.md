@@ -143,22 +143,22 @@ Line numbers were read on 2026-11-02 at `dev` `71251f0`; find each edit by its t
   - Leave the commit to the owner. Ensure all tests pass, and ask the user if questions arise.
   - _Requirements: 18.5, 18.9_
 
-- [ ] 5. Roll out phase 1 (owner)
-  - [~] 5.1 Scan before promotion
+- [x] 5. Roll out phase 1 (owner)
+  - [x] 5.1 Scan before promotion
     - Before the merge to `test`, with the owner's approval, run the read-only scan in V-C on `test`, `beta`, and `prod`.
     - Record in `VERIFICATION.md`, for each stage: the record count, the number of non-registered records without an end date, the earliest `ttl` among them and its days remaining, and the number with an end date in the past. Record no identifiers.
     - If the earliest `ttl` is within 30 days, the owner extends that record with the `REMOVE #ttl` stopgap from issue #5 before the merge, and records that it was done.
     - _Requirements: 5.3_
-  - [~] 5.2 Deploy to `test` and check renewal
+  - [x] 5.2 Deploy to `test` and check renewal
     - After the owner commits and merges `dev` to `test`, confirm the PostDeploy stage passes.
     - Follow V-D phase 1: the owner sets a throwaway user's `ttl` to about 60 days ahead, sends one request with that user's key, and reads `ttl` back.
     - Record the before and after values, rounded to days, in `VERIFICATION.md`. The expected value is about 120 days ahead.
     - If it did not change, stop. Do not promote.
     - _Requirements: 5.2, 5.4, 5.5_
-  - [~] 5.3 Promote through `beta` to `main`
+  - [x] 5.3 Promote through `beta` to `main`
     - Only after 5.2 passes. Merge to `beta`, then to `main`, and confirm each stage's PostDeploy before the next merge.
     - _Requirements: 5.2_
-  - [~] 5.4 Comment on issue #5
+  - [x] 5.4 Comment on issue #5
     - When phase 1 is on `main`, and with the owner's go-ahead (the repository is public), comment on [issue #5](https://github.com/63Klabs/atlantis-mcp/issues/5): what is fixed (renewal for every tier without an end date), and what phase 2 adds (voucher users). Leave the issue open.
     - _Requirements: 5.6_
 
