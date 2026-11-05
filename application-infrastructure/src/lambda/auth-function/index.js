@@ -23,6 +23,11 @@ const { Config } = require('./config');
 const Routes = require('./routes');
 const postConfirmationHandler = require('./handlers/post-confirmation');
 
+// >! Load the tier-common layer at module scope. Controllers are lazy-loaded, so without
+// >! this a missing layer would surface on the first profile or voucher request. A missing
+// >! layer fails the cold start here, with no fallback copy (Requirement 6.6).
+require('./utils/tier-common');
+
 // >! Cold start: init outside handler, runs once per container
 const coldStartInitTimer = new Timer('coldStartTimer', true);
 Config.init();

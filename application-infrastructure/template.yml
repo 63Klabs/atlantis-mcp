@@ -771,6 +771,29 @@ Resources:
       # not accumulate; both functions always !Ref the latest published version.
       RetentionPolicy: Delete
 
+  # -- tier-common Layer --
+  # The one rule for reading a user's tier end date (spec 0-0-7-lapsed-tier-downgrade).
+  # Attached to the Read Function (request tier, renewal, downgrade) and the Auth
+  # Function (profile, voucher redemption). Loaded from /opt/nodejs/effective-tier,
+  # with a TIER_COMMON_LAYER_PATH override for tests. Code only: no standing cost,
+  # no IAM, so it is attached unconditionally.
+  TierCommonLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: !Sub '${Prefix}-${ProjectId}-${StageId}-TierCommon'
+      Description: "Shared tier expiry rule (read-function + auth-function)."
+      ContentUri: src/lambda/layers/tier-common/
+      CompatibleRuntimes:
+        - nodejs24.x
+      # Pure-JavaScript layer (no native binaries), so it is compatible with both
+      # architectures; listing both avoids coupling to FunctionArchitecture.
+      CompatibleArchitectures:
+        - arm64
+        - x86_64
+      # Delete superseded versions on stack update so orphaned layer versions do
+      # not accumulate; both functions always !Ref the latest published version.
+      RetentionPolicy: Delete
+
   # ---------------------------------------------------------------------------
   # Lambda Functions
   # https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-resource-function.html
@@ -825,6 +848,11 @@ Resources:
         # search-common shared-code layer (spec 0-0-7-tool-discovery-enhancement, task 2.1);
         # code only, attached unconditionally
         - !Ref SearchCommonLayer
+
+        # tier-common shared-code layer (spec 0-0-7-lapsed-tier-downgrade); code only.
+        # This is the fifth layer: Lambda allows at most five per function, so the next
+        # shared module for this function must go into an existing repository layer.
+        - !Ref TierCommonLayer
 
       Environment:
         Variables:
@@ -1104,6 +1132,9 @@ Resources:
 
         # Lambda SSM Parameters and Secrets Extension Layer - Using Public SSM Parameter from AWS - Use mapping if not available in your region
         - '{{resolve:ssm:/aws/service/aws-parameters-and-secrets-lambda-extension/arm64/latest}}' #arm64 - There is also an x86 version available too
+
+        # tier-common shared-code layer (spec 0-0-7-lapsed-tier-downgrade); code only
+        - !Ref TierCommonLayer
 
       Environment:
         Variables:
@@ -1953,13 +1984,53 @@ Resources:
             Resource:
             - !GetAtt DocIndexTable.Arn
 
-          - Sid: UsersTableAuthAccess
+          # >! The Read Function reads only user records (KEY#*) and only the attributes auth
+          # >! resolution uses; the GetItem must send a matching ProjectionExpression.
+          # >! See https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/specifying-conditions.html
+          - Sid: UsersTableAuthRead
             Action:
             - dynamodb:GetItem
+            Effect: Allow
+            Resource:
+            - !GetAtt UsersTable.Arn
+            Condition:
+              ForAllValues:StringLike:
+                dynamodb:LeadingKeys:
+                - "KEY#*"
+              ForAllValues:StringEquals:
+                dynamodb:Attributes:
+                - pk
+                - tier
+                - tierExpiresAt
+                - ttl
+                - cognitoSub
+                - fallbackTier
+                - fallbackExpiresAt
+              StringEqualsIfExists:
+                dynamodb:Select: SPECIFIC_ATTRIBUTES
+          # >! The Read Function writes only ttl (renewal) and tier, tierExpiresAt, ttl and the two
+          # >! fallback attributes (downgrade or restore)
+          # >! on user records, and never asks for item values back.
+          - Sid: UsersTableAuthUpdate
+            Action:
             - dynamodb:UpdateItem
             Effect: Allow
             Resource:
             - !GetAtt UsersTable.Arn
+            Condition:
+              ForAllValues:StringLike:
+                dynamodb:LeadingKeys:
+                - "KEY#*"
+              ForAllValues:StringEquals:
+                dynamodb:Attributes:
+                - pk
+                - tier
+                - tierExpiresAt
+                - ttl
+                - fallbackTier
+                - fallbackExpiresAt
+              StringEqualsIfExists:
+                dynamodb:ReturnValues: NONE
 
   # -- Lambda permissions allowing API Gateway to Execute Read Lambda --
   # >! The /mcp/v1 integration invokes the "live" alias (see template-openapi-spec.yml).

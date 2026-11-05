@@ -340,6 +340,63 @@ diverge, and because the token set for any term always includes the term as writ
 change is re-index tolerant: a query against an index built before the layer existed still
 matches.
 
+### `tier-common` Lambda Layer
+
+A Lambda Layer, `layers/tier-common/`, shared by the Read Lambda and the Auth Lambda, holding
+the one rule for reading a user's tier end date (`effective-tier.js`). It exists because the two
+functions previously read `tierExpiresAt` by different rules (the Read Lambda compared an ISO 8601
+string with epoch seconds, so a lapsed tier was never downgraded). It follows the `search-common`
+precedent: same `ContentUri`/`Layers` wiring, and a `utils/tier-common.js` loader in each function
+that requires `${TIER_COMMON_LAYER_PATH || '/opt/nodejs'}/effective-tier`. There is deliberately no
+local fallback copy, so a function deployed without the layer fails its cold start instead of
+running a second copy of the rule. The module is pure: no AWS SDK, no I/O, no logging, and the
+clock is read only through a `nowMs` argument.
+
+| Export | Purpose |
+|--------|---------|
+| `parseTierExpiry(value, nowMs)` | The one parser. Returns `none` (null or absent), `active`, `lapsed`, or `malformed`, plus the instant in milliseconds |
+| `computeEffectiveTier(storedTier, tierExpiresAt, nowMs, fallback)` | The tier a record is entitled to now, with `restoreTo` and `fallbackState` when it has lapsed |
+| `resolveRecordTier(record, nowMs)` | `computeEffectiveTier` applied to a user record, including its remembered lower tier |
+| `fallbackFromRecord(record)` | Reads `fallbackTier` and `fallbackExpiresAt` from a record, or `null` |
+| `tierRank(tier)`, `TIER_RANK` | Tier order (`public` < `registered` < `paid` < `private`); `undefined` for an unknown name |
+| `malformedExpiryLogFields(...)` | Size-bounded fields for the `TIER_EXPIRY_MALFORMED` log line |
+| `EXPIRY_STATE` | The four state names |
+
+```
+layers/tier-common/nodejs/effective-tier.js
+  │
+  ├── read-function/utils/auth-resolver.js
+  │     (request tier, TTL renewal, and the persisted Downgrade)
+  │
+  ├── auth-function/services/profile.js
+  │     (the tier the profile page shows)
+  │
+  └── auth-function/services/voucher-redeem.js
+        (decideRedemption: what the user holds now, before a voucher is applied)
+```
+
+- **Accepted forms.** `YYYY-MM-DD` (00:00:00 UTC), or `YYYY-MM-DDTHH:mm`, `:ss`, or `:ss.f` to `.fff`
+  followed by `Z` or a numeric offset (`+HH:mm`, `-HH:mm`). A time form without an offset is read as UTC.
+  `Date.parse` and `new Date(string)` are not used, so the grammar does not depend on the runtime,
+  and input over 29 characters is rejected before the pattern runs.
+- **Lapsed at or before now.** A value equal to the current instant is `lapsed`.
+- **Malformed fails closed.** Anything else (a number, an impossible date such as `2026-02-30`, an
+  array) is `malformed`, and the effective tier is `registered`. The Read Function and the profile
+  log `TIER_EXPIRY_MALFORMED`; neither rewrites the stored tier or end date, so the record needs a
+  manual fix.
+- **Remembered lower tier (fallback).** When a record has lapsed, its `fallbackTier` and
+  `fallbackExpiresAt` are judged by the same parser. The fallback applies only if its tier is a known
+  tier above `registered` and below the tier that lapsed, and its own end date is `none` or `active`.
+  Then that tier is the effective tier and `restoreTo` says what to write back. Otherwise the result
+  is `registered`.
+
+The layer adds no dependency, no IAM, and no standing cost, so it is attached unconditionally. It is
+attached to the Read and Auth functions only. The Read Function now lists five layers (Lambda Insights,
+the Parameters and Secrets extension, `doc-ai-common`, `search-common`, and `tier-common`), the Lambda
+maximum, so the next shared module for that function must go into an existing repository layer. An
+architecture test reads `template.yml` and asserts the layer wiring and the IAM statements described in
+[User record lifecycle](#user-record-lifecycle).
+
 ### Tool Metadata Registry fan-out
 
 `read-function/config/tool-metadata.js` declares per-tool discovery metadata — title,
@@ -494,7 +551,7 @@ flowchart TD
     E -->|No| F[401 Unauthorized]
     E -->|Yes| G{tierExpiresAt<br/>passed?}
     G -->|No| H[Use stored tier]
-    G -->|Yes| I[Downgrade to<br/>registered tier]
+    G -->|Yes| I["Downgrade to registered<br/>or restore a remembered tier<br/>(written back once)"]
     H --> J[Rate Limit Check]
     I --> J
     C --> J
@@ -612,6 +669,35 @@ sequenceDiagram
 │  Imported via CloudFormation cross-stack references.                 │
 └──────────────────────────────────────────────────────────────────────┘
 ```
+
+#### User record lifecycle
+
+A `KEY#` record is created at registration with `ttl` set 120 days ahead. The Read Function resolves the
+record once per request (`auth-resolver.js` calls `resolveRecordTier` from the `tier-common` layer) and
+makes at most one background, fire-and-forget write, chosen by the result. If the tier has lapsed, it
+writes the **Downgrade**: the record becomes `registered` with `tierExpiresAt` cleared, or, when the user
+has a remembered lower tier (`fallbackTier`, `fallbackExpiresAt`) that still applies, that tier is
+restored with its own end date. Either way `ttl` is set 120 days ahead and the two fallback attributes are
+removed. Otherwise, any tier with fewer than 90 days of `ttl` left is renewed to 120 days ahead, with or
+without an end date, so a key is renewed while it is in use. Both writes are conditional: the Downgrade
+only if `tier` and `tierExpiresAt` are still what was read, and the renewal only if the record still
+exists, so a renewal cannot recreate a record that key regeneration has deleted. A write that loses its
+condition is skipped (logged at debug level), and the next request retries while the condition still
+holds. The Read Function's role allows this and nothing more: `UsersTableAuthRead` (`GetItem` on `KEY#*`,
+seven named attributes) and `UsersTableAuthUpdate` (`UpdateItem` on `KEY#*`, limited to `tier`,
+`tierExpiresAt`, `ttl`, `fallbackTier`, and `fallbackExpiresAt`).
+
+The Auth Function changes the record only on request from the user. Voucher redemption never lowers a
+tier or shortens an end date: a higher tier applies and remembers the tier it replaces, the same tier
+extends to the later end date, and anything else is rejected with HTTP 400 without using up the voucher.
+The write is conditional on the `tier` and `tierExpiresAt` it read, and a conflict returns HTTP 409.
+Key regeneration deletes the old record and writes a new one with a fresh `ttl`, copying the tier, end
+date, and fallback attributes. The profile only reads the record; it shows the tier from the same
+`tier-common` rule, and Cognito `custom:tier` is a display hint that can be stale after a lapse.
+
+When `ttl` passes, DynamoDB deletes the record. The delete is published on the table's stream
+(`OLD_IMAGE`), and the Cleanup Function removes the matching Cognito user, for TTL deletions of `KEY#`
+records only. A key that goes unused for 120 days therefore loses both its record and its account.
 
 #### DocIndex Table Item Shapes
 

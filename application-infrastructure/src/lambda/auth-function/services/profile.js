@@ -18,27 +18,30 @@ const { tools: { DebugAndLog } } = require('@63klabs/cache-data');
 const { Config } = require('../config');
 const UserDao = require('../models/user');
 const { computeWindowBoundaries, computeSessionKey } = require('../utils/window-calculator');
+// >! Loaded from the tier-common layer; the same expiry rule the Read function uses
+const TierCommon = require('../utils/tier-common');
+
+const { EXPIRY_STATE } = TierCommon;
 
 /**
  * Compute the effective tier for a user, accounting for tier expiration.
  *
- * If `tierExpiresAt` is a non-null string and the date is in the past,
- * the effective tier falls back to `'registered'` regardless of the
- * stored tier value. This matches the Read Lambda's behavior.
+ * Delegates to the tier-common layer, the one rule for reading `tierExpiresAt`
+ * shared with the Read function. A lapsed end date gives the remembered tier
+ * when `fallback` still holds, otherwise `'registered'`. A malformed end date
+ * also gives `'registered'`.
  *
  * @param {string} tier - Stored tier value (e.g. 'registered', 'paid', 'private')
  * @param {string|null} tierExpiresAt - ISO 8601 expiration timestamp or null
+ * @param {{tier: string, tierExpiresAt: (string|null)}|null} [fallback] - Remembered lower tier, if any
  * @returns {string} Effective tier value
  * @example
  * computeEffectiveTier('paid', '2020-01-01T00:00:00.000Z'); // 'registered' (expired)
  * computeEffectiveTier('paid', '2099-12-31T00:00:00.000Z'); // 'paid' (future)
  * computeEffectiveTier('paid', null);                        // 'paid' (no expiration)
  */
-function computeEffectiveTier(tier, tierExpiresAt) {
-	if (tierExpiresAt && new Date(tierExpiresAt) < new Date()) {
-		return 'registered';
-	}
-	return tier;
+function computeEffectiveTier(tier, tierExpiresAt, fallback) {
+	return TierCommon.computeEffectiveTier(tier, tierExpiresAt, undefined, fallback).tier;
 }
 
 /**
@@ -46,7 +49,9 @@ function computeEffectiveTier(tier, tierExpiresAt) {
  *
  * Workflow:
  * 1. Look up user record by email via GSI
- * 2. Compute effective tier (handle tierExpiresAt expiration)
+ * 2. Compute effective tier with `TierCommon.resolveRecordTier` (a lapsed tier gives the
+ *    remembered lower tier when it still holds, otherwise `registered`). This function only
+ *    reads; the Read function writes the lapsed tier back on the user's next API request.
  * 3. Get rate limit config for the effective tier
  * 4. Retrieve session hash salt from CachedSsmParameter
  * 5. Compute window boundaries and session partition key
@@ -59,14 +64,14 @@ function computeEffectiveTier(tier, tierExpiresAt) {
  * @returns {Promise<Object>} Consolidated profile data
  * @returns {string} return.email - User email address
  * @returns {string} return.tier - Effective tier value
- * @returns {string|null} return.tierExpiresAt - ISO 8601 expiration or null
+ * @returns {string|null} return.tierExpiresAt - Stored end date as an ISO 8601 string, or null
  * @returns {string} return.createdAt - ISO 8601 creation timestamp
  * @returns {Object} return.rateLimits - Rate limit information
  * @returns {number} return.rateLimits.limit - Maximum requests per window
  * @returns {number} return.rateLimits.remaining - Remaining requests in current window
  * @returns {number} return.rateLimits.windowResetAt - Window reset time in epoch seconds
  * @returns {number} return.rateLimits.windowMinutes - Window duration in minutes
- * @throws {Object} Throws `{ statusCode: 404, message: 'User not found' }` when no user record exists
+ * @throws {Error} Throws an Error with `statusCode` 404 and message 'User not found' when no user record exists
  * @throws {Error} Throws on DynamoDB or SSM errors
  * @example
  * const profile = await getProfile('user@example.com', 'abc-123-def');
@@ -85,8 +90,17 @@ async function getProfile(email, cognitoSub) {
 	// >! Use the first matching record (one key per user)
 	const userRecord = existingRecords[0];
 
-	// >! Compute effective tier accounting for expiration
-	const effectiveTier = computeEffectiveTier(userRecord.tier, userRecord.tierExpiresAt);
+	// >! Compute effective tier accounting for expiration (one tier-common call, same rule as the Read function)
+	const resolution = TierCommon.resolveRecordTier(userRecord);
+	if (resolution.state === EXPIRY_STATE.MALFORMED) {
+		// >! Fail closed to registered. Log the tier and a truncated value only, never email, cognitoSub, or pk.
+		DebugAndLog.warn(`TIER_EXPIRY_MALFORMED ${JSON.stringify(
+			TierCommon.malformedExpiryLogFields(userRecord.tier, userRecord.tierExpiresAt))}`);
+	} else if (resolution.fallbackState === 'malformed') {
+		DebugAndLog.warn(`TIER_EXPIRY_MALFORMED ${JSON.stringify(
+			TierCommon.malformedExpiryLogFields(userRecord.fallbackTier, userRecord.fallbackExpiresAt, 'fallbackExpiresAt'))}`);
+	}
+	const effectiveTier = resolution.tier;
 
 	// >! Get rate limit config for the effective tier from settings
 	const rateLimits = Config.settings().rateLimits;

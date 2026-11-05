@@ -150,32 +150,106 @@ async function queryByEmail(email) {
 }
 
 /**
- * Update a user's tier, tierExpiresAt, and ttl fields.
+ * Update a user's tier, tierExpiresAt, and ttl fields, with an optional optimistic-concurrency
+ * check and an optional change to the remembered lower tier (the Fallback).
+ *
+ * The write always requires the item to exist (`attribute_exists(#pk)`), so it can never
+ * recreate a record that was deleted. When `options.expected` is given, it also requires
+ * `tier` and `tierExpiresAt` to be what the caller read:
+ *
+ * | Read value | Condition part |
+ * |------------|----------------|
+ * | always | `attribute_exists(#pk)` |
+ * | `tier` is a string | `#tier = :expectedTier` |
+ * | `tier` is not a string | `attribute_not_exists(#tier)` |
+ * | `tierExpiresAt` is `null` or `undefined` | `(attribute_not_exists(#exp) OR attribute_type(#exp, :nullType))` |
+ * | `tierExpiresAt` is a string or a number | `#exp = :expectedExpiry` |
+ * | `tierExpiresAt` is any other type | `attribute_exists(#exp)` |
+ *
+ * `options.fallback` has three shapes: `undefined` (or absent) leaves `fallbackTier` and
+ * `fallbackExpiresAt` untouched, `null` removes both, and `{ tier, tierExpiresAt }` sets both
+ * (a `tierExpiresAt` of `null` is stored as the DynamoDB `NULL` type).
+ *
+ * A failed condition is an expected outcome: it is logged at debug level only and the
+ * `ConditionalCheckFailedException` is rethrown for the caller to map. Any other error is logged
+ * with `DebugAndLog.error` and rethrown.
  *
  * @param {string} pk - Partition key (e.g. `KEY#<hash>`)
  * @param {string} tier - New tier value
  * @param {string|null} tierExpiresAt - ISO 8601 expiration or null
  * @param {number} ttl - DynamoDB TTL in Unix epoch seconds
+ * @param {Object} [options={}] - Optional write controls
+ * @param {{tier: *, tierExpiresAt: *}} [options.expected] - The `tier` and `tierExpiresAt` as read; when present the write succeeds only if they are unchanged
+ * @param {({tier: string, tierExpiresAt: (string|null)}|null)} [options.fallback] - `undefined`: leave untouched; `null`: remove; object: set
  * @returns {Promise<Object>} Updated user attributes
+ * @throws {Error} `ConditionalCheckFailedException` when the condition fails; any other DynamoDB error
  * @example
- * const updated = await updateUserTier('KEY#3f2a...', 'paid', '2025-12-31T00:00:00Z', 1735689600);
+ * // A private voucher over a paid user: write the new tier only if the record is as read,
+ * // and remember the paid tier and its end date.
+ * const updated = await updateUserTier('KEY#3f2a...', 'private', '2026-12-01T00:00:00.000Z', 1735689600, {
+ *   expected: { tier: 'paid', tierExpiresAt: '2027-08-29T00:00:00.000Z' },
+ *   fallback: { tier: 'paid', tierExpiresAt: '2027-08-29T00:00:00.000Z' }
+ * });
+ *
+ * @example
+ * // Unconditional on the values (but the record must exist), fallback untouched
+ * await updateUserTier('KEY#3f2a...', 'paid', '2025-12-31T00:00:00Z', 1735689600);
  */
-async function updateUserTier(pk, tier, tierExpiresAt, ttl) {
+async function updateUserTier(pk, tier, tierExpiresAt, ttl, options = {}) {
+	const { expected, fallback } = options || {};
+	// >! Every attribute name and value is an alias; record values are only ever sent as
+	// >! ExpressionAttributeValues, never interpolated into an expression string.
+	const names = { '#pk': 'pk', '#tier': 'tier', '#exp': 'tierExpiresAt', '#ttl': 'ttl' };
+	const values = { ':newTier': tier, ':newExpiry': tierExpiresAt, ':newTtl': ttl };
+	const conditions = ['attribute_exists(#pk)'];
+	if (expected) {
+		// >! The write applies only if tier and tierExpiresAt are still what was read
+		if (typeof expected.tier === 'string') {
+			conditions.push('#tier = :expectedTier');
+			values[':expectedTier'] = expected.tier;
+		} else {
+			conditions.push('attribute_not_exists(#tier)');
+		}
+		const readExpiry = expected.tierExpiresAt;
+		if (readExpiry === null || readExpiry === undefined) {
+			conditions.push('(attribute_not_exists(#exp) OR attribute_type(#exp, :nullType))');
+			values[':nullType'] = 'NULL';
+		} else if (typeof readExpiry === 'string' || typeof readExpiry === 'number') {
+			conditions.push('#exp = :expectedExpiry');
+			values[':expectedExpiry'] = readExpiry;
+		} else {
+			conditions.push('attribute_exists(#exp)');
+		}
+	}
+	let updateExpression = 'SET #tier = :newTier, #exp = :newExpiry, #ttl = :newTtl';
+	if (fallback === null) {
+		names['#fbTier'] = 'fallbackTier';
+		names['#fbExp'] = 'fallbackExpiresAt';
+		updateExpression += ' REMOVE #fbTier, #fbExp';
+	} else if (fallback !== undefined) {
+		names['#fbTier'] = 'fallbackTier';
+		names['#fbExp'] = 'fallbackExpiresAt';
+		values[':fbTier'] = fallback.tier;
+		values[':fbExpiry'] = fallback.tierExpiresAt ?? null;
+		updateExpression += ', #fbTier = :fbTier, #fbExp = :fbExpiry';
+	}
 	try {
 		const result = await getDocClient().send(new UpdateCommand({
 			TableName: Config.settings().usersTable,
 			Key: { pk },
-			UpdateExpression: 'SET tier = :tier, tierExpiresAt = :exp, #ttl = :ttl',
-			ExpressionAttributeNames: { '#ttl': 'ttl' },
-			ExpressionAttributeValues: {
-				':tier': tier,
-				':exp': tierExpiresAt,
-				':ttl': ttl
-			},
+			UpdateExpression: updateExpression,
+			ConditionExpression: conditions.join(' AND '),
+			ExpressionAttributeNames: names,
+			ExpressionAttributeValues: values,
 			ReturnValues: 'ALL_NEW'
 		}));
 		return result.Attributes;
 	} catch (error) {
+		if (error && error.name === 'ConditionalCheckFailedException') {
+			// >! Expected outcome of a concurrent change: debug level only, no error line
+			DebugAndLog.debug('updateUserTier condition not met');
+			throw error;
+		}
 		DebugAndLog.error(`updateUserTier error: ${error.message}`, error.stack);
 		throw error;
 	}

@@ -51,6 +51,7 @@ class VoucherRedeemController {
 	 * // On 401: response status 401, body = { error: 'Unauthorized' }
 	 * // On 400: response status 400, body = { error: '...' }
 	 * // On 404: response status 404, body = { error: 'User not found' }
+	 * // On 409: response status 409, body = { error: 'Your account changed while the voucher was being applied. Please try again.' }
 	 * // On 500: response status 500, body = { error: 'Internal server error' }
 	 */
 	static async post(props, response) {
@@ -96,6 +97,10 @@ class VoucherRedeemController {
 				response.setBody({ error: 'Unauthorized' });
 			} else if (error.statusCode === 400) {
 				response.setStatusCode(400);
+				response.setBody({ error: error.message });
+			} else if (error.statusCode === 409) {
+				// >! Expected outcome of a concurrent change to the user record: not logged as an error
+				response.setStatusCode(409);
 				response.setBody({ error: error.message });
 			} else if (error.statusCode === 404) {
 				response.setStatusCode(404);

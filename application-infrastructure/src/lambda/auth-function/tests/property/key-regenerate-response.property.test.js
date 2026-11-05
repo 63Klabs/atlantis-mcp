@@ -7,6 +7,10 @@
  * contain exactly the fields { apiKey, message } where apiKey matches
  * the format /^atl_[0-9a-f]{32}$/ and message is a non-empty string.
  *
+ * The same inputs may carry a remembered lower tier (fallbackTier and
+ * fallbackExpiresAt); the new record carries both unchanged, or neither
+ * when the old record has none (spec 0-0-7-lapsed-tier-downgrade).
+ *
  * Tests the service layer directly (not through controllers).
  *
  * @module tests/property/key-regenerate-response
@@ -89,14 +93,25 @@ const tierExpiresAtArb = fc.oneof(
 		.map(d => d.toISOString())
 );
 
-/** Generate a user record with all required fields */
-const userRecordArb = fc.record({
-	email: emailArb,
-	tier: tierArb,
-	tierExpiresAt: tierExpiresAtArb,
-	cognitoSub: cognitoSubArb,
-	pk: fc.hexaString({ minLength: 8, maxLength: 16 }).map(s => `KEY#${s}`)
-});
+/** Generate an optional remembered lower tier (absent, or both attributes present) */
+const fallbackArb = fc.option(
+	fc.record({
+		fallbackTier: fc.constantFrom('registered', 'paid'),
+		fallbackExpiresAt: tierExpiresAtArb
+	}),
+	{ nil: undefined }
+);
+/** Generate a user record with all required fields and an optional fallback */
+const userRecordArb = fc.tuple(
+	fc.record({
+		email: emailArb,
+		tier: tierArb,
+		tierExpiresAt: tierExpiresAtArb,
+		cognitoSub: cognitoSubArb,
+		pk: fc.hexaString({ minLength: 8, maxLength: 16 }).map(s => `KEY#${s}`)
+	}),
+	fallbackArb
+).map(([record, fallback]) => (fallback ? { ...record, ...fallback } : record));
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                           */
@@ -155,6 +170,28 @@ describe('Property 5: Key regenerate response structure', () => {
 		);
 	});
 
+	it('new record carries the old record fallback attributes unchanged, or neither', () => {
+		return fc.assert(
+			fc.asyncProperty(
+				userRecordArb,
+				async (userRecord) => {
+					configureMocks(userRecord);
+					const result = await regenerateKey(userRecord.email, userRecord.cognitoSub);
+					// >! Response shape is unchanged by the fallback copy
+					expect(Object.keys(result).sort()).toEqual(['apiKey', 'message']);
+					const newRecord = mockPutUserRecord.mock.calls[0][0];
+					if (userRecord.fallbackTier !== undefined && userRecord.fallbackTier !== null) {
+						expect(newRecord.fallbackTier).toBe(userRecord.fallbackTier);
+						expect(newRecord.fallbackExpiresAt).toBe(userRecord.fallbackExpiresAt);
+					} else {
+						expect(newRecord).not.toHaveProperty('fallbackTier');
+						expect(newRecord).not.toHaveProperty('fallbackExpiresAt');
+					}
+				}
+			),
+			{ numRuns: 100 }
+		);
+	});
 	it('apiKey is unique across regenerations', () => {
 		return fc.assert(
 			fc.asyncProperty(

@@ -90,8 +90,17 @@ describe('Preservation Test A: No-key requests return public tier', () => {
  * - tierExpiresAt in the past → effective tier is 'registered'
  */
 describe('Preservation Test B: Tier computation unchanged', () => {
+	// >! tierExpiresAt is an ISO 8601 string (spec 0-0-7-lapsed-tier-downgrade)
+	const pastIsoArb = fc
+		.date({ min: new Date('2020-01-01T00:00:00.000Z'), max: new Date(Date.now() - 60 * 1000) })
+		.map(d => d.toISOString());
+	const futureIsoArb = fc
+		.date({ min: new Date(Date.now() + 60 * 60 * 1000), max: new Date('2035-12-31T00:00:00.000Z') })
+		.map(d => d.toISOString());
 
-	const nowSec = Math.floor(Date.now() / 1000);
+	afterEach(() => {
+		jest.restoreAllMocks();
+	});
 
 	it('tierExpiresAt null or undefined returns stored tier', () => {
 		fc.assert(
@@ -100,7 +109,6 @@ describe('Preservation Test B: Tier computation unchanged', () => {
 				(storedTier) => {
 					const resultNull = computeEffectiveTier(storedTier, null);
 					const resultUndefined = computeEffectiveTier(storedTier, undefined);
-
 					expect(resultNull).toBe(storedTier);
 					expect(resultUndefined).toBe(storedTier);
 				}
@@ -109,11 +117,11 @@ describe('Preservation Test B: Tier computation unchanged', () => {
 		);
 	});
 
-	it('tierExpiresAt in the future returns stored tier', () => {
+	it('tierExpiresAt in the future (ISO string) returns stored tier', () => {
 		fc.assert(
 			fc.property(
 				fc.constantFrom('registered', 'paid', 'private'),
-				fc.integer({ min: nowSec + 60, max: nowSec + 365 * 24 * 60 * 60 }),
+				futureIsoArb,
 				(storedTier, expiresAt) => {
 					const result = computeEffectiveTier(storedTier, expiresAt);
 					expect(result).toBe(storedTier);
@@ -123,11 +131,25 @@ describe('Preservation Test B: Tier computation unchanged', () => {
 		);
 	});
 
-	it('tierExpiresAt in the past returns registered', () => {
+	it('tierExpiresAt in the past (ISO string) returns registered', () => {
 		fc.assert(
 			fc.property(
 				fc.constantFrom('registered', 'paid', 'private'),
-				fc.integer({ min: nowSec - 365 * 24 * 60 * 60, max: nowSec - 60 }),
+				pastIsoArb,
+				(storedTier, expiresAt) => {
+					const result = computeEffectiveTier(storedTier, expiresAt);
+					expect(result).toBe('registered');
+				}
+			),
+			{ numRuns: 100 }
+		);
+	});
+
+	it('integers and other non-strings return registered', () => {
+		fc.assert(
+			fc.property(
+				fc.constantFrom('registered', 'paid', 'private'),
+				fc.oneof(fc.integer(), fc.double({ noNaN: true }), fc.boolean()),
 				(storedTier, expiresAt) => {
 					const result = computeEffectiveTier(storedTier, expiresAt);
 					expect(result).toBe('registered');

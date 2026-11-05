@@ -123,15 +123,23 @@ describe('Property 4: Header extraction consistency', () => {
  * - tierExpiresAt in the past → effective tier is 'registered'
  */
 describe('Property 5: Effective tier computation', () => {
+	// >! tierExpiresAt is an ISO 8601 string (spec 0-0-7-lapsed-tier-downgrade)
+	const pastIsoArb = fc
+		.date({ min: new Date('2020-01-01T00:00:00.000Z'), max: new Date(Date.now() - 60 * 1000) })
+		.map(d => d.toISOString());
+	const futureIsoArb = fc
+		.date({ min: new Date(Date.now() + 60 * 60 * 1000), max: new Date('2035-12-31T00:00:00.000Z') })
+		.map(d => d.toISOString());
+	const storedTierArb = fc.constantFrom('registered', 'paid', 'private');
 
-	const nowSec = Math.floor(Date.now() / 1000);
-	const pastEpoch = nowSec - 365 * 24 * 60 * 60; // 1 year ago
-	const futureEpoch = nowSec + 365 * 24 * 60 * 60; // 1 year from now
+	afterEach(() => {
+		jest.restoreAllMocks();
+	});
 
 	it('tierExpiresAt null returns stored tier', () => {
 		fc.assert(
 			fc.property(
-				fc.constantFrom('registered', 'paid', 'private'),
+				storedTierArb,
 				(storedTier) => {
 					const result = computeEffectiveTier(storedTier, null);
 					expect(result).toBe(storedTier);
@@ -141,11 +149,11 @@ describe('Property 5: Effective tier computation', () => {
 		);
 	});
 
-	it('tierExpiresAt in the future returns stored tier', () => {
+	it('tierExpiresAt in the future (ISO string) returns stored tier', () => {
 		fc.assert(
 			fc.property(
-				fc.constantFrom('registered', 'paid', 'private'),
-				fc.integer({ min: nowSec + 60, max: futureEpoch }),
+				storedTierArb,
+				futureIsoArb,
 				(storedTier, expiresAt) => {
 					const result = computeEffectiveTier(storedTier, expiresAt);
 					expect(result).toBe(storedTier);
@@ -155,11 +163,11 @@ describe('Property 5: Effective tier computation', () => {
 		);
 	});
 
-	it('tierExpiresAt in the past returns registered', () => {
+	it('tierExpiresAt in the past (ISO string) returns registered', () => {
 		fc.assert(
 			fc.property(
-				fc.constantFrom('registered', 'paid', 'private'),
-				fc.integer({ min: pastEpoch, max: nowSec - 60 }),
+				storedTierArb,
+				pastIsoArb,
 				(storedTier, expiresAt) => {
 					const result = computeEffectiveTier(storedTier, expiresAt);
 					expect(result).toBe('registered');
@@ -172,10 +180,30 @@ describe('Property 5: Effective tier computation', () => {
 	it('tierExpiresAt undefined returns stored tier', () => {
 		fc.assert(
 			fc.property(
-				fc.constantFrom('registered', 'paid', 'private'),
+				storedTierArb,
 				(storedTier) => {
 					const result = computeEffectiveTier(storedTier, undefined);
 					expect(result).toBe(storedTier);
+				}
+			),
+			{ numRuns: 100 }
+		);
+	});
+
+	it('integers and other non-strings return registered', () => {
+		fc.assert(
+			fc.property(
+				storedTierArb,
+				fc.oneof(
+					fc.integer(),
+					fc.double({ noNaN: true }),
+					fc.boolean(),
+					fc.constant({}),
+					fc.constant([])
+				),
+				(storedTier, expiresAt) => {
+					const result = computeEffectiveTier(storedTier, expiresAt);
+					expect(result).toBe('registered');
 				}
 			),
 			{ numRuns: 100 }

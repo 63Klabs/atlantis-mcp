@@ -46,6 +46,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - The `prepare-release` skill, started by a Kiro hook when the top `CHANGELOG.md` version is dated on `dev`, applies package, layer, and schema updates and checks that the prepare pass carries nothing else
   - `.github/workflows/release-gate.yml` returns a published GitHub release to draft when a vendored schema has drifted semantically from upstream
   - New documentation: [release process](docs/developer/release-process.md), and a schema section in [MCP protocol sources of truth](docs/developer/mcp-protocol-sources.md)
+- **`tier-common` Lambda Layer** [Spec: 0-0-7-lapsed-tier-downgrade](../.kiro/specs/0-0-7-lapsed-tier-downgrade/) - One rule for reading a user record's `tierExpiresAt`, used by both the Read and Auth functions so API limits and the profile page cannot disagree
+  - Valid end dates are ISO 8601 UTC timestamps such as `2026-12-31T00:00:00Z`. A value that does not parse gives the user `registered` limits and logs `TIER_EXPIRY_MALFORMED`
+  - The Read function now attaches five layers, the Lambda maximum, so adding another layer to it means merging code into an existing one
+  - New log events: `TIER_LAPSE_DOWNGRADE` (a lapsed tier was written back; logs the tier it was and the tier it became) and `TIER_EXPIRY_MALFORMED` (an end date that does not parse; logs the tier and a truncated value). Neither logs the email, key, or Cognito sub
+  - New optional Users table attributes `fallbackTier` and `fallbackExpiresAt`, the lower tier a higher voucher replaced. They are removed when the tier lapses or is restored
 
 ### Changed
 - **MCP Protocol Dual-Era Support: `initialize`** [Spec: 0-0-7-mcp-protocol-dual-era](../.kiro/specs/0-0-7-mcp-protocol-dual-era/) — The legacy `InitializeResult` now carries the server-level `instructions` string and echoes a supported requested revision instead of always answering `2024-11-05`
@@ -59,6 +64,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `ReadLambdaPermissionLive` is removed; SAM's generated permission for the `McpV1Post` event already allows API Gateway to invoke the alias. `ReadLambdaPermission` (the unqualified function) is unused and scheduled for removal in v0.0.8
   - New test `read-function/tests/unit/architecture/openapi-integration-targets.test.js`, updated `openapi-spec-sync.md` guidance, and a new developer page, [gradual deployment](docs/developer/gradual-deployment.md)
   - Observed on `beta` and `prod`: the first (migration) deploy of the alias integration took about 28 minutes and was not gradually protected, because CloudFormation waits for the whole CodeDeploy shift before it updates the REST API and the API called the unqualified ARN until then. Later PROD deploys take about 28 minutes in the Deploy stage and are protected. After a rolled-back deploy, start a new pipeline execution; the Deploy stage cannot be retried
+- **Lapsed tiers are written back as `registered`** [Spec: 0-0-7-lapsed-tier-downgrade](../.kiro/specs/0-0-7-lapsed-tier-downgrade/) - On a user's first API request after their tier end date, the record is set to `registered`, `tierExpiresAt` is cleared, and `ttl` is set 120 days ahead. This reverses the v0.0.3 design, which never rewrote `tierExpiresAt`
+  - A tier that a higher voucher replaced is restored instead, if it still applies
+  - Voucher users are now renewed by use while their tier is active, as private and paid users with no end date already were
+  - The Cognito `custom:tier` attribute is not updated at a lapse and can be stale. It is only a display hint; the profile page and API limits read the tier held in the Users table
+  - Admin docs updated: [user management](docs/admin-ops/user-management.md) (tier end dates, the fallback attributes, and `REMOVE fallbackTier, fallbackExpiresAt` in the commands that set a tier by hand) and [voucher management](docs/admin-ops/voucher-management.md)
+- **Voucher redemption never lowers a tier or shortens an end date (behavior change)** [Spec: 0-0-7-lapsed-tier-downgrade](../.kiro/specs/0-0-7-lapsed-tier-downgrade/) - A higher tier applies, the same tier with an end date extends to the later of the two dates, and anything else is rejected with HTTP 400. A rejected redemption does not use up the voucher
+  - A voucher that applies over a higher paid or private tier the user already held remembers that tier, so the user returns to it when the promotion ends if it still applies, otherwise to `registered`
+  - A same-tier voucher for an account with no end date is rejected, so it can no longer replace a permanent tier with a temporary one
+  - If the user record changes while a voucher is being applied, the response is HTTP 409 and the voucher is not used up. Retry the redemption. `POST /mcp/auth/voucher/redeem` documents 404 and 409 in the OpenAPI spec
+  - Key regeneration carries the remembered tier to the new key record
+  - The profile page shows the tier from the profile endpoint (the Users table). The Cognito `custom:tier` attribute is used only when that endpoint cannot be reached
+- **Template: template.yml** [Spec: 0-0-7-lapsed-tier-downgrade](../.kiro/specs/0-0-7-lapsed-tier-downgrade/) - Adds the `TierCommonLayer` and attaches it to the Read and Auth functions. The Read function's Users table access is changed as described under Security
 
 ### Fixed
 - **Server version reported to clients** — `serverInfo.version` was a stale, independently maintained value (`0.0.1`, later the Lambda `package.json` version) and could not match the deployed release; it is now the release version from `CHANGELOG.md`, identical on both eras
@@ -76,6 +93,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Active private and paid accounts were deleted after 120 days** [Spec: 0-0-7-lapsed-tier-downgrade](../.kiro/specs/0-0-7-lapsed-tier-downgrade/) ([#5](https://github.com/63Klabs/atlantis-mcp/issues/5)) - Use now renews the record of any tier with no end date, by the existing rule (fewer than 90 days left, set to 120 days ahead). Before, only free `registered` users were renewed
   - A renewal can no longer recreate a record that key regeneration has deleted, so a regenerated-away key stays revoked
   - Records with a tier end date (voucher users) are renewed once the lapsed-tier fix ships
+- **Lapsed voucher tiers were never downgraded** [Spec: 0-0-7-lapsed-tier-downgrade](../.kiro/specs/0-0-7-lapsed-tier-downgrade/) - `tierExpiresAt` is an ISO 8601 string, and the Read function compared it with epoch seconds, so a lapsed voucher tier kept its limits. The Read function and the profile now use the same rule
+  - A value that does not parse now gives `registered` limits instead of keeping the stored tier
+  - Documentation that described `tierExpiresAt` as Unix epoch seconds is corrected
+
+### Security
+- **The Read function's Users table access is narrowed** [Spec: 0-0-7-lapsed-tier-downgrade](../.kiro/specs/0-0-7-lapsed-tier-downgrade/) - `UsersTableAuthRead` allows `GetItem` only on user records (`KEY#*`) and only for the seven attributes auth uses; `UsersTableAuthUpdate` allows `UpdateItem` only on user records and only for `tier`, `tierExpiresAt`, `ttl`, `fallbackTier`, and `fallbackExpiresAt`, with no item values returned. Before, the function could read and update any item and attribute in the table, including vouchers
 
 ## [v0.0.6] (2026-09-02)
 

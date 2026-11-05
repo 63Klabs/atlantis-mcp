@@ -164,48 +164,48 @@ Line numbers were read on 2026-11-02 at `dev` `71251f0`; find each edit by its t
 
 ### Phase 2: lapsed tiers
 
-- [ ] 6. Build the `tier-common` layer (test-first)
-  - [~] 6.1 Create the layer package
+- [x] 6. Build the `tier-common` layer (test-first)
+  - [x] 6.1 Create the layer package
     - Create `TC/` as in Design 4, copying from `application-infrastructure/src/lambda/layers/search-common/`:
       - `package.json`: name `tier-common`, an accurate description, no `dependencies`, and the same `devDependencies` and scripts;
       - `jest.config.js`, `jest.setup.js`, and `eslint.config.js`.
     - Run `npm install` in `TC` to create `package-lock.json`. The buildspec layer loop runs `npm ci`, which needs it.
     - Confirm `node_modules` is ignored by git.
     - _Requirements: 6.1, 6.9_
-  - [~] 6.2 Write the layer tests
+  - [x] 6.2 Write the layer tests
     - `TC/tests/unit/effective-tier.test.js`: the table cases in Design 11, the first row, including the Fallback table, `fallbackFromRecord`, `resolveRecordTier`, and the check that no promotable tier outranks `private`.
     - `TC/tests/property/effective-tier.property.test.js`: the properties in Design 11, the second row, with `{ numRuns: 100 }`.
     - The 100,000-character case asserts under 50 ms with `process.hrtime.bigint()`.
     - Run them. They fail because `nodejs/effective-tier.js` does not exist yet.
     - _Requirements: 15.1, 15.10, 15.11_
-  - [~] 6.3 Write `nodejs/effective-tier.js`
+  - [x] 6.3 Write `nodejs/effective-tier.js`
     - Implement the constants, the regular expression with its `>!` comment, and the exports in Design 4 (including `fallbackFromRecord` and `resolveRecordTier`), following the eight parsing steps and the four Fallback steps exactly.
     - Use no `Date.parse` and no `new Date(string)`.
     - Give each export full JSDoc with an example.
     - Run `timeout 300s npx jest` and `npm run lint` in `TC`. Both pass.
     - _Requirements: 6.2, 6.3, 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 7.7, 8.1, 19.4, 19.5_
 
-- [ ] 7. Wire the layer into both functions
-  - [~] 7.1 Add the loaders and test paths
+- [x] 7. Wire the layer into both functions
+  - [x] 7.1 Add the loaders and test paths
     - Create `RF/utils/tier-common.js` and `AF/utils/tier-common.js`, identical, from Design 5, with full JSDoc and the `>!` comment.
     - In `RF/jest.setup.js`, add the `TIER_COMMON_LAYER_PATH` default from Design 5, before the console silencing.
     - In `AF/jest.setup.js`, do the same, adding `const path = require('path');`.
     - In `AF/index.js`, add `require('./utils/tier-common');` at module scope after the existing requires, with a `>!` comment that it fails the cold start when the layer is missing.
     - _Requirements: 6.6, 6.7_
-  - [~] 7.2 Add the layer to the template
+  - [x] 7.2 Add the layer to the template
     - In `T`, add `TierCommonLayer` after `SearchCommonLayer` (about L770), exactly as in Design 5.
     - Add `- !Ref TierCommonLayer` to `ReadLambdaFunction.Layers` after `!Ref SearchCommonLayer`, with the five-layer comment.
     - Add `- !Ref TierCommonLayer` to `AuthLambdaFunction.Layers`, with a one-line comment.
     - No other function gets the layer.
     - _Requirements: 6.4, 6.5, 6.8_
-  - [~] 7.3 Prove the wiring
+  - [x] 7.3 Prove the wiring
     - In `AF`, run `npm ci --include=dev` if `node_modules` is missing.
     - Run both functions' whole suites and lint with nothing else changed. All pass, which shows the loaders resolve the local layer under Jest.
     - Then, in `RF` only, temporarily set `TIER_COMMON_LAYER_PATH=/nonexistent` and require `utils/tier-common` in a one-line Jest test. Confirm it throws, then delete the test.
     - _Requirements: 6.6_
 
-- [ ] 8. Route the effective tier through the layer (test-first)
-  - [~] 8.1 Convert and add the effective-tier tests
+- [x] 8. Route the effective tier through the layer (test-first)
+  - [x] 8.1 Convert and add the effective-tier tests
     - In `RF/tests/property/auth-resolver.property.test.js` ("Property 5") and `auth-resolver-preservation.property.test.js` ("Preservation Test B"), generate past and future values as ISO strings. Keep `null` and `undefined`.
     - In those two files, add: integers and other non-strings give `registered`.
     - In `RF/tests/unit/utils/auth-resolver.test.js`, make "Test 6" (past `tierExpiresAt`) use an ISO string.
@@ -217,7 +217,7 @@ Line numbers were read on 2026-11-02 at `dev` `71251f0`; find each edit by its t
     - In `AF/tests/unit/profile-service.test.js`, add the malformed-value case: `registered` limits and one `TIER_EXPIRY_MALFORMED` warning. Add a `lapsed` record with a valid fallback: the Fallback's tier and its limits, and no fallback attribute in the response.
     - Run these files. The ISO past cases and the malformed case fail against the current code. The delegation properties fail where the current code differs from the layer.
     - _Requirements: 15.2, 15.3, 15.4, 15.10, 15.11, 19.12_
-  - [~] 8.2 Delegate to the layer
+  - [x] 8.2 Delegate to the layer
     - In `RF/utils/auth-resolver.js`:
       - require `./tier-common`;
       - make `computeEffectiveTier` return the layer's `.tier`, taking an optional third `fallback` argument, with its JSDoc corrected to "ISO 8601 string or null";
@@ -230,8 +230,8 @@ Line numbers were read on 2026-11-02 at `dev` `71251f0`; find each edit by its t
     - Run the task 8.1 files, then both whole suites and lint.
     - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 14.2, 14.3, 14.4, 19.12_
 
-- [ ] 9. Add the Downgrade, phase 2 renewal, and the `GetItem` projection (test-first)
-  - [~] 9.1 Write the tests
+- [x] 9. Add the Downgrade, phase 2 renewal, and the `GetItem` projection (test-first)
+  - [x] 9.1 Write the tests
     - In `RF/tests/unit/utils/auth-resolver.test.js`, cover the `auth-resolver.test.js` row of Design 11:
       - a `lapsed` record with no valid fallback → one `update` with the `registered` attributes, names, condition, and `REMOVE` clause from Design 7;
       - a `lapsed` record with a valid fallback → one `update` restoring the fallback's tier and end date (or null), with the `REMOVE` clause; the request is served at the restored tier;
@@ -249,7 +249,7 @@ Line numbers were read on 2026-11-02 at `dev` `71251f0`; find each edit by its t
       - a property through `maintainUserRecord` shows a `lapsed` record gets the Downgrade and never a renewal.
     - Run them. They fail against the current code.
     - _Requirements: 9.1, 9.2, 9.4, 9.5, 9.6, 9.7, 10.1, 10.2, 10.3, 10.4, 14.1, 14.4, 14.5, 15.5, 15.6, 15.8, 15.12, 19.6, 19.7, 19.8, 19.9, 19.14_
-  - [~] 9.2 Implement
+  - [x] 9.2 Implement
     - In `RF/utils/auth-resolver.js`:
       - add `maintainUserRecord` and `downgradeLapsedTier` from Design 7, with full JSDoc and the `>!` comments;
       - call `maintainUserRecord(pk, record, resolution)` from `resolveAuth`;
@@ -259,8 +259,8 @@ Line numbers were read on 2026-11-02 at `dev` `71251f0`; find each edit by its t
     - Run the task 9.1 files, then the whole `RF` suite and lint.
     - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7, 10.1, 10.2, 10.3, 10.4, 13.5, 13.6, 19.6, 19.7, 19.9_
 
-- [ ] 10. Apply the voucher redemption rule (test-first)
-  - [~] 10.1 Write the tests
+- [x] 10. Apply the voucher redemption rule (test-first)
+  - [x] 10.1 Write the tests
     - In `AF/tests/unit/voucher-redeem-service.test.js`:
       - one case per row of the Design 9 table, including an unknown `targetTier`, a `lapsed` user, a `malformed` user, and an unknown stored tier;
       - the held tier: a dated `paid` tier remembered as the fallback with its end date; a permanent `paid` tier remembered with a `NULL` end date; a `registered` user (fallback removed); a `private` record that has lapsed with a valid `paid` fallback (a `private` voucher replaces it and remembers the fallback's tier and end date; a `paid` voucher extends it, rewrites the record as `paid`, and removes the fallback);
@@ -279,7 +279,7 @@ Line numbers were read on 2026-11-02 at `dev` `71251f0`; find each edit by its t
     - In `AF/tests/unit/voucher-redeem-controller.test.js`, add the 409 mapping.
     - Run them. They fail against the current code.
     - _Requirements: 11.1 to 11.10, 12.1, 12.2, 12.3, 12.4, 15.7, 15.10, 15.12, 19.2, 19.3, 19.10, 19.15_
-  - [~] 10.2 Implement
+  - [x] 10.2 Implement
     - In `AF/services/voucher-redeem.js`:
       - add `PROMOTABLE_TIERS`, `DAY_MS`, and `decideRedemption` from Design 9, with full JSDoc;
       - change `redeemVoucher` to the seven steps in Design 9;
@@ -289,12 +289,12 @@ Line numbers were read on 2026-11-02 at `dev` `71251f0`; find each edit by its t
     - In `AF/controllers/voucher-redeem.js`, add the 409 branch and update the JSDoc list.
     - Run the task 10.1 files, then the whole `AF` suite and lint.
     - _Requirements: 11.1 to 11.10, 12.1, 12.2, 12.3, 12.4, 19.1, 19.2, 19.3, 19.10_
-  - [~] 10.3 Document the responses in OpenAPI
+  - [x] 10.3 Document the responses in OpenAPI
     - In `application-infrastructure/template-openapi-spec.yml`, add `'404'` and `'409'` to `POST /mcp/auth/voucher/redeem`, as in Design 9, in the style of the existing responses.
     - Run `RF/tests/unit/architecture/openapi-integration-targets.test.js`. It still passes.
     - Confirm the profile page needs no change: its voucher handler shows `result.data.error`.
     - _Requirements: 12.5, 12.6_
-  - [~] 10.4 Carry the fallback attributes through key regeneration (test-first)
+  - [x] 10.4 Carry the fallback attributes through key regeneration (test-first)
     - In `AF/tests/unit/key-regenerate-service.test.js`, add three cases:
       - the old record has `fallbackTier: 'paid'` and `fallbackExpiresAt: '2027-08-29T00:00:00.000Z'`: `putUserRecord` receives both on the new record;
       - the old record has `fallbackTier: 'paid'` and `fallbackExpiresAt: null`: the new record has `fallbackExpiresAt: null`;
@@ -305,22 +305,22 @@ Line numbers were read on 2026-11-02 at `dev` `71251f0`; find each edit by its t
     - Run the whole `AF` suite and lint.
     - _Requirements: 15.12, 18.2, 19.11_
 
-- [~] 11. Phase 2 code checkpoint
+- [x] 11. Phase 2 code checkpoint
   - Run the whole suite and lint in `RF`, `AF`, and `TC`. All pass.
   - Record the pass counts and the `RF` run time in `VERIFICATION.md`.
   - Ensure all tests pass, and ask the user if questions arise.
   - _Requirements: 15.10, 17.1_
 
-- [ ] 12. Narrow the Read Function's Users table access (last code change)
-  - [~] 12.1 Write the architecture test
+- [x] 12. Narrow the Read Function's Users table access (last code change)
+  - [x] 12.1 Write the architecture test
     - Add `RF/tests/unit/architecture/users-table-access.test.js` from Design 11. Copy the CloudFormation-tag schema builder from `openapi-integration-targets.test.js`, with a comment naming the source.
     - Run it. The layer assertions pass (task 7.2). The IAM assertions fail against the current `UsersTableAuthAccess`.
     - _Requirements: 15.9_
-  - [~] 12.2 Replace the IAM statement
+  - [x] 12.2 Replace the IAM statement
     - In `T`, `ReadLambdaExecutionRole` (about L1956-L1962), replace `UsersTableAuthAccess` with `UsersTableAuthRead` and `UsersTableAuthUpdate`, exactly as in Design 10, with the `# >!` comments.
     - Run the architecture test, then the whole `RF` suite and lint.
     - _Requirements: 13.1, 13.2, 13.3, 13.4, 13.7, 13.8_
-  - [~] 12.3 Run the offline template check
+  - [x] 12.3 Run the offline template check
     - Follow V-B with a throwaway `aws-sam-translator` virtual environment in `/tmp`. Confirm:
       - `TierCommonLayer` is in both functions' `Layers`;
       - the `McpV1Post` permission still targets `ReadLambdaFunctionAliaslive`;
@@ -329,37 +329,37 @@ Line numbers were read on 2026-11-02 at `dev` `71251f0`; find each edit by its t
     - Record the result in `VERIFICATION.md`.
     - _Requirements: 6.10_
 
-- [ ] 13. Update the phase 2 documentation and changelog
-  - [~] 13.1 Admin documentation
+- [x] 13. Update the phase 2 documentation and changelog
+  - [x] 13.1 Admin documentation
     - Edit `docs/admin-ops/user-management.md` and `docs/admin-ops/voucher-management.md` as in Design 12.
     - Replace the phase 1 interim sentences with the phase 2 rules.
     - List `fallbackTier` and `fallbackExpiresAt` in the field table, and add `REMOVE fallbackTier, fallbackExpiresAt` to the admin commands that set a tier by hand.
     - In `voucher-management.md`, add the remembered-tier explanation with its four examples.
     - Remove the stale "profile page reads from Cognito" sentence (about L133).
     - _Requirements: 16.1, 16.2, 19.13_
-  - [~] 13.2 Architecture
+  - [x] 13.2 Architecture
     - In `ARCHITECTURE.md`, as in Design 12:
       - add the `tier-common` section after the `search-common` section;
       - change flowchart node `I`;
       - add the "User record lifecycle" paragraph.
     - _Requirements: 16.3_
-  - [~] 13.3 End-user troubleshooting
+  - [x] 13.3 End-user troubleshooting
     - In `docs/end-user/troubleshooting/README.md`, add the two entries from Design 12.
     - _Requirements: 16.4_
-  - [~] 13.4 JSDoc sweep
+  - [x] 13.4 JSDoc sweep
     - Check JSDoc on every function listed in Design 12.
     - Run `grep -rn "Unix epoch seconds" application-infrastructure/src --include=*.js --exclude-dir=node_modules`. Correct any hit that describes `tierExpiresAt`, and leave `ttl` hits alone.
     - _Requirements: 16.5_
-  - [~] 13.5 Earlier spec
+  - [x] 13.5 Earlier spec
     - In `.kiro/specs/0-0-3-add-authentication/design.md`, add the one-line superseded note from Design 12 after TTL Strategy item 4 (about L527) and after Property 15 (about L672). Change nothing else in that file.
     - _Requirements: 9.8, 16.7_
-  - [~] 13.6 Changelog
+  - [x] 13.6 Changelog
     - Under `[v0.0.7] (unreleased)`, add the phase 2 Added, Changed, Fixed, and Security entries from Design 12, each at the end of its list. Create a **Security** heading in the unreleased section if there is none.
     - Change no existing text. The U4 exception was used in task 3.4.
     - _Requirements: 16.6_
 
-- [ ] 14. Final sweep before rollout
-  - [~] 14.1 Run everything and search for leftovers
+- [x] 14. Final sweep before rollout
+  - [x] 14.1 Run everything and search for leftovers
     - Run the whole suite and lint in `RF`, `AF`, and `TC`. Record that all pass.
     - Search the working tree (excluding `node_modules`, `.git`, and the `.kiro/specs` history) for `tierExpiresAt <=`, `new Date(tierExpiresAt)`, and `new Date(userRecord.tierExpiresAt)`. No hit should remain in code.
     - Run `git status`. Confirm:

@@ -58,13 +58,14 @@ jest.mock('../../services/cognito', () => ({
 }));
 
 const { redeemVoucher } = require('../../services/voucher-redeem');
+const TierCommon = require('../../utils/tier-common');
 
 /* ------------------------------------------------------------------ */
 /*  Arbitraries                                                       */
 /* ------------------------------------------------------------------ */
 
-/** Generate a target tier from the valid set */
-const targetTierArb = fc.constantFrom('registered', 'paid', 'private');
+/** Generate a target tier a voucher may grant (spec 0-0-7-lapsed-tier-downgrade: paid or private only) */
+const targetTierArb = fc.constantFrom('paid', 'private');
 
 /** Generate a valid email address */
 const emailArb = fc.emailAddress();
@@ -94,14 +95,77 @@ const validVoucherArb = fc.record({
 	currentUses: fc.constant(0)
 });
 
-/** Generate a user record with all required fields */
+const DAY_MS = 24 * 60 * 60 * 1000;
+const BASE_MS = Date.now();
+
+/** Generate a day offset of at least 2 days, so the clock moving during a run cannot change a state */
+const dayOffsetArb = fc.integer({ min: 2, max: 400 });
+
+/**
+ * Generate a realistic stored tierExpiresAt: null, absent, a future ISO timestamp,
+ * a past ISO timestamp, or a value that does not parse.
+ */
+const tierExpiresAtArb = fc.oneof(
+	fc.constant(null),
+	fc.constant(undefined),
+	dayOffsetArb.map(days => new Date(BASE_MS + days * DAY_MS).toISOString()),
+	dayOffsetArb.map(days => new Date(BASE_MS - days * DAY_MS).toISOString()),
+	fc.constantFrom('not-a-date', '2026-13-45', '', 1767225600)
+);
+
+/** Generate a realistic user record with all required fields (no remembered tier) */
 const userRecordArb = fc.record({
 	email: emailArb,
 	tier: fc.constantFrom('registered', 'paid', 'private'),
-	tierExpiresAt: fc.oneof(fc.constant(null), fc.constant(undefined)),
+	tierExpiresAt: tierExpiresAtArb,
 	cognitoSub: cognitoSubArb,
 	pk: fc.hexaString({ minLength: 8, maxLength: 16 }).map(s => `KEY#${s}`)
 });
+
+/**
+ * Model the redemption rule independently of the implementation.
+ *
+ * @param {Object} userRecord - Generated user record (no fallback attributes)
+ * @param {Object} voucher - Generated voucher
+ * @returns {'apply'|'extend'|'reject'} Expected outcome
+ */
+function expectedOutcome(userRecord, voucher) {
+	const current = TierCommon.resolveRecordTier(userRecord);
+	const holdingTier = (current.state === 'none' || current.state === 'active') ? current.tier : 'registered';
+	const holdingRank = TierCommon.TIER_RANK[holdingTier];
+	const targetRank = TierCommon.TIER_RANK[voucher.targetTier];
+	if (targetRank > holdingRank) {
+		return 'apply';
+	}
+	if (targetRank === holdingRank && current.state === 'active') {
+		return 'extend';
+	}
+	return 'reject';
+}
+
+/** Offsets (days) of the instants sampled after a redemption */
+const SAMPLE_OFFSET_DAYS = [0, 1, 7, 30, 31, 90, 119, 121, 200, 365, 366, 800];
+
+/**
+ * Apply what redeemVoucher wrote through updateUserTier to a record, in memory.
+ *
+ * @param {Object} userRecord - Record as read
+ * @param {Array} writeArgs - Arguments updateUserTier was called with
+ * @returns {Object} Record as stored after the write
+ */
+function applyWrite(userRecord, writeArgs) {
+	const [, tier, tierExpiresAt, , options] = writeArgs;
+	const written = { ...userRecord, tier, tierExpiresAt };
+	const fallback = options && options.fallback;
+	if (fallback === null) {
+		delete written.fallbackTier;
+		delete written.fallbackExpiresAt;
+	} else if (fallback) {
+		written.fallbackTier = fallback.tier;
+		written.fallbackExpiresAt = fallback.tierExpiresAt;
+	}
+	return written;
+}
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                           */
@@ -143,6 +207,8 @@ describe('Property 6: Voucher redeem response structure', () => {
 				validVoucherArb,
 				userRecordArb,
 				async (code, voucher, userRecord) => {
+					// >! Only redemptions the rule accepts have a response of this shape; rejections are covered below
+					fc.pre(expectedOutcome(userRecord, voucher) !== 'reject');
 					configureMocks(voucher, userRecord);
 
 					const result = await redeemVoucher(code, userRecord.email, userRecord.cognitoSub);
@@ -177,6 +243,8 @@ describe('Property 6: Voucher redeem response structure', () => {
 				validVoucherArb,
 				userRecordArb,
 				async (code, voucher, userRecord) => {
+					// >! Only an apply sets the end date to now + durationDays; an extend keeps a later existing date
+					fc.pre(expectedOutcome(userRecord, voucher) === 'apply');
 					configureMocks(voucher, userRecord);
 
 					const beforeCall = Date.now();
@@ -190,6 +258,95 @@ describe('Property 6: Voucher redeem response structure', () => {
 					// >! tierExpiresAt should be within the expected range
 					expect(expiresMs).toBeGreaterThanOrEqual(expectedMinMs);
 					expect(expiresMs).toBeLessThanOrEqual(expectedMaxMs);
+				}
+			),
+			{ numRuns: 100 }
+		);
+	});
+});
+
+/* ------------------------------------------------------------------ */
+/*  Redemption rule (spec 0-0-7-lapsed-tier-downgrade)                */
+/* ------------------------------------------------------------------ */
+
+/**
+ * **Validates: Requirements 11.2 to 11.7, 12.2, 19.2, 19.3, 19.10**
+ */
+describe('Property: voucher redemption rule over realistic user records', () => {
+	afterEach(() => {
+		jest.restoreAllMocks();
+	});
+
+	it('a redemption is rejected exactly when it would lower the tier or the end date, and a rejection writes nothing', () => {
+		return fc.assert(
+			fc.asyncProperty(
+				voucherCodeArb,
+				validVoucherArb,
+				userRecordArb,
+				async (code, voucher, userRecord) => {
+					configureMocks(voucher, userRecord);
+					const outcome = expectedOutcome(userRecord, voucher);
+					let error = null;
+					let result = null;
+					try {
+						result = await redeemVoucher(code, userRecord.email, userRecord.cognitoSub);
+					} catch (caught) {
+						error = caught;
+					}
+					if (outcome === 'reject') {
+						expect(error).not.toBeNull();
+						expect(error.statusCode).toBe(400);
+						expect(mockUpdateUserTier).not.toHaveBeenCalled();
+						expect(mockIncrementVoucherUses).not.toHaveBeenCalled();
+						expect(mockUpdateUserAttributes).not.toHaveBeenCalled();
+					} else {
+						expect(error).toBeNull();
+						expect(result.tier).toBe(voucher.targetTier);
+						expect(mockUpdateUserTier).toHaveBeenCalledTimes(1);
+						const options = mockUpdateUserTier.mock.calls[0][4];
+						// >! The write is conditional on what was read
+						expect(options.expected.tier).toBe(userRecord.tier);
+						expect(options.expected.tierExpiresAt).toEqual(userRecord.tierExpiresAt);
+						// >! Cognito follows the stored tier only when it changes
+						if (userRecord.tier === voucher.targetTier) {
+							expect(mockUpdateUserAttributes).not.toHaveBeenCalled();
+						} else {
+							expect(mockUpdateUserAttributes).toHaveBeenCalledTimes(1);
+						}
+						if (outcome === 'extend') {
+							expect(options.fallback).toBeUndefined();
+							expect(new Date(result.tierExpiresAt).getTime())
+								.toBeGreaterThanOrEqual(new Date(userRecord.tierExpiresAt).getTime());
+						}
+					}
+				}
+			),
+			{ numRuns: 100 }
+		);
+	});
+
+	it('Requirement 11.10 / 19.15: what is written never lowers the rank held at any sampled later instant', () => {
+		return fc.assert(
+			fc.asyncProperty(
+				voucherCodeArb,
+				validVoucherArb,
+				userRecordArb,
+				async (code, voucher, userRecord) => {
+					configureMocks(voucher, userRecord);
+					try {
+						await redeemVoucher(code, userRecord.email, userRecord.cognitoSub);
+					} catch {
+						// >! A rejection writes nothing, so the record is unchanged and the property holds trivially
+						expect(mockUpdateUserTier).not.toHaveBeenCalled();
+						return;
+					}
+					const written = applyWrite(userRecord, mockUpdateUserTier.mock.calls[0]);
+					for (const offsetDays of SAMPLE_OFFSET_DAYS) {
+						const atMs = Date.now() + offsetDays * DAY_MS;
+						const before = TierCommon.resolveRecordTier(userRecord, atMs).tier;
+						const after = TierCommon.resolveRecordTier(written, atMs).tier;
+						expect(TierCommon.TIER_RANK[after]).toBeGreaterThanOrEqual(TierCommon.TIER_RANK[before]);
+					}
 				}
 			),
 			{ numRuns: 100 }

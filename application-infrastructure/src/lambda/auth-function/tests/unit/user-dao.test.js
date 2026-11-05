@@ -236,12 +236,19 @@ describe('User DAO (models/user.js)', () => {
 			const command = mockSend.mock.calls[0][0];
 			expect(command.input.TableName).toBe('test-users-table');
 			expect(command.input.Key).toEqual({ pk: 'KEY#abc' });
-			expect(command.input.UpdateExpression).toBe('SET tier = :tier, tierExpiresAt = :exp, #ttl = :ttl');
-			expect(command.input.ExpressionAttributeNames).toEqual({ '#ttl': 'ttl' });
+			// >! Aliased form: every attribute is named through ExpressionAttributeNames
+			expect(command.input.UpdateExpression).toBe('SET #tier = :newTier, #exp = :newExpiry, #ttl = :newTtl');
+			expect(command.input.ConditionExpression).toBe('attribute_exists(#pk)');
+			expect(command.input.ExpressionAttributeNames).toEqual({
+				'#pk': 'pk',
+				'#tier': 'tier',
+				'#exp': 'tierExpiresAt',
+				'#ttl': 'ttl',
+			});
 			expect(command.input.ExpressionAttributeValues).toEqual({
-				':tier': 'paid',
-				':exp': '2025-12-31T00:00:00Z',
-				':ttl': 1735689600,
+				':newTier': 'paid',
+				':newExpiry': '2025-12-31T00:00:00Z',
+				':newTtl': 1735689600,
 			});
 			expect(command.input.ReturnValues).toBe('ALL_NEW');
 		});
@@ -258,6 +265,184 @@ describe('User DAO (models/user.js)', () => {
 		});
 	});
 
+	describe('updateUserTier() options (spec 0-0-7-lapsed-tier-downgrade)', () => {
+		const NOW_TTL = 1735689600;
+		/**
+		 * Collect every `#name` and `:value` placeholder used by the request's expressions.
+		 *
+		 * @param {Object} input - UpdateCommand input
+		 * @returns {{names: Set<string>, values: Set<string>}} Placeholders referenced by the expressions
+		 */
+		function usedPlaceholders(input) {
+			const text = `${input.UpdateExpression || ''} ${input.ConditionExpression || ''}`;
+			const found = text.match(/[#:][A-Za-z_][A-Za-z0-9_]*/g) || [];
+			return {
+				names: new Set(found.filter((token) => token.startsWith('#'))),
+				values: new Set(found.filter((token) => token.startsWith(':'))),
+			};
+		}
+		/**
+		 * Assert that the request carries no unused expression attribute name or value,
+		 * and no expression refers to a placeholder that is not defined (DynamoDB rejects both).
+		 *
+		 * @param {Object} input - UpdateCommand input
+		 * @returns {void}
+		 */
+		function expectNoUnusedPlaceholders(input) {
+			const used = usedPlaceholders(input);
+			expect(new Set(Object.keys(input.ExpressionAttributeNames || {}))).toEqual(used.names);
+			expect(new Set(Object.keys(input.ExpressionAttributeValues || {}))).toEqual(used.values);
+		}
+		/**
+		 * Run updateUserTier with the given options and return the command input that was sent.
+		 *
+		 * @param {Object} [options] - updateUserTier options
+		 * @returns {Promise<Object>} UpdateCommand input
+		 */
+		async function sendUpdate(options) {
+			mockSend.mockResolvedValueOnce({ Attributes: {} });
+			await updateUserTier('KEY#abc', 'private', '2027-01-01T00:00:00.000Z', NOW_TTL, options);
+			return mockSend.mock.calls[0][0].input;
+		}
+		describe('condition: one case per read value (Design 9 table)', () => {
+			it('no options: only attribute_exists(#pk), with no expected values', async () => {
+				const input = await sendUpdate();
+				expect(input.ConditionExpression).toBe('attribute_exists(#pk)');
+				expectNoUnusedPlaceholders(input);
+			});
+			it('tier is a string and tierExpiresAt is null: tier equality and a null-or-absent match', async () => {
+				const input = await sendUpdate({ expected: { tier: 'paid', tierExpiresAt: null } });
+				expect(input.ConditionExpression).toBe(
+					'attribute_exists(#pk) AND #tier = :expectedTier AND (attribute_not_exists(#exp) OR attribute_type(#exp, :nullType))'
+				);
+				expect(input.ExpressionAttributeValues[':expectedTier']).toBe('paid');
+				expect(input.ExpressionAttributeValues[':nullType']).toBe('NULL');
+				expect(input.ExpressionAttributeValues).not.toHaveProperty(':expectedExpiry');
+				expectNoUnusedPlaceholders(input);
+			});
+			it('tier is a string and tierExpiresAt is undefined: matched as null or absent', async () => {
+				const input = await sendUpdate({ expected: { tier: 'paid', tierExpiresAt: undefined } });
+				expect(input.ConditionExpression).toBe(
+					'attribute_exists(#pk) AND #tier = :expectedTier AND (attribute_not_exists(#exp) OR attribute_type(#exp, :nullType))'
+				);
+				expect(input.ExpressionAttributeValues[':nullType']).toBe('NULL');
+				expectNoUnusedPlaceholders(input);
+			});
+			it('tierExpiresAt is a string: equality on the value read', async () => {
+				const input = await sendUpdate({ expected: { tier: 'paid', tierExpiresAt: '2026-12-31T00:00:00Z' } });
+				expect(input.ConditionExpression).toBe(
+					'attribute_exists(#pk) AND #tier = :expectedTier AND #exp = :expectedExpiry'
+				);
+				expect(input.ExpressionAttributeValues[':expectedExpiry']).toBe('2026-12-31T00:00:00Z');
+				expect(input.ExpressionAttributeValues).not.toHaveProperty(':nullType');
+				expectNoUnusedPlaceholders(input);
+			});
+			it('tierExpiresAt is a number: equality on the value read', async () => {
+				const input = await sendUpdate({ expected: { tier: 'paid', tierExpiresAt: 1767225600 } });
+				expect(input.ConditionExpression).toBe(
+					'attribute_exists(#pk) AND #tier = :expectedTier AND #exp = :expectedExpiry'
+				);
+				expect(input.ExpressionAttributeValues[':expectedExpiry']).toBe(1767225600);
+				expectNoUnusedPlaceholders(input);
+			});
+			it.each([
+				['an object', { when: 'soon' }],
+				['a boolean', true],
+				['an array', ['2026-12-31']],
+			])('tierExpiresAt is %s (already malformed): only requires the attribute to exist', async (_name, value) => {
+				const input = await sendUpdate({ expected: { tier: 'paid', tierExpiresAt: value } });
+				expect(input.ConditionExpression).toBe(
+					'attribute_exists(#pk) AND #tier = :expectedTier AND attribute_exists(#exp)'
+				);
+				expect(input.ExpressionAttributeValues).not.toHaveProperty(':expectedExpiry');
+				expect(input.ExpressionAttributeValues).not.toHaveProperty(':nullType');
+				expectNoUnusedPlaceholders(input);
+			});
+			it('tier is not a string: requires the tier attribute to be absent', async () => {
+				const input = await sendUpdate({ expected: { tier: undefined, tierExpiresAt: null } });
+				expect(input.ConditionExpression).toBe(
+					'attribute_exists(#pk) AND attribute_not_exists(#tier) AND (attribute_not_exists(#exp) OR attribute_type(#exp, :nullType))'
+				);
+				expect(input.ExpressionAttributeValues).not.toHaveProperty(':expectedTier');
+				expectNoUnusedPlaceholders(input);
+			});
+		});
+		describe('fallback: one case per shape', () => {
+			it('undefined leaves the fallback attributes untouched', async () => {
+				const input = await sendUpdate({ expected: { tier: 'paid', tierExpiresAt: null }, fallback: undefined });
+				expect(input.UpdateExpression).toBe('SET #tier = :newTier, #exp = :newExpiry, #ttl = :newTtl');
+				expect(input.ExpressionAttributeNames).not.toHaveProperty('#fbTier');
+				expect(input.ExpressionAttributeNames).not.toHaveProperty('#fbExp');
+				expect(input.ExpressionAttributeValues).not.toHaveProperty(':fbTier');
+				expect(input.ExpressionAttributeValues).not.toHaveProperty(':fbExpiry');
+				expectNoUnusedPlaceholders(input);
+			});
+			it('null removes both fallback attributes and sends no fallback value', async () => {
+				const input = await sendUpdate({ expected: { tier: 'registered', tierExpiresAt: null }, fallback: null });
+				expect(input.UpdateExpression).toBe(
+					'SET #tier = :newTier, #exp = :newExpiry, #ttl = :newTtl REMOVE #fbTier, #fbExp'
+				);
+				expect(input.ExpressionAttributeNames['#fbTier']).toBe('fallbackTier');
+				expect(input.ExpressionAttributeNames['#fbExp']).toBe('fallbackExpiresAt');
+				expect(input.ExpressionAttributeValues).not.toHaveProperty(':fbTier');
+				expect(input.ExpressionAttributeValues).not.toHaveProperty(':fbExpiry');
+				expectNoUnusedPlaceholders(input);
+			});
+			it('an object sets both fallback attributes', async () => {
+				const input = await sendUpdate({
+					expected: { tier: 'paid', tierExpiresAt: '2026-12-31T00:00:00Z' },
+					fallback: { tier: 'paid', tierExpiresAt: '2026-12-31T00:00:00Z' },
+				});
+				expect(input.UpdateExpression).toBe(
+					'SET #tier = :newTier, #exp = :newExpiry, #ttl = :newTtl, #fbTier = :fbTier, #fbExp = :fbExpiry'
+				);
+				expect(input.ExpressionAttributeNames['#fbTier']).toBe('fallbackTier');
+				expect(input.ExpressionAttributeNames['#fbExp']).toBe('fallbackExpiresAt');
+				expect(input.ExpressionAttributeValues[':fbTier']).toBe('paid');
+				expect(input.ExpressionAttributeValues[':fbExpiry']).toBe('2026-12-31T00:00:00Z');
+				expectNoUnusedPlaceholders(input);
+			});
+			it('an object with a null end date stores the end date as null (the NULL type)', async () => {
+				const input = await sendUpdate({
+					expected: { tier: 'paid', tierExpiresAt: null },
+					fallback: { tier: 'paid', tierExpiresAt: null },
+				});
+				expect(input.UpdateExpression).toContain('#fbExp = :fbExpiry');
+				expect(input.ExpressionAttributeValues).toHaveProperty(':fbExpiry', null);
+				expectNoUnusedPlaceholders(input);
+			});
+			it('a fallback without the expected option still builds a valid request', async () => {
+				const input = await sendUpdate({ fallback: null });
+				expect(input.ConditionExpression).toBe('attribute_exists(#pk)');
+				expect(input.UpdateExpression).toContain('REMOVE #fbTier, #fbExp');
+				expectNoUnusedPlaceholders(input);
+			});
+		});
+		describe('conditional failure', () => {
+			it('is rethrown without a DebugAndLog.error line, and logged at debug level', async () => {
+				const { DebugAndLog } = require('@63klabs/cache-data').tools;
+				const conditionalFailure = new Error('The conditional request failed');
+				conditionalFailure.name = 'ConditionalCheckFailedException';
+				mockSend.mockRejectedValueOnce(conditionalFailure);
+				await expect(
+					updateUserTier('KEY#abc', 'paid', null, NOW_TTL, { expected: { tier: 'registered', tierExpiresAt: null } })
+				).rejects.toBe(conditionalFailure);
+				expect(mockDebugAndLogError).not.toHaveBeenCalled();
+				expect(DebugAndLog.debug).toHaveBeenCalled();
+			});
+			it('other errors keep the error log and are rethrown', async () => {
+				const error = new Error('Throughput exceeded');
+				mockSend.mockRejectedValueOnce(error);
+				await expect(
+					updateUserTier('KEY#abc', 'paid', null, NOW_TTL, { expected: { tier: 'registered', tierExpiresAt: null } })
+				).rejects.toBe(error);
+				expect(mockDebugAndLogError).toHaveBeenCalledWith(
+					expect.stringContaining('updateUserTier error'),
+					expect.any(String)
+				);
+			});
+		});
+	});
 	describe('getSessionRecord()', () => {
 
 		it('should retrieve a session record from the Sessions table', async () => {

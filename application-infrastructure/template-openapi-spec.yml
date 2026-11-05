@@ -168,6 +168,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MCPError'
+        '404':
+          description: "User not found - the authenticated user has no Users table record"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPError'
+        '409':
+          description: "Conflict - the user record changed while the voucher was being applied; retry"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPError'
         '500':
           description: "Internal server error"
           content:

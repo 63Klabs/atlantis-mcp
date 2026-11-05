@@ -525,6 +525,9 @@ Instead of a scheduled cleanup Lambda, the system uses DynamoDB's built-in TTL f
 2. When a subscription hook updates `tierExpiresAt`, also update `ttl` to `now + 120 days`.
 3. For free registered users: on each authenticated request, if `ttl < now + 90 days`, update `ttl` to `now + 120 days` (background DynamoDB update, non-blocking).
 4. The Read Lambda computes `effectiveTier` at request time: if `tierExpiresAt` is set and has passed, treat as `registered`. Do NOT update `tierExpiresAt` in DynamoDB.
+
+> Superseded in v0.0.7 by [0-0-7-lapsed-tier-downgrade](../0-0-7-lapsed-tier-downgrade/design.md): a lapsed tier is written back as registered, and every tier is renewed by use.
+
 5. DynamoDB automatically deletes records where `ttl` has passed — inactive accounts are cleaned up without a Lambda.
 
 ### Sessions Table Schema (Existing — No Changes)
@@ -672,6 +675,8 @@ The `allowedTools` field and per-key tool restrictions are removed from scope en
 *For any* authenticated request from a free registered user (effective tier = `registered`, no `tierExpiresAt` or `tierExpiresAt` is null): if the record's `ttl` is less than 90 days from now, the system SHALL update `ttl` to `now + 120 days`. If `ttl` is 90 or more days from now, the system SHALL NOT update the `ttl`.
 
 **Validates: Requirements 19 (UPDATE)**
+
+> Superseded in v0.0.7 by [0-0-7-lapsed-tier-downgrade](../0-0-7-lapsed-tier-downgrade/design.md): a lapsed tier is written back as registered, and every tier is renewed by use.
 
 ### Property 16: Country-based registration restrictions
 

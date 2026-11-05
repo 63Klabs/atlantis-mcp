@@ -270,6 +270,26 @@ describe('VoucherRedeemController', () => {
 			expect(response.setBody).toHaveBeenCalledWith({ error: 'User not found' });
 		});
 
+		it('should return 409 with the service message when the user record changed (Requirement 12.2, 12.4)', async () => {
+			mockValidateJwt.mockResolvedValue({
+				email: 'test@example.com',
+				sub: 'test-sub-123'
+			});
+			const conflictError = new Error('Your account changed while the voucher was being applied. Please try again.');
+			conflictError.statusCode = 409;
+			mockRedeemVoucher.mockRejectedValue(conflictError);
+			const props = createMockProps();
+			const response = createMockResponse();
+			await VoucherRedeemController.post(props, response);
+			expect(response.setStatusCode).toHaveBeenCalledTimes(1);
+			expect(response.setStatusCode).toHaveBeenCalledWith(409);
+			expect(response.setBody).toHaveBeenCalledWith({
+				error: 'Your account changed while the voucher was being applied. Please try again.'
+			});
+			// >! A 409 is an expected outcome, not a server error: it must not be logged as one
+			const { DebugAndLog } = require('@63klabs/cache-data').tools;
+			expect(DebugAndLog.error).not.toHaveBeenCalled();
+		});
 		it('should return 500 on unhandled error', async () => {
 			mockValidateJwt.mockResolvedValue({
 				email: 'test@example.com',

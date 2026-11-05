@@ -3,7 +3,7 @@
  *
  * Resolves API key authentication from incoming requests, performing
  * scrypt key hashing, DynamoDB user lookup, tier computation,
- * and TTL refresh for every record without an end date.
+ * the Downgrade of a lapsed tier, and TTL renewal while a key is in use.
  *
  * Supports two header formats:
  * - `Authorization: Bearer <key>`
@@ -19,6 +19,10 @@
 
 const crypto = require('crypto');
 const { tools: { DebugAndLog, AWS, CachedSsmParameter } } = require('@63klabs/cache-data');
+// >! Loaded from the tier-common layer; a missing layer fails the cold start (no local copy)
+const TierCommon = require('./tier-common');
+
+const { EXPIRY_STATE } = TierCommon;
 
 /* ------------------------------------------------------------------ */
 /*  Constants                                                         */
@@ -94,27 +98,27 @@ function extractApiKey(event) {
 }
 
 /**
- * Compute the effective tier based on stored tier and expiration.
+ * Compute the effective tier from the stored tier and its end date.
  *
- * If `tierExpiresAt` is set and in the past, the effective tier
- * reverts to `registered`. Otherwise the stored tier is used.
+ * Delegates to the tier-common layer, which is the one rule for reading
+ * `tierExpiresAt` in every function. A missing end date keeps the stored tier.
+ * A lapsed end date gives the remembered tier when `fallback` still holds,
+ * otherwise `registered`. A malformed end date also gives `registered`.
  *
  * @private
  * @param {string} storedTier - Tier value from DynamoDB record
- * @param {number|null|undefined} tierExpiresAt - Unix epoch seconds or null/undefined
- * @returns {string} Effective tier: the stored tier or `registered` if expired
+ * @param {string|null|undefined} tierExpiresAt - ISO 8601 string or null
+ * @param {{tier: string, tierExpiresAt: (string|null)}|null} [fallback] - Remembered lower tier, if any
+ * @returns {string} Effective tier: the stored tier, the remembered tier, or `registered`
  * @example
  * // In tests only via TestHarness
  * const { computeEffectiveTier } = TestHarness.getInternals();
- * computeEffectiveTier('paid', null);           // 'paid'
- * computeEffectiveTier('paid', futureEpoch);    // 'paid'
- * computeEffectiveTier('paid', pastEpoch);      // 'registered'
+ * computeEffectiveTier('paid', null);                        // 'paid'
+ * computeEffectiveTier('paid', '2099-01-01T00:00:00.000Z');  // 'paid'
+ * computeEffectiveTier('paid', '2020-01-01T00:00:00.000Z');  // 'registered'
  */
-function computeEffectiveTier(storedTier, tierExpiresAt) {
-  if (tierExpiresAt != null && tierExpiresAt <= Math.floor(Date.now() / 1000)) {
-    return 'registered';
-  }
-  return storedTier;
+function computeEffectiveTier(storedTier, tierExpiresAt, fallback) {
+  return TierCommon.computeEffectiveTier(storedTier, tierExpiresAt, undefined, fallback).tier;
 }
 
 /**
@@ -167,17 +171,15 @@ function onUserWriteError(write) {
 /**
  * Renew a user record's DynamoDB TTL while its key is in use.
  *
- * TTL refresh for every record without an end date: when the record's TTL is
- * less than 90 days from now, it is set to now + 120 days. Any tier is renewed.
- * In phase 1, a record with an end date (`tierExpiresAt` non-null) is left alone,
- * because a lapsed voucher would otherwise be kept on its old tier
- * (spec 0-0-7-lapsed-tier-downgrade). Fire-and-forget: errors are logged, never thrown.
+ * When the record's TTL is less than 90 days from now, it is set to now + 120 days.
+ * Any tier is renewed, whether or not the record has an end date. The caller
+ * (`maintainUserRecord`) never passes a record whose tier has lapsed; that record
+ * gets `downgradeLapsedTier` instead. Fire-and-forget: errors are logged, never thrown.
  *
  * @private
  * @param {string} pk - DynamoDB partition key (`KEY#<hash>`)
  * @param {Object} record - User record from DynamoDB
  * @param {number} [record.ttl] - Current TTL as Unix epoch seconds
- * @param {string|null|undefined} [record.tierExpiresAt] - ISO 8601 tier end date or null
  * @returns {void}
  * @example
  * // In tests only via TestHarness
@@ -185,11 +187,6 @@ function onUserWriteError(write) {
  * refreshTtl('KEY#abc123', { ttl: soonEpochSec, tier: 'private', tierExpiresAt: null });
  */
 function refreshTtl(pk, record) {
-  // >! Phase 1 only: do not renew a record with an end date until the expiry check is fixed
-  if (record.tierExpiresAt != null) {
-    return;
-  }
-
   const nowSec = Math.floor(Date.now() / 1000);
 
   // >! No numeric ttl, or at least 90 days left: nothing to renew
@@ -210,6 +207,90 @@ function refreshTtl(pk, record) {
   }).catch(onUserWriteError('TTL refresh'));
 }
 
+/**
+ * Write a lapsed record back to the Users table.
+ *
+ * When a lower tier the user held is still valid, it is restored (spec
+ * 0-0-7-lapsed-tier-downgrade); otherwise the record becomes an ordinary
+ * `registered` record. Either way `ttl` is set to now + 120 days (no 90-day check)
+ * and the two fallback attributes are removed. The write is conditional on the
+ * tier and end date that were read, so a concurrent voucher redemption or key
+ * regeneration is never overwritten. Fire-and-forget: errors are logged, never thrown.
+ *
+ * @private
+ * @param {string} pk - DynamoDB partition key (`KEY#<hash>`)
+ * @param {Object} record - User record from DynamoDB
+ * @param {string} record.tier - Stored tier that has lapsed
+ * @param {string} record.tierExpiresAt - Stored end date (ISO 8601 string) that has passed
+ * @param {{state: string, restoreTo: ({tier: string, tierExpiresAt: (string|null)}|null)}} resolution - Result of `TierCommon.resolveRecordTier(record)`
+ * @returns {void}
+ * @example
+ * // In tests only via TestHarness
+ * const { downgradeLapsedTier } = TestHarness.getInternals();
+ * downgradeLapsedTier('KEY#abc123', lapsedRecord, TierCommon.resolveRecordTier(lapsedRecord));
+ */
+function downgradeLapsedTier(pk, record, resolution) {
+  const nowSec = Math.floor(Date.now() / 1000);
+  const restore = resolution.restoreTo; // null, or { tier, tierExpiresAt, ... }
+  const toTier = restore ? restore.tier : 'registered';
+
+  // >! Fire and forget — don't await; failures are handled by onUserWriteError
+  AWS.dynamo.update({
+    TableName: usersTableName,
+    Key: { pk },
+    UpdateExpression: 'SET #tier = :toTier, #exp = :toExpiry, #ttl = :newTtl REMOVE #fbTier, #fbExp',
+    // >! Write only if the record still holds what was read. The tier written is registered,
+    // >! or a lower tier the Auth Function recorded earlier that ranks below the lapsed one.
+    ConditionExpression: 'attribute_exists(#pk) AND #tier = :readTier AND #exp = :readExpiry',
+    ExpressionAttributeNames: {
+      '#pk': 'pk',
+      '#tier': 'tier',
+      '#exp': 'tierExpiresAt',
+      '#ttl': 'ttl',
+      '#fbTier': 'fallbackTier',
+      '#fbExp': 'fallbackExpiresAt'
+    },
+    ExpressionAttributeValues: {
+      ':toTier': toTier,
+      ':toExpiry': restore ? restore.tierExpiresAt : null, // null is stored as the NULL type
+      ':newTtl': nowSec + ONE_TWENTY_DAYS_SEC,
+      ':readTier': record.tier,
+      ':readExpiry': record.tierExpiresAt
+    }
+  }).then(() => {
+    // >! Log the tiers only; never the pk, cognitoSub, email, or key
+    DebugAndLog.info(`TIER_LAPSE_DOWNGRADE ${JSON.stringify({
+      fromTier: String(record.tier).slice(0, 20),
+      toTier: String(toTier).slice(0, 20)
+    })}`);
+  }).catch(onUserWriteError('tier downgrade'));
+}
+
+/**
+ * Choose the one Users table write for this request, if any.
+ *
+ * A lapsed tier is written back (the remembered lower tier is restored, otherwise
+ * the record becomes `registered`). Any other record may get a TTL renewal. At most
+ * one write is made per request: a lapsed record never also gets a separate renewal.
+ *
+ * @private
+ * @param {string} pk - DynamoDB partition key (`KEY#<hash>`)
+ * @param {Object} record - User record from DynamoDB
+ * @param {{state: string}} resolution - Result of `TierCommon.resolveRecordTier(record)`
+ * @returns {void}
+ * @example
+ * // In tests only via TestHarness
+ * const { maintainUserRecord } = TestHarness.getInternals();
+ * maintainUserRecord('KEY#abc123', record, TierCommon.resolveRecordTier(record));
+ */
+function maintainUserRecord(pk, record, resolution) {
+  if (resolution.state === EXPIRY_STATE.LAPSED) {
+    downgradeLapsedTier(pk, record, resolution);
+    return;
+  }
+  refreshTtl(pk, record);
+}
+
 /* ------------------------------------------------------------------ */
 /*  resolveAuth — Main Entry Point (async)                            */
 /* ------------------------------------------------------------------ */
@@ -223,8 +304,8 @@ function refreshTtl(pk, record) {
  * 3. Key present → retrieve hash salt from SSM
  * 4. Hash key with scrypt → DynamoDB GetItem on Users table
  * 5. Key not found → return 401 error
- * 6. Key found → compute effective tier, trigger TTL refresh for every record
- *    without an end date if needed
+ * 6. Key found → compute effective tier, then make at most one background write:
+ *    the Downgrade for a lapsed tier, otherwise a TTL renewal if needed
  * 7. Return authenticated result with tier and cognitoSub
  *
  * Degradation: SSM or DynamoDB failures fall back to public tier
@@ -309,7 +390,19 @@ async function resolveAuth(event) {
   try {
     const result = await AWS.dynamo.get({
       TableName: usersTableName,
-      Key: { pk }
+      Key: { pk },
+      // >! Request only what auth resolution uses. The IAM policy allows no other attributes,
+      // >! and a GetItem without a projection would be denied by it (dynamodb:Attributes).
+      ProjectionExpression: '#pk, #tier, #exp, #ttl, #sub, #fbTier, #fbExp',
+      ExpressionAttributeNames: {
+        '#pk': 'pk',
+        '#tier': 'tier',
+        '#exp': 'tierExpiresAt',
+        '#ttl': 'ttl',
+        '#sub': 'cognitoSub',
+        '#fbTier': 'fallbackTier',
+        '#fbExp': 'fallbackExpiresAt'
+      }
     });
     record = result.Item || null;
   } catch (err) {
@@ -338,14 +431,22 @@ async function resolveAuth(event) {
     };
   }
 
-  // >! Compute effective tier (handles tier expiration)
-  const effectiveTier = computeEffectiveTier(record.tier, record.tierExpiresAt);
+  // >! One expiry rule for every function (tier-common layer), evaluated once per request
+  const resolution = TierCommon.resolveRecordTier(record);
+  if (resolution.state === EXPIRY_STATE.MALFORMED) {
+    // >! Fail closed: registered limits. Log the tier and a truncated value only, never pk, cognitoSub, or email.
+    DebugAndLog.warn(`TIER_EXPIRY_MALFORMED ${JSON.stringify(
+      TierCommon.malformedExpiryLogFields(record.tier, record.tierExpiresAt))}`);
+  } else if (resolution.fallbackState === 'malformed') {
+    DebugAndLog.warn(`TIER_EXPIRY_MALFORMED ${JSON.stringify(
+      TierCommon.malformedExpiryLogFields(record.fallbackTier, record.fallbackExpiresAt, 'fallbackExpiresAt'))}`);
+  }
 
-  // >! Background TTL refresh for every record without an end date
-  refreshTtl(pk, record);
+  // >! Background write: Downgrade for a lapsed tier, otherwise TTL renewal (one write per request)
+  maintainUserRecord(pk, record, resolution);
 
   return {
-    tier: effectiveTier,
+    tier: resolution.tier,
     identity: record.cognitoSub,
     isAuthenticated: true,
     userId: pk,
@@ -368,7 +469,7 @@ class TestHarness {
    * Get access to internal functions for testing purposes.
    * WARNING: This method is for testing only and should never be used in production.
    *
-   * @returns {{extractApiKey: Function, computeEffectiveTier: Function, refreshTtl: Function, onUserWriteError: Function, extractSourceIp: Function, apiKeyHashSalt: CachedSsmParameter, NINETY_DAYS_SEC: number, ONE_TWENTY_DAYS_SEC: number}} Object containing internal functions and constants
+   * @returns {{extractApiKey: Function, computeEffectiveTier: Function, refreshTtl: Function, maintainUserRecord: Function, downgradeLapsedTier: Function, onUserWriteError: Function, extractSourceIp: Function, apiKeyHashSalt: CachedSsmParameter, NINETY_DAYS_SEC: number, ONE_TWENTY_DAYS_SEC: number}} Object containing internal functions and constants
    * @private
    * @example
    * // In tests only — DO NOT use in production
@@ -380,6 +481,8 @@ class TestHarness {
       extractApiKey,
       computeEffectiveTier,
       refreshTtl,
+      maintainUserRecord,
+      downgradeLapsedTier,
       onUserWriteError,
       extractSourceIp,
       apiKeyHashSalt,

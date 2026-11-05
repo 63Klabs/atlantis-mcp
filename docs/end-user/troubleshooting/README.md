@@ -12,6 +12,8 @@ This guide helps you diagnose and resolve common issues when using the 63Klabs A
   - [API key returns 401 after a long break](#problem-api-key-returns-401-after-a-long-break)
   - [Forgot your password](#problem-forgot-your-password)
   - [Change your password while signed in](#problem-want-to-change-your-password-while-signed-in)
+  - [Promotion code not applied](#problem-promotion-code-not-applied)
+  - [Your tier changed when a promotion ended](#problem-my-tier-changed-when-a-promotion-ended)
 - [Data Quality Issues](#data-quality-issues)
 - [Integration-Specific Issues](#integration-specific-issues)
 
@@ -397,6 +399,50 @@ You can change your password from your profile page without going through the re
 4. Submit the form. You'll stay signed in after the change.
 
 > **Note**: Changing your password does **not** affect your API key.
+
+---
+
+### Problem: Promotion code not applied
+
+**Symptoms:**
+- You enter a promotion code on your [profile page](https://mcp.atlantis.63klabs.net/profile/) and see a message that starts with "Voucher not applied", for example "Voucher not applied: your account already has the paid tier."
+- A similar message says your account already has the tier "with no end date"
+- You see "Your account changed while the voucher was being applied. Please try again."
+
+**Cause:**
+A promotion code never lowers your tier and never shortens a promotion you already have. A code is not applied when:
+- It grants a lower tier than the one you have.
+- It grants the same tier you have and that tier has no end date. There is nothing to extend.
+
+A code for the same tier as an active promotion extends the promotion to the later of the two end dates. A code for a higher tier replaces your current tier for the length of the code.
+
+The "account changed" message means your account was updated at the same moment you redeemed the code, for example by another request from you. The code was not applied.
+
+**Solution:**
+- For "Voucher not applied", you don't need to do anything. Your tier is unchanged, and the code was not used up, so you can still use it later, for example after your current promotion ends.
+- For "Your account changed", wait a moment and enter the code again.
+- Other messages, such as "Invalid voucher code", "Voucher has expired", or "Voucher has been fully redeemed", mean the code itself can't be used. Check it for typos, or contact the person who gave it to you.
+
+> **Note**: Your profile page shows the tier you currently hold. Check it to see whether the code changed anything.
+
+---
+
+### Problem: My tier changed when a promotion ended
+
+**Symptoms:**
+- Your profile page shows a lower tier than it did before
+- Your rate limit is lower than it was
+- You redeemed a promotion code and its end date has passed
+
+**Cause:**
+A promotion ends on its end date. Your tier does not change at the exact moment, but with your first request after the end date, you return to the tier you held before the promotion, if that tier still applies. If it doesn't, you return to the registered tier. For example, if you had a paid tier with no end date and then redeemed a promotion for a higher tier, you return to paid when the promotion ends. If the paid tier had its own end date and that date has also passed, you return to registered.
+
+Your rate limits change with your tier. See the [rate limits page](https://mcp.atlantis.63klabs.net/docs/rate-limits/) for the limits of each tier.
+
+**Solution:**
+Your API key and account are not affected, and you don't need to change your configuration. To get a higher tier again, redeem a new promotion code on your [profile page](https://mcp.atlantis.63klabs.net/profile/). A new code starts a new promotion, and the end of that promotion is handled the same way.
+
+> **Note**: Your profile page shows the tier you hold now. After a promotion ends, it may still list the old end date until you make your next request with your API key.
 
 ---
 

@@ -63,6 +63,7 @@ jest.mock('../../utils/window-calculator', () => ({
 }));
 
 const { getProfile, computeEffectiveTier, TestHarness } = require('../../services/profile');
+const { tools: { DebugAndLog } } = require('@63klabs/cache-data');
 
 /* ------------------------------------------------------------------ */
 /*  Tests                                                             */
@@ -181,6 +182,68 @@ describe('Profile Service', () => {
 			expect(result.rateLimits.windowMinutes).toBe(60);
 			// tierExpiresAt should still be returned as-is from the user record
 			expect(result.tierExpiresAt).toBe(pastDate);
+		});
+
+		it('should treat a malformed tierExpiresAt as registered and log one TIER_EXPIRY_MALFORMED warning', async () => {
+			mockQueryByEmail.mockResolvedValue([{
+				pk: 'KEY#somehash',
+				email: 'malformed@example.com',
+				tier: 'paid',
+				cognitoSub: 'malformed-sub-001',
+				tierExpiresAt: 'not-a-date',
+				createdAt: '2025-01-15T10:30:00.000Z'
+			}]);
+			mockGetSessionRecord.mockResolvedValue(null);
+
+			const result = await getProfile('malformed@example.com', 'malformed-sub-001');
+
+			// Fail closed: registered tier and limits
+			expect(result.tier).toBe('registered');
+			expect(result.rateLimits.limit).toBe(100);
+			expect(result.rateLimits.windowMinutes).toBe(60);
+
+			// Exactly one TIER_EXPIRY_MALFORMED warning, without identifying values
+			const malformedWarnings = DebugAndLog.warn.mock.calls
+				.filter(args => String(args[0]).includes('TIER_EXPIRY_MALFORMED'));
+			expect(malformedWarnings).toHaveLength(1);
+			const logged = JSON.stringify(DebugAndLog.warn.mock.calls);
+			expect(logged).not.toContain('KEY#somehash');
+			expect(logged).not.toContain('malformed-sub-001');
+			expect(logged).not.toContain('malformed@example.com');
+		});
+
+		it('should report the Fallback tier and its limits for a lapsed record with a valid fallback, without fallback attributes', async () => {
+			const pastDate = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+			const fallbackEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+			mockQueryByEmail.mockResolvedValue([{
+				pk: 'KEY#somehash',
+				email: 'lapsed@example.com',
+				tier: 'private',
+				cognitoSub: 'lapsed-sub-002',
+				tierExpiresAt: pastDate,
+				fallbackTier: 'paid',
+				fallbackExpiresAt: fallbackEnd,
+				createdAt: '2025-01-15T10:30:00.000Z'
+			}]);
+			mockGetSessionRecord.mockResolvedValue(null);
+
+			const result = await getProfile('lapsed@example.com', 'lapsed-sub-002');
+
+			// The remembered tier is served, with its limits
+			expect(result.tier).toBe('paid');
+			expect(result.rateLimits.limit).toBe(3000);
+			expect(result.rateLimits.windowMinutes).toBe(1440);
+			expect(result.rateLimits.remaining).toBe(3000);
+
+			// Neither fallback attribute is returned
+			expect(result).not.toHaveProperty('fallbackTier');
+			expect(result).not.toHaveProperty('fallbackExpiresAt');
+			expect(JSON.stringify(result)).not.toContain('fallback');
+
+			// A valid fallback is not a malformed value
+			const malformedWarnings = DebugAndLog.warn.mock.calls
+				.filter(args => String(args[0]).includes('TIER_EXPIRY_MALFORMED'));
+			expect(malformedWarnings).toHaveLength(0);
 		});
 
 		it('should use paid tier rate limits for active paid user', async () => {

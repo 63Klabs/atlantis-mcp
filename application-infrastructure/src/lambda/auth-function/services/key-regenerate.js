@@ -28,7 +28,8 @@ const { generateApiKey, hashApiKey } = require('../utils/api-key');
  * 2. Retrieve API key hash salt from CachedSsmParameter
  * 3. Generate new API key and compute scrypt hash
  * 4. Delete old key record from Users table
- * 5. Create new key record preserving email, tier, cognitoSub, tierExpiresAt
+ * 5. Create new key record preserving email, tier, cognitoSub, tierExpiresAt (ISO 8601 string
+ *    or null), and the remembered lower tier (`fallbackTier`, `fallbackExpiresAt`) when present
  * 6. Update Cognito custom:api_key with new hash
  * 7. Return new raw key and success message
  *
@@ -36,7 +37,7 @@ const { generateApiKey, hashApiKey } = require('../utils/api-key');
  * @param {string} email - User email address (from JWT payload)
  * @param {string} cognitoSub - Cognito user sub identifier (from JWT payload)
  * @returns {Promise<{apiKey: string, message: string}>} New API key and success message
- * @throws {Object} Throws `{ statusCode: 404, message: 'User not found' }` when no user record exists
+ * @throws {Error} Throws an Error with `statusCode` 404 and message 'User not found' when no user record exists
  * @throws {Error} Throws on DynamoDB, SSM, or Cognito errors
  * @example
  * const result = await regenerateKey('user@example.com', 'abc-123-def');
@@ -69,8 +70,8 @@ async function regenerateKey(email, cognitoSub) {
 	// >! Delete old key record
 	await UserDao.deleteUserRecord(existingRecord.pk);
 
-	// >! Create new key record preserving email, tier, cognitoSub, tierExpiresAt
-	await UserDao.putUserRecord({
+	// >! Create new key record preserving email, tier, cognitoSub, tierExpiresAt (fallback attributes below)
+	const newRecord = {
 		pk: `KEY#${newKeyHash}`,
 		email: existingRecord.email,
 		tier: existingRecord.tier,
@@ -78,7 +79,14 @@ async function regenerateKey(email, cognitoSub) {
 		createdAt: now.toISOString(),
 		ttl,
 		tierExpiresAt: existingRecord.tierExpiresAt || null
-	});
+	};
+	// >! Carry the remembered lower tier (spec 0-0-7-lapsed-tier-downgrade): without it, regenerating
+	// >! a key would discard what the user held before a higher voucher. Written only when present.
+	if (existingRecord.fallbackTier !== undefined && existingRecord.fallbackTier !== null) {
+		newRecord.fallbackTier = existingRecord.fallbackTier;
+		newRecord.fallbackExpiresAt = existingRecord.fallbackExpiresAt ?? null;
+	}
+	await UserDao.putUserRecord(newRecord);
 
 	// >! Update Cognito custom:api_key with new hash
 	await CognitoService.updateUserAttributes(cognitoSub, [

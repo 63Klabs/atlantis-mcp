@@ -12,7 +12,7 @@ Target: November 2026
 - [ ] address static site generation issue for API specs
 - [ ] add a GET method endpoint (should just be for discovery, no body or query string. init and discovery?)
 - [ ] dependabot findings
-- [ ] rate-limit-client-ip-spoofing
+- [ ] rate-limit-client-ip-spoofing (re-evaluate PLAN, use github/@63klabs/cache-data)
 
 ## 0-0-8
 

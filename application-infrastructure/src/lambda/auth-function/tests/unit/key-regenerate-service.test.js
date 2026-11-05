@@ -5,6 +5,7 @@
  * - Delete old record + create new record flow
  * - Cognito custom:api_key update
  * - Preserved user fields on regeneration
+ * - Fallback attributes carried to the new record only when present
  * - User not found error handling
  *
  * @module tests/unit/key-regenerate-service
@@ -153,6 +154,49 @@ describe('Key Regeneration Service', () => {
 		expect(record.tierExpiresAt).toBeNull();
 	});
 
+	it('should carry fallbackTier and fallbackExpiresAt to the new record when the old record has them', async () => {
+		mockQueryByEmail.mockResolvedValue([{
+			pk: 'KEY#oldhash',
+			email: 'test@example.com',
+			tier: 'private',
+			cognitoSub: 'test-sub-123',
+			tierExpiresAt: '2026-12-31T00:00:00.000Z',
+			fallbackTier: 'paid',
+			fallbackExpiresAt: '2027-08-29T00:00:00.000Z'
+		}]);
+		await regenerateKey('test@example.com', 'test-sub-123');
+		const record = mockPutUserRecord.mock.calls[0][0];
+		expect(record.fallbackTier).toBe('paid');
+		expect(record.fallbackExpiresAt).toBe('2027-08-29T00:00:00.000Z');
+	});
+	it('should write fallbackExpiresAt as null when the old record has a fallbackTier with no end date', async () => {
+		mockQueryByEmail.mockResolvedValue([{
+			pk: 'KEY#oldhash',
+			email: 'test@example.com',
+			tier: 'private',
+			cognitoSub: 'test-sub-123',
+			tierExpiresAt: '2026-12-31T00:00:00.000Z',
+			fallbackTier: 'paid',
+			fallbackExpiresAt: null
+		}]);
+		await regenerateKey('test@example.com', 'test-sub-123');
+		const record = mockPutUserRecord.mock.calls[0][0];
+		expect(record.fallbackTier).toBe('paid');
+		expect(record.fallbackExpiresAt).toBeNull();
+	});
+	it('should not add fallback attributes when the old record has no fallbackTier', async () => {
+		mockQueryByEmail.mockResolvedValue([{
+			pk: 'KEY#oldhash',
+			email: 'test@example.com',
+			tier: 'paid',
+			cognitoSub: 'test-sub-123',
+			tierExpiresAt: '2026-12-31T00:00:00.000Z'
+		}]);
+		await regenerateKey('test@example.com', 'test-sub-123');
+		const record = mockPutUserRecord.mock.calls[0][0];
+		expect(record).not.toHaveProperty('fallbackTier');
+		expect(record).not.toHaveProperty('fallbackExpiresAt');
+	});
 	it('should update Cognito custom:api_key with new hash', async () => {
 		mockQueryByEmail.mockResolvedValue([{
 			pk: 'KEY#oldhash',
