@@ -374,7 +374,7 @@ Line numbers were read on 2026-11-02 at `dev` `71251f0`; find each edit by its t
     - _Requirements: 15.10, 17.1, 18.1, 18.2, 18.3, 18.4, 18.5, 18.6, 18.7, 18.8, 18.9_
 
 - [ ] 15. Roll out phase 2 (owner)
-  - [~] 15.1 Deploy to `test` and check the Downgrade
+  - [ ] 15.1 Deploy to `test` and check the Downgrade
     - After the owner commits and merges to `test`, confirm Build passes the layer loop and PostDeploy passes.
     - Follow V-D phase 2, steps 1 to 4: the lapsed `paid` user regenerates the key on the `test` profile page, sends one request, and the record is read back. Then search the logs.
     - Record in `VERIFICATION.md`:
@@ -382,26 +382,26 @@ Line numbers were read on 2026-11-02 at `dev` `71251f0`; find each edit by its t
       - the record's tier, `tierExpiresAt`, and `ttl` in days;
       - the `TIER_LAPSE_DOWNGRADE` count and the `AccessDeniedException` count.
     - _Requirements: 17.2, 17.3_
-  - [~] 15.2 Check the voucher rule and the restore on `test`
+  - [ ] 15.2 Check the voucher rule and the restore on `test`
     - Follow V-D phase 2, step 5: a short-lived `paid` voucher, redeemed as a `private` user.
     - Record the HTTP status, the message, and `currentUses` before and after. Delete the voucher.
     - Then follow V-D phase 2, step 6, the restore, with a throwaway `paid` user. Record: the end date and `ttl` before the voucher; the record after the voucher (`tier`, `fallbackTier`, `fallbackExpiresAt`); the `X-RateLimit-Limit` after the forced lapse; the record after the first request (`tier`, `tierExpiresAt`, no fallback attributes, `ttl` in days); and the `TIER_LAPSE_DOWNGRADE` line with `toTier`.
     - _Requirements: 17.4, 17.8_
-  - [~] 15.3 Decide on IAM if a check failed
+  - [ ] 15.3 Decide on IAM if a check failed
     - If 15.1 or 15.2 shows `X-MCP-Auth-Status: degraded`, any `AccessDeniedException`, or a restore that never lands, stop. Follow V-D step 7 and the `dynamodb:Select` note in "Open points" in the design.
     - The owner chooses between correcting the conditions and the `LeadingKeys`-only fallback (Design 10).
     - Apply the choice on `dev`. Record it in `VERIFICATION.md`, `design.md` section 10, and the Security changelog entry. Repeat 15.1.
     - _Requirements: 13.9, 17.5_
-  - [~] 15.4 Scan, then promote
+  - [ ] 15.4 Scan, then promote
     - Merge to `beta` only after 15.1 and 15.2 pass. Confirm PostDeploy.
     - Before the merge to `main`, with the owner's approval, repeat the V-C scan on `beta` and `prod`. Record the count of records with an end date in the past.
     - Merge to `main` and confirm PostDeploy.
     - _Requirements: 17.5, 17.6_
-  - [~] 15.5 Close issue #5
+  - [ ] 15.5 Close issue #5
     - With the owner's go-ahead, close [issue #5](https://github.com/63Klabs/atlantis-mcp/issues/5) with a comment linking the v0.0.7 changelog entries.
     - _Requirements: 17.7_
 
-- [~] 16. Final checkpoint
+- [ ] 16. Final checkpoint
   - Mark `lapsed tier downgrade` complete in `TODO.md` under `## 0-0-7` (`- [x]`) once tasks 5 and 15 are done.
   - Confirm `VERIFICATION.md` has:
     - the phase 1 scan, the renewal check, and the suite results;
