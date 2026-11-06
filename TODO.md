@@ -8,8 +8,8 @@ Target: November 2026
 - [x] api-gateway-live-alias
 - [x] fix: tools-list-returns-cachescope
 - [x] schema-validation-of-modern-results
-- [-] lapsed tier downgrade
-- [-] address static site generation issue for API specs
+- [x] lapsed tier downgrade
+- [x] address static site generation issue for API specs
 - [-] dependabot findings
 - [ ] add a GET method endpoint (should just be for discovery, no body or query string. init and discovery?)
 - [ ] rate-limit-client-ip-spoofing (re-evaluate PLAN, use github/@63klabs/cache-data)
@@ -32,6 +32,7 @@ Target: December 2026
 - [ ] Consolidate the pricing table, currently in 3 or more spots (read settings, auth settings, static site) - how to incorporate SSM Parameter store
 - [ ] Add S2S API key that is able to be rotated
 - [ ] Add more Stack Outputs
+- [ ] Redoc 3 migration
 
 ## Far Out
 

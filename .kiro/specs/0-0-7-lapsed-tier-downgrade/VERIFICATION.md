@@ -936,7 +936,7 @@ Result:
 
 Pass, with one open item: on the very first run (about 04:40Z on 2026-11-06) the redemption wrote no fallback attributes. That attempt used the iso_in_days-generated PAID_END; a byte check (od -c) showed the function's output was clean. The two later cycles used a hand-typed PAID_END and wrote the fallback correctly. The cause was not found and the generated-value cycle was not repeated. The owner accepted this open item on 2026-11-06 and chose to continue.
 
-## Final verification
+## Pre-main scan (task 15.4)
 
 Run scan count on Beta and Prod:
 
