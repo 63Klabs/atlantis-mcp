@@ -26,11 +26,11 @@ Target: December 2026
 - [ ] Remove `ReadLambdaPermission` (unqualified grant) from `template.yml` - unused since 0-0-7-api-gateway-live-alias, kept one release for revert safety (v0.0.8)
 - [ ] version-scoped-rollback-alarms - the PROD rollback alarm is function-level (see specs/0-0-8-version-scoped-rollback-alarms)
 - [ ] upstream-alias-integration-report - report the starter alias pattern and permission-pair convention to Atlantis (see specs/0-0-8-upstream-alias-integration-report)
-- [ ] Update account profile timeout, with auto page refresh and aria notification
-- [ ] Consolidate the pricing table, currently in 3 or more spots (read settings, auth settings, static site) - how to incorporate SSM Parameter store
 
 ## Future
 
+- [ ] Update account profile timeout, with auto page refresh and aria notification
+- [ ] Consolidate the pricing table, currently in 3 or more spots (read settings, auth settings, static site) - how to incorporate SSM Parameter store
 - [ ] Add S2S API key that is able to be rotated
 - [ ] Add more Stack Outputs
 
