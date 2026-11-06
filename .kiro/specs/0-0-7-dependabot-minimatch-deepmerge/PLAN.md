@@ -1,6 +1,6 @@
 # Plan: Dependabot alerts for minimatch and deepmerge
 
-Source: [ISSUE.md](ISSUE.md). Reviewed on 2026-11-06 against the working tree (`dev`, `test`, `beta` at `2a65814`) and the npm registry. Every number below was reproduced; nothing in the repository or on GitHub has been changed yet.
+Source: [ISSUE.md](ISSUE.md). Reviewed on 2026-11-06 against the working tree (`dev`, `test`, `beta` at `2a65814`) and the npm registry. Every number below was reproduced; all five questions were answered on 2026-11-06 and the work started the same day.
 
 ## Findings
 
@@ -32,7 +32,7 @@ Pinning minimatch above what eslint, glob, and test-exclude declare means those 
 
 If Q1 is answered "yes" for the override, the work is small and mechanical:
 
-1. Switch to `dev` (see D1).
+1. Work on `dev` (see D1). The checkout was already on `dev` at `69260e1` when the answers arrived.
 2. Add `"overrides": { "minimatch": "^11.0.1" }` to the `package.json` of each approved project, written after the existing keys and with no other formatting change.
 3. In each project run `npm install --include=dev`, then a plain `npm audit fix` (no `--force`), as in the recipe in the dependency-audit notes.
 4. Confirm with `npm ls minimatch` that every copy is `11.0.x` or later, and with `npm audit` that no minimatch finding remains.
@@ -50,7 +50,7 @@ If Q1 is answered "yes" for the override, the work is small and mechanical:
 | D3 | Keep the override range `^11.0.1`, not an exact pin. | `11.0.1` is the first patched version, and the caret lets a later 11.x patch flow in. This follows the skill's rule of keeping the project's existing caret style. |
 | D4 | Do not add new tests. | No new behavior; verification is the existing suites, `npm ls`, and `npm audit`. You asked not to add tests unless requested. |
 | D5 | Do not touch production dependencies, `template.yml`, or the buildspecs. | Nothing in scope reaches them. |
-| D6 | Apply nothing to GitHub (no alert dismissal) until Q2 is answered. | Dismissal changes shared repository state. |
+| D6 | Dismiss the deepmerge alerts only after the minimatch change is verified, and only the 11 deepmerge alerts. | Dismissal changes shared repository state (Q2 approved it). |
 | D7 | The spec text names the public advisory IDs only and gives no exploit detail. | `.kiro/specs` reaches public GitHub with a release. Both advisories are already public. |
 | D8 | The spec directory uses the `0-0-7` prefix. | The top `CHANGELOG.md` version is `v0.0.7 (unreleased)`, and `TODO.md` already lists "dependabot findings" under 0-0-7. |
 
@@ -74,6 +74,8 @@ The audit skill allows `overrides` only with your explicit approval. It is the o
 
 Answer: A
 
+**Decision (locked):** Approve `"minimatch": "^11.0.1"` in all 11 `package.json` files.
+
 ### Q2. What happens to the 11 deepmerge alerts?
 
 No patched version exists (F3).
@@ -86,6 +88,8 @@ No patched version exists (F3).
 
 Answer: A
 
+**Decision (locked):** Dismiss the 11 deepmerge alerts as "tolerable risk", each with a comment naming this spec, the dev-only scope, and the re-check condition.
+
 ### Q3. Which pass of the two-pass release carries this change?
 
 Package and lockfile updates are allowed in the prepare pass; the version 0.0.7 verify pass is still open (other 0-0-7 items remain in `TODO.md`).
@@ -97,6 +101,8 @@ Package and lockfile updates are allowed in the prepare pass; the version 0.0.7 
 
 Answer: A
 
+**Decision (locked):** Make the change now on `dev` in the 0.0.7 verify pass, with CHANGELOG entries under `Security` and `Dependencies`.
+
 ### Q4. How is the override recorded and removed later?
 
 - **A.** Add a short "Dev-tool overrides" section to an existing developer page (for example `docs/developer/` pages on testing or dependencies, found during implementation) that lists each override, why it exists, and the condition for removal. Add one `TODO.md` item under 0-0-8 to re-check the overrides and the dismissed deepmerge alerts at the next release.
@@ -107,6 +113,8 @@ Answer: A
 
 Answer: A
 
+**Decision (locked):** Add a "Dev-tool overrides" section to an existing developer page, and one `TODO.md` item under 0-0-8 to re-check the overrides and the dismissed alerts at the next release.
+
 ### Q5. How much spec documentation does this need?
 
 - **A.** ISSUE.md and PLAN.md only, plus a `VERIFICATION.md` with the before-and-after results. Skip requirements.md, design.md, and tasks.md.
@@ -115,3 +123,5 @@ Answer: A
 **Recommendation: A.** The change is one config key in 11 files plus a GitHub action, with no design to speak of; the plan's outline already works as the task list. B adds three documents that would restate it. Choose B if you want the usual task checklist in Kiro.
 
 Answer: A
+
+**Decision (locked):** `ISSUE.md`, `PLAN.md`, and a `VERIFICATION.md` with the before-and-after results. No requirements.md, design.md, or tasks.md.

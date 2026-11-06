@@ -135,6 +135,34 @@ After the release, add a header for the next version at the top of the version l
 
 Add new entries only under that header. Never edit text under a dated version. See the [changelog convention](../../.kiro/steering/changelog-convention.md).
 
+## Dev-tool overrides
+
+Eleven `package.json` files carry an `overrides` entry that raises a transitive dev dependency above what its parents declare. The entries exist to clear Dependabot alerts that no parent release fixes yet. They affect test and lint tooling only; no deployed Lambda, layer, or page contains these packages.
+
+| Override | Projects | Why | Remove when |
+|----------|----------|-----|-------------|
+| `"minimatch": "^11.0.1"` | All 11 projects with a `package.json` and lockfile: the 8 under `application-infrastructure/src/lambda/` (functions and layers), `src/static`, `tests/kiro-skills`, and `tests/postdeploy-verify` | `eslint`, `@eslint/config-array`, `glob`, and `test-exclude` cap `minimatch` at 10.x or 9.x, and versions before 11.0.1 are affected by [GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249) | The latest `eslint`, `@eslint/config-array`, `test-exclude`, and the `glob` that `@jest/reporters` uses all declare a `minimatch` range that includes 11.x |
+
+Because an override is not a dependency entry, `npm audit fix` leaves it alone, and the `audit-update-npm-packages` skill neither updates nor removes it. Check it by hand in each prepare pass:
+
+```bash
+npm view eslint dependencies.minimatch
+npm view @eslint/config-array dependencies.minimatch
+npm view test-exclude dependencies.minimatch
+npm view glob dependencies.minimatch
+```
+
+When every parent accepts 11.x, delete the `overrides` key from the 11 files, run `npm install --include=dev` in each project, and confirm with `npm ls minimatch` and `npm audit`.
+
+The 11 Dependabot alerts for `deepmerge` ([GHSA-gcqx-w48m-w2h4](https://github.com/advisories/GHSA-gcqx-w48m-w2h4)) were dismissed as a tolerable risk, because no patched release exists and the only caller is `jest-config` merging maintainer-written configuration. GitHub does not reopen a dismissed alert when a fix appears, so check at each release:
+
+```bash
+npm view deepmerge version
+npm view jest-config dependencies.deepmerge
+```
+
+If `deepmerge` has a release newer than 4.3.1, update the lockfiles to it and note it in the changelog. The reasoning is in the [Dependabot findings spec](../../.kiro/specs/0-0-7-dependabot-minimatch-deepmerge/PLAN.md).
+
 ## What each gate stops
 
 | Gate | Runs | Checks | Can stop | Cannot stop |

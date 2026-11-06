@@ -11,7 +11,7 @@ Target: November 2026
 - [x] lapsed tier downgrade
 - [x] address static site generation issue for API specs
 - [-] dependabot findings
-- [ ] add a GET method endpoint (should just be for discovery, no body or query string. init and discovery?)
+- [ ] [GET returns html](.kiro/specs/0-0-7-get-on-mcp-v1-returns-html-landing-page-200)
 - [ ] rate-limit-client-ip-spoofing (re-evaluate PLAN, use github/@63klabs/cache-data)
 
 ## 0-0-8
@@ -24,10 +24,12 @@ Target: December 2026
 - [ ] Remove `ReadLambdaPermission` (unqualified grant) from `template.yml` - unused since 0-0-7-api-gateway-live-alias, kept one release for revert safety (v0.0.8)
 - [ ] version-scoped-rollback-alarms - the PROD rollback alarm is function-level (see specs/0-0-8-version-scoped-rollback-alarms)
 - [ ] upstream-alias-integration-report - report the starter alias pattern and permission-pair convention to Atlantis (see specs/0-0-8-upstream-alias-integration-report)
+- [ ] Re-check the dev-tool `minimatch` overrides (remove them once eslint, @eslint/config-array, test-exclude, and jest's glob accept minimatch 11) and the 11 dismissed `deepmerge` alerts at each release (see docs/developer/release-process.md#dev-tool-overrides and specs/0-0-7-dependabot-minimatch-deepmerge)
 - [ ] pin-auth-page-cdn-script - the login, register, forgot-password, and profile pages load `amazon-cognito-identity-js@6` from jsDelivr with no exact version or integrity hash (see specs/0-0-8-pin-auth-page-cdn-script)
 
 ## Future
 
+- [ ] Explore llms.txt and llms-full.txt
 - [ ] Update account profile timeout, with auto page refresh and aria notification
 - [ ] Consolidate the pricing table, currently in 3 or more spots (read settings, auth settings, static site) - how to incorporate SSM Parameter store
 - [ ] Add S2S API key that is able to be rotated

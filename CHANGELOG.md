@@ -105,6 +105,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 - **The Read function's Users table access is narrowed** [Spec: 0-0-7-lapsed-tier-downgrade](../.kiro/specs/0-0-7-lapsed-tier-downgrade/) - `UsersTableAuthRead` allows `GetItem` only on user records (`KEY#*`) and only for the seven attributes auth uses; `UsersTableAuthUpdate` allows `UpdateItem` only on user records and only for `tier`, `tierExpiresAt`, `ttl`, `fallbackTier`, and `fallbackExpiresAt`, with no item values returned. Before, the function could read and update any item and attribute in the table, including vouchers
+- **Dependabot alerts for `minimatch` and `deepmerge` in dev tooling** [Spec: 0-0-7-dependabot-minimatch-deepmerge](../.kiro/specs/0-0-7-dependabot-minimatch-deepmerge/) - Clears 11 of 22 open alerts and records the reason for the other 11. All 22 were on development dependencies (the jest and eslint toolchain), so no deployed Lambda, layer, or page was affected
+  - `minimatch` ([GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249), denial of service through `globParts` amplification) is now `11.0.5` in all 11 projects with a lockfile. The parents (`eslint`, `@eslint/config-array`, `glob`, `test-exclude`) still declare `minimatch` 9.x or 10.x, so the fix is an `overrides` entry, `"minimatch": "^11.0.1"`, in each `package.json`. Test results and lint counts are the same before and after. The 11 alerts close when this reaches `main` on GitHub
+  - `deepmerge` ([GHSA-gcqx-w48m-w2h4](https://github.com/advisories/GHSA-gcqx-w48m-w2h4), prototype poisoning in `mergeObject()`) has no patched release; `4.3.1` is the latest and `jest-config` requires it. The 11 alerts were dismissed on GitHub as a tolerable risk, because the only caller is `jest-config` merging maintainer-written configuration. GitHub does not reopen a dismissed alert, so check `deepmerge` at each release
+  - The overrides and the conditions for removing them are listed in [Dev-tool overrides](docs/developer/release-process.md#dev-tool-overrides)
+
+### Dependencies
+- Dev-only: `minimatch` 10.2.6 and 9.0.9 to 11.0.5 in all 11 projects with a lockfile, through an `overrides` entry. This removes the nested `minimatch@9.0.9`, `brace-expansion`, and `balanced-match` and adds `@isaacs/nonrecursive-glob-match`. `babel-plugin-istanbul` moved from 8.0.0 to 8.0.2 in 7 of the projects when the lockfiles were re-resolved. No production dependency changed
 
 ## [v0.0.6] (2026-09-02)
 
