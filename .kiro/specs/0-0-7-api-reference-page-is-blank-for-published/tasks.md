@@ -126,29 +126,29 @@ Do not commit unless the owner asks. Do not edit `ISSUE.md`, `TODO.md`, anything
     - Leave the commit to the owner
     - _Requirements: 5.11, 8.1, 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.8_
 
-- [ ] 9. Roll out to `test` and verify (Phase 4, owner)
-  - [~] 9.1 Deploy and read the PostDeploy result
+- [x] 9. Roll out to `test` and verify (Phase 4, owner)
+  - [x] 9.1 Deploy and read the PostDeploy result
     - After the owner commits to `dev` and the change reaches the `test` branch, let the pipeline deploy. The change is a code change, so it goes through the verify pass of the release path, not the prepare pass
     - In the PostDeploy log, confirm `pre_build` ran the Verifier tests (including `docs-page-tests`) and that script 02 and the S3 sync succeeded. Record the outcome in a short `VERIFICATION.md` in this spec directory
     - _Requirements: 8.3_
-  - [~] 9.2 Check the page on `test`
+  - [x] 9.2 Check the page on `test`
     - `curl -sS https://d16wymzfzyj9xi.cloudfront.net/docs/api/ | grep -o '<script src="[^"]*redoc[^"]*"[^>]*>'` and confirm the pinned `v2.5.4` URL, `integrity`, and `crossorigin`
     - Open the page in a browser. Confirm that all four paths render (`POST /mcp/v1`, `POST /mcp/auth/key/regenerate`, `GET /mcp/auth/profile`, `POST /mcp/auth/voucher/redeem`) and that the console shows no integrity, CORS, or script errors. This is the only step that enforces the integrity hash. If the page is blank or shows the fallback, capture the console output and report it before going further
     - Record the result in `VERIFICATION.md`
     - _Requirements: 8.4_
 
-- [ ] 10. Promote (Phase 4, owner)
-  - [~] 10.1 Promote to `beta` and check it
+- [x] 10. Promote (Phase 4, owner)
+  - [x] 10.1 Promote to `beta` and check it
     - Only after tasks 9.1 and 9.2 are met, promote to `beta` through the normal flow
     - When the PostDeploy build on `beta` passes, `curl` `https://mcp-beta.atlantis.63klabs.net/docs/api/`, confirm the pinned URL, and open it in a browser. If the old page is still served well after the sync, report it to the owner of the separate invalidation stack; do not add invalidation to this application
     - Record the result in `VERIFICATION.md`
     - _Requirements: 8.5, 8.6_
-  - [~] 10.2 Release and check `prod`
+  - [x] 10.2 Release and check `prod`
     - Promote to `main` with the 0.0.7 release. Nothing changes prod before the normal release path reaches it
     - After the prod PostDeploy passes, make the same `curl` and browser checks on `https://mcp.atlantis.63klabs.net/docs/api/` and record them
     - _Requirements: 8.7_
 
-- [~] 11. Final checkpoint
+- [x] 11. Final checkpoint
   - Mark the TODO line "address static site generation issue for API specs" complete under `## 0-0-7` once task 9.2 is met. That line is the owner's to edit
   - Confirm `VERIFICATION.md` has the PostDeploy outcome, the `curl` result, and the browser result for `test`, and for `beta` and `prod` once they are done
   - Remind the owner of the follow-ups this feature leaves: `0-0-8-pin-auth-page-cdn-script` (ISSUE.md only), the later Redoc 3 migration, and that the reporter on GitHub #6 can be told to reload once the fix reaches their stage. If the CodeBuild failures mentioned in the issue are still of interest, the owner can send the build link or logs for a separate issue
