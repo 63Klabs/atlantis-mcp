@@ -96,6 +96,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Lapsed voucher tiers were never downgraded** [Spec: 0-0-7-lapsed-tier-downgrade](../.kiro/specs/0-0-7-lapsed-tier-downgrade/) - `tierExpiresAt` is an ISO 8601 string, and the Read function compared it with epoch seconds, so a lapsed voucher tier kept its limits. The Read function and the profile now use the same rule
   - A value that does not parse now gives `registered` limits instead of keeping the stored tier
   - Documentation that described `tierExpiresAt` as Unix epoch seconds is corrected
+- **API reference page was blank** [Spec: 0-0-7-api-reference-page-is-blank-for-published](../.kiro/specs/0-0-7-api-reference-page-is-blank-for-published/) ([#6](https://github.com/63Klabs/atlantis-mcp/issues/6)) - The page at `/docs/api/` loaded Redoc from the `latest` path of its CDN. When Redoc 3 became `latest`, the page was left loading an ES module with a classic script tag. The browser rejected it and the page showed only the breadcrumb and footer on test, beta, and prod. The page now loads the exact release `v2.5.4` with a Subresource Integrity hash, so a CDN change can no longer alter it
+  - If the script cannot load (blocked, offline, or failing the integrity check), the page shows a message with a link to `/docs/api/openapi.json`, and a `<noscript>` note covers browsers without JavaScript
+  - The generator escapes the embedded spec and the page title, so text such as `</script>` in an API description can no longer end the script early
+  - New test `application-infrastructure/tests/postdeploy-verify/docs-page-tests.jest.mjs` checks the pinned URL, the integrity attribute, the escaping, and the fallback on every PostDeploy build
+  - New developer page, [API reference page](docs/developer/api-reference-page.md), with the procedure for changing the pinned version
+  - Redoc stays on the 2.x line; a move to Redoc 3 is a later change
 
 ### Security
 - **The Read function's Users table access is narrowed** [Spec: 0-0-7-lapsed-tier-downgrade](../.kiro/specs/0-0-7-lapsed-tier-downgrade/) - `UsersTableAuthRead` allows `GetItem` only on user records (`KEY#*`) and only for the seven attributes auth uses; `UsersTableAuthUpdate` allows `UpdateItem` only on user records and only for `tier`, `tierExpiresAt`, `ttl`, `fallbackTier`, and `fallbackExpiresAt`, with no item values returned. Before, the function could read and update any item and attribute in the table, including vouchers

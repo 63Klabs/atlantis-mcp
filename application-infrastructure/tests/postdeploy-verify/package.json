@@ -2,7 +2,7 @@
   "name": "atlantis-mcp-postdeploy-verify-tests",
   "version": "0.0.1",
   "private": true,
-  "description": "Tests for the post-deploy verifier, postdeploy-scripts/verify-deployment.js",
+  "description": "Tests for the post-deploy verifier and the API reference page generator",
   "type": "module",
   "scripts": {
     "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js"

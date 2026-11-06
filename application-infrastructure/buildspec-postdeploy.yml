@@ -23,7 +23,7 @@ phases:
     runtime-versions:
       nodejs: latest
     commands:
-      # Note: Redoc is loaded from CDN at runtime in the generated HTML (no CLI install needed)
+      # Note: Redoc is loaded from CDN at runtime in the generated HTML at a pinned version with an integrity hash (no CLI install needed)
 
       # Install Pandoc for markdown-to-HTML conversion
       # Pandoc is not available in Amazon Linux 2023 repos; install from official GitHub release

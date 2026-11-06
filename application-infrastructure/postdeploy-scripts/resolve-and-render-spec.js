@@ -14,6 +14,50 @@
 const fs = require('fs');
 const path = require('path');
 
+// >! The API page runs a third-party script on the same origin as the sign-in
+// >! pages (/login/, /register/, /profile/). Load one exact release and the
+// >! SHA-384 digest of its bytes, never a moving path such as /latest/ or /v2.x/:
+// >! a vendor release changed /latest/ to an ES module and blanked this page.
+// >! To change the version, follow docs/developer/api-reference-page.md.
+const REDOC_VERSION = '2.5.4';
+const REDOC_INTEGRITY = 'sha384-w447zOpYfw/1Tv/5AK9NfHTlQIqE3RVR6KY62jCyy9zNDgO64cMwGGP1Fj0zJVf5';
+const REDOC_BUNDLE_URL = `https://cdn.redoc.ly/redoc/v${REDOC_VERSION}/bundles/redoc.standalone.js`;
+
+/** Path of the OpenAPI description published beside the page by 04-consolidate-and-deploy.sh. */
+const OPENAPI_DOWNLOAD_PATH = '/docs/api/openapi.json';
+
+/**
+ * Escape text for use inside HTML element content or a quoted attribute.
+ *
+ * @param {*} text - Value to escape; converted to a string first
+ * @returns {string} The text with & < > " ' replaced by character references
+ * @example
+ * escapeHtml('A <b> & "c"'); // 'A &lt;b&gt; &amp; &quot;c&quot;'
+ */
+function escapeHtml(text) {
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
+ * Serialize a value as JSON that is safe inside an inline <script> element.
+ *
+ * @param {*} value - JSON-serializable value
+ * @returns {string} JSON text with every "<" written as \u003c
+ * @example
+ * serializeForInlineScript({ a: '</script>' }); // '{"a":"\\u003c/script>"}'
+ */
+function serializeForInlineScript(value) {
+  // >! A "</script>" or "<!--" inside a description would end or hide the script and
+  // >! blank the page. "<" can only occur inside a JSON string, where \u003c is the
+  // >! same character, so JSON.parse of the result returns the original value.
+  return JSON.stringify(value).replace(/</g, '\\u003c');
+}
+
 const inputFile = process.argv[2];
 const outputFile = process.argv[3];
 
@@ -107,7 +151,8 @@ if (Array.isArray(resolved.servers)) {
   }
 }
 
-const title = (resolved.info && resolved.info.title) || 'API Reference';
+// >! Escape the title: it comes from the spec and is placed in HTML element content.
+const title = escapeHtml((resolved.info && resolved.info.title) || 'API Reference');
 
 const html = `<!DOCTYPE html>
 <html lang="en">
@@ -127,6 +172,7 @@ const html = `<!DOCTYPE html>
     .breadcrumb-nav a:hover, .breadcrumb-nav a:focus { text-decoration: underline; }
     .breadcrumb-nav a:focus-visible { outline: 2px solid #4a6cf7; outline-offset: 2px; }
     footer { margin-top: 0; padding: 1.5rem 1rem; border-top: 1px solid #e0e0e8; text-align: center; font-size: 0.8rem; color: #8888a0; }
+    .redoc-fallback { margin: 1rem; padding: 1rem; border: 1px solid #e0e0e8; border-radius: 4px; color: #4a4a68; }
   </style>
 </head>
 <body>
@@ -138,17 +184,28 @@ const html = `<!DOCTYPE html>
     </ol>
   </nav>
   <div id="redoc-container"></div>
+  <noscript>
+    <p class="redoc-fallback">JavaScript is required to show the interactive API reference.
+    <a href="${OPENAPI_DOWNLOAD_PATH}">Download the OpenAPI description</a>.</p>
+  </noscript>
   <footer>
     {{{settings.footer}}}
   </footer>
   <script>document.getElementById('copyright-year').textContent = new Date().getFullYear();</script>
-  <script src="https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js"></script>
+  <script src="${REDOC_BUNDLE_URL}" integrity="${REDOC_INTEGRITY}" crossorigin="anonymous"></script>
   <script>
-    var spec = ${JSON.stringify(resolved)};
+    var spec = ${serializeForInlineScript(resolved)};
     Redoc.init(spec, {
       scrollYOffset: 0,
       hideDownloadButton: false
     }, document.getElementById('redoc-container'));
+  </script>
+  <script>
+    if (typeof Redoc === 'undefined') {
+      document.getElementById('redoc-container').innerHTML =
+        '<p class="redoc-fallback" role="alert">The interactive API reference could not be loaded. ' +
+        '<a href="${OPENAPI_DOWNLOAD_PATH}">Download the OpenAPI description</a> instead.</p>';
+    }
   </script>
 </body>
 </html>`;

@@ -1,0 +1,385 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 Create `docs-page-tests.jest.mjs`": [
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793983076418
+      },
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793983086334
+      },
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793983179879
+      }
+    ],
+    "1.2 Widen the package description": [
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793983076815
+      },
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793983184404
+      },
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793983207774
+      }
+    ],
+    "1.3 Run the new file against the unchanged generator and confirm it fails": [
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793983077023
+      },
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793983210546
+      },
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793983247372
+      }
+    ],
+    "2.1 Recompute the integrity value": [
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793983077236
+      },
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793983250936
+      },
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793983279100
+      }
+    ],
+    "2.2 Add the constants and the helpers": [
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793983077538
+      },
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793983281909
+      },
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793983329214
+      }
+    ],
+    "2.3 Edit the template": [
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793983077890
+      },
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793983332807
+      },
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793983374981
+      }
+    ],
+    "2.4 Run the new file, then the package": [
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793983078085
+      },
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793983378428
+      },
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793983486819
+      }
+    ],
+    "3.1 Review the generator diff": [
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793983078422
+      },
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793983490665
+      },
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793983513006
+      }
+    ],
+    "3.2 Run the Old generator tests by hand (optional)": [
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793983078679
+      },
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793983517456
+      },
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793983557869
+      }
+    ],
+    "3.3 Render the page in jsdom with the pinned bundle (optional)": [
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793983078967
+      },
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793983560475
+      },
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793984626971
+      }
+    ],
+    "4.1 Write `docs/developer/api-reference-page.md`": [
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793983079225
+      },
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793984629823
+      },
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793984705981
+      }
+    ],
+    "4.2 Link it from the developer README": [
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793983079446
+      },
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793984710170
+      },
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793984736044
+      }
+    ],
+    "5.1 `ARCHITECTURE.md`": [
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793983079836
+      },
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793984739724
+      },
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793984769194
+      }
+    ],
+    "5.2 `buildspec-postdeploy.yml`": [
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793983080055
+      },
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793984772124
+      },
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793984798100
+      }
+    ],
+    "6.1 Edit `CHANGELOG.md`": [
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793983080224
+      },
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793984801366
+      },
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793984845384
+      }
+    ],
+    "7.1 Review every Markdown file changed in tasks 4 to 6": [
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793983080470
+      },
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793984848456
+      },
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793992115708
+      }
+    ],
+    "8.1 Run everything and check the file list": [
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793983080677
+      },
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793992119028
+      },
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793992190488
+      }
+    ],
+    "9.1 Deploy and read the PostDeploy result": [
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793983080916
+      }
+    ],
+    "9.2 Check the page on `test`": [
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793983081218
+      }
+    ],
+    "10.1 Promote to `beta` and check it": [
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793983081446
+      }
+    ],
+    "10.2 Release and check `prod`": [
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793983081772
+      }
+    ],
+    "11. Final checkpoint": [
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793983082065
+      }
+    ],
+    "1. Write the regression test and see it fail (Phase 1, red)": [
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793983247643
+      }
+    ],
+    "2. Fix the generator (Phase 2, green)": [
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793983487088
+      }
+    ],
+    "3. Phase 1 and 2 checkpoint": [
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793984627372
+      }
+    ],
+    "4. Add the developer page (Phase 3)": [
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793984736336
+      }
+    ],
+    "5. Update the architecture document and the buildspec comment (Phase 3)": [
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793984798320
+      }
+    ],
+    "6. Update the changelog (Phase 3)": [
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793984845614
+      }
+    ],
+    "7. Check the Markdown (Phase 3)": [
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793992115932
+      }
+    ],
+    "8. Final sweep before rollout": [
+      {
+        "executionId": "2007995f-df0d-465e-b5f3-0f9812e9d71a",
+        "chatSessionId": "sess_0369cda5-167b-4b03-b73d-dc76f60ecd0c",
+        "timestamp": 1793992190641
+      }
+    ]
+  }
+}

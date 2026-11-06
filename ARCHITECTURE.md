@@ -901,7 +901,7 @@ After the CloudFormation stack deploys, a separate CodeBuild project runs the po
 Two packages are installed and tested in the `pre_build` phase, before any script runs:
 
 - `application-infrastructure/src/static`: the static site, tested with jsdom and audited (production dependencies only).
-- `application-infrastructure/tests/postdeploy-verify`: the tests for the verifier that `05-verify-deployment.sh` runs. It installs with `npm ci --include=dev` because `NODE_ENV=production` would otherwise skip the pinned test dependencies. A failing test stops the build before the site is built or published.
+- `application-infrastructure/tests/postdeploy-verify`: the tests for the verifier that `05-verify-deployment.sh` runs. It installs with `npm ci --include=dev` because `NODE_ENV=production` would otherwise skip the pinned test dependencies. A failing test stops the build before the site is built or published. The package also tests the API page generator (`postdeploy-scripts/resolve-and-render-spec.js`).
 
 Because `05-verify-deployment.sh` runs last, the documentation site is already published when verification runs. For how verification works, see [Post-deploy verification (developer)](docs/developer/post-deploy-verification.md). For operating it (skip switch, reading results, retrying), see [Post-deploy verification (admin-ops)](docs/admin-ops/post-deploy-verification.md).
 
@@ -1003,7 +1003,7 @@ S3 buckets include AccountId and Region (and optionally, an Organization Prefix)
 
 - **AWS SAM** — CloudFormation transform for serverless resources
 - **Pandoc** — Markdown to HTML conversion for documentation
-- **Redoc** — OpenAPI spec to HTML documentation (CDN, no CLI install)
+- **Redoc** — OpenAPI spec to HTML documentation (loaded from the CDN at a pinned version with a Subresource Integrity hash; no CLI install)
 - **Python 3** — Build scripts for SSM parameter creation and template configuration
 
 ## Operating Cost Estimate
