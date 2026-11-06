@@ -753,3 +753,185 @@ Every changed or new file maps to tasks 1 to 13. Nothing is unexplained. `docs/d
 2. The `AF` lint total (8595) is one below task 11's record (8596), explained above.
 3. The four `indent` findings in each `tier-common.js` loader are the same tab-against-2-space mismatch as the rest of both functions.
 4. `CHANGELOG.md:95` keeps the phase 1 wording "once the lapsed-tier fix ships", as instructed.
+
+## Phase 2, 15.1 manual test (Downgrade on test)
+
+Build and PostDeploy result for the phase 2 deploy to `test`: not recorded by the owner.
+
+Before
+
+```json
+{
+    "Item": {
+        "tier": {
+            "S": "paid"
+        },
+        "tierExpiresAt": {
+            "S": "2026-11-02T23:29:18Z"
+        },
+        "ttl": {
+            "N": "1804287842"
+        }
+    }
+}
+```
+
+```bash
+curl -si -X POST "$ENDPOINT/mcp/v1"   -H 'Content-Type: application/json'   -H "Authorization: Bearer $API_KEY"   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'   | grep -iE '^HTTP|^x-ratelimit-limit|^x-mcp-auth-status'
+```
+
+Result:
+
+```
+HTTP/2 200 
+x-ratelimit-limit: 100
+```
+
+`x-mcp-auth-status` did not appear.
+
+```json
+{
+    "Item": {
+        "tier": {
+            "S": "registered"
+        },
+        "tierExpiresAt": {
+            "NULL": true
+        },
+        "ttl": {
+            "N": "1804289791"
+        }
+    }
+}
+```
+
+after: 119 days ahead; changed by 1949 s
+
+Cloudwatch logs:
+
+```
+2026-11-05T23:36:31.348Z        a660f12b-5050-422e-8ed1-ce169be6eb2e    INFO    [INFO] TIER_LAPSE_DOWNGRADE {"fromTier":"paid","toTier":"registered"}
+
+AccessDeniedException count: 0
+```
+
+15.1: pass
+
+## Phase 2, 15.2 manual test (voucher rule and restore on test)
+
+Tried applying voucher to a private tier in profile:
+
+```
+Voucher not applied: your account already has the private tier.
+```
+HTTP STATUS 400
+{"error":"Voucher not applied: your account already has the private tier."}
+
+Voucher was not used:
+
+```
+{
+    "Item": {
+        "currentUses": {
+            "N": "0"
+        },
+        "maxUses": {
+            "N": "1"
+        },
+        "targetTier": {
+            "S": "paid"
+        }
+    }
+}
+```
+
+Voucher for paid to private:
+
+on the first run (about 04:40Z on 2026-11-06) the voucher applied with no fallback. That attempt used the iso_in_days-generated PAID_END. The od check showed the function's output is clean. The cause is not found, and the repeat that worked used a hand-typed date.
+
+before
+
+```
+{
+    "Item": {
+        "tier": {
+            "S": "paid"
+        },
+        "tierExpiresAt": {
+            "S": "2027-01-05T04:57:57Z"
+        },
+        "ttl": {
+            "N": "1804308040"
+        }
+    }
+}
+```
+
+After:
+```
+{
+    "Item": {
+        "fallbackExpiresAt": {
+            "S": "2027-01-05T04:57:57Z"
+        },
+        "fallbackTier": {
+            "S": "paid"
+        },
+        "tier": {
+            "S": "private"
+        },
+        "tierExpiresAt": {
+            "S": "2026-11-07T05:00:31.537Z"
+        },
+        "ttl": {
+            "N": "1804309231"
+        }
+    }
+}
+```
+
+fallback end date MATCHES
+
+Forced lapse (tierExpiresAt set to a past date, then one authenticated request):
+
+HTTP/2 200 
+x-ratelimit-limit: 3000
+x-mcp-auth-status didn't appear
+
+dynamo db query
+{
+    "Item": {
+        "tier": {
+            "S": "paid"
+        },
+        "tierExpiresAt": {
+            "S": "2027-01-05T04:57:57Z"
+        },
+        "ttl": {
+            "N": "1804311021"
+        }
+    }
+}
+
+Log
+
+2026-11-06T05:09:02.074Z        2a217aa3-50df-4f07-8583-aa8794e137d4    INFO    [INFO] TIER_LAPSE_DOWNGRADE {"fromTier":"private","toTier":"paid"}
+
+AccessDeniedException count: 0
+
+I re-ran the 15.2B steps, hand entering the PAID_END.
+Logs show:
+2026-11-06T05:09:02.074Z        2a217aa3-50df-4f07-8583-aa8794e137d4    INFO    [INFO] TIER_LAPSE_DOWNGRADE {"fromTier":"private","toTier":"paid"}
+        2026-11-06T05:30:21.771Z        f57dbfdb-d669-4466-80f1-b8f5d3d404b4    INFO    [INFO] TIER_LAPSE_DOWNGRADE {"fromTier":"private","toTier":"paid"}
+
+From both runs.
+
+Result:
+
+- Voucher rule checked: redeeming a voucher over a private tier returned 400 with the message "Voucher not applied: your account already has the private tier.", and the voucher was not used up (`currentUses` stayed 0).
+- Remembered tier written on redemption: `fallbackTier` and a `fallbackExpiresAt` that matches the previous end date.
+- Restore on lapse: the request after the forced lapse was served the paid limit (`x-ratelimit-limit: 3000`), the end date was restored, both fallback attributes were removed, and `TIER_LAPSE_DOWNGRADE` was logged with `fromTier` private and `toTier` paid. The `AccessDeniedException` count was 0.
+- The restore cycle ran twice. The log lines are at 05:09:02Z and 05:30:21Z, and the final record belongs to the second run.
+- Cleanup done (vouchers deleted, accounts reset to their prior state), which the owner confirmed in chat.
+
+Pass, with one open item: on the very first run (about 04:40Z on 2026-11-06) the redemption wrote no fallback attributes. That attempt used the iso_in_days-generated PAID_END; a byte check (od -c) showed the function's output was clean. The two later cycles used a hand-typed PAID_END and wrote the fallback correctly. The cause was not found and the generated-value cycle was not repeated. The owner accepted this open item on 2026-11-06 and chose to continue.
