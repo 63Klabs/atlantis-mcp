@@ -215,6 +215,7 @@ The Auth function returns 404 in three places: `GET /mcp/auth/profile`, `POST /m
 | D10 (Q9=A) | Override `MISSING_AUTHENTICATION_TOKEN` to `400` with a JSON `message` body | Not rewritten by CloudFront; matches the existing 400 for unknown routes in `routes/index.js` |
 | D11 (Q10=A) | Fold the Auth function's 404 responses into this spec: move them to a status CloudFront does not rewrite | The user's answer: early stage, testers only, so a contract change is acceptable |
 | D12 (Q11=B) | The Auth function returns `422 Unprocessable Content` with `{ "error": "User not found" }` for a valid token with no Users record, on `GET /mcp/auth/profile`, `POST /mcp/auth/key/regenerate`, and `POST /mcp/auth/voucher/redeem` | Distinct from voucher redemption's 400 and 409; does not claim the account is permanently gone; not rewritten by CloudFront |
+| D13 (task 14.6) | Upstream cache-data issue filed: https://github.com/63Klabs/cache-data/issues/252, 2026-11-06, label `enhancement` | The owner approved filing. `Response.set()` ignores a falsy body, so `setBody(null)` cannot clear the generic template body, although `finalize()` keeps `null` as `null`. A duplicate search on `setBody null`, `bodiless response`, and `Response.setBody(null)` found nothing. Not part of this spec's acceptance criteria |
 
 ## 10. Open questions and recommendations
 

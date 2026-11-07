@@ -599,6 +599,21 @@
         "executionId": "6c9290ac-7f52-4fef-9529-f20285416eb0",
         "chatSessionId": "sess_fd948eb6-52fb-46e3-b212-452432036a2e",
         "timestamp": 1794024488109
+      },
+      {
+        "executionId": "23cef879-5d8e-48bf-a9c1-0a15fe6671f0",
+        "chatSessionId": "sess_fd948eb6-52fb-46e3-b212-452432036a2e",
+        "timestamp": 1794025303332
+      },
+      {
+        "executionId": "23cef879-5d8e-48bf-a9c1-0a15fe6671f0",
+        "chatSessionId": "sess_fd948eb6-52fb-46e3-b212-452432036a2e",
+        "timestamp": 1794025306981
+      },
+      {
+        "executionId": "23cef879-5d8e-48bf-a9c1-0a15fe6671f0",
+        "chatSessionId": "sess_fd948eb6-52fb-46e3-b212-452432036a2e",
+        "timestamp": 1794025375971
       }
     ],
     "14.3 Check the API reference page": [
@@ -606,6 +621,16 @@
         "executionId": "9fcec859-5353-4e19-b007-0a3670e09033",
         "chatSessionId": "sess_fd948eb6-52fb-46e3-b212-452432036a2e",
         "timestamp": 1794003132411
+      },
+      {
+        "executionId": "c330ecf0-b823-4228-b9f8-4fc37bbbfdf1",
+        "chatSessionId": "sess_fd948eb6-52fb-46e3-b212-452432036a2e",
+        "timestamp": 1794026054463
+      },
+      {
+        "executionId": "c330ecf0-b823-4228-b9f8-4fc37bbbfdf1",
+        "chatSessionId": "sess_fd948eb6-52fb-46e3-b212-452432036a2e",
+        "timestamp": 1794026085698
       }
     ],
     "14.4 Connect Kiro to `test`": [
@@ -613,6 +638,16 @@
         "executionId": "9fcec859-5353-4e19-b007-0a3670e09033",
         "chatSessionId": "sess_fd948eb6-52fb-46e3-b212-452432036a2e",
         "timestamp": 1794003132643
+      },
+      {
+        "executionId": "c330ecf0-b823-4228-b9f8-4fc37bbbfdf1",
+        "chatSessionId": "sess_fd948eb6-52fb-46e3-b212-452432036a2e",
+        "timestamp": 1794026086321
+      },
+      {
+        "executionId": "c330ecf0-b823-4228-b9f8-4fc37bbbfdf1",
+        "chatSessionId": "sess_fd948eb6-52fb-46e3-b212-452432036a2e",
+        "timestamp": 1794026089665
       }
     ],
     "14.5 Comment on GitHub issue #8": [
@@ -620,6 +655,26 @@
         "executionId": "9fcec859-5353-4e19-b007-0a3670e09033",
         "chatSessionId": "sess_fd948eb6-52fb-46e3-b212-452432036a2e",
         "timestamp": 1794003132930
+      },
+      {
+        "executionId": "c330ecf0-b823-4228-b9f8-4fc37bbbfdf1",
+        "chatSessionId": "sess_fd948eb6-52fb-46e3-b212-452432036a2e",
+        "timestamp": 1794026090441
+      },
+      {
+        "executionId": "f6839991-d242-4fff-84ef-013481308dda",
+        "chatSessionId": "sess_fd948eb6-52fb-46e3-b212-452432036a2e",
+        "timestamp": 1794026214662
+      },
+      {
+        "executionId": "f6839991-d242-4fff-84ef-013481308dda",
+        "chatSessionId": "sess_fd948eb6-52fb-46e3-b212-452432036a2e",
+        "timestamp": 1794026218921
+      },
+      {
+        "executionId": "f6839991-d242-4fff-84ef-013481308dda",
+        "chatSessionId": "sess_fd948eb6-52fb-46e3-b212-452432036a2e",
+        "timestamp": 1794026277514
       }
     ],
     "14.6 File the upstream cache-data issue (optional)": [
@@ -627,6 +682,26 @@
         "executionId": "9fcec859-5353-4e19-b007-0a3670e09033",
         "chatSessionId": "sess_fd948eb6-52fb-46e3-b212-452432036a2e",
         "timestamp": 1794003133209
+      },
+      {
+        "executionId": "f6839991-d242-4fff-84ef-013481308dda",
+        "chatSessionId": "sess_fd948eb6-52fb-46e3-b212-452432036a2e",
+        "timestamp": 1794026277704
+      },
+      {
+        "executionId": "111753eb-eb14-4cd5-9c8c-d4b0cf433bf5",
+        "chatSessionId": "sess_fd948eb6-52fb-46e3-b212-452432036a2e",
+        "timestamp": 1794026453971
+      },
+      {
+        "executionId": "111753eb-eb14-4cd5-9c8c-d4b0cf433bf5",
+        "chatSessionId": "sess_fd948eb6-52fb-46e3-b212-452432036a2e",
+        "timestamp": 1794026457568
+      },
+      {
+        "executionId": "111753eb-eb14-4cd5-9c8c-d4b0cf433bf5",
+        "chatSessionId": "sess_fd948eb6-52fb-46e3-b212-452432036a2e",
+        "timestamp": 1794026528139
       }
     ],
     "15.1 Promote through `beta` to `main`": [
@@ -718,6 +793,13 @@
         "executionId": "9fcec859-5353-4e19-b007-0a3670e09033",
         "chatSessionId": "sess_fd948eb6-52fb-46e3-b212-452432036a2e",
         "timestamp": 1794009451108
+      }
+    ],
+    "14. Roll out to `test` and verify (Phase 4, owner)": [
+      {
+        "executionId": "111753eb-eb14-4cd5-9c8c-d4b0cf433bf5",
+        "chatSessionId": "sess_fd948eb6-52fb-46e3-b212-452432036a2e",
+        "timestamp": 1794026528501
       }
     ]
   }

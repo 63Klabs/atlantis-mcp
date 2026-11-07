@@ -209,7 +209,7 @@ Do not commit unless the owner asks. Do not edit `ISSUE.md`, `template.yml`, eit
     - Leave the commit to the owner
     - _Requirements: 13.1, 14.1, 14.2, 14.3, 14.5, 14.6, 14.7, 14.8, 14.9_
 
-- [ ] 14. Roll out to `test` and verify (Phase 4, owner)
+- [x] 14. Roll out to `test` and verify (Phase 4, owner)
   - [x] 14.1 Deploy and read the PostDeploy result
     - After the owner commits and the change reaches the `test` branch, let the pipeline deploy. The API definition, both functions, and the tightened verifier are in the same commit
     - Read the PostDeploy log: the verifier tests pass in `pre_build`; the verifier outcome is `passed` with 47 sub-checks; `M1.1` is PASS and `X2.5` is SKIP (no custom domain); scripts 01 to 04 pass, which shows the API reference page still generates. Record the outcome and the `VERIFY_REPORT` line in `VERIFICATION.md`
@@ -221,18 +221,18 @@ Do not commit unless the owner asks. Do not edit `ISSUE.md`, `template.yml`, eit
     - If the `DELETE` with a `text/plain` body, the `text/plain` `GET`, or the `Accept: text/event-stream` `GET` returns `415`, `500`, or an empty body, apply the fallback in Design, Components 1 (response template under more keys, or no request template), redeploy to `test`, and repeat the matrix. This changes only `template-openapi-spec.yml`
     - Do not send any request to `beta` or `prod`
     - _Requirements: 13.5, 13.10_
-  - [~] 14.3 Check the API reference page
+  - [x] 14.3 Check the API reference page
     - Open the generated `/docs/api/` page on `test` and confirm it renders and does not show the catch-all as a broken operation. Record the result
     - _Requirements: 13.6_
-  - [~] 14.4 Connect Kiro to `test`
+  - [x] 14.4 Connect Kiro to `test`
     - Point Kiro at the `test` stage and confirm that the tools load. If they do not, capture the Kiro MCP log and report the finding before going further
     - Record the result in `VERIFICATION.md`. A passing verifier does not replace this step
     - _Requirements: 13.7_
-  - [~] 14.5 Comment on GitHub issue #8
+  - [x] 14.5 Comment on GitHub issue #8
     - Only after 14.2 shows the zero-length notification body: draft a comment saying that the related observation (a notification should get `202` with no body) is fixed in v0.0.7 (unreleased), and that the `GET` behavior is fixed in the same release. Include no key, account identifier, distribution identifier, or stack name. Show the draft to the owner
     - After the owner approves the wording, post it with `gh issue comment 8 --repo 63Klabs/atlantis-mcp --body-file <file>` using a temporary file, and delete the file. Record that the comment was posted
     - _Requirements: 13.8_
-  - [~] 14.6 File the upstream cache-data issue (optional)
+  - [x] 14.6 File the upstream cache-data issue (optional)
     - If the owner asks: search `63Klabs/cache-data` for an existing issue, then file one with label `enhancement` saying that `Response.set()` ignores a falsy body, so `setBody(null)` cannot clear the generic template body, although `finalize()` documents that it keeps `null` as `null`. Use the section shape of `ISSUE.md`; record the URL as a decision in `PLAN.md`
     - Not part of this spec's acceptance criteria
 

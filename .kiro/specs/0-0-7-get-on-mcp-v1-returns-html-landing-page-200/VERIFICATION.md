@@ -498,3 +498,71 @@ API Gateway matches request template keys exactly and has no wildcard key, so li
 ### Next step
 
 Not verified on a deployed stage. After the owner redeploys `test`, re-run the curl matrix above (all 10 rows, and add `GET` and `DELETE` with other content types such as `application/x-www-form-urlencoded` and `text/plain; charset=utf-8`) and record the result here. Task 14.2 stays open until then.
+
+## Curl matrix on test, second run (task 14.2)
+
+Run on 2026-11-07 (about 04:22 UTC) against the `test` stage only, after the owner redeployed `test` with the fallback from the previous section and approved this run. Each of the 14 requests was sent exactly once with `curl -si --max-time 30` (request 3 with `-I`), from a bash script that passed each request as an argument list with quoted host variables. Request 5 carried the fake header `x-api-key: not-a-real-key`; no real key and no `Authorization` header was sent. Nothing was sent to `beta`, `prod`, or any other host. Hosts, the API id, the distribution id, cookies, request ids, and rate-limit counters are not recorded here. The temporary output under `/tmp` was deleted afterwards.
+
+| # | Request | Status | allow | content-type | cache-control | content-length | x-cache | Body message | Result |
+|---|---------|--------|-------|--------------|---------------|----------------|---------|--------------|--------|
+| 1 | `GET <cloudfront-domain>/mcp/v1` with `Accept: text/event-stream` | 405 | `POST` | `application/json` | `no-store` | 67 | Error from cloudfront | `Method not allowed. This endpoint accepts POST only.` | PASS |
+| 2 | `DELETE <cloudfront-domain>/mcp/v1` | 405 | `POST` | `application/json` | `no-store` | 67 | Error from cloudfront | `Method not allowed. This endpoint accepts POST only.` | PASS |
+| 3 | `HEAD <cloudfront-domain>/mcp/v1` | 405 | `POST` | `application/json` | `no-store` | 67 | Error from cloudfront | none (HEAD) | PASS |
+| 4 | `GET <cloudfront-domain>/mcp/v1` with `Content-Type: text/plain` | 405 | `POST` | `application/json` | `no-store` | 67 | Error from cloudfront | `Method not allowed. This endpoint accepts POST only.` | PASS |
+| 5 | `GET <cloudfront-domain>/mcp/v1` with `x-api-key: not-a-real-key` | 405 | `POST` | `application/json` | `no-store` | 67 | Error from cloudfront | `Method not allowed. This endpoint accepts POST only.` | PASS |
+| 6 | `DELETE <cloudfront-domain>/mcp/v1` with `Content-Type: text/plain` and body `x` | 405 | `POST` | `application/json` | `no-store` | 67 | Error from cloudfront | `Method not allowed. This endpoint accepts POST only.` | PASS |
+| 7 | `GET <cloudfront-domain>/mcp/not-a-route` | 400 | none | `application/json` | none | 55 | Error from cloudfront | `Unsupported path or method for this API.` | PASS |
+| 8 | `PUT <cloudfront-domain>/mcp/auth/profile` | 400 | none | `application/json` | none | 55 | Error from cloudfront | `Unsupported path or method for this API.` | PASS |
+| 9 | `POST <cloudfront-domain>/mcp/v1` (`notifications/initialized`, `Content-Type: application/json`) | 202 | none | `application/json` | `no-store` (no `max-age=3600`; `expires: 0`) | 0 | Miss from cloudfront | none (zero-length body) | PASS |
+| 10 | `GET <raw-url>/mcp/v1` with `Accept: text/event-stream` | 405 | `POST` | `application/json` | `no-store` | 67 | Error from cloudfront | `Method not allowed. This endpoint accepts POST only.` | PASS |
+| 11 | `GET <cloudfront-domain>/mcp/v1` with `Content-Type: application/x-www-form-urlencoded` | 405 | `POST` | `application/json` | `no-store` | 67 | Error from cloudfront | `Method not allowed. This endpoint accepts POST only.` | PASS |
+| 12 | `GET <cloudfront-domain>/mcp/v1` with `Content-Type: text/plain; charset=utf-8` | 405 | `POST` | `application/json` | `no-store` | 67 | Error from cloudfront | `Method not allowed. This endpoint accepts POST only.` | PASS |
+| 13 | `DELETE <cloudfront-domain>/mcp/v1` with `Content-Type: application/xml` and body `<a/>` | 405 | `POST` | `application/json` | `no-store` | 67 | Error from cloudfront | `Method not allowed. This endpoint accepts POST only.` | PASS |
+| 14 | `PATCH <cloudfront-domain>/mcp/v1` with `Content-Type: application/vnd.example+json` and body `{}` (unlisted type, exploratory) | 500 | none | `application/json` | none | 36 | Error from cloudfront | `Internal server error` (header `x-amzn-errortype: InternalServerErrorException`) | NOTE |
+
+Notes:
+- Requests 7 and 8 carry `x-amzn-errortype: MissingAuthenticationTokenException`, the gateway's own error type, with the overridden 400 status and message, as in the first run.
+- No response to rows 1 to 13 had an HTML body, a 403, a 404, a 415, or a 500. Every curl invocation exited 0.
+- Request 12 shows that API Gateway strips or ignores the `charset` parameter when it picks the request template, so `text/plain; charset=utf-8` is covered by the `text/plain` key. This narrows the residual risk named in the previous section.
+- Request 14 is the documented residual risk: a content type with no request template key (here a vendor `+json` type) on a method without a mapped body still returns the 500 seen in the first run, not a 403 or 404, so the CloudFront landing-page rewrite does not apply to it. It is not a failure of the required rows. Whether to add more keys, or to accept the risk, is the owner's decision. No change was made.
+- Request 9 ran the Read function once and counted once against the public limit.
+
+### Result
+
+Met for the required rows. Rows 1 to 10 pass (10 of 10) and the extra rows 11 to 13 pass (3 of 3), 13 of 13 in total. Row 14 (exploratory) is a NOTE: HTTP 500 for an unlisted content type.
+
+Compared with the first run, requests 4 and 6 (`GET` and `DELETE` with `Content-Type: text/plain`) now return 405 with `allow: POST`, `cache-control: no-store`, and the JSON message, instead of HTTP 500. Requests 1 to 3, 5, and 7 to 10 are unchanged. The fallback (request and response templates under nine content types) fixed the failure it was meant to fix.
+## API reference page and Kiro on test (tasks 14.3 and 14.4)
+Recorded from the owner's report. No request was sent to any stage for this section, and no hostnames or identifiers are recorded. Both checks were done after the fallback deploy of `test`, the same deploy as the second curl matrix run above.
+| Task | Check | Observed | Result |
+|------|-------|----------|--------|
+| 14.3 | Generated `/docs/api/` page on `test` | The page renders. The catch-all operation is not shown on it. | PASS |
+| 14.4 | Kiro pointed at the `test` stage | The tools load. (The owner's message called this check "14.2"; the Kiro check is task 14.4.) | PASS |
+### Exported spec (task 14.3)
+The owner downloaded the page's `openapi.json`, which is the API Gateway export of the `test` stage (OpenAPI 3.0.1). It shows:
+| Path | Observed in the export |
+|------|------------------------|
+| `/mcp/v1` | Has `post`, `options`, and `x-amazon-apigateway-any-method`. The catch-all carries a `405` response with the `Cache-Control`, `Access-Control-Allow-Origin`, `Content-Type`, and `Allow` headers and a `MessageResponse` body schema (`message`, a required string). |
+| `/mcp/auth/profile` | Declares `422`, not `404`. |
+| `/mcp/auth/key/regenerate` | Declares `422`, not `404`. |
+| `/mcp/auth/voucher/redeem` | Declares 400, 401, 409, 422, and 500. |
+No operation declares a 403 or a 404.
+The export does not contain the gateway-response override (`x-amazon-apigateway-gateway-responses`) or the mock integration. API Gateway exports omit both when exported without extensions. This is expected. Both are covered by the curl matrix runs above, not by the page.
+### Interpretation
+Redoc draws only the standard OpenAPI methods (`get`, `put`, `post`, `delete`, `options`, `head`, `patch`, `trace`). `x-amazon-apigateway-any-method` is a vendor extension, so Redoc does not draw it. The page therefore shows no broken or half-rendered operation, which is what the task requires (the page "does not show the catch-all as a broken operation").
+Notes:
+- The 405 behavior is not on the API reference page. It is documented in `docs/end-user/supported-protocol-revisions.md` and `docs/admin-ops/cors-and-response-headers.md`. No change was made.
+### Result
+Met. Task 14.3 passes: the page renders and does not show the catch-all as a broken operation. Task 14.4 passes: Kiro connects to `test` and the tools load.
+
+## Issue #8 comment (task 14.5)
+
+Date: 2026-11-06
+
+The owner approved the comment text, and it was posted unchanged as a plain comment on GitHub issue 63Klabs/atlantis-mcp#8. The issue had no earlier comments. The issue was not closed, labeled, assigned, or edited. The temporary file holding the text was deleted after posting.
+
+Comment URL: https://github.com/63Klabs/atlantis-mcp/issues/8#issuecomment-6702334238
+
+## Upstream cache-data issue (task 14.6)
+
+Filed on 2026-11-06 with label `enhancement` after a duplicate search found no existing issue: https://github.com/63Klabs/cache-data/issues/252. The temporary title and body files were deleted after filing.
