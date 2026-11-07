@@ -8,7 +8,7 @@
  * - GET  + path ends with `mcp/auth/profile`        → ProfileController
  * - POST + path ends with `mcp/auth/key/regenerate`  → KeyRegenerateController
  * - POST + path ends with `mcp/auth/voucher/redeem`  → VoucherRedeemController
- * - No match → 404 Not found
+ * - No match → 400 Not found
  *
  * Controllers are lazy-loaded via `require()` inside the route handler
  * to avoid pulling in service dependencies at module-load time.
@@ -19,6 +19,7 @@
 'use strict';
 
 const { tools: { DebugAndLog } } = require('@63klabs/cache-data');
+const { UNKNOWN_ROUTE_STATUS } = require('../utils/status-codes');
 
 /**
  * Process an incoming request by dispatching to the matching controller.
@@ -62,9 +63,9 @@ const process = async (clientRequest, response) => {
 		return;
 	}
 
-	// >! No matching route — return 404
+	// >! No matching route — return 400
 	DebugAndLog.warn('No matching route', { method, path });
-	response.setStatusCode(404);
+	response.setStatusCode(UNKNOWN_ROUTE_STATUS);
 	response.setBody({ error: 'Not found' });
 };
 

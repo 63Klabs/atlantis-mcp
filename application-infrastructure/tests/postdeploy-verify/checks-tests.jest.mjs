@@ -6,7 +6,7 @@
  * opened and no real network request is made.
  *
  * Coverage:
- * - a healthy stage passes all 45 sub-checks, with and without an edge target, with and without a key
+ * - a healthy stage passes all 47 sub-checks, with and without an edge target, with and without a key
  * - for every sub-check, at least one fake-server fault fails it with the documented reason
  *   (report `checks` entry and the sub-check line on standard output)
  * - the owner and "no usable response; see <owner>" reasons
@@ -320,13 +320,13 @@ const ALL_IDS = SUB_CHECKS.map((definition) => definition.id);
 /* ------------------------------------------------------------------ */
 
 describe('healthy stage', () => {
-  it('has 45 sub-checks, 36 core and 9 advisory', () => {
-    expect(SUB_CHECKS).toHaveLength(45);
-    expect(SUB_CHECKS.filter((definition) => definition.severity === 'core')).toHaveLength(36);
-    expect(SUB_CHECKS.filter((definition) => definition.severity === 'advisory')).toHaveLength(9);
+  it('has 47 sub-checks, 37 core and 10 advisory', () => {
+    expect(SUB_CHECKS).toHaveLength(47);
+    expect(SUB_CHECKS.filter((definition) => definition.severity === 'core')).toHaveLength(37);
+    expect(SUB_CHECKS.filter((definition) => definition.severity === 'advisory')).toHaveLength(10);
   });
 
-  it('passes all 45 sub-checks with a key and an edge target', async () => {
+  it('passes all 47 sub-checks with a key and an edge target', async () => {
     const run = await runStage({ server: ACCEPT_KEY, env: KEY_ENV, edge: true });
 
     expect(run.exitCode).toBe(0);
@@ -338,8 +338,8 @@ describe('healthy stage', () => {
       expect(entry.reason).toBeNull();
     }
     expect(run.report.counts).toEqual({
-      core: { passed: 36, failed: 0, skipped: 0 },
-      advisory: { passed: 9, warned: 0, skipped: 0 }
+      core: { passed: 37, failed: 0, skipped: 0 },
+      advisory: { passed: 10, warned: 0, skipped: 0 }
     });
     expect(run.report.failedCore).toEqual([]);
     expect(run.report.skippedCore).toEqual([]);
@@ -347,7 +347,7 @@ describe('healthy stage', () => {
 
     // One PASS line per sub-check, in catalog order
     const passLines = run.stdout.split('\n').filter((line) => line.startsWith('PASS'));
-    expect(passLines).toHaveLength(45);
+    expect(passLines).toHaveLength(47);
     expect(passLines.map((line) => line.split(/\s+/)[1])).toEqual(ALL_IDS);
   });
 
@@ -361,8 +361,8 @@ describe('healthy stage', () => {
       expect(entry.outcome).toBe(entry.id.startsWith('X2.') ? 'skip' : 'pass');
     }
     expect(run.report.counts).toEqual({
-      core: { passed: 36, failed: 0, skipped: 0 },
-      advisory: { passed: 5, warned: 0, skipped: 4 }
+      core: { passed: 37, failed: 0, skipped: 0 },
+      advisory: { passed: 5, warned: 0, skipped: 5 }
     });
     expect(run.calls.some((call) => call.target === 'edge')).toBe(false);
   });
@@ -377,8 +377,8 @@ describe('healthy stage', () => {
       expect(entry.outcome).toBe(entry.id.startsWith('S2.') ? 'skip' : 'pass');
     }
     expect(run.report.counts).toEqual({
-      core: { passed: 36, failed: 0, skipped: 0 },
-      advisory: { passed: 6, warned: 0, skipped: 3 }
+      core: { passed: 37, failed: 0, skipped: 0 },
+      advisory: { passed: 7, warned: 0, skipped: 3 }
     });
     expectSkipped(run, 'S2.1', /placeholder BLANK/);
     expectSkipped(run, 'S2.2', /placeholder BLANK/);
@@ -396,8 +396,8 @@ describe('healthy stage', () => {
       expect(entry.outcome).toBe(isSkipped ? 'skip' : 'pass');
     }
     expect(run.report.counts).toEqual({
-      core: { passed: 36, failed: 0, skipped: 0 },
-      advisory: { passed: 2, warned: 0, skipped: 7 }
+      core: { passed: 37, failed: 0, skipped: 0 },
+      advisory: { passed: 2, warned: 0, skipped: 8 }
     });
   });
 
@@ -855,14 +855,51 @@ const FAILURES = [
     name: 'the edge drops the MCP headers (mismatched Mcp-Name gets a result)',
     server: { edgeDropsMcpHeaders: true },
     reason: /^HTTP 200, expected 400; the edge may not be forwarding the MCP-Protocol-Version or Mcp-\* headers; body: /
+  },
+  {
+    id: 'X2.5',
+    name: 'the edge answers a GET with the site\'s landing page (HTTP 200 HTML)',
+    server: { edgeMethodNotAllowed: { fault: 'html' } },
+    reason: /^HTTP 200, expected 405; the edge is answering with the site's landing page \(an API 403 or 404 rewritten to \/index\.html\); body: /,
+    only: true
+  },
+
+  // M1
+  {
+    id: 'M1.1',
+    name: 'a GET is answered with the site\'s landing page (HTTP 200 HTML)',
+    server: { methodNotAllowed: { fault: 'html' } },
+    reason: /^HTTP 200, expected 405; the target is answering with the site's landing page \(an API 403 or 404 rewritten to \/index\.html\); body: /,
+    only: true
+  },
+  {
+    id: 'M1.1',
+    name: 'a GET gets the gateway 403 (a stage on the previous build)',
+    server: { methodNotAllowed: { fault: 'gateway-403' } },
+    reason: /^HTTP 403, expected 405; body: \{"message":"Missing Authentication Token"\}$/,
+    only: true
+  },
+  {
+    id: 'M1.1',
+    name: 'the 405 carries no Allow header',
+    server: { methodNotAllowed: { fault: 'no-allow' } },
+    reason: /^Allow is undefined, expected "POST"$/,
+    only: true
+  },
+  {
+    id: 'M1.1',
+    name: 'the 405 body is plain text, not JSON',
+    server: { methodNotAllowed: { fault: 'not-json' } },
+    reason: /^content-type is "text\/plain", expected application\/json; body is not a JSON object with a string "message"$/,
+    only: true
   }
 ];
 
 describe('every sub-check can fail with its documented reason', () => {
-  it('has a failing fault for each of the 45 sub-checks', () => {
+  it('has a failing fault for each of the 47 sub-checks', () => {
     const covered = new Set(FAILURES.map((row) => row.id));
     expect([...ALL_IDS].filter((id) => !covered.has(id))).toEqual([]);
-    expect(covered.size).toBe(45);
+    expect(covered.size).toBe(47);
   });
 
   it.each(FAILURES.map((row) => [`${row.id}: ${row.name}`, row]))('%s', async (_name, row) => {
@@ -962,7 +999,7 @@ function expectRawTargetDown(run, p1Reason) {
   }
 
   const notAttemptedIds = SUB_CHECKS
-    .filter((definition) => /^(S1|P2|P3|P4|P5|P6|T1|X1)\./.test(definition.id) || definition.id === 'V1.2')
+    .filter((definition) => /^(S1|P2|P3|P4|P5|P6|M1|T1|X1)\./.test(definition.id) || definition.id === 'V1.2')
     .map((definition) => definition.id)
     .filter((id) => id !== 'P5.9');
   for (const id of notAttemptedIds) {
@@ -971,10 +1008,10 @@ function expectRawTargetDown(run, p1Reason) {
   expectCheckFailed(run, 'P5.9', /^no baseline: P1 returned no valid supportedVersions$/);
 
   // X2 still runs against the edge
-  for (const id of ['X2.1', 'X2.2', 'X2.3', 'X2.4']) {
+  for (const id of ['X2.1', 'X2.2', 'X2.3', 'X2.4', 'X2.5']) {
     expect(run.check(id).outcome).toBe('pass');
   }
-  expect(run.calls.filter((call) => call.target === 'edge')).toHaveLength(4);
+  expect(run.calls.filter((call) => call.target === 'edge')).toHaveLength(5);
   expect(run.report.outcome).toBe('failed');
   expect(run.exitCode).toBe(1);
 }
@@ -1007,6 +1044,16 @@ describe('raw target down: not attempted (Requirement 4.6)', () => {
 
     expectRawTargetDown(run, /^no response \(ECONNREFUSED\) after 2 attempts$/);
     expect(run.calls.filter((call) => call.target === 'raw')).toHaveLength(2);
+  });
+
+  it('fails M1.1 with "not attempted" and sends no GET to the raw target when P1 is down', async () => {
+    const run = await runStage({ server: { timeout: { select: selectP1 } } });
+
+    expectFailed(run, 'M1.1', /^not attempted: raw target did not answer P1$/);
+    expect(run.calls.filter((call) => call.target === 'raw' && call.method === 'GET')).toHaveLength(0);
+    // The edge GET (X2.5) is independent of the raw target and still runs
+    expect(run.check('X2.5').outcome).toBe('pass');
+    expect(run.calls.some((call) => call.target === 'edge' && call.method === 'GET')).toBe(true);
   });
 
   it('fails S2 with "not attempted" and never sends the key when P1 is down', async () => {
@@ -1052,7 +1099,7 @@ describe('rate limited (Requirements 10.4, 10.6)', () => {
       }
       expect(entry.outcome).toBe(entry.id.startsWith('S2.') ? 'skip' : 'pass');
     }
-    expect(run.report.checks).toHaveLength(45);
+    expect(run.report.checks).toHaveLength(47);
 
     // A skipped core sub-check makes the run inconclusive, never failed or passed
     expect(run.report.outcome).toBe('inconclusive');
@@ -1232,10 +1279,10 @@ describe('S2 and the key (Requirements 9.4, 9.5)', () => {
 /* ------------------------------------------------------------------ */
 
 describe('X2 without an edge target (Requirement 2.3)', () => {
-  it('skips X2.1 to X2.4 with the documented reason and sends nothing to an edge', async () => {
+  it('skips X2.1 to X2.5 with the documented reason and sends nothing to an edge', async () => {
     const run = await runStage({ edge: false });
 
-    for (const id of ['X2.1', 'X2.2', 'X2.3', 'X2.4']) {
+    for (const id of ['X2.1', 'X2.2', 'X2.3', 'X2.4', 'X2.5']) {
       expectSkipped(run, id, 'no custom domain for this stage');
     }
     expect(run.calls.filter((call) => call.target === 'edge')).toHaveLength(0);

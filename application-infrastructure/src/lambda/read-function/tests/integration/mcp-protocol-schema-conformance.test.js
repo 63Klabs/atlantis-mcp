@@ -395,7 +395,7 @@ describe('Integration: MCP schema conformance', () => {
   });
 
   describe('notifications (no schema definition for "no body")', () => {
-    it.each(INITIALIZE_COLUMNS)('%s: notifications/initialized gets 202 and an empty body', async (column) => {
+    it.each(INITIALIZE_COLUMNS)('%s: the router returns 202 and an empty body for notifications/initialized (the finalized response is covered by routes-notification-response.test.js)', async (column) => {
       const response = await send({ jsonrpc: '2.0', method: 'notifications/initialized' }, headersFor(column));
 
       expect(response.statusCode).toBe(202);

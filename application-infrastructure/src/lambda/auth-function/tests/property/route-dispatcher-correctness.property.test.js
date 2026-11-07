@@ -11,7 +11,7 @@
  *   `mcp/auth/key/regenerate` and the method is `POST`
  * - Delegate to the Voucher Redeem Controller if and only if the path ends with
  *   `mcp/auth/voucher/redeem` and the method is `POST`
- * - Set the response status to 404 with `{ "error": "Not found" }` for all
+ * - Set the response status to 400 with `{ "error": "Not found" }` for all
  *   other path/method combinations
  *
  * This holds regardless of any prefix prepended to the path.
@@ -56,6 +56,7 @@ jest.mock('@63klabs/cache-data', () => ({
 }));
 
 const Routes = require('../../routes/index');
+const { UNKNOWN_ROUTE_STATUS } = require('../../utils/status-codes');
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                           */
@@ -151,15 +152,15 @@ describe('Feature: update-auth-function-to-use-cache-data', () => {
 						expect(mockKeyRegeneratePost).not.toHaveBeenCalled();
 					}
 
-					// 404 should NOT have been set
-					expect(response.setStatusCode).not.toHaveBeenCalledWith(404);
+					// 400 should NOT have been set
+					expect(response.setStatusCode).not.toHaveBeenCalledWith(UNKNOWN_ROUTE_STATUS);
 				}
 			),
 			{ numRuns: 100 }
 		);
 	});
 
-	it('Property 2: Route dispatcher correctness — wrong method returns 404', async () => {
+	it('Property 2: Route dispatcher correctness — wrong method returns 400', async () => {
 		// Build arbitraries that guarantee the method does NOT match the route
 		// and does not accidentally match a different route with the same suffix
 		const arbWrongMethodRoute = fc.constantFrom(...ROUTE_DEFINITIONS).chain(routeDef => {
@@ -186,8 +187,8 @@ describe('Feature: update-auth-function-to-use-cache-data', () => {
 					expect(mockKeyRegeneratePost).not.toHaveBeenCalled();
 					expect(mockVoucherRedeemPost).not.toHaveBeenCalled();
 
-					// 404 should have been set
-					expect(response.setStatusCode).toHaveBeenCalledWith(404);
+					// 400 should have been set
+					expect(response.setStatusCode).toHaveBeenCalledWith(UNKNOWN_ROUTE_STATUS);
 					expect(response.setBody).toHaveBeenCalledWith({ error: 'Not found' });
 				}
 			),
@@ -195,7 +196,7 @@ describe('Feature: update-auth-function-to-use-cache-data', () => {
 		);
 	});
 
-	it('Property 2: Route dispatcher correctness — non-matching paths return 404', async () => {
+	it('Property 2: Route dispatcher correctness — non-matching paths return 400', async () => {
 		// Generate paths that do NOT end with any known route suffix
 		const arbNonMatchingPath = fc.stringMatching(/^\/[a-zA-Z0-9/_-]{1,40}$/).filter(path => {
 			return !path.endsWith('mcp/auth/profile')
@@ -224,8 +225,8 @@ describe('Feature: update-auth-function-to-use-cache-data', () => {
 					expect(mockKeyRegeneratePost).not.toHaveBeenCalled();
 					expect(mockVoucherRedeemPost).not.toHaveBeenCalled();
 
-					// 404 should have been set
-					expect(response.setStatusCode).toHaveBeenCalledWith(404);
+					// 400 should have been set
+					expect(response.setStatusCode).toHaveBeenCalledWith(UNKNOWN_ROUTE_STATUS);
 					expect(response.setBody).toHaveBeenCalledWith({ error: 'Not found' });
 				}
 			),

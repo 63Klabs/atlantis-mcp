@@ -69,6 +69,16 @@ If you remove an API Gateway event from `template.yml`, **you MUST also remove t
 
 If you change the path or method of an endpoint in `template.yml`, **you MUST update the corresponding entry in `template-openapi-spec.yml`**.
 
+## Operations With No Lambda Integration
+
+The one-to-one rule between SAM `Events` and OpenAPI operations applies to operations that invoke a
+Lambda function. An operation whose integration is `mock` has no `Events` entry and needs no Lambda
+permission. `/mcp/v1` carries one: an `x-amazon-apigateway-any-method` mock that answers `405` with
+`Allow: POST` for every method other than `POST` and `OPTIONS`.
+
+Such an operation must never answer `403` or `404`, because CloudFront rewrites both to the site's
+landing page with HTTP 200.
+
 ## OpenAPI Spec Structure for MCP Endpoints
 
 All MCP endpoints follow this pattern:

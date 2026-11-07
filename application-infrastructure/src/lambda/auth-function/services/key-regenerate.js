@@ -19,6 +19,7 @@ const { Config } = require('../config');
 const UserDao = require('../models/user');
 const CognitoService = require('./cognito');
 const { generateApiKey, hashApiKey } = require('../utils/api-key');
+const { USER_NOT_FOUND_STATUS } = require('../utils/status-codes');
 
 /**
  * Regenerate the API key for the given user.
@@ -37,7 +38,7 @@ const { generateApiKey, hashApiKey } = require('../utils/api-key');
  * @param {string} email - User email address (from JWT payload)
  * @param {string} cognitoSub - Cognito user sub identifier (from JWT payload)
  * @returns {Promise<{apiKey: string, message: string}>} New API key and success message
- * @throws {Error} Throws an Error with `statusCode` 404 and message 'User not found' when no user record exists
+ * @throws {Error} Throws an Error with `statusCode` 422 and message 'User not found' when no user record exists
  * @throws {Error} Throws on DynamoDB, SSM, or Cognito errors
  * @example
  * const result = await regenerateKey('user@example.com', 'abc-123-def');
@@ -49,7 +50,7 @@ async function regenerateKey(email, cognitoSub) {
 
 	if (!existingRecords || existingRecords.length === 0) {
 		const error = new Error('User not found');
-		error.statusCode = 404;
+		error.statusCode = USER_NOT_FOUND_STATUS;
 		throw error;
 	}
 

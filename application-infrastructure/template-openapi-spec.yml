@@ -10,6 +10,16 @@ info:
     name: "Distributed on an AS IS BASIS"
     url: "https://github.com/63klabs/atlantis-mcp/blob/main/LICENSE.txt"
 
+# >! API Gateway answers a request that matches no operation (an unknown path, or an unsupported
+# >! method on a path other than /mcp/v1) with MISSING_AUTHENTICATION_TOKEN, status 403 by default.
+# >! CloudFront rewrites 403 and 404 to /index.html with 200, so the status here must stay outside
+# >! that pair. 400 matches what the Read function already returns for an unknown route.
+x-amazon-apigateway-gateway-responses:
+  MISSING_AUTHENTICATION_TOKEN:
+    statusCode: '400'
+    responseTemplates:
+      application/json: '{"message": "Unsupported path or method for this API."}'
+
 # =============================================================================
 # PATHS - MCP Endpoints
 # =============================================================================
@@ -54,6 +64,54 @@ paths:
           # >! unqualified ARN runs $LATEST and would bypass both.
           Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ReadLambdaFunction.Alias}/invocations
 
+    # >! Every method other than POST (and OPTIONS, which SAM's Cors block answers) gets 405.
+    # >! Without this, API Gateway answers a GET with its built-in 403, and CloudFront rewrites
+    # >! every 403 and 404 to /index.html with 200, so a client that opens a GET (Kiro does, per
+    # >! the Streamable HTTP transport) parses the landing page as JSON and fails to connect.
+    # >! A mock, not the Read function: the answer carries no information, so it needs no API key,
+    # >! writes no rate-limit counter, and starts no Lambda. A specific method defined later on
+    # >! this path takes precedence over this catch-all. Never replace 405 with 403 or 404.
+    x-amazon-apigateway-any-method:
+      summary: "Methods other than POST"
+      description: "This endpoint accepts POST only. Any other method gets 405 with Allow: POST and a JSON body. No event stream is offered."
+      responses:
+        '405':
+          description: "Method not allowed - this endpoint accepts POST only"
+          headers:
+            Allow:
+              description: "The method the endpoint accepts"
+              schema:
+                type: string
+                example: "POST"
+            Access-Control-Allow-Origin:
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+            Content-Type:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+      x-amazon-apigateway-integration:
+        type: mock
+        passthroughBehavior: when_no_match
+        requestTemplates:
+          application/json: '{"statusCode": 405}'
+        responses:
+          default:
+            statusCode: '405'
+            responseParameters:
+              method.response.header.Allow: "'POST'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Cache-Control: "'no-store'"
+              method.response.header.Content-Type: "'application/json'"
+            responseTemplates:
+              application/json: '{"message": "Method not allowed. This endpoint accepts POST only."}'
+
   /mcp/auth/key/regenerate:
     post:
       summary: "Regenerate API key"
@@ -73,6 +131,12 @@ paths:
                 $ref: '#/components/schemas/AuthResponse'
         '401':
           description: "Unauthorized - invalid or missing JWT"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPError'
+        '422':
+          description: "Unprocessable - the token is valid but the account has no user record"
           content:
             application/json:
               schema:
@@ -114,8 +178,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AuthError'
-        '404':
-          description: "User not found - no user record for the authenticated email"
+        '422':
+          description: "Unprocessable - the token is valid but the account has no user record"
           content:
             application/json:
               schema:
@@ -168,8 +232,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MCPError'
-        '404':
-          description: "User not found - the authenticated user has no Users table record"
+        '422':
+          description: "Unprocessable - the token is valid but the account has no user record"
           content:
             application/json:
               schema:
@@ -329,6 +393,17 @@ components:
           type: string
           description: "Human-readable error message"
           example: "Unauthorized"
+
+    # Message Response Schema (answers produced by API Gateway itself, such as the 405)
+    MessageResponse:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          description: "Human-readable explanation"
+          example: "Method not allowed. This endpoint accepts POST only."
 
     # Profile Response Schema
     ProfileResponse:

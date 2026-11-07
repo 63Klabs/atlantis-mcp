@@ -603,7 +603,7 @@ const RETRYABLE_STATUSES = Object.freeze([502, 503, 504]);
  */
 const NEVER_SENT_HEADERS = Object.freeze(['x-forwarded-for', 'cookie']);
 
-/** Header names (lower case) that a preflight never carries: it has no credentials. */
+/** Header names (lower case) that a request without a body (a preflight or a GET) never carries: it has no credentials. */
 const NEVER_ON_PREFLIGHT_HEADERS = Object.freeze(['authorization', 'x-api-key']);
 
 /** Longest `cause.code` accepted as an error classification. */
@@ -615,7 +615,7 @@ const ERROR_CODE_PATTERN = /^[A-Za-z0-9_]+$/;
 /**
  * @typedef {Object} RequestSpec
  * @property {string} url - Full URL to send to; the check engine resolves the catalog's `target` into it
- * @property {'POST'|'OPTIONS'} method - HTTP method
+ * @property {'POST'|'OPTIONS'|'GET'} method - HTTP method
  * @property {Object.<string, string>} [headers] - Headers, sent as written (case preserved)
  * @property {Object} [body] - JSON-RPC request without `id`; the client adds it (POST only)
  * @property {string|null} [apiKey] - Sent as `X-API-Key` when set (POST only)
@@ -625,7 +625,7 @@ const ERROR_CODE_PATTERN = /^[A-Za-z0-9_]+$/;
 /**
  * @typedef {Object} Exchange
  * @property {'response'|'no-response'|'not-attempted'} kind - Whether an answer arrived
- * @property {string|null} jsonRpcId - The `id` the client sent; null for a preflight
+ * @property {string|null} jsonRpcId - The `id` the client sent; null for a preflight or a GET
  * @property {number} [status] - HTTP status (`response` only)
  * @property {Object.<string, string>} [headers] - Response headers, lower-case names (`response` only)
  * @property {string} [bodyText] - Response body text (`response` only)
@@ -659,21 +659,21 @@ function hasHeaderName(headers, lowerName) {
  *
  * @private
  * @param {RequestSpec} spec - Request spec
- * @param {boolean} isPreflight - True for `OPTIONS`
+ * @param {boolean} carriesBody - True for `POST`, the only method that sends a body, a default `Content-Type`, and a key; false for `OPTIONS` and `GET`
  * @returns {Object.<string, string>} Headers to send
  * @example
- * buildRequestHeaders({ url: 'https://a.test/', method: 'POST', headers: { 'MCP-Method': 'tools/list' } }, false);
+ * buildRequestHeaders({ url: 'https://a.test/', method: 'POST', headers: { 'MCP-Method': 'tools/list' } }, true);
  * // { 'User-Agent': 'atlantis-mcp-postdeploy-verify', 'Content-Type': 'application/json', 'MCP-Method': 'tools/list' }
  */
-function buildRequestHeaders(spec, isPreflight) {
+function buildRequestHeaders(spec, carriesBody) {
   const specHeaders = spec.headers !== null && typeof spec.headers === 'object' ? spec.headers : {};
-  const hasApiKey = !isPreflight && typeof spec.apiKey === 'string' && spec.apiKey !== '';
+  const hasApiKey = carriesBody && typeof spec.apiKey === 'string' && spec.apiKey !== '';
   const headers = {};
 
   if (!hasHeaderName(specHeaders, 'user-agent')) {
     headers['User-Agent'] = USER_AGENT;
   }
-  if (!isPreflight && !hasHeaderName(specHeaders, 'content-type')) {
+  if (carriesBody && !hasHeaderName(specHeaders, 'content-type')) {
     headers['Content-Type'] = 'application/json';
   }
 
@@ -683,8 +683,8 @@ function buildRequestHeaders(spec, isPreflight) {
     if (NEVER_SENT_HEADERS.includes(lowerName)) {
       continue;
     }
-    // >! A preflight carries no key and no Authorization, so it cannot leak either
-    if (isPreflight && NEVER_ON_PREFLIGHT_HEADERS.includes(lowerName)) {
+    // >! A request with no body (a preflight or a GET) carries no key and no Authorization, so it cannot leak either
+    if (!carriesBody && NEVER_ON_PREFLIGHT_HEADERS.includes(lowerName)) {
       continue;
     }
     // >! The key goes only in X-API-Key, set below; a stray copy from the spec would duplicate it
@@ -778,15 +778,16 @@ function parseJsonText(text) {
  * - Headers form a plain object in the order `User-Agent`, `Content-Type` (POST),
  *   the spec's headers, `X-API-Key` (when the spec carries a key), so case goes on
  *   the wire as written. `X-Forwarded-For` and cookies are never sent. A preflight
- *   carries no key and no `Authorization`.
+ *   or a GET carries no body, no key, and no `Authorization`.
  * - A POST body is the spec's JSON-RPC object with a run-unique `id`
  *   (`verify-1`, `verify-2`, ...), returned as `jsonRpcId`. A retry reuses the `id`.
+ * - A GET has no body and no `id` (`jsonRpcId` is null).
  * - Each attempt has `redirect: 'manual'` and its own `AbortSignal.timeout(timeoutMs)`.
  *
  * One retry, after `sleep(1000)`, on a network error, a timeout, or HTTP 502, 503,
  * or 504, and never otherwise. `stats` counts requests (not attempts) as `posts`
- * and `preflights`, and every retry as `retries`; the object is live, so read it
- * after the run.
+ * and `preflights` (a GET is counted in neither), and every retry, a GET's included,
+ * as `retries`; the object is live, so read it after the run.
  *
  * @param {Object} [options] - Injected dependencies
  * @param {function(string, Object): Promise<Response>} [options.fetchImpl] - `fetch` implementation; defaults to the global `fetch`, looked up at call time
@@ -794,7 +795,7 @@ function parseJsonText(text) {
  * @param {function(number): Promise<*>} [options.sleep] - Pause for the given milliseconds; defaults to a timer
  * @param {function(): number} [options.now] - Clock in milliseconds; defaults to `Date.now`
  * @returns {{send: function(RequestSpec): Promise<Exchange>, stats: {posts: number, preflights: number, retries: number}}} Client
- * @throws {TypeError} From `send()` when the spec has no URL or a method other than POST or OPTIONS (a programming error, not a transport failure)
+ * @throws {TypeError} From `send()` when the spec has no URL or a method other than POST, OPTIONS, or GET (a programming error, not a transport failure)
  * @example
  * const http = createHttpClient({ timeoutMs: 5000 });
  * const exchange = await http.send({
@@ -864,19 +865,21 @@ function createHttpClient({ fetchImpl, timeoutMs, sleep, now } = {}) {
       throw new TypeError('request spec needs a url');
     }
     const isPreflight = spec.method === 'OPTIONS';
-    if (!isPreflight && spec.method !== 'POST') {
-      throw new TypeError('request spec method must be POST or OPTIONS');
+    const isGet = spec.method === 'GET';
+    const isPost = spec.method === 'POST';
+    if (!isPreflight && !isGet && !isPost) {
+      throw new TypeError('request spec method must be POST, OPTIONS, or GET');
     }
 
     const init = {
       method: spec.method,
-      headers: buildRequestHeaders(spec, isPreflight),
+      headers: buildRequestHeaders(spec, isPost),
       redirect: 'manual'
     };
     let jsonRpcId = null;
     if (isPreflight) {
       stats.preflights += 1;
-    } else {
+    } else if (isPost) {
       stats.posts += 1;
       jsonRpcId = `verify-${nextId}`;
       nextId += 1;
@@ -1266,11 +1269,11 @@ function createContext({ config, http, output, key = null, secrets = [], subChec
       throw new Error(`no ${spec.target} target is configured`);
     }
 
-    const isPreflight = spec.method === 'OPTIONS';
     // >! Only the catalog's "effective" requests (apiKey undefined) carry the key found
-    // >! good by S2. A made-up key or null is sent as given; a preflight never carries one
+    // >! good by S2. A made-up key or null is sent as given; only a POST can take a key,
+    // >! so a preflight or a GET never carries one
     let apiKey = null;
-    if (!isPreflight) {
+    if (spec.method === 'POST') {
       if (spec.apiKey === undefined) {
         apiKey = ctx.effectiveKey;
       } else if (typeof spec.apiKey === 'string' && spec.apiKey !== '') {
@@ -1532,6 +1535,7 @@ const SUB_CHECK_ROWS = [
   ['P5.9', 'P5', 'C', 'revisions beyond the floor are accepted'],
   ['P6.1', 'P6', 'C', 'modern tools/call carries resultType and _meta'],
   ['P6.2', 'P6', 'C', 'legacy tools/call carries neither resultType nor _meta'],
+  ['M1.1', 'M1', 'C', 'GET answers 405 with Allow: POST and a JSON body'],
   ['T1.1', 'T1', 'A', 'list_templates returns template data'],
   ['X1.1', 'X1', 'C', 'preflight answers HTTP 200 for the origin'],
   ['X1.2', 'X1', 'C', 'preflight allows MCP-Protocol-Version, Mcp-Method, and Mcp-Name'],
@@ -1539,13 +1543,14 @@ const SUB_CHECK_ROWS = [
   ['X2.1', 'X2', 'A', 'edge preflight allows the origin, the MCP headers, and POST'],
   ['X2.2', 'X2', 'A', 'edge server/discover reports the expected version'],
   ['X2.3', 'X2', 'A', 'edge returns -32020 for a mismatched Mcp-Method'],
-  ['X2.4', 'X2', 'A', 'edge returns -32020 for a mismatched Mcp-Name']
+  ['X2.4', 'X2', 'A', 'edge returns -32020 for a mismatched Mcp-Name'],
+  ['X2.5', 'X2', 'A', 'edge GET answers 405 with Allow: POST and a JSON body']
 ];
 
 /**
  * Every sub-check's definition, in the order of the design section 7 table:
- * `{ id, check, severity, title }` with `severity` `core` or `advisory`. 45
- * entries (36 core, 9 advisory). `check` is the group the sub-check belongs to;
+ * `{ id, check, severity, title }` with `severity` `core` or `advisory`. 47
+ * entries (37 core, 10 advisory). `check` is the group the sub-check belongs to;
  * V1.1 and V1.2 belong to `V1` although they are recorded by the P1 and P2
  * check functions. The context looks a sub-check up here by ID when it records
  * a result. A test fixes the ID list, so changing or reusing an ID is a
@@ -1565,13 +1570,13 @@ const SUB_CHECKS = Object.freeze(
 /**
  * Names of the checks, in the order `runChecks` runs them: P1 (which records
  * V1.1 right after its own sub-checks), S1, S2, P2 (which records V1.2 right
- * after its own), P3, P4, P5, P6, T1, X1, X2.
+ * after its own), P3, P4, P5, P6, M1, T1, X1, X2.
  *
  * @type {ReadonlyArray<string>}
  * @example
  * CHECK_ORDER[0]; // 'P1'
  */
-const CHECK_ORDER = Object.freeze(['P1', 'S1', 'S2', 'P2', 'P3', 'P4', 'P5', 'P6', 'T1', 'X1', 'X2']);
+const CHECK_ORDER = Object.freeze(['P1', 'S1', 'S2', 'P2', 'P3', 'P4', 'P5', 'P6', 'M1', 'T1', 'X1', 'X2']);
 
 /**
  * Check functions by check name: `async function(ctx)`. Each sends its requests
@@ -1615,7 +1620,7 @@ const PREFLIGHT_REQUEST_HEADERS = 'MCP-Protocol-Version,Mcp-Method,Mcp-Name,Cont
  * @typedef {Object} CatalogRequestSpec
  * @property {string} key - Catalog name of the request, for example `P2c`
  * @property {('raw'|'edge')} target - Which URL the check engine sends it to
- * @property {('POST'|'OPTIONS')} method - HTTP method
+ * @property {('POST'|'OPTIONS'|'GET')} method - HTTP method
  * @property {Object.<string, string>} headers - Headers, names exactly as the design lists them
  * @property {Object} [body] - JSON-RPC request without `id` (POST only)
  * @property {(string|null)} [apiKey] - `undefined` (property absent): the effective key; `null`: never a key; a string: sent as `X-API-Key`
@@ -1718,6 +1723,22 @@ function preflightSpec(key, target, options) {
     },
     apiKey: null
   };
+}
+
+/**
+ * Build the GET spec of M1 and X2e: a `GET` that asks for an event stream, the
+ * request that used to be answered with an HTML landing page. It has no body
+ * and no JSON-RPC `id`.
+ *
+ * @private
+ * @param {string} key - Catalog name
+ * @param {('raw'|'edge')} target - Target
+ * @returns {CatalogRequestSpec} Spec; it never carries a key
+ * @example
+ * getSpec('M1', 'raw').headers; // { Accept: 'text/event-stream' }
+ */
+function getSpec(key, target) {
+  return { key, target, method: 'GET', headers: { Accept: 'text/event-stream' }, apiKey: null };
 }
 
 /**
@@ -1894,6 +1915,9 @@ const REQUEST_BUILDERS = Object.freeze({
       jsonRpcBody('tools/call', toolCallParams('list_tools'))
     ),
 
+  // M1: a GET with Accept: text/event-stream, never a key; X2e is the same against the edge
+  M1: () => getSpec('M1', 'raw'),
+
   // T1: one real tool call that reads template data
   T1: () =>
     postSpec(
@@ -1922,7 +1946,9 @@ const REQUEST_BUILDERS = Object.freeze({
       'edge',
       { [REVISION_HEADER]: MODERN_REVISION, 'Mcp-Method': 'tools/call', 'Mcp-Name': 'list_categories' },
       jsonRpcBody('tools/call', toolCallParams('list_tools'))
-    )
+    ),
+  // X2e: the M1 GET against the edge target
+  X2e: () => getSpec('X2e', 'edge')
 });
 
 /**
@@ -3286,6 +3312,130 @@ CHECK_FUNCTIONS.P6 = checkP6;
 CHECK_FUNCTIONS.T1 = checkT1;
 
 // ---------------------------------------------------------------------------
+// Check M1 and the method-not-allowed judge (shared with X2.5)
+// ---------------------------------------------------------------------------
+
+/**
+ * Status the endpoint answers to a method it does not serve (a `GET`).
+ *
+ * >! Restated from the MCP Streamable HTTP transport pages, not imported from Lambda code, so a
+ * >! mistake in the server cannot also change what is expected. 2025-11-25: for a GET the server
+ * >! MUST return either text/event-stream or HTTP 405. 2026-07-28: a GET or DELETE to the MCP
+ * >! endpoint gets HTTP 405.
+ *
+ * @type {number}
+ */
+const METHOD_NOT_ALLOWED_STATUS = 405;
+
+/**
+ * The one method the 405 answer must list in its `Allow` header.
+ *
+ * >! Restated from the same transport pages as {@link METHOD_NOT_ALLOWED_STATUS}, not imported
+ * >! from Lambda code.
+ *
+ * @type {string}
+ */
+const ALLOWED_METHOD_VALUE = 'POST';
+
+/**
+ * Judge the body and headers of a 405 answer. Runs after the gate has confirmed the
+ * status. Problems are collected the way X2.1 collects them, so one run shows everything
+ * wrong, and are joined with `; `:
+ * - `Allow` is not exactly the one token `POST`
+ * - the content type is not `application/json`
+ * - the body is not a JSON object with a non-empty string `message`
+ *
+ * The wording of `message` is never read.
+ *
+ * @private
+ * @param {ExchangeEntry} entry - A GET entry that passed its gate for HTTP 405
+ * @param {Array.<*>} secrets - Values to redact
+ * @returns {Verdict} `{ ok: true }`, or a failure whose reason lists every problem
+ * @example
+ * judgeMethodNotAllowed(entry, []);
+ * // { ok: false, reason: 'Allow is undefined, expected "POST"' } when the answer has no Allow header
+ */
+function judgeMethodNotAllowed(entry, secrets) {
+  const problems = [];
+
+  const allow = headerText(entry.exchange, 'allow');
+  const tokens = headerTokens(allow);
+  if (tokens.length !== 1 || tokens[0] !== ALLOWED_METHOD_VALUE) {
+    problems.push(`Allow is ${formatValue(allow === null ? undefined : allow, secrets)}, expected ${formatValue(ALLOWED_METHOD_VALUE)}`);
+  }
+
+  const contentType = headerText(entry.exchange, 'content-type');
+  const mediaType = contentType === null ? '' : contentType.split(';')[0].trim().toLowerCase();
+  if (mediaType !== 'application/json') {
+    problems.push(`content-type is ${formatValue(contentType === null ? undefined : contentType, secrets)}, expected application/json`);
+  }
+
+  const json = entry.exchange.json;
+  const hasMessage = json !== null && typeof json === 'object' && !Array.isArray(json)
+    && typeof json.message === 'string' && json.message.trim() !== '';
+  if (!hasMessage) {
+    problems.push('body is not a JSON object with a string "message"');
+  }
+
+  return problems.length === 0 ? { ok: true } : failVerdict(problems.join('; '));
+}
+
+/**
+ * Build the `statusHint` of a request that expects HTTP 405 and gets HTTP 200 with an
+ * HTML page instead. That answer means an API 403 or 404 was rewritten to the site's
+ * `/index.html`, which is how the landing page used to reach clients. Any other answer
+ * gets no hint: a 403 from a stage still on the previous build is already clear from the
+ * gate's reason.
+ *
+ * @private
+ * @param {string} subject - Who is answering, for example `the target` or `the edge`
+ * @returns {function(Exchange): (string|null)} A `statusHint` for {@link Gate} expectations
+ * @example
+ * landingPageHint('the target')({ status: 200, headers: { 'content-type': 'text/html' } });
+ * // "the target is answering with the site's landing page (an API 403 or 404 rewritten to /index.html)"
+ */
+function landingPageHint(subject) {
+  return (exchange) => {
+    const contentType = headerText(exchange, 'content-type');
+    const isHtml = contentType !== null && contentType.split(';')[0].trim().toLowerCase() === 'text/html';
+    return exchange.status === 200 && isHtml
+      ? `${subject} is answering with the site's landing page (an API 403 or 404 rewritten to /index.html)`
+      : null;
+  };
+}
+
+/**
+ * Check M1 (core): a `GET` to the raw target answers HTTP 405 with `Allow: POST` and a
+ * JSON body.
+ *
+ * Sends the `GET` Kiro sends after it connects, with `Accept: text/event-stream` and no
+ * key. API Gateway answers it before the rate limiter, so it is not counted against the
+ * budget. Records M1.1: HTTP 405, `Allow` is exactly `POST`, the content type is JSON,
+ * and the body is a JSON object with a string `message`. HTTP 200 with an HTML content
+ * type adds a hint that the target is answering with the site's landing page. When the
+ * raw target did not answer P1 the request is not sent and M1.1 FAILs with the "not
+ * attempted" reason (Requirement 4.6).
+ *
+ * @async
+ * @param {CheckContext} ctx - The check context
+ * @returns {Promise<void>} Resolves once M1.1 is recorded
+ * @example
+ * await checkM1(ctx);
+ * // PASS M1.1 GET answers 405 with Allow: POST and a JSON body
+ */
+async function checkM1(ctx) {
+  const m1 = await ctx.request(buildRequest('M1'), {
+    status: METHOD_NOT_ALLOWED_STATUS,
+    jsonRpc: false,
+    statusHint: landingPageHint('the target')
+  });
+
+  ctx.evaluate('M1.1', [m1], () => judgeMethodNotAllowed(m1, ctx.secrets));
+}
+
+CHECK_FUNCTIONS.M1 = checkM1;
+
+// ---------------------------------------------------------------------------
 // Checks X1 and X2
 // ---------------------------------------------------------------------------
 
@@ -3437,17 +3587,22 @@ async function checkX1(ctx) {
  *   `Mcp-Method: tools/call` gets HTTP 400 and `-32020`
  * - X2.4: `tools/call` for `list_tools` with a mismatched `Mcp-Name: list_categories` gets
  *   HTTP 400 and `-32020`
+ * - X2.5: a `GET` (no key, `Accept: text/event-stream`) gets HTTP 405 with `Allow: POST`
+ *   and a JSON body, judged as M1.1 is; HTTP 200 with an HTML content type adds a hint
+ *   that the edge is answering with the site's landing page
  *
  * When X2.3 or X2.4 gets a normal result instead of `-32020`, the reason says the
  * edge may not be forwarding the `MCP-Protocol-Version` or `Mcp-*` headers.
  *
- * Without an edge target (`config.mcpEdgeUrl` empty) all four are SKIP "no custom
+ * Without an edge target (`config.mcpEdgeUrl` empty) all five are SKIP "no custom
  * domain for this stage" and nothing is sent. X2 goes only to the edge, so it
  * still runs when the raw target is down (`ctx.rawTargetDown` affects raw requests only).
+ * The `GET` is not counted against the request budget (API Gateway answers it before the
+ * rate limiter).
  *
  * @async
  * @param {CheckContext} ctx - The check context
- * @returns {Promise<void>} Resolves once X2.1 to X2.4 are recorded
+ * @returns {Promise<void>} Resolves once X2.1 to X2.5 are recorded
  * @throws {TypeError} When `ctx.config.expectedVersion` is not a non-empty string and an edge target exists
  * @example
  * await checkX2(ctx);
@@ -3457,7 +3612,7 @@ async function checkX2(ctx) {
   const edgeUrl = typeof ctx.config.mcpEdgeUrl === 'string' ? ctx.config.mcpEdgeUrl.trim() : '';
   if (edgeUrl === '') {
     // >! No edge target: nothing is sent, so no request can go anywhere unexpected
-    for (const id of ['X2.1', 'X2.2', 'X2.3', 'X2.4']) {
+    for (const id of ['X2.1', 'X2.2', 'X2.3', 'X2.4', 'X2.5']) {
       ctx.record(id, 'skip', { reason: NO_EDGE_TARGET_REASON });
     }
     return;
@@ -3478,6 +3633,11 @@ async function checkX2(ctx) {
   const x2d = await ctx.request(buildRequest('X2d'), {
     status: PROTOCOL_ERROR_STATUS,
     statusHint: resultInsteadOfErrorHint(EDGE_NOT_FORWARDING_HINT)
+  });
+  const x2e = await ctx.request(buildRequest('X2e'), {
+    status: METHOD_NOT_ALLOWED_STATUS,
+    jsonRpc: false,
+    statusHint: landingPageHint('the edge')
   });
 
   ctx.evaluate('X2.1', [x2a], () => {
@@ -3515,6 +3675,7 @@ async function checkX2(ctx) {
 
   ctx.evaluate('X2.3', [x2c], judgeEdgeMismatch(x2c));
   ctx.evaluate('X2.4', [x2d], judgeEdgeMismatch(x2d));
+  ctx.evaluate('X2.5', [x2e], () => judgeMethodNotAllowed(x2e, secrets));
 }
 
 CHECK_FUNCTIONS.X1 = checkX1;

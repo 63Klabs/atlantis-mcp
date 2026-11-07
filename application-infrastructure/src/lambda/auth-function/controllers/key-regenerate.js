@@ -17,6 +17,7 @@ const { tools: { DebugAndLog, Timer } } = require('@63klabs/cache-data');
 const { validateJwt } = require('../utils/jwt-validator');
 const KeyRegenerateService = require('../services/key-regenerate');
 const { Config } = require('../config');
+const { USER_NOT_FOUND_STATUS } = require('../utils/status-codes');
 
 /**
  * Key Regenerate Controller class.
@@ -45,7 +46,7 @@ class KeyRegenerateController {
 	 * await KeyRegenerateController.post(props, response);
 	 * // On success: response status 200, body = { apiKey, message }
 	 * // On 401: response status 401, body = { error: 'Unauthorized' }
-	 * // On 404: response status 404, body = { error: 'User not found' }
+	 * // On 422: response status 422, body = { error: 'User not found' }
 	 * // On 500: response status 500, body = { error: 'Internal server error' }
 	 */
 	static async post(props, response) {
@@ -67,8 +68,8 @@ class KeyRegenerateController {
 			if (error.statusCode === 401) {
 				response.setStatusCode(401);
 				response.setBody({ error: 'Unauthorized' });
-			} else if (error.statusCode === 404) {
-				response.setStatusCode(404);
+			} else if (error.statusCode === USER_NOT_FOUND_STATUS) {
+				response.setStatusCode(USER_NOT_FOUND_STATUS);
 				response.setBody({ error: 'User not found' });
 			} else {
 				// >! Log full error for debugging but return sanitized error to client

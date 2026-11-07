@@ -4,7 +4,7 @@
  * Tests the controller layer in controllers/key-regenerate.js including:
  * - Success flow (200 with apiKey and message)
  * - 401 (invalid/missing JWT)
- * - 404 (user not found)
+ * - 422 (user not found)
  * - 500 (unhandled error)
  *
  * @module tests/unit/key-regenerate-controller
@@ -68,6 +68,7 @@ jest.mock('../../services/key-regenerate', () => ({
 }));
 
 const KeyRegenerateController = require('../../controllers/key-regenerate');
+const { USER_NOT_FOUND_STATUS } = require('../../utils/status-codes');
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                           */
@@ -149,14 +150,14 @@ describe('KeyRegenerateController', () => {
 			expect(mockRegenerateKey).not.toHaveBeenCalled();
 		});
 
-		it('should return 404 when user not found', async () => {
+		it('should return 422 when user not found', async () => {
 			mockValidateJwt.mockResolvedValue({
 				email: 'unknown@example.com',
 				sub: 'test-sub-456'
 			});
 
 			const notFoundError = new Error('User not found');
-			notFoundError.statusCode = 404;
+			notFoundError.statusCode = USER_NOT_FOUND_STATUS;
 			mockRegenerateKey.mockRejectedValue(notFoundError);
 
 			const props = createMockProps();
@@ -164,7 +165,7 @@ describe('KeyRegenerateController', () => {
 
 			await KeyRegenerateController.post(props, response);
 
-			expect(response.setStatusCode).toHaveBeenCalledWith(404);
+			expect(response.setStatusCode).toHaveBeenCalledWith(USER_NOT_FOUND_STATUS);
 			expect(response.setBody).toHaveBeenCalledWith({ error: 'User not found' });
 		});
 

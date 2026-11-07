@@ -18,6 +18,7 @@ const { tools: { DebugAndLog, Timer } } = require('@63klabs/cache-data');
 const { validateJwt } = require('../utils/jwt-validator');
 const VoucherRedeemService = require('../services/voucher-redeem');
 const { Config } = require('../config');
+const { USER_NOT_FOUND_STATUS } = require('../utils/status-codes');
 
 /**
  * Voucher Redeem Controller class.
@@ -50,7 +51,7 @@ class VoucherRedeemController {
 	 * // On success: response status 200, body = { tier, tierExpiresAt, message }
 	 * // On 401: response status 401, body = { error: 'Unauthorized' }
 	 * // On 400: response status 400, body = { error: '...' }
-	 * // On 404: response status 404, body = { error: 'User not found' }
+	 * // On 422: response status 422, body = { error: 'User not found' }
 	 * // On 409: response status 409, body = { error: 'Your account changed while the voucher was being applied. Please try again.' }
 	 * // On 500: response status 500, body = { error: 'Internal server error' }
 	 */
@@ -102,8 +103,8 @@ class VoucherRedeemController {
 				// >! Expected outcome of a concurrent change to the user record: not logged as an error
 				response.setStatusCode(409);
 				response.setBody({ error: error.message });
-			} else if (error.statusCode === 404) {
-				response.setStatusCode(404);
+			} else if (error.statusCode === USER_NOT_FOUND_STATUS) {
+				response.setStatusCode(USER_NOT_FOUND_STATUS);
 				response.setBody({ error: 'User not found' });
 			} else {
 				// >! Log full error for debugging but return sanitized error to client

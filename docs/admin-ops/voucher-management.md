@@ -100,7 +100,7 @@ aws dynamodb delete-item \
 When a user redeems a voucher through the profile page (`POST /auth/voucher/redeem`):
 
 1. The Auth Lambda validates the voucher exists, is not expired, and has uses remaining
-2. The Auth Lambda looks up the user's record by email. If there is none, the response is 404
+2. The Auth Lambda looks up the user's record by email. If there is none, the response is 422
 3. The redemption rule below decides whether the voucher applies, extends the tier the user holds, or is rejected
 4. For an applied or extended voucher, the user's record is updated with the new `tier`, a `tierExpiresAt` (`now + durationDays`, or the later date when extending), and `ttl` set to `now + 120 days`. The update is conditional on the `tier` and `tierExpiresAt` the Auth Lambda read, so it never overwrites a change made in the meantime
 5. The voucher's `currentUses` is atomically incremented, only after the update succeeds

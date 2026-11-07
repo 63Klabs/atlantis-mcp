@@ -20,6 +20,7 @@ const UserDao = require('../models/user');
 const VoucherDao = require('../models/voucher');
 const CognitoService = require('./cognito');
 const TierCommon = require('../utils/tier-common');
+const { USER_NOT_FOUND_STATUS } = require('../utils/status-codes');
 const { EXPIRY_STATE } = TierCommon;
 /**
  * Tiers a voucher may grant.
@@ -170,7 +171,7 @@ function decideRedemption(userRecord, voucher, nowMs) {
  *
  * Workflow:
  * 1. Look up voucher record by code and validate it (exists, not expired, uses remaining)
- * 2. Look up user record by email (GSI query); 404 when there is none
+ * 2. Look up user record by email (GSI query); 422 when there is none
  * 3. Decide with {@link decideRedemption}; a rejection throws 400 and writes nothing
  * 4. Conditionally update tier, tierExpiresAt, ttl, and the fallback attributes in DynamoDB
  *    (only if tier and tierExpiresAt are unchanged since the read); a conflict throws 409
@@ -183,7 +184,7 @@ function decideRedemption(userRecord, voucher, nowMs) {
  * @param {string} email - User email address (from JWT payload)
  * @param {string} cognitoSub - Cognito user sub identifier (from JWT payload)
  * @returns {Promise<{tier: string, tierExpiresAt: string, message: string}>} Redemption result
- * @throws {Error} Throws with `statusCode` 400 (invalid or rejected voucher), 404 (no user record), or 409 (the user record changed during the redemption)
+ * @throws {Error} Throws with `statusCode` 400 (invalid or rejected voucher), 422 (no user record), or 409 (the user record changed during the redemption)
  * @throws {Error} Throws on other DynamoDB or Cognito errors
  * @example
  * const result = await redeemVoucher('SUMMER2025', 'user@example.com', 'abc-123-def');
@@ -206,7 +207,7 @@ async function redeemVoucher(code, email, cognitoSub) {
 
 	if (!existingRecords || existingRecords.length === 0) {
 		const error = new Error('User not found');
-		error.statusCode = 404;
+		error.statusCode = USER_NOT_FOUND_STATUS;
 		throw error;
 	}
 

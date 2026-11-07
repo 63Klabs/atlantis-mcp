@@ -48,6 +48,7 @@ jest.mock('../../services/cognito', () => ({
 }));
 
 const { redeemVoucher, validateVoucher, TestHarness } = require('../../services/voucher-redeem');
+const { USER_NOT_FOUND_STATUS } = require('../../utils/status-codes');
 const TierCommon = require('../../utils/tier-common');
 
 /* ------------------------------------------------------------------ */
@@ -279,13 +280,13 @@ describe('Voucher Redemption Service', () => {
 			expect(mockIncrementVoucherUses).toHaveBeenCalled();
 		});
 
-		it('should throw 404 when user not found', async () => {
+		it('should throw 422 when user not found', async () => {
 			mockGetVoucher.mockResolvedValue(createVoucher());
 			mockQueryByEmail.mockResolvedValue([]);
 
 			await expect(redeemVoucher('SUMMER2025', 'unknown@example.com', 'test-sub-456'))
 				.rejects.toMatchObject({
-					statusCode: 404,
+					statusCode: USER_NOT_FOUND_STATUS,
 					message: 'User not found'
 				});
 

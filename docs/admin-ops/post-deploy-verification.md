@@ -26,15 +26,16 @@ A **core** check fails the build when it fails or gets no answer. An **advisory*
 | P4 header mismatch | Core | P4.1 to P4.5 | `Mcp-Method` and `Mcp-Name` headers that disagree with the body get HTTP 400 and error `-32020` (P4.1, P4.2, P4.4). Matching headers are accepted with HTTP 200 (P4.3), header names are matched without regard to case (P4.4), and a legacy request ignores the headers and gets HTTP 200 (P4.5) |
 | P5 `tools/list` | Core | P5.1 to P5.9 | Each revision gets the fields it should have and none it should not (`ttlMs`, `cacheScope`, `resultType`, `_meta`, tool `title` and `annotations`), a modern `cacheScope` is `public` or `private`, every revision lists the same tools in the same order, and any extra advertised revision is accepted |
 | P6 `tools/call` | Core | P6.1, P6.2 | The `list_tools` call returns the modern envelope for `2026-07-28` and the legacy shape for `2025-11-25` |
+| M1 method | Core | M1.1 | A `GET` that asks for `text/event-stream`, sent with no key, gets HTTP 405, `Allow: POST`, a JSON content type, and a JSON body with a `message`. This is the request Kiro sends after it connects. An answer of HTTP 200 with HTML means the site's landing page is answering for the API |
 | X1 CORS preflight | Core | X1.1 to X1.3 | The `OPTIONS` preflight on the API Gateway endpoint answers 200 and allows the origin, `POST`, and the `MCP-Protocol-Version`, `Mcp-Method`, and `Mcp-Name` headers |
 | T1 backend | Advisory | T1.1 | `list_templates` returns template data, so the S3 backend works |
 | S1 invalid key | Advisory | S1.1 | A made-up API key is rejected with HTTP 401 |
 | S2 stored key | Advisory | S2.1 to S2.3 | The stored key works in `X-API-Key` and as a Bearer token, and gets a higher rate limit than the public tier. Skipped when no key is stored |
-| X2 edge | Advisory | X2.1 to X2.4 | The same preflight, version, and `-32020` behavior through the stage's custom domain (CloudFront). The two `-32020` sub-checks (X2.3, X2.4) expect HTTP 400 with `-32020`. Skipped when the stage has no custom domain |
+| X2 edge | Advisory | X2.1 to X2.5 | The same preflight, version, `-32020`, and `GET` behavior through the stage's custom domain (CloudFront). The two `-32020` sub-checks (X2.3, X2.4) expect HTTP 400 with `-32020`. X2.5 expects the same `405` as M1.1, which shows the edge does not turn it into the landing page. Skipped when the stage has no custom domain |
 
-In total there are 36 core and 9 advisory sub-checks.
+In total there are 37 core and 10 advisory sub-checks.
 
-Requests go to the raw API Gateway endpoint (`https://<restApiId>.execute-api.<region>.amazonaws.com/<apiStage>/mcp/v1`). The X2 sub-checks go to the stage's custom domain, `https://<domain>/mcp/v1`, and only exist on stages whose `settings.json` entry has a `domain` (`beta` and `prod` today). Requests are sent one at a time, in the order P1, S1, S2, P2, P3, P4, P5, P6, T1, X1, X2.
+Requests go to the raw API Gateway endpoint (`https://<restApiId>.execute-api.<region>.amazonaws.com/<apiStage>/mcp/v1`). The X2 sub-checks go to the stage's custom domain, `https://<domain>/mcp/v1`, and only exist on stages whose `settings.json` entry has a `domain` (`beta` and `prod` today). Requests are sent one at a time, in the order P1, S1, S2, P2, P3, P4, P5, P6, M1, T1, X1, X2.
 
 Advisory checks are advisory because their answers depend on something other than this repository's code. A T1 warning points to a backend, an X2 warning to the edge, and an S1 or S2 warning to the key or the authentication path.
 
@@ -55,7 +56,7 @@ Lines from the script are prefixed `[05-verify-deployment]` and carry a level. `
 PASS  P1.1   server/discover answers without a key
 SKIP  S2.1   the stored key is accepted in X-API-Key (no key configured: placeholder BLANK)
 WARN  X2.4   edge returns -32020 for a mismatched Mcp-Name (HTTP 200, expected 400; the edge may not be forwarding the MCP-Protocol-Version or Mcp-* headers; body: ...)
-[05-verify-deployment] INFO: Core: 36 passed, 0 failed, 0 skipped. Advisory: 5 passed, 1 warned, 3 skipped
+[05-verify-deployment] INFO: Core: 37 passed, 0 failed, 0 skipped. Advisory: 6 passed, 1 warned, 3 skipped
 [05-verify-deployment] INFO: Outcome: passed
 [05-verify-deployment] INFO: Report: build/verify/report.json
 VERIFY_REPORT {"tool":"atlantis-mcp-postdeploy-verify","schemaVersion":1,"outcome":"passed","exitCode":0,...}
@@ -87,6 +88,7 @@ Some reasons you may meet:
 | `no baseline: P1 had no answer` | A comparison against P1 could not be made because P1 was rate limited |
 | `the MCP-Protocol-Version or Mcp-* headers may not be reaching the function` | A P4 request (P4.1, P4.2, or P4.4) got HTTP 200 and a normal result instead of HTTP 400 and `-32020`. The mismatched headers were probably not delivered to the Read Function. Because the raw API Gateway endpoint is the target, check the API Gateway integration and the request that was sent |
 | `the edge may not be forwarding the MCP-Protocol-Version or Mcp-* headers` | An X2 request (X2.3 or X2.4) got HTTP 200 and a normal result instead of HTTP 400 and `-32020`. Check the CloudFront behavior for `/mcp/*`. If P4 passed on the raw endpoint, the edge is the likely cause |
+| `HTTP 200, expected 405; the target is answering with the site's landing page (an API 403 or 404 rewritten to /index.html)` | The `GET` of M1.1 (`the target`) or X2.5 (`the edge`) got HTTP 200 with an HTML content type. An API response with status 403 or 404 reached CloudFront, which rewrote it. See [CloudFront turns 403 and 404 into the landing page](./cors-and-response-headers.md#cloudfront-turns-403-and-404-into-the-landing-page). If the status is `403` with `Missing Authentication Token` and the body is JSON, the stage is still running a build that predates the `405` change |
 
 ### Summary and outcome
 
@@ -242,6 +244,7 @@ Verification is designed to stay small. These counts are for POST requests that 
 - The client IP is the address of the CodeBuild host making the requests, so other traffic from that address can use the same budget.
 - A request that fails with a network error, a timeout, or HTTP 502, 503, or 504 is retried once after one second. Any other response, including 429 and other 4xx statuses, is not retried.
 - Each extra revision that the server advertises beyond the three it must have adds one `tools/list` request, against whichever budget the run is using.
+- The `GET` probes of M1.1 and X2.5 are answered by an API Gateway mock, not by the Read Function. They are counted in neither `requests.posts` nor `requests.preflights` of the report, and they count against neither budget.
 - Every request has a timeout of 30 seconds by default.
 
 ## How verification traffic appears in the logs
@@ -249,7 +252,7 @@ Verification is designed to stay small. These counts are for POST requests that 
 - **Read Function.** Each run adds three `list_tools` and one `list_templates` `DISCOVERY_TOOL_CALL` line (`DISCOVERY_TOOL_CALL {"toolName":"list_tools","firstInSession":false}`). The first call after a cold start can show `firstInSession: true`, so verification can inflate that figure if you use the log to study how clients start sessions.
 - **User agent.** Every request carries `User-Agent: atlantis-mcp-postdeploy-verify`. The Read Function logs the full incoming event at DEBUG level, which non-production stages enable, so the user agent shows there.
 - **API Gateway access logs.** These record the address of the CodeBuild host and not the user agent, so an access-log line cannot be tied to verification by its user agent. Use the address and the time of the build instead.
-- **Read-only.** The server receives only `server/discover`, `initialize`, `tools/list`, `tools/call` for `list_tools` and `list_templates`, and CORS preflights. Nothing creates, changes, or deletes data, and nothing calls Amazon Bedrock.
+- **Read-only.** The server receives only `server/discover`, `initialize`, `tools/list`, `tools/call` for `list_tools` and `list_templates`, and CORS preflights. The `GET` probes never reach the Read Function. Nothing creates, changes, or deletes data, and nothing calls Amazon Bedrock.
 - **Secrets.** The key travels only in the process environment and in the `X-API-Key` and `Authorization` request headers. It is never written to the build log, the report, or the report line, and request headers are never logged.
 
 ## Known limits

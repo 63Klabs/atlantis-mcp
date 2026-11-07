@@ -194,6 +194,34 @@ Fix it by sending a header that matches the body, or by leaving the header off.
 }
 ```
 
+## HTTP methods
+
+The endpoint accepts `POST` only.
+
+- **`GET`, `HEAD`, `PUT`, `PATCH`, and `DELETE`** to `/mcp/v1` get HTTP status `405 Method Not Allowed` with the header `Allow: POST` and a JSON body:
+
+  ```json
+  { "message": "Method not allowed. This endpoint accepts POST only." }
+  ```
+
+- **No event stream.** The server does not offer `text/event-stream`, so a `GET` never opens a stream. This matches the [2026-07-28 Streamable HTTP transport](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http), which says a server that supports only that revision should answer a `GET` or `DELETE` to the MCP endpoint with `405`.
+- **Other paths and methods.** A request to a path the API does not define, or with a method it does not support on a path other than `/mcp/v1`, gets HTTP status `400` with a JSON body:
+
+  ```json
+  { "message": "Unsupported path or method for this API." }
+  ```
+
+- **`OPTIONS`** is the CORS preflight. It is answered separately and is not a `405`.
+
+Check the behavior with `curl`:
+
+```bash
+# Expect HTTP 405, an "Allow: POST" header, and a JSON body
+curl -i -X GET https://mcp.atlantis.63klabs.net/mcp/v1
+```
+
+> **Note**: A server older than v0.0.7 answered a `GET` to `/mcp/v1` with the site's HTML landing page and HTTP status `200`, which some clients failed to parse as JSON. See [Kiro fails to connect with a JSON parse error](./troubleshooting/README.md#problem-kiro-fails-to-connect-with-a-json-parse-error).
+
 ## Not supported
 
 - **`Mcp-Param-*` and `x-mcp-header`.** The server does not read these client-sent headers, and no tool depends on them.

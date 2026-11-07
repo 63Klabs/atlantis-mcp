@@ -492,6 +492,12 @@ HTTP status is 200 for every result and every JSON-RPC error, with three excepti
 
 An error for a request whose `id` cannot be read carries no `id` member, never `id: null`, because no MCP schema accepts `null`. A request whose `id` is present but is not a string or an integer is rejected with `-32600` (HTTP 200, no `id`).
 
+### Other methods and the edge
+
+Only `POST` reaches the Read Lambda on `/mcp/v1`. API Gateway answers the CORS `OPTIONS` preflight and every other method itself: for the other methods, a catch-all `x-amazon-apigateway-any-method` mock returns `405` with `Allow: POST` and a JSON body. No Lambda runs, no key is checked, and nothing is written to the rate-limit table. A request that matches no operation (an unknown path, or an unsupported method on a path other than `/mcp/v1`) is answered by the `MISSING_AUTHENTICATION_TOKEN` gateway response, which `template-openapi-spec.yml` overrides to return `400` instead of the default `403`.
+
+The edge constrains these statuses. CloudFront rewrites every origin `403` and `404` to `/index.html` with HTTP `200`, so no API response may use either one. The Auth function returns `422` for "User not found" and `400` for a request that matches none of its routes. See [CloudFront turns 403 and 404 into the landing page](docs/admin-ops/cors-and-response-headers.md#cloudfront-turns-403-and-404-into-the-landing-page).
+
 ### Era resolution
 
 `resolveEra()` reads the declared revision from the `MCP-Protocol-Version` header, then from `params._meta["io.modelcontextprotocol/protocolVersion"]` (a top-level `_meta` is also accepted). The header wins if both are present. A blank value counts as not declared.

@@ -5,7 +5,7 @@
  * - Success flow (200 with tier, tierExpiresAt, message)
  * - 401 (invalid/missing JWT)
  * - 400 (missing voucher code, invalid/expired/redeemed voucher)
- * - 404 (user not found)
+ * - 422 (user not found)
  * - 500 (unhandled error)
  *
  * @module tests/unit/voucher-redeem-controller
@@ -69,6 +69,7 @@ jest.mock('../../services/voucher-redeem', () => ({
 }));
 
 const VoucherRedeemController = require('../../controllers/voucher-redeem');
+const { USER_NOT_FOUND_STATUS } = require('../../utils/status-codes');
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                           */
@@ -251,14 +252,14 @@ describe('VoucherRedeemController', () => {
 			expect(response.setBody).toHaveBeenCalledWith({ error: 'Invalid voucher code' });
 		});
 
-		it('should return 404 when user not found', async () => {
+		it('should return 422 when user not found', async () => {
 			mockValidateJwt.mockResolvedValue({
 				email: 'unknown@example.com',
 				sub: 'test-sub-456'
 			});
 
 			const notFoundError = new Error('User not found');
-			notFoundError.statusCode = 404;
+			notFoundError.statusCode = USER_NOT_FOUND_STATUS;
 			mockRedeemVoucher.mockRejectedValue(notFoundError);
 
 			const props = createMockProps();
@@ -266,7 +267,7 @@ describe('VoucherRedeemController', () => {
 
 			await VoucherRedeemController.post(props, response);
 
-			expect(response.setStatusCode).toHaveBeenCalledWith(404);
+			expect(response.setStatusCode).toHaveBeenCalledWith(USER_NOT_FOUND_STATUS);
 			expect(response.setBody).toHaveBeenCalledWith({ error: 'User not found' });
 		});
 

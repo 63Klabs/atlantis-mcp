@@ -63,6 +63,7 @@ jest.mock('../../utils/window-calculator', () => ({
 }));
 
 const { getProfile, computeEffectiveTier, TestHarness } = require('../../services/profile');
+const { USER_NOT_FOUND_STATUS } = require('../../utils/status-codes');
 const { tools: { DebugAndLog } } = require('@63klabs/cache-data');
 
 /* ------------------------------------------------------------------ */
@@ -267,12 +268,12 @@ describe('Profile Service', () => {
 			expect(result.rateLimits.remaining).toBe(3000);
 		});
 
-		it('should throw 404 when user not found', async () => {
+		it('should throw 422 when user not found', async () => {
 			mockQueryByEmail.mockResolvedValue([]);
 
 			await expect(getProfile('unknown@example.com', 'test-sub-456'))
 				.rejects.toMatchObject({
-					statusCode: 404,
+					statusCode: USER_NOT_FOUND_STATUS,
 					message: 'User not found'
 				});
 
@@ -281,12 +282,12 @@ describe('Profile Service', () => {
 			expect(mockSettings.ssm.sessionHashSalt.getValue).not.toHaveBeenCalled();
 		});
 
-		it('should throw 404 when queryByEmail returns null', async () => {
+		it('should throw 422 when queryByEmail returns null', async () => {
 			mockQueryByEmail.mockResolvedValue(null);
 
 			await expect(getProfile('unknown@example.com', 'test-sub-456'))
 				.rejects.toMatchObject({
-					statusCode: 404,
+					statusCode: USER_NOT_FOUND_STATUS,
 					message: 'User not found'
 				});
 		});

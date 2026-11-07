@@ -15,6 +15,55 @@ Three components can set a header on the way to a client. Knowing which one owns
 | `Content-Type` | `Response.finalize()` | Set from the body when the application has not set one |
 | `Cache-Control`, `Expires` | `Response.finalize()` | Derived from `responses.js` unless the application set them with `addHeader()` |
 | Any other server-defined header | The Lambda | `response.addHeader(name, value)` |
+| `Allow`, `Access-Control-Allow-Origin`, `Cache-Control`, `Content-Type` on a `405` | API Gateway (catch-all mock) | `x-amazon-apigateway-any-method` on `/mcp/v1` in `application-infrastructure/template-openapi-spec.yml` |
+| Status and body for a request that matches no operation | API Gateway (`MISSING_AUTHENTICATION_TOKEN` gateway response) | `x-amazon-apigateway-gateway-responses` in `application-infrastructure/template-openapi-spec.yml` |
+
+### Methods other than POST never reach the Lambda
+
+`/mcp/v1` defines `post` (the Read Function), and API Gateway answers `OPTIONS` from the `Cors` stanza. Every other method (`GET`, `HEAD`, `PUT`, `PATCH`, `DELETE`) matches the catch-all `x-amazon-apigateway-any-method` operation, which is a **mock integration**:
+
+- It starts no Lambda, needs no API key, and writes no rate-limit counter, so it cannot be used to spend a caller's budget and costs no function invocation.
+- It answers HTTP `405` with a fixed JSON body, `{"message": "Method not allowed. This endpoint accepts POST only."}`, and these headers:
+
+  | Header | Value |
+  |--------|-------|
+  | `Allow` | `POST` |
+  | `Content-Type` | `application/json` |
+  | `Access-Control-Allow-Origin` | `*` |
+  | `Cache-Control` | `no-store` |
+
+- A specific method defined later on the same path takes precedence over the catch-all, so `post` and the `Cors` stanza's `OPTIONS` are unaffected.
+- The server offers no `text/event-stream`, so a `GET` that asks for one (as Kiro's does) gets the same `405`. The `2025-11-25` and `2026-07-28` transport specifications allow this answer. See [MCP protocol sources of truth](../developer/mcp-protocol-sources.md).
+
+The `Access-Control-Allow-Origin` value of the mock is a literal in `template-openapi-spec.yml`. It does not follow `referrers` in `config/validations.js`. If you tighten the origin policy as described under [Recorded decisions](#recorded-decisions), change the mock's response parameter too.
+
+### The gateway response for an unmatched request
+
+A request that matches no operation, such as an unknown path or an unsupported method on a path other than `/mcp/v1`, is answered by API Gateway's `MISSING_AUTHENTICATION_TOKEN` gateway response. Its default is HTTP `403` with `{"message":"Missing Authentication Token"}`. `template-openapi-spec.yml` overrides it:
+
+| | Status | Body |
+|--|--------|------|
+| Default | `403` | `{"message":"Missing Authentication Token"}` |
+| This API | `400` | `{"message": "Unsupported path or method for this API."}` |
+
+No other gateway response type is overridden. Because the override applies to the whole API, a request to an unknown route at the raw `execute-api` URL now gets `400` with a JSON message where it used to get `403` "Missing Authentication Token". If you have a script or monitor that looks for that `403`, change it to expect `400`.
+
+### CloudFront turns 403 and 404 into the landing page
+
+The CloudFront distribution in front of the stage has `CustomErrorResponses` that rewrite every origin response with status `403` or `404` to `/index.html` with HTTP `200`. It is distribution-wide, so it also applies under `/mcp/*`. The distribution comes from the Atlantis network stack and is not defined in this repository.
+
+The effect is that no API response may use `403` or `404`. A client of the API would receive the HTML landing page with status `200`, and a JSON client fails to parse it. That is how Kiro came to fail with `Unexpected token '<'` when API Gateway's default `403` answered its `GET`. The rule applies to every layer:
+
+| Layer | Status used instead |
+|-------|---------------------|
+| Catch-all mock on `/mcp/v1` | `405` |
+| `MISSING_AUTHENTICATION_TOKEN` gateway response | `400` |
+| Auth Function, route that matches nothing | `400` |
+| Auth Function, "User not found" | `422` |
+
+> **Warning**: Do not add a response with status `403` or `404` to `template-openapi-spec.yml` or to any Lambda. Through the edge it reaches the client as `200` with HTML. The post-deploy verifier's `M1.1` and `X2.5` sub-checks add the hint "is answering with the site's landing page" to their failure reason when they see that. See [post-deploy verification](./post-deploy-verification.md).
+
+Other statuses, such as `400`, `401`, `405`, `422`, and `5xx`, are not rewritten.
 
 ### The CORS preflight never reaches the Lambda
 

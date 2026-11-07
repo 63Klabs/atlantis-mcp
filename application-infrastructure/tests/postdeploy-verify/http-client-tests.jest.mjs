@@ -327,6 +327,41 @@ describe('HTTP client: request body and ids', () => {
     expect(post.jsonRpcId).toBe('verify-1');
   });
 
+  it('sends a GET with no body, no Content-Type, no key, and no JSON-RPC id (Requirement 8.7)', async () => {
+    const { http, calls } = makeClient([jsonResponse(405, { message: 'Method not allowed. This endpoint accepts POST only.' })]);
+    // The spec carries a body and a key on purpose: a GET must send neither
+    const exchange = await http.send({
+      url: POST_URL,
+      method: 'GET',
+      headers: { Accept: 'text/event-stream' },
+      body: { jsonrpc: '2.0', method: 'tools/list' },
+      apiKey: API_KEY
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0].init.method).toBe('GET');
+    expect(calls[0].init.body).toBeUndefined();
+    expect(Object.keys(calls[0].init.headers)).toEqual(['User-Agent', 'Accept']);
+    expect(headerNames(calls[0])).not.toContain('content-type');
+    expect(headerNames(calls[0])).not.toContain('x-api-key');
+    expect(headerNames(calls[0])).not.toContain('authorization');
+    expect(JSON.stringify(calls[0])).not.toContain(API_KEY);
+    expect(exchange.kind).toBe('response');
+    expect(exchange.status).toBe(405);
+    expect(exchange.jsonRpcId).toBeNull();
+  });
+
+  it('leaves the post and preflight counts alone for a GET, and does not use up a JSON-RPC id (Requirement 8.7)', async () => {
+    const { http } = makeClient([jsonResponse(405, { message: 'no' })]);
+    await http.send({ url: POST_URL, method: 'GET', headers: {} });
+    await http.send({ url: POST_URL, method: 'GET', headers: {} });
+
+    expect(http.stats).toEqual({ posts: 0, preflights: 0, retries: 0 });
+    const post = await http.send(postSpec());
+    expect(post.jsonRpcId).toBe('verify-1');
+    expect(http.stats).toEqual({ posts: 1, preflights: 0, retries: 0 });
+  });
+
   it('serializes the body with JSON.stringify so quotes and newlines stay escaped', async () => {
     const { http, calls } = makeClient([jsonResponse()]);
     await http.send(postSpec({ body: { jsonrpc: '2.0', method: 'a"b\nc' } }));
@@ -786,7 +821,7 @@ describe('HTTP client: dependencies and bad specs', () => {
     expect(http.stats).toEqual({ posts: 0, preflights: 0, retries: 0 });
   });
 
-  it.each(['GET', 'PUT', 'DELETE', 'post', undefined])(
+  it.each(['PUT', 'DELETE', 'PATCH', 'post', 'get', undefined])(
     'rejects method %s as a programming error, without calling fetch',
     async (method) => {
       const { http, calls } = makeClient([jsonResponse()]);
@@ -795,6 +830,16 @@ describe('HTTP client: dependencies and bad specs', () => {
       expect(calls).toHaveLength(0);
     }
   );
+
+  it('names the three accepted methods when it rejects a PUT', async () => {
+    const { http, calls } = makeClient([jsonResponse()]);
+
+    await expect(http.send({ url: POST_URL, method: 'PUT', headers: {} })).rejects.toThrow(TypeError);
+    await expect(http.send({ url: POST_URL, method: 'PUT', headers: {} }))
+      .rejects.toThrow('request spec method must be POST, OPTIONS, or GET');
+    expect(calls).toHaveLength(0);
+    expect(http.stats).toEqual({ posts: 0, preflights: 0, retries: 0 });
+  });
 
   it('sends a POST with no headers or body in the spec', async () => {
     const { http, calls } = makeClient([jsonResponse()]);

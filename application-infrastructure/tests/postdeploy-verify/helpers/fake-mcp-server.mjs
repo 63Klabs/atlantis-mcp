@@ -20,6 +20,8 @@
  * - HTTP 401 with `-32001` for an unknown API key, before the rate limiter
  * - `X-RateLimit-*` headers per tier (public 50, registered 100, paid 3000, private 6000)
  * - the CORS preflight answer, read from the `Cors` stanza of `template.yml`
+ * - HTTP 405 with `Allow: POST` for a method other than POST and OPTIONS on the endpoint path, and
+ *   HTTP 400 for any request to another path
  * - a raw API Gateway host and a separate edge (custom domain) host
  *
  * Every option changes one behavior, so a test can break exactly one thing.
@@ -448,6 +450,12 @@ function rpcError(id, code, message, data) {
  * @param {boolean} [options.edgeDropsMcpHeaders] - The edge does not forward `MCP-Protocol-Version`, `Mcp-Method`, or `Mcp-Name`
  * @param {Object} [options.preflight] - Overrides for the raw preflight (`status`, `allowOrigin`, `allowMethods`, `allowHeaders`)
  * @param {Object} [options.edgePreflight] - The same overrides for the edge preflight
+ * @param {{fault: ('html'|'no-allow'|'not-json'|'gateway-403')}} [options.methodNotAllowed] - Breaks the raw target's answer
+ *   to a method other than POST and OPTIONS on the endpoint path. `html`: HTTP 200, `text/html`, an HTML page (the
+ *   site's landing page); `no-allow`: 405 without `Allow`; `not-json`: 405 with `Allow` and a `text/plain` body;
+ *   `gateway-403`: HTTP 403 with `{"message":"Missing Authentication Token"}` (a stage on the previous build).
+ *   Without it the answer is the healthy 405 with `Allow: POST` and a JSON `message`
+ * @param {{fault: ('html'|'no-allow'|'not-json'|'gateway-403')}} [options.edgeMethodNotAllowed] - The same faults for the edge target
  * @param {FaultOption & {retryAfterSeconds?: number, resetEpochSeconds?: number, omitRetryAfter?: boolean, omitReset?: boolean}} [options.rateLimited] -
  *   Answer chosen requests with HTTP 429, `Retry-After` (seconds), and `X-RateLimit-Reset` (epoch seconds)
  * @param {FaultOption & {status?: number}} [options.serverError] - Answer chosen requests with a gateway-style 5xx (default 503)
@@ -776,6 +784,69 @@ export function createFakeMcpServer(options = {}) {
   }
 
   /**
+   * Build a `Response` from a status, a header object, and a plain-text body.
+   *
+   * `respond()` serializes JSON only; this is for answers that are not JSON, such as an
+   * HTML page or a `text/plain` body.
+   *
+   * @param {Object} call - The recorded call, updated with the final status
+   * @param {number} status - HTTP status
+   * @param {Object<string, string>} headers - Response headers
+   * @param {string|null} text - Body text; null for an empty body
+   * @returns {Response} A real `Response`
+   */
+  function respondText(call, status, headers, text) {
+    call.status = status;
+    call.outcome = 'response';
+    return new Response(text, { status, headers });
+  }
+
+  /**
+   * Answer a method other than POST and OPTIONS on the endpoint path, as the deployed
+   * API does: 405 with `Allow: POST` and a JSON `message`. A `HEAD` gets the same status
+   * and headers with no body. The `methodNotAllowed` (raw) or `edgeMethodNotAllowed`
+   * (edge) option replaces the healthy answer with one broken answer.
+   *
+   * The values are defined here, not imported from the Read Function, so a change there
+   * cannot hide behind the same change here.
+   *
+   * @param {Object} call - The recorded call
+   * @param {('raw'|'edge')} target - Which target was addressed
+   * @returns {Response} The 405, or the broken answer the option selects
+   * @example
+   * // GET https://mcp-test.example.net/mcp/v1 -> 405, allow: POST,
+   * // {"message":"Method not allowed. This endpoint accepts POST only."}
+   */
+  function methodNotAllowedResponse(call, target) {
+    const fault = (target === 'raw' ? options.methodNotAllowed : options.edgeMethodNotAllowed)?.fault;
+    const isHead = call.method === 'HEAD';
+    const message = 'Method not allowed. This endpoint accepts POST only.';
+    const healthyHeaders = {
+      allow: 'POST',
+      'content-type': 'application/json',
+      'access-control-allow-origin': '*',
+      'cache-control': 'no-store'
+    };
+
+    switch (fault) {
+      case 'html':
+        // The site's landing page, as when a 403 or 404 is rewritten to /index.html
+        return respondText(call, 200, { 'content-type': 'text/html' },
+          isHead ? null : '<!DOCTYPE html><html><head><title>Fake landing page</title></head><body><h1>Fake landing page</h1></body></html>');
+      case 'no-allow': {
+        const { allow, ...withoutAllow } = healthyHeaders;
+        return respond(call, 405, withoutAllow, isHead ? null : { message });
+      }
+      case 'not-json':
+        return respondText(call, 405, { ...healthyHeaders, 'content-type': 'text/plain' }, isHead ? null : message);
+      case 'gateway-403':
+        return respond(call, 403, { 'content-type': 'application/json' }, isHead ? null : { message: 'Missing Authentication Token' });
+      default:
+        return respond(call, 405, healthyHeaders, isHead ? null : { message });
+    }
+  }
+
+  /**
    * Answer a CORS preflight from the template's `Cors` stanza, as API Gateway does.
    *
    * @param {Object} call - The recorded call
@@ -998,9 +1069,12 @@ export function createFakeMcpServer(options = {}) {
       }
 
       const expectedPath = target === 'raw' ? rawParsed.pathname : edgeParsed.pathname;
-      if (url.pathname !== expectedPath || (httpMethod !== 'POST' && httpMethod !== 'OPTIONS')) {
-        // API Gateway answers an unknown route or method like this
-        return respond(call, 403, { 'content-type': 'application/json' }, { message: 'Missing Authentication Token' });
+      if (url.pathname !== expectedPath) {
+        // API Gateway answers an unknown route with the MISSING_AUTHENTICATION_TOKEN override
+        return respond(call, 400, { 'content-type': 'application/json' }, { message: 'Unsupported path or method for this API.' });
+      }
+      if (httpMethod !== 'POST' && httpMethod !== 'OPTIONS') {
+        return methodNotAllowedResponse(call, target);
       }
 
       if (httpMethod === 'OPTIONS') {

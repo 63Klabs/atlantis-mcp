@@ -11,11 +11,38 @@
 const { tools: { DebugAndLog } } = require('@63klabs/cache-data');
 
 /**
+ * Make a response carry no body and forbid caching it.
+ *
+ * A notification is answered with 202 and no body (MCP Streamable HTTP, 2025-11-25).
+ *
+ * >! cache-data's Response.set() ignores a falsy body, so setBody(null) leaves the generic 200
+ * >! template's {"message":"Success"} in place. The only way to send no body is to clear the
+ * >! field, and a test with the real Response (tests/unit/routes/routes-notification-response.test.js)
+ * >! fails if cache-data renames it.
+ * >! Cache-Control and Expires are set here because finalize() adds max-age=<routeExpirationInSeconds>
+ * >! to any status below 400 unless the application set them.
+ *
+ * @param {Response} response - Response instance to change
+ * @returns {void}
+ * @example
+ * respondWithoutBody(response);
+ * // response.finalize().body === null
+ */
+const respondWithoutBody = (response) => {
+  response._body = null;
+  response.addHeader('Cache-Control', 'no-store');
+  response.addHeader('Expires', '0');
+};
+
+/**
  * Process incoming request and route to JSON-RPC Router.
  *
  * Only POST requests to `mcp/v1` are accepted. All other paths and
  * methods receive an error response. Populates the shared Response
  * instance instead of returning a value.
+ *
+ * A router result with an empty body (a notification's 202) leaves the response
+ * with no body and `Cache-Control: no-store`.
  *
  * @param {ClientRequest} clientRequest - Parsed request instance from @63klabs/cache-data
  * @param {Response} response - Response instance to populate
@@ -46,8 +73,12 @@ const process = async (clientRequest, response, authInfo) => {
     const jsonRpcResponse = await JsonRpcRouter.handleJsonRpc(clientRequest, authInfo);
 
     response.setStatusCode(jsonRpcResponse.statusCode);
-    // >! A notification's 202 has no body; JSON.parse('') would throw
-    response.setBody(jsonRpcResponse.body === '' ? null : JSON.parse(jsonRpcResponse.body));
+    if (jsonRpcResponse.body === '') {
+      // >! A notification's 202 has no body; JSON.parse('') would throw, and setBody(null) is ignored
+      respondWithoutBody(response);
+    } else {
+      response.setBody(JSON.parse(jsonRpcResponse.body));
+    }
     if (jsonRpcResponse.headers) {
       // >! Headers managed by cache-data Response.finalize():
       // >! - content-type: finalize() sets from body when unset

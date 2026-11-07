@@ -16,7 +16,7 @@ The requirements and design are in the [spec](../../.kiro/specs/0-0-7-postdeploy
 
 ## What it checks
 
-The Verifier evaluates 45 sub-checks with stable IDs of the form `<check>.<n>`. Core checks fail the build. Advisory checks print `WARN` and never change the outcome.
+The Verifier evaluates 47 sub-checks (37 core and 10 advisory) with stable IDs of the form `<check>.<n>`. Core checks fail the build. Advisory checks print `WARN` and never change the outcome.
 
 | Check | Severity | What it proves | Sub-checks |
 |-------|----------|----------------|------------|
@@ -27,13 +27,16 @@ The Verifier evaluates 45 sub-checks with stable IDs of the form `<check>.<n>`. 
 | P4 | Core | HTTP 400 and `-32020` for mismatched `Mcp-Method` and `Mcp-Name` (P4.1, P4.2, P4.4), matching ones accepted with HTTP 200 (P4.3), header names matched without regard to case, and legacy requests ignoring the headers with HTTP 200 (P4.5) | P4.1 to P4.5 |
 | P5 | Core | `tools/list` per revision: modern cacheable fields (`cacheScope` must be `public` or `private`), legacy results without them, titles and annotations on `2025-11-25` and later, the same tools on every revision, and every extra advertised revision accepted | P5.1 to P5.9 |
 | P6 | Core | `tools/call` for `list_tools` with the modern envelope on `2026-07-28` and without it on `2025-11-25` | P6.1, P6.2 |
+| M1 | Core | A `GET` with `Accept: text/event-stream` and no key gets HTTP 405, `Allow: POST`, a JSON content type, and a JSON object body with a string `message` (the wording of the message is not checked). Judged by `judgeMethodNotAllowed`, which X2.5 shares | M1.1 |
 | X1 | Core | The CORS preflight on the API Gateway endpoint | X1.1 to X1.3 |
 | T1 | Advisory | `list_templates` returns template data, which needs the backends | T1.1 |
 | S1 | Advisory | An invalid key is rejected with HTTP 401 | S1.1 |
 | S2 | Advisory | The stored key is accepted in `X-API-Key` and as a Bearer token, and gets a higher rate limit than the public tier | S2.1 to S2.3 |
-| X2 | Advisory | The preflight and the `-32020` behavior (HTTP 400 with `-32020` in X2.3 and X2.4) also work through the stage's custom domain, which shows CloudFront forwards the headers and passes the 400 status on unchanged | X2.1 to X2.4 |
+| X2 | Advisory | The preflight and the `-32020` behavior (HTTP 400 with `-32020` in X2.3 and X2.4) also work through the stage's custom domain, which shows CloudFront forwards the headers and passes the 400 status on unchanged. X2.5 sends the M1 `GET` through the edge and expects the same `405`, which shows the edge does not replace it with the landing page | X2.1 to X2.5 |
 
-Without a stored key, S2.1 to S2.3 are SKIP. Without a custom domain (`test`), X2.1 to X2.4 are SKIP. The full catalog, with each request and its pass conditions, is in the [design](../../.kiro/specs/0-0-7-postdeploy-smoke-verification/design.md#7-check-catalog). The P3, P4, and X2 conditions above are the current ones, set by [schema validation of modern results](../../.kiro/specs/0-0-7-schema-validation-of-modern-results/design.md).
+Without a stored key, S2.1 to S2.3 are SKIP. Without a custom domain (`test`), X2.1 to X2.5 are SKIP.
+
+The `GET` probes (M1.1 and X2.5) are answered by an API Gateway mock and never reach the Read Function. The Verifier counts them in neither `requests.posts` nor `requests.preflights`, so the request counts in [Running it locally](#running-it-locally) and the operator guide's [request budget](../admin-ops/post-deploy-verification.md#request-budget) do not change. Like a preflight, a `GET` carries no key, no body, no `Content-Type`, and no JSON-RPC `id`. The full catalog, with each request and its pass conditions, is in the [design](../../.kiro/specs/0-0-7-postdeploy-smoke-verification/design.md#7-check-catalog). The P3, P4, and X2 conditions above are the current ones, set by [schema validation of modern results](../../.kiro/specs/0-0-7-schema-validation-of-modern-results/design.md).
 
 ### Failure reasons for P3, P4, and X2
 
@@ -44,6 +47,8 @@ A P3, P4, or X2 request that must fail with `-32022` or `-32020` is expected to 
 | P4.1, P4.2, P4.4 | `the MCP-Protocol-Version or Mcp-* headers may not be reaching the function` | The mismatched headers did not arrive at the Read Function |
 | X2.3, X2.4 | `the edge may not be forwarding the MCP-Protocol-Version or Mcp-* headers` | The custom domain (CloudFront) drops the headers |
 | P3.1, P3.2 | none | The server answered HTTP 200 for an unlisted revision, or did not check the revision |
+
+M1.1 and X2.5 expect HTTP 405. When one gets HTTP 200 with a `text/html` content type, the reason is `HTTP 200, expected 405; the target is answering with the site's landing page (an API 403 or 404 rewritten to /index.html); body: ...` (`the edge` for X2.5). That is the failure this check exists to catch. See [CORS and response headers](../admin-ops/cors-and-response-headers.md#cloudfront-turns-403-and-404-into-the-landing-page).
 
 An error that has the right code but arrives with HTTP 200 gets no hint. It fails on the status and means the server is not returning the status the MCP specification requires.
 
@@ -212,7 +217,7 @@ To add or change a check:
 2. Teach the fake server in `tests/postdeploy-verify/helpers/fake-mcp-server.mjs` the new request, using the response shapes in [supported protocol revisions](../end-user/supported-protocol-revisions.md) and [CORS and response headers](../admin-ops/cors-and-response-headers.md). `fake-mcp-server-tests.jest.mjs` keeps the fake honest, and `fake-mcp-server-schema-conformance.jest.mjs` checks its responses against the vendored schemas, so a new response shape must pass both.
 3. In `checks-tests.jest.mjs`, show that a healthy server passes the sub-check and that a change to the fake fails it with the documented reason.
 4. In `budget-tests.jest.mjs`, update the expected counted requests if the check sends a new one.
-5. In `outcome-and-report-tests.jest.mjs`, update the fixed list of sub-check IDs and the counts (45 sub-checks, 36 core, 9 advisory).
+5. In `outcome-and-report-tests.jest.mjs`, update the fixed list of sub-check IDs and the counts (47 sub-checks, 37 core, 10 advisory).
 6. Update the check table in the [operator guide](../admin-ops/post-deploy-verification.md), the table above, and the mapping from manual items to sub-checks in [`TODO-MANUAL-VERIFY.md`](../../.kiro/specs/0-0-7-mcp-protocol-dual-era/TODO-MANUAL-VERIFY.md).
 7. Run the package's tests as described above.
 

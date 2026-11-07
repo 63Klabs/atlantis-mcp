@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [v0.0.7] (unreleased)
 
+### Breaking Changes
+- **Auth function: "User not found" is now HTTP 422, and unmatched routes are now HTTP 400** [Spec: 0-0-7-get-on-mcp-v1-returns-html-landing-page-200](../.kiro/specs/0-0-7-get-on-mcp-v1-returns-html-landing-page-200/) - `GET /mcp/auth/profile`, `POST /mcp/auth/key/regenerate`, and `POST /mcp/auth/voucher/redeem` answer `422` instead of `404` when the token is valid but the account has no user record. CloudFront rewrites every 403 and 404 to the site's landing page with HTTP 200, so a 404 never reached the page as a 404
+  - The Auth function's response for a request that matches none of its routes is `400` instead of `404`
+  - An unknown path, or an unsupported method on a path other than `/mcp/v1`, at the raw `execute-api` URL is `400` with a JSON message instead of API Gateway's `403 Missing Authentication Token`
+
 ### Added
 - **Tool Discovery Enhancement** [Spec: 0-0-7-tool-discovery-enhancement](../.kiro/specs/0-0-7-tool-discovery-enhancement/) — Makes the server the first place an AI agent looks for Atlantis platform resources, and makes `@63klabs/cache-data` reachable by the queries an agent would naturally write despite its name not containing "atlantis"
   - `search_documentation`: new optional `repository`, `repositoryType`, and `namespace` filters, in addition to the existing `type`/`subType`/`ghusers` filters; a filter matching nothing returns a successful empty result rather than an error, and all filters participate in the search cache key
@@ -32,7 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Build-time `config/release-version.js`, generated from the first version header in `CHANGELOG.md` by `build-scripts/write_release_version.py`, so the reported server version is the deployed release
   - New documentation: [MCP protocol sources of truth](docs/developer/mcp-protocol-sources.md), [CORS and response headers](docs/admin-ops/cors-and-response-headers.md), [supported protocol revisions](docs/end-user/supported-protocol-revisions.md), and an `ARCHITECTURE.md` section on dual-era support. `Mcp-Param-*` / `x-mcp-header` support is not implemented
 - **Post-Deploy Smoke Verification** [Spec: 0-0-7-postdeploy-smoke-verification](../.kiro/specs/0-0-7-postdeploy-smoke-verification/) - Every deployment now verifies itself. A new last post-deploy script, `05-verify-deployment.sh`, sends about 25 read-only requests to the stage that was just deployed, and fails the build, which blocks promotion, when the live server is not the release that was built or no longer speaks both MCP protocol eras
-  - 45 sub-checks, 36 core and 9 advisory. Core checks fail the build: `server/discover`, the deployed release version, legacy `initialize` negotiation, the `-32022` and `-32020` errors, the `tools/list` and `tools/call` envelopes per revision, and the CORS preflight. Advisory checks only warn: `list_templates`, the `401` for an invalid key, the stored verification key, and, on stages with a custom domain, the same headers through CloudFront
+  - 47 sub-checks, 37 core and 10 advisory. Core checks fail the build: `server/discover`, the deployed release version, legacy `initialize` negotiation, the `-32022` and `-32020` errors, the `tools/list` and `tools/call` envelopes per revision, and the CORS preflight. Advisory checks only warn: `list_templates`, the `401` for an invalid key, the stored verification key, and, on stages with a custom domain, the same headers through CloudFront
   - A run that gets HTTP `429` on a core check is `inconclusive` and fails the build. The log gives the reset time and the command to retry the stage. Nothing waits or retries inside CodeBuild
   - Results go to the PostDeploy build log, a JSON report, and one `VERIFY_REPORT` line per run, searchable with CloudWatch Logs Insights (new "Post-Deploy Verification Runs" entry in `docs/admin-ops/cloudwatch-insights-queries.json`)
   - Two new SSM parameters, created by the main build: `Mcp_PostDeployTestVerifyApiKey` (`BLANK` until a private-tier key is stored; verification runs without it) and `Mcp_PostDeployTestVerifySkip` (`false`; set it to `true` to skip verification on one stage). Each verification run renews the key's account, so a stage deployed at least once every 120 days keeps it ([#5](https://github.com/63Klabs/atlantis-mcp/issues/5))
@@ -102,6 +107,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - New test `application-infrastructure/tests/postdeploy-verify/docs-page-tests.jest.mjs` checks the pinned URL, the integrity attribute, the escaping, and the fallback on every PostDeploy build
   - New developer page, [API reference page](docs/developer/api-reference-page.md), with the procedure for changing the pinned version
   - Redoc stays on the 2.x line; a move to Redoc 3 is a later change
+- **A `GET` to `/mcp/v1` returned the HTML landing page with HTTP 200, so Kiro could not connect** [Spec: 0-0-7-get-on-mcp-v1-returns-html-landing-page-200](../.kiro/specs/0-0-7-get-on-mcp-v1-returns-html-landing-page-200/) ([#8](https://github.com/63Klabs/atlantis-mcp/issues/8)) - A `GET` to `/mcp/v1` returned the site's HTML landing page with HTTP 200, and Kiro failed to connect with `Unexpected token '<'`. Every method other than `POST` and `OPTIONS` now gets `405` with `Allow: POST` and a JSON body from an API Gateway mock, with no Lambda invocation, no key check, and no rate-limit write
+  - The notification `202` now has no body and no `max-age=3600` cache header; cache-data's `Response` ignored a falsy body
+  - A request to an unknown route now gets a JSON `400`
+  - Two new post-deploy verifier sub-checks, `M1.1` (core) and `X2.5` (advisory), for 47 in total (37 core, 10 advisory)
+  - `Template: template-openapi-spec.yml` - adds the catch-all mock for `/mcp/v1` and the gateway-response override for unknown routes
 
 ### Security
 - **The Read function's Users table access is narrowed** [Spec: 0-0-7-lapsed-tier-downgrade](../.kiro/specs/0-0-7-lapsed-tier-downgrade/) - `UsersTableAuthRead` allows `GetItem` only on user records (`KEY#*`) and only for the seven attributes auth uses; `UsersTableAuthUpdate` allows `UpdateItem` only on user records and only for `tier`, `tierExpiresAt`, `ttl`, `fallbackTier`, and `fallbackExpiresAt`, with no item values returned. Before, the function could read and update any item and attribute in the table, including vouchers

@@ -2,7 +2,7 @@
  * Unit tests for route dispatcher (cache-data MVC pattern)
  *
  * Tests the route dispatcher's ability to match paths using endsWith()
- * and delegate to the correct controller, or return 404 for unmatched routes.
+ * and delegate to the correct controller, or return 400 for unmatched routes.
  *
  * @module tests/unit/route-dispatcher
  */
@@ -42,6 +42,7 @@ jest.mock('@63klabs/cache-data', () => ({
 }));
 
 const Routes = require('../../routes/index');
+const { UNKNOWN_ROUTE_STATUS } = require('../../utils/status-codes');
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                           */
@@ -120,7 +121,7 @@ describe('Route Dispatcher (cache-data MVC)', () => {
 			await Routes.process(clientRequest, response);
 
 			expect(mockProfileGet).not.toHaveBeenCalled();
-			expect(response.setStatusCode).toHaveBeenCalledWith(404);
+			expect(response.setStatusCode).toHaveBeenCalledWith(UNKNOWN_ROUTE_STATUS);
 			expect(response.setBody).toHaveBeenCalledWith({ error: 'Not found' });
 		});
 	});
@@ -157,7 +158,7 @@ describe('Route Dispatcher (cache-data MVC)', () => {
 			await Routes.process(clientRequest, response);
 
 			expect(mockKeyRegeneratePost).not.toHaveBeenCalled();
-			expect(response.setStatusCode).toHaveBeenCalledWith(404);
+			expect(response.setStatusCode).toHaveBeenCalledWith(UNKNOWN_ROUTE_STATUS);
 		});
 	});
 
@@ -193,61 +194,61 @@ describe('Route Dispatcher (cache-data MVC)', () => {
 			await Routes.process(clientRequest, response);
 
 			expect(mockVoucherRedeemPost).not.toHaveBeenCalled();
-			expect(response.setStatusCode).toHaveBeenCalledWith(404);
+			expect(response.setStatusCode).toHaveBeenCalledWith(UNKNOWN_ROUTE_STATUS);
 		});
 	});
 
-	describe('404 for unknown paths', () => {
-		it('should return 404 for unknown GET path', async () => {
+	describe('400 for unknown paths', () => {
+		it('should return 400 for unknown GET path', async () => {
 			const clientRequest = createClientRequest('GET', '/mcp/auth/unknown');
 			const response = createResponse();
 
 			await Routes.process(clientRequest, response);
 
-			expect(response.setStatusCode).toHaveBeenCalledWith(404);
+			expect(response.setStatusCode).toHaveBeenCalledWith(UNKNOWN_ROUTE_STATUS);
 			expect(response.setBody).toHaveBeenCalledWith({ error: 'Not found' });
 			expect(mockProfileGet).not.toHaveBeenCalled();
 			expect(mockKeyRegeneratePost).not.toHaveBeenCalled();
 			expect(mockVoucherRedeemPost).not.toHaveBeenCalled();
 		});
 
-		it('should return 404 for unknown POST path', async () => {
+		it('should return 400 for unknown POST path', async () => {
 			const clientRequest = createClientRequest('POST', '/mcp/auth/unknown');
 			const response = createResponse();
 
 			await Routes.process(clientRequest, response);
 
-			expect(response.setStatusCode).toHaveBeenCalledWith(404);
+			expect(response.setStatusCode).toHaveBeenCalledWith(UNKNOWN_ROUTE_STATUS);
 			expect(response.setBody).toHaveBeenCalledWith({ error: 'Not found' });
 		});
 
-		it('should return 404 for empty path', async () => {
+		it('should return 400 for empty path', async () => {
 			const clientRequest = createClientRequest('GET', '');
 			const response = createResponse();
 
 			await Routes.process(clientRequest, response);
 
-			expect(response.setStatusCode).toHaveBeenCalledWith(404);
+			expect(response.setStatusCode).toHaveBeenCalledWith(UNKNOWN_ROUTE_STATUS);
 			expect(response.setBody).toHaveBeenCalledWith({ error: 'Not found' });
 		});
 
-		it('should return 404 for PUT method on valid path', async () => {
+		it('should return 400 for PUT method on valid path', async () => {
 			const clientRequest = createClientRequest('PUT', '/mcp/auth/profile');
 			const response = createResponse();
 
 			await Routes.process(clientRequest, response);
 
-			expect(response.setStatusCode).toHaveBeenCalledWith(404);
+			expect(response.setStatusCode).toHaveBeenCalledWith(UNKNOWN_ROUTE_STATUS);
 			expect(mockProfileGet).not.toHaveBeenCalled();
 		});
 
-		it('should return 404 for DELETE method on valid path', async () => {
+		it('should return 400 for DELETE method on valid path', async () => {
 			const clientRequest = createClientRequest('DELETE', '/mcp/auth/key/regenerate');
 			const response = createResponse();
 
 			await Routes.process(clientRequest, response);
 
-			expect(response.setStatusCode).toHaveBeenCalledWith(404);
+			expect(response.setStatusCode).toHaveBeenCalledWith(UNKNOWN_ROUTE_STATUS);
 			expect(mockKeyRegeneratePost).not.toHaveBeenCalled();
 		});
 	});
@@ -314,7 +315,7 @@ describe('Route Dispatcher (cache-data MVC)', () => {
 			await Routes.process(clientRequest, response);
 
 			expect(mockProfileGet).not.toHaveBeenCalled();
-			expect(response.setStatusCode).toHaveBeenCalledWith(404);
+			expect(response.setStatusCode).toHaveBeenCalledWith(UNKNOWN_ROUTE_STATUS);
 		});
 	});
 });

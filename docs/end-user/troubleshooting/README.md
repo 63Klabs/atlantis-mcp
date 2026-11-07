@@ -9,6 +9,7 @@ This guide helps you diagnose and resolve common issues when using the 63Klabs A
 - [Tool Errors](#tool-errors)
 - [Performance Issues](#performance-issues)
 - [Authentication Problems](#authentication-problems)
+  - ["User not found" returns HTTP 422](#problem-user-not-found-returns-http-422)
   - [API key returns 401 after a long break](#problem-api-key-returns-401-after-a-long-break)
   - [Forgot your password](#problem-forgot-your-password)
   - [Change your password while signed in](#problem-want-to-change-your-password-while-signed-in)
@@ -16,6 +17,7 @@ This guide helps you diagnose and resolve common issues when using the 63Klabs A
   - [Your tier changed when a promotion ended](#problem-my-tier-changed-when-a-promotion-ended)
 - [Data Quality Issues](#data-quality-issues)
 - [Integration-Specific Issues](#integration-specific-issues)
+  - [Kiro fails to connect with a JSON parse error](#problem-kiro-fails-to-connect-with-a-json-parse-error)
 
 ---
 
@@ -354,6 +356,22 @@ If you see authentication errors:
 
 ---
 
+### Problem: "User not found" returns HTTP 422
+
+**Symptoms:**
+- The profile, API key regeneration, or promotion code redemption request fails with `{ "error": "User not found" }`
+- The HTTP status is `422`, where earlier versions returned `404`
+
+**Cause:**
+
+You are signed in, but there is no user record for your account. This happens, for example, when an account was removed for inactivity (see [API key returns 401 after a long break](#problem-api-key-returns-401-after-a-long-break)). Since v0.0.7 the status is `422` instead of `404`. A `404` is rewritten to the site's landing page by the CDN, so clients received HTML instead of the JSON error. The message is unchanged.
+
+**Solution:**
+
+If your own code checks for `404` on `/mcp/auth/profile`, `/mcp/auth/key/regenerate`, or `/mcp/auth/voucher/redeem`, check for `422` instead. To restore the account, [register again](https://mcp.atlantis.63klabs.net/register/).
+
+---
+
 ### Problem: API key returns 401 after a long break
 
 **Symptoms:**
@@ -614,6 +632,26 @@ Data is cached for performance:
 
 ### Kiro
 
+#### Problem: Kiro fails to connect with a JSON parse error
+
+**Symptoms:**
+- Kiro cannot connect and reports `Unexpected token '<', "<!DOCTYPE "... is not valid JSON`
+
+**Cause:**
+
+Kiro sends a `GET` to the MCP endpoint. A server older than v0.0.7 answered that `GET` with the site's HTML landing page and HTTP status `200`. Kiro tried to read the HTML as JSON, and the first character, `<`, produced the error.
+
+**Solution:**
+
+A server at v0.0.7 or later answers a `GET` to `/mcp/v1` with HTTP status `405` and a JSON body. Check what your server returns:
+
+```bash
+# A v0.0.7 or later server returns HTTP 405, "Allow: POST", and a JSON body
+curl -i -X GET https://mcp.atlantis.63klabs.net/mcp/v1
+```
+
+If you self-host and the response is HTML with status `200`, deploy v0.0.7 or later. See [HTTP methods](../supported-protocol-revisions.md#http-methods) for the full behavior.
+
 **Problem: MCP Server Not Connected**
 
 1. Check MCP Servers panel
@@ -710,6 +748,8 @@ curl -i -X POST https://mcp.atlantis.63klabs.net/mcp/v1
 | 400 | Bad Request | Check input parameters |
 | 401 | Unauthorized | Check URL or credentials |
 | 404 | Not Found | Verify resource name and category (or, for `get_document`, use the returned `githubUrl` to fetch directly) |
+| 405 | Method Not Allowed | `/mcp/v1` accepts `POST` only (see [HTTP methods](../supported-protocol-revisions.md#http-methods)) |
+| 422 | Unprocessable | `User not found` on the profile, key regeneration, and voucher redemption requests (see [above](#problem-user-not-found-returns-http-422)) |
 | 429 | Rate Limit Exceeded | Wait for reset or self-host |
 | 500 | Internal Server Error | Retry or contact support |
 | 503 | Service Unavailable | Temporary issue, retry later |

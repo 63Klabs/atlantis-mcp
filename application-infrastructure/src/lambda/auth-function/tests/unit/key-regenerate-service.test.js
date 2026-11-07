@@ -68,6 +68,7 @@ jest.mock('../../utils/api-key', () => ({
 }));
 
 const { regenerateKey } = require('../../services/key-regenerate');
+const { USER_NOT_FOUND_STATUS } = require('../../utils/status-codes');
 
 /* ------------------------------------------------------------------ */
 /*  Tests                                                             */
@@ -214,12 +215,12 @@ describe('Key Regeneration Service', () => {
 		);
 	});
 
-	it('should throw 404 when user not found', async () => {
+	it('should throw 422 when user not found', async () => {
 		mockQueryByEmail.mockResolvedValue([]);
 
 		await expect(regenerateKey('unknown@example.com', 'test-sub-456'))
 			.rejects.toMatchObject({
-				statusCode: 404,
+				statusCode: USER_NOT_FOUND_STATUS,
 				message: 'User not found'
 			});
 
@@ -229,12 +230,12 @@ describe('Key Regeneration Service', () => {
 		expect(mockUpdateUserAttributes).not.toHaveBeenCalled();
 	});
 
-	it('should throw 404 when queryByEmail returns null', async () => {
+	it('should throw 422 when queryByEmail returns null', async () => {
 		mockQueryByEmail.mockResolvedValue(null);
 
 		await expect(regenerateKey('unknown@example.com', 'test-sub-456'))
 			.rejects.toMatchObject({
-				statusCode: 404,
+				statusCode: USER_NOT_FOUND_STATUS,
 				message: 'User not found'
 			});
 	});

@@ -20,6 +20,7 @@ const UserDao = require('../models/user');
 const { computeWindowBoundaries, computeSessionKey } = require('../utils/window-calculator');
 // >! Loaded from the tier-common layer; the same expiry rule the Read function uses
 const TierCommon = require('../utils/tier-common');
+const { USER_NOT_FOUND_STATUS } = require('../utils/status-codes');
 
 const { EXPIRY_STATE } = TierCommon;
 
@@ -71,7 +72,7 @@ function computeEffectiveTier(tier, tierExpiresAt, fallback) {
  * @returns {number} return.rateLimits.remaining - Remaining requests in current window
  * @returns {number} return.rateLimits.windowResetAt - Window reset time in epoch seconds
  * @returns {number} return.rateLimits.windowMinutes - Window duration in minutes
- * @throws {Error} Throws an Error with `statusCode` 404 and message 'User not found' when no user record exists
+ * @throws {Error} Throws an Error with `statusCode` 422 and message 'User not found' when no user record exists
  * @throws {Error} Throws on DynamoDB or SSM errors
  * @example
  * const profile = await getProfile('user@example.com', 'abc-123-def');
@@ -83,7 +84,7 @@ async function getProfile(email, cognitoSub) {
 
 	if (!existingRecords || existingRecords.length === 0) {
 		const error = new Error('User not found');
-		error.statusCode = 404;
+		error.statusCode = USER_NOT_FOUND_STATUS;
 		throw error;
 	}
 

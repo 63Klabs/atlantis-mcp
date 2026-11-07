@@ -66,6 +66,7 @@ describe('/mcp/v1 Routing', () => {
     };
 
     mockResponse = {
+      _body: 'x',
       setStatusCode: jest.fn().mockReturnThis(),
       setBody: jest.fn().mockReturnThis(),
       addHeader: jest.fn().mockReturnThis()
@@ -140,7 +141,11 @@ describe('/mcp/v1 Routing', () => {
 
       expect(mockHandleJsonRpc).toHaveBeenCalledWith(mockClientRequest, undefined);
       expect(mockResponse.setStatusCode).toHaveBeenCalledWith(202);
-      expect(mockResponse.setBody).toHaveBeenCalledWith(null);
+      // >! cache-data's Response.set() ignores a falsy body, so the mapping layer clears _body itself
+      // >! and forbids caching; setBody(null) would leave the generic 200 template body in place.
+      expect(mockResponse._body).toBeNull();
+      expect(mockResponse.addHeader).toHaveBeenCalledWith('Cache-Control', 'no-store');
+      expect(mockResponse.addHeader).toHaveBeenCalledWith('Expires', '0');
       expect(result).toBeUndefined();
     });
 

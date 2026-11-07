@@ -3,8 +3,9 @@
  *
  * Design sections 5, 7, and 11; Requirements 13.1, 13.4, and 16.4. A "counted"
  * request is a POST other than S1 (the invalid-key probe, answered 401 before the
- * rate limiter). Preflights are OPTIONS and are answered by API Gateway, so they
- * are not counted. No real network request is made.
+ * rate limiter). Preflights are OPTIONS and the 405 probes (M1.1, X2.5) are GETs;
+ * API Gateway answers both before the rate limiter, so neither is counted. No real
+ * network request is made.
  */
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import { createFakeMcpServer, FAKE_API_KEY } from './helpers/fake-mcp-server.mjs';
@@ -17,7 +18,7 @@ const COUNTED_NO_EDGE = 21;
 const COUNTED_WITH_EDGE = 24;
 
 /** Request order of the check families, by first request (design section 5). */
-const FAMILY_ORDER = ['P1', 'S1', 'S2', 'P2', 'P3', 'P4', 'P5', 'P6', 'T1', 'X1', 'X2'];
+const FAMILY_ORDER = ['P1', 'S1', 'S2', 'P2', 'P3', 'P4', 'P5', 'P6', 'M1', 'T1', 'X1', 'X2'];
 
 let restoreFetch;
 
@@ -100,6 +101,9 @@ function familyOf(call, position, hasKey) {
   if (call.target === 'edge') {
     return 'X2';
   }
+  if (call.method === 'GET') {
+    return 'M1';
+  }
   if (position === 0) {
     return 'P1';
   }
@@ -171,7 +175,28 @@ describe('Verifier request budget on a healthy stage', () => {
 
     expect(withoutEdge.server.calls.filter((call) => call.method === 'OPTIONS')).toHaveLength(1);
     expect(withEdge.server.calls.filter((call) => call.method === 'OPTIONS')).toHaveLength(2);
-    expect(withoutEdge.server.calls.every((call) => call.method === 'POST' || call.method === 'OPTIONS')).toBe(true);
+    expect(withoutEdge.server.calls.every((call) => ['POST', 'OPTIONS', 'GET'].includes(call.method))).toBe(true);
+  });
+
+  it('sends the 405 probes as GETs that are recorded as calls but never counted as POSTs', async () => {
+    const withoutEdge = await runHealthy();
+    const withEdge = await runHealthy({ hasEdge: true, hasKey: true });
+
+    // M1.1 goes to the raw target; X2.5 goes to the edge
+    const rawGets = withoutEdge.server.calls.filter((call) => call.method === 'GET');
+    expect(rawGets).toHaveLength(1);
+    expect(rawGets[0].target).toBe('raw');
+    expect(rawGets[0].status).toBe(405);
+    expect(countedPosts(withoutEdge.server.calls).some((call) => call.method === 'GET')).toBe(false);
+    expect(withoutEdge.server.calls).toHaveLength(COUNTED_NO_EDGE + 1 + 1 + 1); // POSTs, S1, preflight, GET
+
+    const gets = withEdge.server.calls.filter((call) => call.method === 'GET');
+    expect(gets.map((call) => call.target)).toEqual(['raw', 'edge']);
+    for (const call of gets) {
+      expect(call.status).toBe(405);
+      expect(hasKeyHeader(call)).toBe(false);
+    }
+    expect(countedPosts(withEdge.server.calls).some((call) => call.method === 'GET')).toBe(false);
   });
 
   it('sends exactly one POST without a key (P1) and 22 with it, with an accepted key and no edge target', async () => {

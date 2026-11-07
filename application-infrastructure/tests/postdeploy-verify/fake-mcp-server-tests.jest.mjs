@@ -489,13 +489,22 @@ describe('Fake MCP server: request errors', () => {
     expect(json.error.code).toBe(-32603);
   });
 
-  it('a POST to an unknown path, or a GET, gets the gateway 403', async () => {
+  it('an unknown path, with any method, gets 400 and the unsupported-path message', async () => {
+    // The status, Allow value, and messages are literals on purpose: the fake restates the
+    // contract, so a change to the Lambda code cannot hide behind the same change here.
     const server = healthy();
-    const wrongPath = await server.fetch(`${server.rawUrl}/nope`, { method: 'POST', body: JSON.stringify(rpc('tools/list')) });
-    expect(wrongPath.status).toBe(403);
-    expect((await wrongPath.json()).message).toBe('Missing Authentication Token');
-    const get = await server.fetch(server.rawUrl, { method: 'GET' });
-    expect(get.status).toBe(403);
+    for (const url of [server.rawUrl, server.edgeUrl]) {
+      const wrongPath = await server.fetch(`${url}/nope`, { method: 'POST', body: JSON.stringify(rpc('tools/list')) });
+      expect(wrongPath.status).toBe(400);
+      expect(wrongPath.headers.get('content-type')).toContain('application/json');
+      expect((await wrongPath.json()).message).toBe('Unsupported path or method for this API.');
+
+      for (const method of ['GET', 'PUT', 'DELETE']) {
+        const other = await server.fetch(`${url}/nope`, { method });
+        expect(other.status).toBe(400);
+        expect((await other.json()).message).toBe('Unsupported path or method for this API.');
+      }
+    }
   });
 
   it('a host that is neither target does not resolve', async () => {
@@ -513,6 +522,112 @@ describe('Fake MCP server: request errors', () => {
     const error = await rejection(server.fetch(server.rawUrl, { method: 'POST', body: '{}', signal: controller.signal }));
     expect(['AbortError']).toContain(error.name);
     expect(server.calls[0].outcome).toBe('aborted');
+  });
+});
+
+describe('Fake MCP server: unsupported methods on the endpoint path', () => {
+  // Literals on purpose (see the unknown-path case above): the fake restates the contract.
+  const UNSUPPORTED_METHODS = ['GET', 'HEAD', 'PUT', 'PATCH', 'DELETE'];
+  const MESSAGE = 'Method not allowed. This endpoint accepts POST only.';
+  const TARGETS = [['raw', 'rawUrl'], ['edge', 'edgeUrl']];
+
+  /**
+   * Send a request with no body and read the answer.
+   *
+   * @param {Object} server - Fake server
+   * @param {string} url - Target URL
+   * @param {string} method - HTTP method
+   * @returns {Promise<{response: Response, text: string}>} The answer and its body text
+   */
+  async function send(server, url, method) {
+    const response = await server.fetch(url, { method });
+    return { response, text: await response.text() };
+  }
+
+  it.each(TARGETS)('%s target: GET, HEAD, PUT, PATCH, and DELETE get 405 with Allow: POST and a JSON message', async (_name, urlKey) => {
+    const server = healthy();
+    for (const method of UNSUPPORTED_METHODS) {
+      const { response, text } = await send(server, server[urlKey], method);
+      expect(response.status).toBe(405);
+      expect(response.headers.get('allow')).toBe('POST');
+      expect(response.headers.get('content-type')).toBe('application/json');
+      expect(response.headers.get('access-control-allow-origin')).toBe('*');
+      expect(response.headers.get('cache-control')).toBe('no-store');
+      if (method === 'HEAD') {
+        expect(text).toBe('');
+      } else {
+        const body = JSON.parse(text);
+        expect(typeof body.message).toBe('string');
+        expect(body.message.length).toBeGreaterThan(0);
+        expect(body.message).toBe(MESSAGE);
+      }
+    }
+  });
+
+  it('POST and OPTIONS on the endpoint path are not answered as 405', async () => {
+    const server = healthy();
+    const { status } = await post(server, rpc('tools/list'));
+    expect(status).toBe(200);
+    expect((await preflight(server)).status).not.toBe(405);
+  });
+
+  describe.each([
+    ['methodNotAllowed', 'raw', 'rawUrl', 'edge', 'edgeUrl'],
+    ['edgeMethodNotAllowed', 'edge', 'edgeUrl', 'raw', 'rawUrl']
+  ])('option %s (%s target)', (option, _name, faultedKey, _otherName, otherKey) => {
+    const faulted = (fault) => healthy({ [option]: { fault } });
+
+    it('html: HTTP 200, text/html, an HTML page', async () => {
+      const server = faulted('html');
+      const { response, text } = await send(server, server[faultedKey], 'GET');
+      expect(response.status).toBe(200);
+      expect(response.headers.get('content-type')).toBe('text/html');
+      expect(text).toContain('<html');
+      expect(response.headers.get('allow')).toBeNull();
+      const head = await send(server, server[faultedKey], 'HEAD');
+      expect(head.response.status).toBe(200);
+      expect(head.text).toBe('');
+    });
+
+    it('no-allow: 405 without Allow, still a JSON message', async () => {
+      const server = faulted('no-allow');
+      const { response, text } = await send(server, server[faultedKey], 'GET');
+      expect(response.status).toBe(405);
+      expect(response.headers.has('allow')).toBe(false);
+      expect(response.headers.get('content-type')).toBe('application/json');
+      expect(JSON.parse(text).message).toBe(MESSAGE);
+    });
+
+    it('not-json: 405 with Allow: POST and a text/plain body', async () => {
+      const server = faulted('not-json');
+      const { response, text } = await send(server, server[faultedKey], 'GET');
+      expect(response.status).toBe(405);
+      expect(response.headers.get('allow')).toBe('POST');
+      expect(response.headers.get('content-type')).toBe('text/plain');
+      expect(text).toBe(MESSAGE);
+      expect(() => JSON.parse(text)).toThrow();
+    });
+
+    it('gateway-403: HTTP 403 with the Missing Authentication Token message', async () => {
+      const server = faulted('gateway-403');
+      const { response, text } = await send(server, server[faultedKey], 'GET');
+      expect(response.status).toBe(403);
+      expect(response.headers.get('content-type')).toContain('application/json');
+      expect(JSON.parse(text)).toEqual({ message: 'Missing Authentication Token' });
+    });
+
+    it.each(['html', 'no-allow', 'not-json', 'gateway-403'])('%s affects only its own target and leaves POST alone', async (fault) => {
+      const server = faulted(fault);
+      const other = await send(server, server[otherKey], 'GET');
+      expect(other.response.status).toBe(405);
+      expect(other.response.headers.get('allow')).toBe('POST');
+      expect(other.response.headers.get('content-type')).toBe('application/json');
+      expect(JSON.parse(other.text).message).toBe(MESSAGE);
+
+      const answer = await post(server, rpc('tools/list'), {}, server[faultedKey]);
+      expect(answer.status).toBe(200);
+      expect(answer.json.result.tools.length).toBeGreaterThan(0);
+    });
   });
 });
 
