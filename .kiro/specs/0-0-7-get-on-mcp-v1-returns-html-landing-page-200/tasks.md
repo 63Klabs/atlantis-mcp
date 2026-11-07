@@ -210,12 +210,12 @@ Do not commit unless the owner asks. Do not edit `ISSUE.md`, `template.yml`, eit
     - _Requirements: 13.1, 14.1, 14.2, 14.3, 14.5, 14.6, 14.7, 14.8, 14.9_
 
 - [ ] 14. Roll out to `test` and verify (Phase 4, owner)
-  - [~] 14.1 Deploy and read the PostDeploy result
+  - [x] 14.1 Deploy and read the PostDeploy result
     - After the owner commits and the change reaches the `test` branch, let the pipeline deploy. The API definition, both functions, and the tightened verifier are in the same commit
     - Read the PostDeploy log: the verifier tests pass in `pre_build`; the verifier outcome is `passed` with 47 sub-checks; `M1.1` is PASS and `X2.5` is SKIP (no custom domain); scripts 01 to 04 pass, which shows the API reference page still generates. Record the outcome and the `VERIFY_REPORT` line in `VERIFICATION.md`
     - If the stage fails because it still runs the previous build (the reason reads `HTTP 403, expected 405; body: {"message":"Missing Authentication Token"}`), deploy the new build and retry the PostDeploy stage; do not loosen a check
     - _Requirements: 13.3, 13.4, 13.11_
-  - [~] 14.2 Run the curl matrix on the Test stage
+  - [x] 14.2 Run the curl matrix on the Test stage
     - Ask the owner before sending any request. Then send the ten requests of Design, V-D to the Test stage's CloudFront domain (and the last one to its raw `execute-api` URL), and record each status and the headers that matter in `VERIFICATION.md`
     - Expect: `405` with `allow: POST`, `content-type: application/json`, `cache-control: no-store`, and the JSON message for the first six; `400` with a JSON message for the unknown path and `PUT /mcp/auth/profile`; `202` with a zero-length body and no `max-age=3600` for the notification; the same `405` at the raw URL
     - If the `DELETE` with a `text/plain` body, the `text/plain` `GET`, or the `Accept: text/event-stream` `GET` returns `415`, `500`, or an empty body, apply the fallback in Design, Components 1 (response template under more keys, or no request template), redeploy to `test`, and repeat the matrix. This changes only `template-openapi-spec.yml`

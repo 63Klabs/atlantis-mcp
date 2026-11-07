@@ -71,6 +71,18 @@ paths:
     # >! A mock, not the Read function: the answer carries no information, so it needs no API key,
     # >! writes no rate-limit counter, and starts no Lambda. A specific method defined later on
     # >! this path takes precedence over this catch-all. Never replace 405 with 403 or 404.
+    # >! A mock reads "statusCode" from the integration request body, so it needs a request template
+    # >! that matches the request's Content-Type. A request with a Content-Type that had no template
+    # >! (GET or DELETE with text/plain) passed its raw body through and ended in a 500 on the test
+    # >! stage (task 14.2 of the spec). Templates are therefore listed, with the same constant body,
+    # >! for the common types. The response template is repeated under the same keys so the body is
+    # >! JSON whichever key applies; Content-Type is still set to application/json by the parameter.
+    # >! Keep passthroughBehavior when_no_match: with a template defined, when_no_templates and never
+    # >! reject an unlisted type with 415, and 405 is the answer wanted for every type.
+    # >! API Gateway matches template keys exactly and has no wildcard key, so this cannot cover
+    # >! every type (for example "text/plain; charset=utf-8" or an unusual vendor type). Residual
+    # >! risk: an unlisted Content-Type on a body-less method can still produce a 500, never a 403
+    # >! or 404, so the landing-page rewrite does not apply. Add a key here if one is observed.
     x-amazon-apigateway-any-method:
       summary: "Methods other than POST"
       description: "This endpoint accepts POST only. Any other method gets 405 with Allow: POST and a JSON body. No event stream is offered."
@@ -101,6 +113,14 @@ paths:
         passthroughBehavior: when_no_match
         requestTemplates:
           application/json: '{"statusCode": 405}'
+          text/plain: '{"statusCode": 405}'
+          application/x-www-form-urlencoded: '{"statusCode": 405}'
+          application/octet-stream: '{"statusCode": 405}'
+          application/xml: '{"statusCode": 405}'
+          text/xml: '{"statusCode": 405}'
+          text/html: '{"statusCode": 405}'
+          text/event-stream: '{"statusCode": 405}'
+          multipart/form-data: '{"statusCode": 405}'
         responses:
           default:
             statusCode: '405'
@@ -111,6 +131,14 @@ paths:
               method.response.header.Content-Type: "'application/json'"
             responseTemplates:
               application/json: '{"message": "Method not allowed. This endpoint accepts POST only."}'
+              text/plain: '{"message": "Method not allowed. This endpoint accepts POST only."}'
+              application/x-www-form-urlencoded: '{"message": "Method not allowed. This endpoint accepts POST only."}'
+              application/octet-stream: '{"message": "Method not allowed. This endpoint accepts POST only."}'
+              application/xml: '{"message": "Method not allowed. This endpoint accepts POST only."}'
+              text/xml: '{"message": "Method not allowed. This endpoint accepts POST only."}'
+              text/html: '{"message": "Method not allowed. This endpoint accepts POST only."}'
+              text/event-stream: '{"message": "Method not allowed. This endpoint accepts POST only."}'
+              multipart/form-data: '{"message": "Method not allowed. This endpoint accepts POST only."}'
 
   /mcp/auth/key/regenerate:
     post:

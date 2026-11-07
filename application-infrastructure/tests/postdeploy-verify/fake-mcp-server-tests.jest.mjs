@@ -564,6 +564,17 @@ describe('Fake MCP server: unsupported methods on the endpoint path', () => {
     }
   });
 
+  it.each(TARGETS)('%s target: GET and DELETE with Content-Type text/plain get the same 405 (task 14.2)', async (_name, urlKey) => {
+    // The deployed mock answered these with a 500 until it had a request template for text/plain.
+    const server = healthy();
+    for (const method of ['GET', 'DELETE']) {
+      const response = await server.fetch(server[urlKey], { method, headers: { 'Content-Type': 'text/plain' }, ...(method === 'DELETE' ? { body: 'x' } : {}) });
+      expect(response.status).toBe(405);
+      expect(response.headers.get('allow')).toBe('POST');
+      expect(response.headers.get('content-type')).toBe('application/json');
+      expect(JSON.parse(await response.text()).message).toBe(MESSAGE);
+    }
+  });
   it('POST and OPTIONS on the endpoint path are not answered as 405', async () => {
     const server = healthy();
     const { status } = await post(server, rpc('tools/list'));

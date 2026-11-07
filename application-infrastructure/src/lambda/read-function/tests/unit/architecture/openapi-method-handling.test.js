@@ -16,6 +16,8 @@
  *
  * Spec: .kiro/specs/0-0-7-get-on-mcp-v1-returns-html-landing-page-200/ (design.md, Components 4)
  * Requirements: 2.1, 2.2, 2.3, 2.4, 3.1, 3.2, 3.4, 6.1, 6.5
+ * Fallback applied for task 14.2: a request with Content-Type text/plain and no matching
+ * request template got a 500 from the mock on the test stage (design.md, Components 1)
  *
  * Assertions:
  *   M1  /mcp/v1 has a catch-all whose integration is a mock with no uri
@@ -24,6 +26,8 @@
  *   M4  /mcp/v1 has exactly post and the catch-all; post invokes the live alias
  *   M5  Only MISSING_AUTHENTICATION_TOKEN is overridden, outside 403/404, with a JSON message
  *   M6  No operation in the file declares a 403 or 404 response
+ *   M7  The mock has a {"statusCode": 405} request template for application/json and text/plain,
+ *       and a JSON message response template for text/plain
  *
  * @module tests/unit/architecture/openapi-method-handling
  */
@@ -48,6 +52,13 @@ const OVERRIDDEN_RESPONSE_TYPE = 'MISSING_AUTHENTICATION_TOKEN';
 const READ_ALIAS_REFERENCE = '${ReadLambdaFunction.Alias}';
 const HEADER_PARAMETER_PREFIX = 'method.response.header.';
 const BUILT_IN_MESSAGE = 'Missing Authentication Token';
+
+// Content types the mock must have a request template for. A mock reads "statusCode" from the
+// integration request body; a content type with no template passed its raw body through and the
+// test stage answered 500 (task 14.2). application/json is the type API Gateway assumes when a
+// request has no Content-Type; text/plain is the type that failed.
+const REQUIRED_TEMPLATE_CONTENT_TYPES = Object.freeze(['application/json', 'text/plain']);
+const EXPECTED_MOCK_STATUS = 405;
 
 // HTTP methods an OpenAPI path item can declare as operations
 const HTTP_METHODS = Object.freeze(['get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace']);
@@ -353,6 +364,48 @@ describe('Architecture: OpenAPI method handling on /mcp/v1', () => {
         `${entry.method.toUpperCase()} ${entry.path} declares '${entry.status}'. ` +
         'CloudFront rewrites 403 and 404 to /index.html with 200, so an API response must use another status.'
       );
+
+    expectNoViolations(violations);
+  });
+
+  it('M7: the mock has a statusCode 405 request template and a JSON message response template per common content type', () => {
+    const catchAll = getCatchAll(spec);
+    const integration = catchAll && isObject(catchAll[INTEGRATION_KEY]) ? catchAll[INTEGRATION_KEY] : undefined;
+    const defaultResponse = getDefaultIntegrationResponse(catchAll);
+    const violations = [];
+
+    // >! The mock must not depend on the request Content-Type: without a matching request template
+    // >! it cannot read statusCode and API Gateway answers 500 instead of 405
+    const requestTemplates = integration && isObject(integration.requestTemplates) ? integration.requestTemplates : {};
+    const responseTemplates = defaultResponse && isObject(defaultResponse.responseTemplates) ? defaultResponse.responseTemplates : {};
+
+    if (!integration) {
+      violations.push(`${ANY_METHOD_KEY} has no ${INTEGRATION_KEY}.`);
+    }
+    if (!defaultResponse) {
+      violations.push(`${ANY_METHOD_KEY} has no default integration response.`);
+    }
+
+    REQUIRED_TEMPLATE_CONTENT_TYPES.forEach(contentType => {
+      const request = parseJsonTemplate(requestTemplates[contentType]);
+      if (request.error) {
+        violations.push(`request template for ${contentType}: ${request.error}`);
+      } else if (!isObject(request.value) || request.value.statusCode !== EXPECTED_MOCK_STATUS) {
+        violations.push(`request template for ${contentType} must be a JSON object with statusCode ${EXPECTED_MOCK_STATUS}; found ${JSON.stringify(request.value)}.`);
+      }
+    });
+
+    const textPlainResponse = parseJsonTemplate(responseTemplates['text/plain']);
+    if (textPlainResponse.error) {
+      violations.push(`response template for text/plain: ${textPlainResponse.error}`);
+    } else if (!isObject(textPlainResponse.value) || typeof textPlainResponse.value.message !== 'string' || textPlainResponse.value.message.trim() === '') {
+      violations.push(`response template for text/plain must be a JSON object with a non-empty string "message"; found ${JSON.stringify(textPlainResponse.value)}.`);
+    }
+
+    // >! passthroughBehavior never (or when_no_templates with templates) would answer 415, not 405
+    if (integration && integration.passthroughBehavior !== 'when_no_match') {
+      violations.push(`passthroughBehavior is ${JSON.stringify(integration.passthroughBehavior)}, expected "when_no_match" so an unlisted content type is not rejected with 415.`);
+    }
 
     expectNoViolations(violations);
   });

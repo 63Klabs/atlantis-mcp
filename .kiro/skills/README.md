@@ -53,6 +53,7 @@ These skills support this repository's own release process. They are not part of
 | Skill | What it does | When it runs |
 |---|---|---|
 | [`update-mcp-schemas`](update-mcp-schemas/SKILL.md) | Compares the vendored MCP JSON Schemas in `application-infrastructure/tests/mcp-schemas` with upstream `main`, applies any change at the resolved commit, and runs the conformance tests. Never commits and never advertises a revision | On request, or as the fourth update skill run by `prepare-release` |
+| [`manual-cli-tests`](manual-cli-tests/SKILL.md) | Writes a `MANUAL.md` and `env.sh.example` in a spec directory: explicit `curl`/`aws`/`jq` commands that read tester-set variables from a git-ignored `.env.sh`, create new variables for later steps, and write verification output to result files. Can also walk the tester through running it. Never commits | On request, for a task the automated suite cannot cover and that needs a deployed stack |
 | [`prepare-release`](prepare-release/SKILL.md) | Runs the prepare pass of a release: checks the preconditions, runs `audit-update-npm-packages`, `audit-update-python-packages`, `update-lambda-layers`, and `update-mcp-schemas` in that order, runs every test suite, and checks that only release-preparation files changed. Never commits | Started by the [`detect-release-transition`](../hooks/detect-release-transition.json) hook after the top `CHANGELOG.md` version is dated on `dev`, or on request |
 
 ## Format reference

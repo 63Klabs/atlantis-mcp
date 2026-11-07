@@ -441,3 +441,60 @@ Checks:
 ### Result
 
 All four suites pass. Lint counts and rule classes match the recorded baselines. The searches leave only expected hits, plus the one steering example noted above. The change set is within the allowed paths. The commit is left to the owner.
+
+## Curl matrix on test (task 14.2)
+
+Run on 2026-11-07 (about 04:06 UTC) against the `test` stage only, with the owner's approval. Each request was sent exactly once with `curl -si --max-time 30` (request 3 with `-I`, because `-X HEAD` makes curl wait for a body). Request 5 carried the fake header `x-api-key: not-a-real-key`; no real key and no `Authorization` header was sent. Nothing was sent to `beta`, `prod`, or any other host. Hosts, the API id, the distribution id, cookies, request ids, and rate-limit counters are not recorded here.
+
+| # | Request | Status | allow | content-type | cache-control | content-length | x-cache | Body message | Result |
+|---|---------|--------|-------|--------------|---------------|----------------|---------|--------------|--------|
+| 1 | `GET <cloudfront-domain>/mcp/v1` with `Accept: text/event-stream` | 405 | `POST` | `application/json` | `no-store` | 67 | Error from cloudfront | `Method not allowed. This endpoint accepts POST only.` | PASS |
+| 2 | `DELETE <cloudfront-domain>/mcp/v1` | 405 | `POST` | `application/json` | `no-store` | 67 | Error from cloudfront | `Method not allowed. This endpoint accepts POST only.` | PASS |
+| 3 | `HEAD <cloudfront-domain>/mcp/v1` | 405 | `POST` | `application/json` | `no-store` | 67 | Error from cloudfront | none (HEAD) | PASS |
+| 4 | `GET <cloudfront-domain>/mcp/v1` with `Content-Type: text/plain` | 500 | none | `application/json` | none | 36 | Error from cloudfront | `Internal server error` (header `x-amzn-errortype: InternalServerErrorException`) | FAIL |
+| 5 | `GET <cloudfront-domain>/mcp/v1` with `x-api-key: not-a-real-key` | 405 | `POST` | `application/json` | `no-store` | 67 | Error from cloudfront | `Method not allowed. This endpoint accepts POST only.` | PASS |
+| 6 | `DELETE <cloudfront-domain>/mcp/v1` with `Content-Type: text/plain` and body `x` | 500 | none | `application/json` | none | 36 | Error from cloudfront | `Internal server error` (header `x-amzn-errortype: InternalServerErrorException`) | FAIL |
+| 7 | `GET <cloudfront-domain>/mcp/not-a-route` | 400 | none | `application/json` | none | 55 | Error from cloudfront | `Unsupported path or method for this API.` | PASS |
+| 8 | `PUT <cloudfront-domain>/mcp/auth/profile` | 400 | none | `application/json` | none | 55 | Error from cloudfront | `Unsupported path or method for this API.` | PASS |
+| 9 | `POST <cloudfront-domain>/mcp/v1` (`notifications/initialized`, `Content-Type: application/json`) | 202 | none | `application/json` | `no-store` (no `max-age=3600`; `expires: 0`) | 0 | Miss from cloudfront | none (zero-length body) | PASS |
+| 10 | `GET <raw-url>/mcp/v1` with `Accept: text/event-stream` | 405 | `POST` | `application/json` | `no-store` | 67 | Error from cloudfront | `Method not allowed. This endpoint accepts POST only.` | PASS |
+
+Notes:
+- Requests 7 and 8 carry `x-amzn-errortype: MissingAuthenticationTokenException`, the gateway's own error type, with the overridden 400 status and message. The override works.
+- No response had an HTML body, a 403, or a 404.
+- Request 9 returned the public-tier rate-limit headers, so the Read function ran. It counted once against the public limit.
+- Every response carried a `via` header ending in `(CloudFront)`, and an `x-cache` header. For requests 1 to 8 and 10 this is `Error from cloudfront` because CloudFront reports every 4xx or 5xx that way; request 9 shows `Miss from cloudfront`. So the path went through the edge, including the raw URL of request 10: it carries `via ... (CloudFront)` and `x-amz-cf-pop`, which suggests the API is edge-optimized, so its own CloudFront front end is used even for the `execute-api` URL.
+
+### Result
+
+Not met. 8 of 10 rows pass. Requests 4 and 6 (the `GET` and the `DELETE` with `Content-Type: text/plain`) return HTTP 500 `Internal server error` instead of 405. The mock behaves correctly for no content type, for `Accept: text/event-stream`, and for a bare `x-api-key` header (requests 1, 2, 3, 5, and 10), so the failure depends on the request `Content-Type`.
+
+This is the failure case that Design (V-D and Components, section 1) anticipated. The fallback (response template under more keys, or no request template) has not been applied. The owner decides whether to apply it. Requests 1 to 3, 5, and 7 to 10 need no change. Task 14.5 (the issue comment) is not blocked by this result, since request 9 shows the zero-length notification body.
+
+## Fallback applied (task 14.2)
+
+Applied with the owner's approval after the curl matrix on `test` returned HTTP 500 for requests 4 and 6 (`GET` and `DELETE` with `Content-Type: text/plain`). Design, Components 1, "Design notes", describes this fallback. Only `application-infrastructure/template-openapi-spec.yml` changed in the template; the tests below were added or extended.
+
+### What changed
+
+- **Catch-all `x-amazon-apigateway-any-method` on `/mcp/v1`**: the mock keeps `type: mock` and `passthroughBehavior: when_no_match`. `requestTemplates` now holds the constant body `{"statusCode": 405}` under nine content types: `application/json` (existing), `text/plain`, `application/x-www-form-urlencoded`, `application/octet-stream`, `application/xml`, `text/xml`, `text/html`, `text/event-stream`, and `multipart/form-data`.
+- **Default integration response**: the `{"message": "Method not allowed. This endpoint accepts POST only."}` template is repeated under the same nine keys. The `Content-Type: application/json` response parameter is unchanged, so the body stays JSON whichever key applies.
+- **`>!` comment above the operation** now explains that the mock needs a request template for the request's content type to read `statusCode`, that the test stage returned 500 without one (task 14.2), and why `when_no_match` stays.
+- **Why `when_no_match`**: with a template defined, `when_no_templates` and `never` reject an unlisted content type with 415 (AWS passthrough-behavior documentation). 405 is the wanted answer for every type.
+- **Test M7** added to `read-function/tests/unit/architecture/openapi-method-handling.test.js` (M1 to M6 unchanged): `application/json` and `text/plain` request templates parse as JSON with `statusCode` 405, the `text/plain` response template is a JSON object with a `message`, and `passthroughBehavior` is `when_no_match`. The header comment lists M7.
+- **Fake server test** added to `tests/postdeploy-verify/fake-mcp-server-tests.jest.mjs`: `GET` and `DELETE` with `Content-Type: text/plain` get the same 405 on the raw and edge targets. The fake already answered independent of content type; the verifier was not changed.
+
+### Residual risk
+
+API Gateway matches request template keys exactly and has no wildcard key, so listing keys cannot cover every content type. A content type that is not listed (for example `text/plain; charset=utf-8`, if API Gateway does not strip the parameter, or a vendor type) on a method without a body can still produce the 500 seen before. The status would be 500, not 403 or 404, so the landing-page rewrite does not apply. Add a key if the matrix or a client shows one. The cause (a raw body passed through the mock) was inferred from the observed behavior and is not confirmed by AWS documentation, so the re-run on `test` is the real check.
+
+### Results
+
+- `timeout 300s npx jest tests/unit/architecture --coverage=false` in `read-function`: 7 suites, 47 tests passed (M1 to M7 pass).
+- `timeout 600s npm test` in `tests/postdeploy-verify`: 14 suites, 869 tests passed.
+- No jest processes were running before or after either run.
+- Offline SAM translation (`aws-sam-translator` in a throwaway venv, same wrapper as the baseline: `Cors` block copied from `template.yml`, `ReadLambdaFunction` with `AutoPublishAlias: live` and the `McpV1Post` event, dummy credentials, no AWS call): exit 0. `/mcp/v1` has `options`, `post`, and `x-amazon-apigateway-any-method`. `post` is unchanged (`aws_proxy`, alias URI). `options` is unchanged, including `Access-Control-Allow-Methods` `'POST,OPTIONS'`. The root `MISSING_AUTHENTICATION_TOKEN` override is still present (400). The catch-all keeps `mock` and `when_no_match` with nine request and nine response template keys. Exactly one `AWS::Lambda::Permission` remains, `ReadLambdaFunctionMcpV1PostPermissionv1` (`POST /mcp/v1`). The script and venv were deleted afterwards.
+
+### Next step
+
+Not verified on a deployed stage. After the owner redeploys `test`, re-run the curl matrix above (all 10 rows, and add `GET` and `DELETE` with other content types such as `application/x-www-form-urlencoded` and `text/plain; charset=utf-8`) and record the result here. Task 14.2 stays open until then.
