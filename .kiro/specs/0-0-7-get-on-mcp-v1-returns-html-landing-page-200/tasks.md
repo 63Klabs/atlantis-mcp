@@ -236,13 +236,13 @@ Do not commit unless the owner asks. Do not edit `ISSUE.md`, `template.yml`, eit
     - If the owner asks: search `63Klabs/cache-data` for an existing issue, then file one with label `enhancement` saying that `Response.set()` ignores a falsy body, so `setBody(null)` cannot clear the generic template body, although `finalize()` documents that it keeps `null` as `null`. Use the section shape of `ISSUE.md`; record the URL as a decision in `PLAN.md`
     - Not part of this spec's acceptance criteria
 
-- [ ] 15. Promote (Phase 4, owner)
-  - [~] 15.1 Promote through `beta` to `main`
+- [x] 15. Promote (Phase 4, owner)
+  - [x] 15.1 Promote through `beta` to `main`
     - Only after tasks 14.1 to 14.5 are met: promote through the normal flow (`test`, `beta`, `main`). Confirm each stage's PostDeploy passes; on `beta` and `prod` `X2.5` runs against the custom domain and should PASS. Nothing is sent to a deployed stage except by the pipeline and the checks above, and traffic to `beta` or `prod` needs the owner's approval
     - Note for the owner: on `beta` and `prod` the Read Function shifts gradually, so the notification fix lands after the API change; the verifier does not check it (D8)
     - _Requirements: 13.9, 13.10_
 
-- [~] 16. Final checkpoint
+- [x] 16. Final checkpoint
   - Mark `GET returns html` complete in `TODO.md` under `## 0-0-7` (`- [x]`) once task 14 is done
   - Confirm `VERIFICATION.md` has the baseline and real-file SAM translation, the PostDeploy outcome, the matrix results, the API reference page check, the Kiro result, and whether the issue comment was posted
   - Remind the owner of what this feature leaves: the optional cache-data issue (task 14.6), and that the reporter on GitHub #8 can be told to retry once the fix reaches their stage

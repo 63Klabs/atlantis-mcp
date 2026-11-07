@@ -1,6 +1,6 @@
 # GET on /mcp/v1 returns HTML landing page (200) instead of 405 or an SSE stream
 
-> **Status**: Locked, 2026-11-06 (D1-D12)
+> **Status**: Locked, 2026-11-06 (D1-D13)
 > **Issue**: [ISSUE.md](ISSUE.md) (GitHub issue #8)
 > **Reviewed against**: `dev` at `22e47c7` on 2026-11-06; live probes of the `test` stage on 2026-11-06
 
@@ -210,7 +210,7 @@ The Auth function returns 404 in three places: `GET /mcp/auth/profile`, `POST /m
 | D5 (Q4=A) | Add two verifier sub-checks: raw core and edge advisory (47 total: 37 core, 10 advisory) | Mirrors the existing raw/edge pairs; the edge check covers the reported symptom |
 | D6 (Q6=A) | Two read-only probes were sent to the `test` distribution on 2026-11-06 (one `GET`, one notification `POST`, no key) | Results in section 2 (C1, C5). Only the `POST` reached the Lambda and counted against the public tier (remaining 49 of 50) |
 | D7 (Q7) | No spin-offs. Unknown `/mcp/*` paths are corrected in this spec | Same root cause; the user prefers fixing it here |
-| D8 (Q5) | Notification half: no spin-off and no verifier check. Report the outcome on GitHub issue #8 with a comment | The user's answer. With D9 the comment says the observation is fixed; it is posted after `test` shows a zero-length body. **No comment has been posted yet** |
+| D8 (Q5) | Notification half: no spin-off and no verifier check. Report the outcome on GitHub issue #8 with a comment | The user's answer. With D9 the comment says the observation is fixed; it is posted after `test` shows a zero-length body. **The comment was posted on 2026-11-06 (task 14.5): https://github.com/63Klabs/atlantis-mcp/issues/8#issuecomment-6702334238** |
 | D9 (Q8=A) | Fix the notification 202 in this spec: status 202, no body, no `max-age=3600`; add a test that uses the real cache-data `Response` | The probe showed `{"message":"Success"}`; the transport requires no body; makes an existing CHANGELOG statement true |
 | D10 (Q9=A) | Override `MISSING_AUTHENTICATION_TOKEN` to `400` with a JSON `message` body | Not rewritten by CloudFront; matches the existing 400 for unknown routes in `routes/index.js` |
 | D11 (Q10=A) | Fold the Auth function's 404 responses into this spec: move them to a status CloudFront does not rewrite | The user's answer: early stage, testers only, so a contract change is acceptable |

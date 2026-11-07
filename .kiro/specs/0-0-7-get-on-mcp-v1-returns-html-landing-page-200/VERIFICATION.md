@@ -566,3 +566,54 @@ Comment URL: https://github.com/63Klabs/atlantis-mcp/issues/8#issuecomment-67023
 ## Upstream cache-data issue (task 14.6)
 
 Filed on 2026-11-06 with label `enhancement` after a duplicate search found no existing issue: https://github.com/63Klabs/cache-data/issues/252. The temporary title and body files were deleted after filing.
+
+## Curl matrix on beta and prod (task 15.1)
+
+Run on 2026-11-07 (`date -u`: beta about 18:25:27 to 18:25:30 UTC, prod about 18:25:41 to 18:25:43 UTC) against the custom domains of `beta` and `prod` only, after the owner promoted the change, confirmed that both PostDeploy runs passed with `X2.5` PASS, and approved these requests. Beta ran first, then prod, and the run would have stopped before prod if any beta row had returned HTML, a 403, a 404, a 415, or a 5xx. Each of the 9 requests per stage was sent exactly once with `curl -si --max-time 30` (request 3 with `-I`), from a bash script that passed each request as an argument list with quoted host variables. Request 5 carried the fake header `x-api-key: not-a-real-key`; no real key and no `Authorization` header was sent. Nothing was sent to any other host or stage. No retry was made. Hosts, the API id, the distribution id, cookies, request ids, and rate-limit counters are not recorded here. The temporary output under `/tmp` was deleted afterwards.
+
+### Beta (`<beta-domain>`)
+
+| # | Request | Status | allow | content-type | cache-control | content-length | x-cache | Body message | Result |
+|---|---------|--------|-------|--------------|---------------|----------------|---------|--------------|--------|
+| 1 | `GET <beta-domain>/mcp/v1` with `Accept: text/event-stream` | 405 | `POST` | `application/json` | `no-store` | 67 | Error from cloudfront | `Method not allowed. This endpoint accepts POST only.` | PASS |
+| 2 | `DELETE <beta-domain>/mcp/v1` | 405 | `POST` | `application/json` | `no-store` | 67 | Error from cloudfront | `Method not allowed. This endpoint accepts POST only.` | PASS |
+| 3 | `HEAD <beta-domain>/mcp/v1` | 405 | `POST` | `application/json` | `no-store` | 67 | Error from cloudfront | none (HEAD) | PASS |
+| 4 | `GET <beta-domain>/mcp/v1` with `Content-Type: text/plain` | 405 | `POST` | `application/json` | `no-store` | 67 | Error from cloudfront | `Method not allowed. This endpoint accepts POST only.` | PASS |
+| 5 | `GET <beta-domain>/mcp/v1` with `x-api-key: not-a-real-key` | 405 | `POST` | `application/json` | `no-store` | 67 | Error from cloudfront | `Method not allowed. This endpoint accepts POST only.` | PASS |
+| 6 | `DELETE <beta-domain>/mcp/v1` with `Content-Type: text/plain` and body `x` | 405 | `POST` | `application/json` | `no-store` | 67 | Error from cloudfront | `Method not allowed. This endpoint accepts POST only.` | PASS |
+| 7 | `GET <beta-domain>/mcp/not-a-route` | 400 | none | `application/json` | none | 55 | Error from cloudfront | `Unsupported path or method for this API.` | PASS |
+| 8 | `PUT <beta-domain>/mcp/auth/profile` | 400 | none | `application/json` | none | 55 | Error from cloudfront | `Unsupported path or method for this API.` | PASS |
+| 9 | `POST <beta-domain>/mcp/v1` (`notifications/initialized`, `Content-Type: application/json`) | 202 | none | `application/json` | `no-store` (no `max-age=3600`; `expires: 0`) | 0 | Miss from cloudfront | none (zero-length body) | PASS |
+
+Overall result for beta: PASS (9 of 9).
+
+### Prod (`<prod-domain>`)
+
+| # | Request | Status | allow | content-type | cache-control | content-length | x-cache | Body message | Result |
+|---|---------|--------|-------|--------------|---------------|----------------|---------|--------------|--------|
+| 1 | `GET <prod-domain>/mcp/v1` with `Accept: text/event-stream` | 405 | `POST` | `application/json` | `no-store` | 67 | Error from cloudfront | `Method not allowed. This endpoint accepts POST only.` | PASS |
+| 2 | `DELETE <prod-domain>/mcp/v1` | 405 | `POST` | `application/json` | `no-store` | 67 | Error from cloudfront | `Method not allowed. This endpoint accepts POST only.` | PASS |
+| 3 | `HEAD <prod-domain>/mcp/v1` | 405 | `POST` | `application/json` | `no-store` | 67 | Error from cloudfront | none (HEAD) | PASS |
+| 4 | `GET <prod-domain>/mcp/v1` with `Content-Type: text/plain` | 405 | `POST` | `application/json` | `no-store` | 67 | Error from cloudfront | `Method not allowed. This endpoint accepts POST only.` | PASS |
+| 5 | `GET <prod-domain>/mcp/v1` with `x-api-key: not-a-real-key` | 405 | `POST` | `application/json` | `no-store` | 67 | Error from cloudfront | `Method not allowed. This endpoint accepts POST only.` | PASS |
+| 6 | `DELETE <prod-domain>/mcp/v1` with `Content-Type: text/plain` and body `x` | 405 | `POST` | `application/json` | `no-store` | 67 | Error from cloudfront | `Method not allowed. This endpoint accepts POST only.` | PASS |
+| 7 | `GET <prod-domain>/mcp/not-a-route` | 400 | none | `application/json` | none | 55 | Error from cloudfront | `Unsupported path or method for this API.` | PASS |
+| 8 | `PUT <prod-domain>/mcp/auth/profile` | 400 | none | `application/json` | none | 55 | Error from cloudfront | `Unsupported path or method for this API.` | PASS |
+| 9 | `POST <prod-domain>/mcp/v1` (`notifications/initialized`, `Content-Type: application/json`) | 202 | none | `application/json` | `no-store` (no `max-age=3600`; `expires: 0`) | 0 | Miss from cloudfront | none (zero-length body) | PASS |
+
+Overall result for prod: PASS (9 of 9).
+
+Notes:
+- Requests 7 and 8 carry `x-amzn-errortype: MissingAuthenticationTokenException` on both stages, the gateway's own error type with the overridden 400 status and message, as on `test`.
+- No response on either stage had an HTML body, a 403, a 404, a 415, or a 5xx. Every curl invocation exited 0.
+- Request 9 returned the zero-length 202 without `max-age=3600` on both stages (not the old `{"message":"Success"}` body), so the notification fix was serving the request on each stage at the time of the run. A gradual shift could still have served an older version to some other request; one request per stage cannot show that all traffic had moved.
+- Request 9 ran once per stage and counted once against the public limit on each.
+- No exploratory unlisted-content-type request was sent to `prod`, and none to `beta`.
+
+### Result
+
+Met. Task 15.1 verification passes on both promoted stages: 9 of 9 rows on `beta` and 9 of 9 rows on `prod`.
+
+## PostDeploy outcomes (tasks 14.1 and 15.1)
+
+test: 47 sub-checks, M1.1 PASS, X2.5 SKIP (no custom domain); beta and prod: X2.5 PASS, as reported by the owner.

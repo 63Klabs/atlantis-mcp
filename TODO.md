@@ -10,8 +10,8 @@ Target: November 2026
 - [x] schema-validation-of-modern-results
 - [x] lapsed tier downgrade
 - [x] address static site generation issue for API specs
-- [-] dependabot findings (beta to prod)
-- [-] [GET returns html](.kiro/specs/0-0-7-get-on-mcp-v1-returns-html-landing-page-200)
+- [x] dependabot findings (beta to prod)
+- [x] [GET returns html](.kiro/specs/0-0-7-get-on-mcp-v1-returns-html-landing-page-200)
 - [ ] rate-limit-client-ip-spoofing (re-evaluate PLAN, use github/@63klabs/cache-data)
 
 ## 0-0-8
