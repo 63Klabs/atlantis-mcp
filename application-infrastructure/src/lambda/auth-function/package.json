@@ -18,7 +18,7 @@
   "author": "63Klabs",
   "license": "MIT",
   "dependencies": {
-    "@63klabs/cache-data": "^1.4.0",
+    "@63klabs/cache-data": "git+https://github.com/63Klabs/cache-data.git#main",
     "aws-xray-sdk-core": "3.12.0"
   },
   "devDependencies": {

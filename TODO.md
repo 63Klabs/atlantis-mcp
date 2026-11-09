@@ -20,6 +20,8 @@ Target: December 2026
 
 - [ ] Fold revive-postdeploy-tests into prune-tests-and-ensure...
 
+- [ ] lint-indent-and-code-style - `npm run lint` fails where Lambda packages have tab-indented files (measured: `auth-function`, `read-function`): the config requires 2 spaces but about 165 files use tabs. Pick one style, run `lint:fix`, fix the rest by hand, add `.editorconfig`, and decide whether lint becomes a build gate (see specs/0-0-8-lint-indent-and-code-style)
+
 - [ ] Ensure keys expire after 120 days, Display api key expiration date on profile page even if api key is not displayed, Display expiration of current tier (if using a voucher, list expiration of voucher, and then underlying tier), do not display Upgrade to Paid Tier if user already has Paid or Private tier. Fold in admin based password reset from GitHub issues.
 - [ ] pin-auth-page-cdn-script - the login, register, forgot-password, and profile pages load `amazon-cognito-identity-js@6` from jsDelivr with no exact version or integrity hash (see specs/0-0-8-pin-auth-page-cdn-script)
 
