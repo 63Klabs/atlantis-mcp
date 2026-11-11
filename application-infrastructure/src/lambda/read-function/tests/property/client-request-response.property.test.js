@@ -13,7 +13,8 @@ const fc = require('fast-check');
 
 // --- Mocks ---
 const mockClientRequestInstance = {
-  getProps: jest.fn().mockReturnValue({ path: 'mcp/v1', method: 'POST', pathArray: ['mcp', 'v1'] })
+  getProps: jest.fn().mockReturnValue({ path: 'mcp/v1', method: 'POST', pathArray: ['mcp', 'v1'] }),
+  getClientIp: jest.fn().mockReturnValue('192.168.1.1')
 };
 
 jest.mock('@63klabs/cache-data', () => ({

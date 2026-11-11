@@ -109,6 +109,20 @@ git switch dev
 
 Maintainers cutting a release should also follow the [release process](docs/developer/release-process.md).
 
+### Regional endpoint on the first deploy
+
+`WebApi` is a Regional API. On a stage that was deployed with the earlier edge-optimized endpoint, the first deploy changes the endpoint type in place. An offline SAM translation of the template before and after the change showed 59 resources in both, with none added, removed, or replaced. The `execute-api` hostname does not change.
+
+In PROD stages (`beta` and `prod`) the Read function deploys gradually, and CloudFormation updates the REST API only after the shift finishes. For about the length of the shift (see [gradual deployment](docs/developer/gradual-deployment.md)) the new function, which reads the client address with `CACHE_DATA_TRUSTED_PROXY_HOPS=0`, runs behind the API that is still edge-optimized. In that window, callers who come through CloudFront share a rate-limit bucket per edge address. This fails safe, because no caller can choose its bucket, and it is accepted. TEST stages deploy all at once and have no such window.
+
+The endpoint type and the proxy hop count are one change. See [Ingress and client address](docs/admin-ops/ingress-and-client-address.md) before changing either.
+
+### Pinned cache-data dependency
+
+`read-function` and `auth-function` install `@63klabs/cache-data` from a pinned GitHub commit (see the `dependencies` of each `package.json`) until the registry release `^1.4.1` is used. The Atlantis build runs on the latest Node.js, whose npm refuses git dependencies by default. A `.npmrc` containing `allow-git=root` in each of the two function directories allows the install of that one direct git dependency and no transitive one.
+
+Both `.npmrc` files are deleted when the dependency moves to `^1.4.1` on the registry. The task is tracked in [TODO.md](TODO.md).
+
 ### Setting Up Pipelines
 
 For each branch you wish to deploy from, set up a pipeline using your organization's central Atlantis SAM Config repository.

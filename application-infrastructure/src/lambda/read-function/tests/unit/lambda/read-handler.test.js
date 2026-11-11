@@ -12,7 +12,8 @@
 
 // Mock ClientRequest instance
 const mockClientRequestInstance = {
-  getProps: jest.fn().mockReturnValue({ path: 'mcp/v1', method: 'POST' })
+  getProps: jest.fn().mockReturnValue({ path: 'mcp/v1', method: 'POST' }),
+  getClientIp: jest.fn().mockReturnValue('192.168.1.1')
 };
 
 // Mock Response instance for happy path
@@ -281,6 +282,12 @@ describe('Read Lambda Handler', () => {
       );
     });
 
+    test('should resolve auth with the client address from ClientRequest.getClientIp()', async () => {
+      // >! The address comes from cache-data (API Gateway sourceIp), never from a forwarding header
+      await handler(mockEvent, mockContext);
+      expect(mockClientRequestInstance.getClientIp).toHaveBeenCalled();
+      expect(AuthResolver.resolveAuth).toHaveBeenCalledWith(mockEvent, '192.168.1.1');
+    });
     test('should call response.finalize() and return its value', async () => {
       const response = await handler(mockEvent, mockContext);
       expect(mockResponseInstance.finalize).toHaveBeenCalledTimes(1);

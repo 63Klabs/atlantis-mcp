@@ -33,6 +33,7 @@ jest.mock('@63klabs/cache-data', () => ({
 }));
 
 const { resolveAuth, TestHarness } = require('../../utils/auth-resolver');
+const { toBucketKey } = require('../../utils/client-address');
 const { extractApiKey, computeEffectiveTier } = TestHarness.getInternals();
 const { tools: { AWS, CachedSsmParameter } } = require('@63klabs/cache-data');
 
@@ -247,7 +248,7 @@ describe('Property 6: Invalid key rejection', () => {
 						requestContext: { identity: { sourceIp: '10.0.0.1' } }
 					};
 
-					const result = await resolveAuth(event);
+					const result = await resolveAuth(event, event.requestContext.identity.sourceIp);
 
 					expect(result.error).toBe(true);
 					expect(result.errorResponse).toBeDefined();
@@ -276,7 +277,8 @@ describe('Property 6: Invalid key rejection', () => {
  *
  * For any authenticated request (valid API key present), the identity
  * SHALL be the user's cognitoSub. For any unauthenticated request
- * (no API key), the identity SHALL be the client IP address.
+ * (no API key), the identity SHALL be the bucket key of the client address
+ * passed as the second argument.
  */
 describe('Property 7: Authenticated identity uses cognitoSub', () => {
 
@@ -313,7 +315,7 @@ describe('Property 7: Authenticated identity uses cognitoSub', () => {
 						requestContext: { identity: { sourceIp: '192.168.1.1' } }
 					};
 
-					const result = await resolveAuth(event);
+					const result = await resolveAuth(event, event.requestContext.identity.sourceIp);
 
 					expect(result.isAuthenticated).toBe(true);
 					expect(result.identity).toBe(cognitoSub);
@@ -323,7 +325,7 @@ describe('Property 7: Authenticated identity uses cognitoSub', () => {
 		);
 	});
 
-	it('unauthenticated request uses sourceIp as identity', async () => {
+	it('unauthenticated request uses the normalized client address as identity', async () => {
 		await fc.assert(
 			fc.asyncProperty(
 				fc.ipV4(),
@@ -333,10 +335,10 @@ describe('Property 7: Authenticated identity uses cognitoSub', () => {
 						requestContext: { identity: { sourceIp: ip } }
 					};
 
-					const result = await resolveAuth(event);
+					const result = await resolveAuth(event, ip);
 
 					expect(result.isAuthenticated).toBe(false);
-					expect(result.identity).toBe(ip);
+					expect(result.identity).toBe(toBucketKey(ip));
 					expect(result.tier).toBe('public');
 				}
 			),

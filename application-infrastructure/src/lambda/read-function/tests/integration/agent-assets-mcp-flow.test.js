@@ -19,6 +19,7 @@ jest.mock('@63klabs/cache-data', () => {
       ...actual.tools,
       ClientRequest: jest.fn().mockImplementation((event) => ({
         getEvent: () => event,
+        getClientIp: () => event?.requestContext?.identity?.sourceIp || null,
         getProps: () => {
           const rawPath = event.path || event.requestContext?.resourcePath || '';
           const path = rawPath.startsWith('/') ? rawPath.slice(1) : rawPath;

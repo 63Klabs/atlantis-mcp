@@ -87,7 +87,8 @@ describe('Auth Resolver — resolveAuth()', () => {
 	it('should return public tier with sourceIp identity when no API key header is present', async () => {
 		const event = createEvent({ sourceIp: '10.0.0.42' });
 
-		const result = await resolveAuth(event);
+		// >! The caller passes the resolved client address; the event is not read for it
+		const result = await resolveAuth(event, event.requestContext.identity.sourceIp);
 
 		expect(result.tier).toBe('public');
 		expect(result.identity).toBe('10.0.0.42');
@@ -172,7 +173,7 @@ describe('Auth Resolver — resolveAuth()', () => {
 		// >! SSM throws — auth resolver should degrade gracefully
 		apiKeyHashSalt.getValue.mockRejectedValue(new Error('SSM unavailable'));
 
-		const result = await resolveAuth(event);
+		const result = await resolveAuth(event, event.requestContext.identity.sourceIp);
 
 		expect(result.tier).toBe('public');
 		expect(result.degraded).toBe(true);
@@ -195,7 +196,7 @@ describe('Auth Resolver — resolveAuth()', () => {
 		// >! DynamoDB throws — auth resolver should degrade gracefully
 		AWS.dynamo.get.mockRejectedValue(new Error('DynamoDB connection timeout'));
 
-		const result = await resolveAuth(event);
+		const result = await resolveAuth(event, event.requestContext.identity.sourceIp);
 
 		expect(result.tier).toBe('public');
 		expect(result.degraded).toBe(true);
@@ -979,5 +980,95 @@ describe('Auth Resolver — lapsed tier Downgrade and Restore', () => {
 			expect(text).not.toContain(COGNITO_SUB);
 			expect(text).not.toContain(RAW_KEY);
 		});
+	});
+});
+
+/* ------------------------------------------------------------------ */
+/*  Public identity comes from the caller (spec                       */
+/*  0-0-7-rate-limit-client-ip-spoofing, Design Component 4)          */
+/*  Requirements: 3.2, 10.4                                           */
+/* ------------------------------------------------------------------ */
+
+describe('Auth Resolver — resolveAuth() without a client address', () => {
+
+	// >! The event carries a sourceIp and a forwarding header. resolveAuth must read neither:
+	// >! the public identity is the second argument, and with no second argument it is null.
+	const SOURCE_IP = '198.51.100.7';
+	const FORWARDED_FOR = '203.0.113.9, 198.51.100.7';
+
+	/**
+	 * Build an event that carries client-controlled and gateway-reported addresses.
+	 *
+	 * @param {Object} [headers] - Extra request headers (for example, the API key)
+	 * @returns {Object} API Gateway proxy event
+	 */
+	function createEventWithAddresses(headers = {}) {
+		const event = createEvent({
+			headers: { 'X-Forwarded-For': FORWARDED_FOR, ...headers },
+			sourceIp: SOURCE_IP
+		});
+		expect(event.requestContext.identity.sourceIp).toBe(SOURCE_IP);
+		return event;
+	}
+
+	beforeEach(() => {
+		apiKeyHashSalt.getValue.mockReset();
+		AWS.dynamo.get.mockReset();
+		AWS.dynamo.update.mockReset();
+		DebugAndLog.warn.mockClear();
+		DebugAndLog.error.mockClear();
+	});
+
+	afterEach(() => {
+		jest.restoreAllMocks();
+	});
+
+	it('should return identity null on the no-key path', async () => {
+		const result = await resolveAuth(createEventWithAddresses());
+
+		expect(result.tier).toBe('public');
+		expect(result.identity).toBeNull();
+		expect(result.isAuthenticated).toBe(false);
+		expect(result.degraded).toBe(false);
+	});
+
+	it('should return identity null when the hash salt is unavailable', async () => {
+		apiKeyHashSalt.getValue.mockRejectedValue(new Error('SSM unavailable'));
+
+		const result = await resolveAuth(createEventWithAddresses({
+			authorization: 'Bearer atl_noaddrsaltthrows0000000000000'
+		}));
+
+		expect(result.tier).toBe('public');
+		expect(result.identity).toBeNull();
+		expect(result.isAuthenticated).toBe(false);
+		expect(result.degraded).toBe(true);
+	});
+
+	it('should return identity null when the hash salt is empty', async () => {
+		apiKeyHashSalt.getValue.mockResolvedValue('');
+
+		const result = await resolveAuth(createEventWithAddresses({
+			authorization: 'Bearer atl_noaddrsaltempty00000000000000'
+		}));
+
+		expect(result.tier).toBe('public');
+		expect(result.identity).toBeNull();
+		expect(result.isAuthenticated).toBe(false);
+		expect(result.degraded).toBe(true);
+	});
+
+	it('should return identity null when the Users table read fails', async () => {
+		apiKeyHashSalt.getValue.mockResolvedValue('unit-test-salt-value');
+		AWS.dynamo.get.mockRejectedValue(new Error('DynamoDB connection timeout'));
+
+		const result = await resolveAuth(createEventWithAddresses({
+			authorization: 'Bearer atl_noaddrdynamofail0000000000000'
+		}));
+
+		expect(result.tier).toBe('public');
+		expect(result.identity).toBeNull();
+		expect(result.isAuthenticated).toBe(false);
+		expect(result.degraded).toBe(true);
 	});
 });

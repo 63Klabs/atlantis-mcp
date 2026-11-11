@@ -92,7 +92,7 @@ The 63Klabs Atlantis MCP Server is a serverless application that exposes 63Klabs
 
 ### API Gateway
 
-A single REST API (`WebApi`) with endpoints for MCP tool calls and authentication operations. The OpenAPI 3.0 specification (`template-openapi-spec.yml`) is embedded via `Fn::Transform` and defines request/response schemas, CORS configuration, and Lambda proxy integrations.
+A single Regional REST API (`WebApi`, see [Regional endpoint and client identity](#regional-endpoint-and-client-identity)) with endpoints for MCP tool calls and authentication operations. The OpenAPI 3.0 specification (`template-openapi-spec.yml`) is embedded via `Fn::Transform` and defines request/response schemas, CORS configuration, and Lambda proxy integrations.
 
 **Endpoints:**
 
@@ -120,7 +120,7 @@ The primary request handler. Receives all MCP tool calls through `POST /mcp/v1` 
 │     ClientRequest(event, context) → Response(clientRequest)         │
 │                                                                     │
 │  3. Authenticate                                                    │
-│     AuthResolver.resolveAuth(event)                                 │
+│     AuthResolver.resolveAuth(event, clientRequest.getClientIp())    │
 │     ├─ No key → public tier (IP-based identity)                     │
 │     ├─ Valid key → authenticated tier from Users table              │
 │     └─ Invalid key → 401 Unauthorized                               │
@@ -564,6 +564,21 @@ flowchart TD
     J -->|Allowed| K[Process MCP Request]
     J -->|Exceeded| L[429 Too Many Requests<br/>+ Retry-After header]
 ```
+
+### Regional endpoint and client identity
+
+The public tier is rate limited per client address, so the address must be one the caller cannot choose. The two settings that decide it are one change:
+
+- `WebApi` is a `REGIONAL` API (`EndpointConfiguration.Type`).
+- `CACHE_DATA_TRUSTED_PROXY_HOPS` is `0` on the Read and Auth functions, set in each function's own environment.
+
+With count `0`, `@63klabs/cache-data`'s `getClientIp()` returns `requestContext.identity.sourceIp`, the peer address API Gateway records. On a Regional API that is the caller, whether the request comes through CloudFront or straight to the `execute-api` URL. The Read handler passes it to `AuthResolver.resolveAuth()`, and `utils/client-address.js` turns it into the bucket key: an IPv4 address is its own key, an IPv4-mapped IPv6 address counts as its IPv4 address, and any other IPv6 address is counted by its `/64` prefix. A request with no usable address is refused with `429` and no counter is written.
+
+No code reads a forwarding header. A Regional API with a count of `1` or more would read `X-Forwarded-For`, which a caller writes on the raw URL, and an edge-optimized API with count `0` would put every caller of an edge in one bucket. An architecture test (`tests/unit/architecture/endpoint-and-client-address.test.js`) reads the template and fails if either setting changes alone.
+
+An origin secret that would also tell requests through the distribution apart from those that skip it is planned and not implemented. It waits on `@63klabs/cache-data`.
+
+See [Ingress and client address](docs/admin-ops/ingress-and-client-address.md) for operators and [Client address](docs/developer/client-address.md) for developers.
 
 ### Tier Definitions
 

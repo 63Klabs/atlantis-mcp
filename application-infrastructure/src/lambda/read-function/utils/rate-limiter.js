@@ -347,6 +347,33 @@ async function createInDynamo(pk, limitPerWindow, ttl) {
 /** @type {RateLimitCache} Singleton in-memory cache for rate limit state */
 const cache = new RateLimitCache();
 
+/**
+ * Build the fail-closed refusal returned when a request cannot be safely identified
+ * (no client identity, or no hash salt). Writes nothing to the cache or DynamoDB.
+ *
+ * @private
+ * @param {number} limitPerWindow - Max requests allowed in the window
+ * @param {number} resetTimeMs - Window reset time in epoch milliseconds
+ * @param {number} resetTimeSec - Window reset time in epoch seconds
+ * @returns {{allowed: boolean, headers: Object, retryAfter: number, dynamoPromise: null}}
+ * @example
+ * return failClosed(50, resetTimeMs, Math.floor(resetTimeMs / 1000));
+ */
+function failClosed(limitPerWindow, resetTimeMs, resetTimeSec) {
+  const retryAfter = Math.max(1, Math.ceil((resetTimeMs - Date.now()) / 1000));
+  return {
+    allowed: false,
+    headers: {
+      'X-RateLimit-Limit': String(limitPerWindow),
+      'X-RateLimit-Remaining': '0',
+      'X-RateLimit-Reset': String(resetTimeSec),
+      'Retry-After': String(retryAfter)
+    },
+    retryAfter,
+    dynamoPromise: null
+  };
+}
+
 /* ------------------------------------------------------------------ */
 /*  checkRateLimit — Main Entry Point (async)                         */
 /* ------------------------------------------------------------------ */
@@ -358,7 +385,8 @@ const cache = new RateLimitCache();
  * interval-aligned windows, and salted SHA-256 client identifier hashing.
  *
  * Flow:
- * 1. Extract client identifier (sourceIp for public, userId for auth)
+ * 1. Take the client identifier from `authInfo.identity` (normalized client address for
+ *    public, Cognito sub for authenticated); no identity → fail closed
  * 2. Compute current window start and hashed client identifier
  * 3. Check in-memory cache for valid entry in current window
  * 4. Cache hit → use cached state, background DynamoDB sync
@@ -367,17 +395,13 @@ const cache = new RateLimitCache();
  * 7. On hash salt unavailable → fail closed (reject requests)
  *
  * @async
- * @param {Object} event - API Gateway event
- * @param {Object} event.requestContext - Request context
- * @param {Object} event.requestContext.identity - Identity information
- * @param {string} event.requestContext.identity.sourceIp - Client IP address
- * @param {Object} event.headers - Request headers
- * @param {string} [event.headers['X-Forwarded-For']] - Forwarded IP addresses
+ * @param {Object} event - API Gateway event. No longer read for identity: no request header and
+ *   no `requestContext` field is consulted. Kept so the signature is unchanged.
  * @param {Object} limits - Rate limit configurations from Config.settings().rateLimits
  * @param {{limitPerWindow: number, windowInMinutes: number}} limits.public - Public tier rate limit
  * @param {Object} [authInfo] - Resolved auth information from auth-resolver
  * @param {string} [authInfo.tier] - Effective tier: 'public', 'registered', 'paid', or 'private'
- * @param {string} [authInfo.identity] - Rate limit identity (IP for public, cognitoSub for authenticated)
+ * @param {string|null} [authInfo.identity] - Rate limit identity (normalized client address for public, cognitoSub for authenticated). Missing or null fails closed.
  * @param {boolean} [authInfo.isAuthenticated] - Whether the request is authenticated
  * @returns {Promise<{allowed: boolean, headers: Object, retryAfter: number|null, dynamoPromise: Promise|null}>}
  */
@@ -390,18 +414,23 @@ async function checkRateLimit(event, limits, authInfo) {
   const limitPerWindow = tierConfig.limitPerWindow;
   const windowInMinutes = tierConfig.windowInMinutes;
 
-  // Use authInfo.identity if available, otherwise extract IP from event
-  const rawId = (authInfo && authInfo.identity)
-    ? authInfo.identity
-    : (event.headers?.['X-Forwarded-For']?.split(',')[0]?.trim() ||
-       event.requestContext?.identity?.sourceIp ||
-       'unknown');
+  // >! The identity is whatever the auth resolver decided: the Cognito sub for authenticated
+  // >! requests, the normalized client address for public ones, or null for "no usable identity".
+  // >! The limiter never reads a request header.
+  const rawId = authInfo && authInfo.identity ? authInfo.identity : null;
 
   // Compute window boundaries
   const resetTimeMinutes = nextIntervalInMinutes(windowInMinutes);
   const windowStartMinutes = resetTimeMinutes - windowInMinutes;
   const resetTimeMs = convertFromMinutesToMilli(resetTimeMinutes);
   const resetTimeSec = Math.floor(resetTimeMs / 1000);
+
+  // >! Fail closed when there is no usable client identity. Checked before the salt and the cache
+  // >! so a request with no identity reads no salt and writes no counter. The log carries no address.
+  if (!rawId) {
+    DebugAndLog.error('Rate limiter: no usable client identity — failing closed');
+    return failClosed(limitPerWindow, resetTimeMs, resetTimeSec);
+  }
 
   // Obtain hash salt from SSM
   let salt;
@@ -414,18 +443,7 @@ async function checkRateLimit(event, limits, authInfo) {
   // >! Fail closed if hash salt is unavailable — cannot safely identify clients
   if (!salt) {
     DebugAndLog.error('Rate limiter: hash salt unavailable — failing closed');
-    const retryAfter = Math.max(1, Math.ceil((resetTimeMs - Date.now()) / 1000));
-    return {
-      allowed: false,
-      headers: {
-        'X-RateLimit-Limit': String(limitPerWindow),
-        'X-RateLimit-Remaining': '0',
-        'X-RateLimit-Reset': String(resetTimeSec),
-        'Retry-After': String(retryAfter)
-      },
-      retryAfter,
-      dynamoPromise: null
-    };
+    return failClosed(limitPerWindow, resetTimeMs, resetTimeSec);
   }
 
   // Hash client identifier with window start and salt

@@ -21,3 +21,4 @@ Guides:
 - [Gradual deployment](gradual-deployment.md) - What API traffic follows, the N and N+1 compatibility rule, cache key versioning, and the alias integration guard test
 - [Release process](release-process.md) - Verify and prepare passes, the allow-list, publishing on GitHub, the release gate, and starting the next cycle
 - [API reference page](api-reference-page.md) - How `/docs/api/` is generated, why the Redoc version is pinned, and how to change it
+- [Client address](client-address.md) - How the rate-limit address is resolved and normalized, why no code reads a forwarding header, and how to test it

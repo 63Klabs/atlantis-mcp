@@ -130,7 +130,9 @@ exports.handler = async (event, context) => {
 
     // >! Resolve authentication from request headers
     // >! No key = public tier; valid key = authenticated tier; invalid key = 401
-    const authInfo = await AuthResolver.resolveAuth(event);
+    // >! The client address comes from cache-data. With CACHE_DATA_TRUSTED_PROXY_HOPS=0 it is
+    // >! requestContext.identity.sourceIp, which on a Regional API is the viewer address.
+    const authInfo = await AuthResolver.resolveAuth(event, clientRequest.getClientIp());
 
     // >! If auth resolution returned a 401 error, return immediately
     if (authInfo.error) {

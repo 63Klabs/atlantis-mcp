@@ -190,36 +190,24 @@ aws ssm put-parameter \
 
 ## Rate Limiting Parameters
 
-### PublicRateLimit
+### Public rate limit (`MCP_PUBLIC_RATE_LIMIT`)
 
-**Type:** Number  
-**Required:** No  
-**Default:** `100`  
-**Min Value:** `1`  
-**Max Value:** `10000`
+There is no `PublicRateLimit` CloudFormation parameter. The public limit is the Read function's `MCP_PUBLIC_RATE_LIMIT` environment variable, read in `config/settings.js` (`rateLimits.public`).
 
-**Description:** Maximum number of requests per hour per IP address for unauthenticated (public) access. Enforced by API Gateway.
+**Type:** Number (environment variable, not a template parameter)  
+**Default:** `50`  
+**Window:** `MCP_PUBLIC_RATE_TIME_RANGE_MINUTES`, default `60`
 
-**Recommendations:**
-
-| Use Case | Recommended Value | Rationale |
-|----------|-------------------|-----------|
-| Development/Testing | 100-500 | Allow frequent testing |
-| Small Organization | 500-1000 | Support moderate usage |
-| Large Organization | 1000-5000 | Support high usage |
-| Public Service | 100-500 | Prevent abuse |
-
-**Example Values:**
-```yaml
-PublicRateLimit: 100  # Default for public service
-PublicRateLimit: 1000 # For organizational use
-```
+**Description:** Maximum number of requests per window for unauthenticated (public) access. The Read function enforces the limit, not API Gateway: there is no API Gateway usage plan. The Read function does not set the variable in `template.yml`, so the default of `50` per 60 minutes applies unless you add the variable to the function's environment. The Auth function's environment block sets the same values (50 and 60) and must be kept in step.
 
 **Rate Limit Behavior:**
-- Tracked per IP address
-- Resets every hour
+- Tracked per client address (the `sourceIp` that API Gateway reports), with no forwarding header read. IPv6 clients share one allowance per /64 prefix
+- A request with no usable client address is refused rather than counted in a shared bucket
+- Resets at the end of each window (the top of the hour for the default 60 minutes)
 - Returns HTTP 429 when exceeded
 - Includes `Retry-After` header in response
+
+Requests with an API key are limited by the account and tier, not by address.
 
 ---
 
@@ -513,9 +501,6 @@ AtlantisS3Buckets: acme-atlantis-templates-us-east-1,acme-finance-templates-us-e
 AtlantisGitHubUserOrgs: 63klabs,acme-org
 GitHubToken: /atlantis/mcp/github-token
 
-# Rate Limiting
-PublicRateLimit: 500
-
 # Cache TTL (Test Environment - Short TTLs)
 CacheTTLTemplateList: 300
 CacheTTLTemplateDetail: 300
@@ -549,9 +534,6 @@ AtlantisS3Buckets: acme-atlantis-templates-us-east-1,acme-finance-templates-us-e
 # GitHub Configuration
 AtlantisGitHubUserOrgs: 63klabs,acme-org
 GitHubToken: /atlantis/mcp/github-token
-
-# Rate Limiting
-PublicRateLimit: 1000
 
 # Cache TTL (Production - Long TTLs)
 CacheTTLTemplateList: 3600
@@ -610,7 +592,6 @@ CloudFormation validates parameters during stack creation/update. Common validat
 
 ```yaml
 StageId: test
-PublicRateLimit: 500
 LogLevel: DEBUG
 # All Cache TTLs: 300 (5 minutes)
 ```
@@ -621,7 +602,6 @@ LogLevel: DEBUG
 
 ```yaml
 StageId: beta  # or stage
-PublicRateLimit: 1000
 LogLevel: INFO
 # Cache TTLs: Production values
 ```
@@ -632,7 +612,6 @@ LogLevel: INFO
 
 ```yaml
 StageId: prod
-PublicRateLimit: 1000
 LogLevel: INFO
 # Cache TTLs: Production values (see defaults)
 ```

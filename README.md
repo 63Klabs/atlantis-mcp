@@ -108,7 +108,7 @@ Public access is rate-limited to prevent abuse:
   - `X-RateLimit-Reset`: Time when limit resets (Unix timestamp)
 - HTTP 429 returned when limit exceeded with `Retry-After` header
 
-> Only public access with a limit of 50 requests per hpur per IP is available during BETA release.
+> Only public access with a limit of 50 requests per hour per IP is available during BETA release.
 
 ## Multi-Source Support
 

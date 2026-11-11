@@ -17,7 +17,26 @@ const fc = require('fast-check');
 const { tools: { AWS, DebugAndLog } } = require('@63klabs/cache-data');
 const settings = require('../../../config/settings');
 const { checkRateLimit, createRateLimitResponse, TestHarness } = require('../../../utils/rate-limiter');
+const { toBucketKey } = require('../../../utils/client-address');
 const { hashClientIdentifier, decrementInDynamo, fetchFromDynamo, createInDynamo, nextIntervalInMinutes, convertFromMinutesToMilli, cache } = TestHarness.getInternals();
+
+/**
+ * Build the authInfo the handler passes for a keyless request.
+ *
+ * checkRateLimit takes the bucket identity from authInfo.identity only; it reads no
+ * request header and no request context. The identity is the bucket key derived from
+ * the address, as auth-resolver produces it for the public tier.
+ *
+ * @param {string} sourceIp - Client address as cache-data resolved it
+ * @returns {{tier: string, identity: (string|null), isAuthenticated: boolean}} authInfo for the public tier
+ * @example
+ * publicAuth('192.168.1.100'); // { tier: 'public', identity: '192.168.1.100', isAuthenticated: false }
+ */
+function publicAuth(sourceIp) {
+  // >! The identity comes from toBucketKey, the only place an address becomes a bucket,
+  // >! so these tests exercise the same key the handler would pass in.
+  return { tier: 'public', identity: toBucketKey(sourceIp), isAuthenticated: false };
+}
 
 describe('Property 2: Client identifier hash determinism and cross-window uniqueness', () => {
 
@@ -321,7 +340,8 @@ describe('Property 1: Rate limit headers contain valid numeric values matching c
       fc.asyncProperty(
         fc.integer({ min: 1, max: 10000 }),
         fc.constantFrom(...validWindows),
-        fc.string({ minLength: 1, maxLength: 39 }),
+        // >! A valid address: toBucketKey returns null for any other string and the limiter then fails closed
+        fc.ipV4(),
         async (limitPerWindow, windowInMinutes, sourceIp) => {
           cache.clear();
           mockGet.mockReset();
@@ -339,7 +359,7 @@ describe('Property 1: Rate limit headers contain valid numeric values matching c
             public: { limitPerWindow, windowInMinutes }
           };
 
-          const result = await checkRateLimit(event, limits);
+          const result = await checkRateLimit(event, limits, publicAuth(sourceIp));
           const nowSec = Math.floor(Date.now() / 1000);
 
           // All headers are valid numbers, never NaN
@@ -405,7 +425,8 @@ describe('Property 4: Cache hit returns last-known state within current window',
     await fc.assert(
       fc.asyncProperty(
         fc.integer({ min: 2, max: 10000 }),
-        fc.string({ minLength: 1, maxLength: 39 }),
+        // >! A valid address: toBucketKey returns null for any other string and the limiter then fails closed
+        fc.ipV4(),
         async (limitPerWindow, sourceIp) => {
           cache.clear();
           mockGet.mockReset();
@@ -446,7 +467,7 @@ describe('Property 4: Cache hit returns last-known state within current window',
             public: { limitPerWindow, windowInMinutes }
           };
 
-          const result = await checkRateLimit(event, limits);
+          const result = await checkRateLimit(event, limits, publicAuth(sourceIp));
 
           // mockGet (fetchFromDynamo) should NOT have been called — cache hit path
           expect(mockGet).not.toHaveBeenCalled();
@@ -504,7 +525,8 @@ describe('Property 7: Window transition returns fresh state with full remaining 
     await fc.assert(
       fc.asyncProperty(
         fc.integer({ min: 2, max: 10000 }),
-        fc.string({ minLength: 1, maxLength: 39 }),
+        // >! A valid address: toBucketKey returns null for any other string and the limiter then fails closed
+        fc.ipV4(),
         async (limitPerWindow, sourceIp) => {
           cache.clear();
           mockGet.mockReset();
@@ -537,7 +559,7 @@ describe('Property 7: Window transition returns fresh state with full remaining 
             public: { limitPerWindow, windowInMinutes }
           };
 
-          const result = await checkRateLimit(event, limits);
+          const result = await checkRateLimit(event, limits, publicAuth(sourceIp));
 
           // Should get fresh state: remaining = limitPerWindow - 1 (from createInDynamo)
           expect(result.allowed).toBe(true);
@@ -592,7 +614,8 @@ describe('Property 9: Rate limit exceeded returns 429 with Retry-After', () => {
       fc.asyncProperty(
         fc.integer({ min: 1, max: 10000 }),
         fc.constantFrom(5, 15, 30, 60, 120, 240, 1440),
-        fc.string({ minLength: 1, maxLength: 39 }),
+        // >! A valid address: toBucketKey returns null for any other string and the limiter then fails closed
+        fc.ipV4(),
         async (limitPerWindow, windowInMinutes, sourceIp) => {
           cache.clear();
           mockGet.mockReset();
@@ -616,7 +639,7 @@ describe('Property 9: Rate limit exceeded returns 429 with Retry-After', () => {
             public: { limitPerWindow, windowInMinutes }
           };
 
-          const result = await checkRateLimit(event, limits);
+          const result = await checkRateLimit(event, limits, publicAuth(sourceIp));
 
           // checkRateLimit should return allowed: false
           expect(result.allowed).toBe(false);

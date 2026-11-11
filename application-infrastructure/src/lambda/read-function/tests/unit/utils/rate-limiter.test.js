@@ -18,7 +18,26 @@ jest.mock('../../../config/settings', () => ({
 const { tools: { AWS, DebugAndLog } } = require('@63klabs/cache-data');
 const settings = require('../../../config/settings');
 const { checkRateLimit, TestHarness } = require('../../../utils/rate-limiter');
+const { toBucketKey } = require('../../../utils/client-address');
 const { hashClientIdentifier, fetchFromDynamo, decrementInDynamo, createInDynamo, cache } = TestHarness.getInternals();
+
+/**
+ * Build the authInfo the handler passes for a keyless request.
+ *
+ * checkRateLimit takes the bucket identity from authInfo.identity only; it reads no
+ * request header and no request context. The identity is the bucket key derived from
+ * the address, as auth-resolver produces it for the public tier.
+ *
+ * @param {string} sourceIp - Client address as cache-data resolved it
+ * @returns {{tier: string, identity: (string|null), isAuthenticated: boolean}} authInfo for the public tier
+ * @example
+ * publicAuth('192.168.1.100'); // { tier: 'public', identity: '192.168.1.100', isAuthenticated: false }
+ */
+function publicAuth(sourceIp) {
+  // >! The identity comes from toBucketKey, the only place an address becomes a bucket,
+  // >! so these tests exercise the same key the handler would pass in.
+  return { tier: 'public', identity: toBucketKey(sourceIp), isAuthenticated: false };
+}
 
 describe('hashClientIdentifier', () => {
 
@@ -285,7 +304,7 @@ describe('checkRateLimit', () => {
     mockGet.mockResolvedValueOnce({});
     mockPut.mockResolvedValueOnce({});
 
-    const result = await checkRateLimit(mockEvent, mockLimits);
+    const result = await checkRateLimit(mockEvent, mockLimits, publicAuth(mockEvent.requestContext.identity.sourceIp));
 
     expect(Number(result.headers['X-RateLimit-Limit'])).not.toBeNaN();
     expect(Number(result.headers['X-RateLimit-Remaining'])).not.toBeNaN();
@@ -298,7 +317,7 @@ describe('checkRateLimit', () => {
     mockGet.mockResolvedValueOnce({});
     mockPut.mockResolvedValueOnce({});
 
-    const result = await checkRateLimit(mockEvent, mockLimits);
+    const result = await checkRateLimit(mockEvent, mockLimits, publicAuth(mockEvent.requestContext.identity.sourceIp));
 
     expect(result.headers['X-RateLimit-Limit']).toBe('50');
   });
@@ -309,7 +328,7 @@ describe('checkRateLimit', () => {
     mockGet.mockResolvedValueOnce({});
     mockPut.mockResolvedValueOnce({});
 
-    const result = await checkRateLimit(mockEvent, mockLimits);
+    const result = await checkRateLimit(mockEvent, mockLimits, publicAuth(mockEvent.requestContext.identity.sourceIp));
 
     const remaining = Number(result.headers['X-RateLimit-Remaining']);
     expect(remaining).toBeGreaterThanOrEqual(0);
@@ -322,7 +341,7 @@ describe('checkRateLimit', () => {
     mockGet.mockResolvedValueOnce({});
     mockPut.mockResolvedValueOnce({});
 
-    const result = await checkRateLimit(mockEvent, mockLimits);
+    const result = await checkRateLimit(mockEvent, mockLimits, publicAuth(mockEvent.requestContext.identity.sourceIp));
 
     const resetSec = Number(result.headers['X-RateLimit-Reset']);
     const nowSec = Math.floor(Date.now() / 1000);
@@ -335,7 +354,7 @@ describe('checkRateLimit', () => {
     // First call to populate cache via DynamoDB path
     mockGet.mockResolvedValueOnce({});
     mockPut.mockResolvedValueOnce({});
-    await checkRateLimit(mockEvent, mockLimits);
+    await checkRateLimit(mockEvent, mockLimits, publicAuth(mockEvent.requestContext.identity.sourceIp));
 
     // Reset DynamoDB mocks to track second call
     mockGet.mockReset();
@@ -345,7 +364,7 @@ describe('checkRateLimit', () => {
       Attributes: { pk: 'x', remaining: 47, limit: 50 }
     });
 
-    const result = await checkRateLimit(mockEvent, mockLimits);
+    const result = await checkRateLimit(mockEvent, mockLimits, publicAuth(mockEvent.requestContext.identity.sourceIp));
 
     // Should return valid result from cache
     expect(result.allowed).toBe(true);
@@ -376,7 +395,7 @@ describe('checkRateLimit', () => {
     mockGet.mockResolvedValueOnce({});
     mockPut.mockResolvedValueOnce({});
 
-    const result = await checkRateLimit(mockEvent, mockLimits);
+    const result = await checkRateLimit(mockEvent, mockLimits, publicAuth(mockEvent.requestContext.identity.sourceIp));
 
     // Should get fresh state, not the stale remaining=10
     expect(result.allowed).toBe(true);
@@ -391,7 +410,7 @@ describe('checkRateLimit', () => {
     dbError.name = 'ServiceUnavailableException';
     mockGet.mockRejectedValueOnce(dbError);
 
-    const result = await checkRateLimit(mockEvent, mockLimits);
+    const result = await checkRateLimit(mockEvent, mockLimits, publicAuth(mockEvent.requestContext.identity.sourceIp));
 
     // Should still return a valid response, not throw
     expect(result.allowed).toBe(true);
@@ -406,7 +425,7 @@ describe('checkRateLimit', () => {
   test('fails closed when hash salt is unavailable (Requirement 11.3)', async () => {
     settings.sessionHashSalt.getValue.mockResolvedValue(null);
 
-    const result = await checkRateLimit(mockEvent, mockLimits);
+    const result = await checkRateLimit(mockEvent, mockLimits, publicAuth(mockEvent.requestContext.identity.sourceIp));
 
     expect(result.allowed).toBe(false);
     expect(result.headers['X-RateLimit-Limit']).toBe('50');
@@ -419,10 +438,51 @@ describe('checkRateLimit', () => {
   test('fails closed when hash salt retrieval throws (Requirement 11.3)', async () => {
     settings.sessionHashSalt.getValue.mockRejectedValue(new Error('SSM timeout'));
 
-    const result = await checkRateLimit(mockEvent, mockLimits);
+    const result = await checkRateLimit(mockEvent, mockLimits, publicAuth(mockEvent.requestContext.identity.sourceIp));
 
     expect(result.allowed).toBe(false);
     expect(result.headers['Retry-After']).toBeDefined();
     expect(DebugAndLog.error).toHaveBeenCalled();
+  });
+
+  // ---- No usable identity fails closed (spec 0-0-7-rate-limit-client-ip-spoofing) ----
+
+  describe('authInfo.identity of null (Requirements 3.2, 10.4)', () => {
+
+    // >! mockEvent carries a sourceIp and a forwarding header the limiter must not use
+    const eventWithClientValues = {
+      requestContext: {
+        identity: { sourceIp: '192.168.1.100' }
+      },
+      headers: { 'X-Forwarded-For': '203.0.113.9, 192.168.1.100' }
+    };
+
+    const nullIdentityAuth = { tier: 'public', identity: null, isAuthenticated: false };
+
+    test('is refused with the rate-limit headers and Retry-After', async () => {
+      const result = await checkRateLimit(eventWithClientValues, mockLimits, nullIdentityAuth);
+
+      expect(result.allowed).toBe(false);
+      expect(result.headers['X-RateLimit-Limit']).toBe('50');
+      expect(result.headers['X-RateLimit-Remaining']).toBe('0');
+      expect(Number(result.headers['X-RateLimit-Reset'])).toBeGreaterThan(Math.floor(Date.now() / 1000));
+      expect(result.headers['Retry-After']).toBeDefined();
+      expect(Number(result.headers['Retry-After'])).toBeGreaterThan(0);
+      expect(result.retryAfter).toBeGreaterThan(0);
+      expect(result.dynamoPromise).toBeNull();
+    });
+
+    test('writes no counter and reads none (no create, decrement, or fetch)', async () => {
+      // Salt is available (default), so only the missing identity can cause the refusal
+      mockGet.mockResolvedValue({});
+      mockPut.mockResolvedValue({});
+      mockUpdate.mockResolvedValue({ Attributes: { pk: 'x', remaining: 49, limit: 50 } });
+
+      await checkRateLimit(eventWithClientValues, mockLimits, nullIdentityAuth);
+
+      expect(mockPut).not.toHaveBeenCalled();
+      expect(mockUpdate).not.toHaveBeenCalled();
+      expect(mockGet).not.toHaveBeenCalled();
+    });
   });
 });

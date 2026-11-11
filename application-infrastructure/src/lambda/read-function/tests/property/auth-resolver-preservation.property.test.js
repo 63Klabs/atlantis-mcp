@@ -34,6 +34,7 @@ jest.mock('@63klabs/cache-data', () => ({
 }));
 
 const { resolveAuth, TestHarness } = require('../../utils/auth-resolver');
+const { toBucketKey } = require('../../utils/client-address');
 const { computeEffectiveTier } = TestHarness.getInternals();
 const { generateApiKey } = require('../../../auth-function/utils/api-key');
 
@@ -48,7 +49,7 @@ const { generateApiKey } = require('../../../auth-function/utils/api-key');
  *
  * For any request with no API key header, the auth resolver SHALL
  * return a public-tier result with isAuthenticated: false, the
- * client's source IP as identity, and degraded: false.
+ * client address (normalized to its bucket key) as identity, and degraded: false.
  */
 describe('Preservation Test A: No-key requests return public tier', () => {
 
@@ -62,11 +63,11 @@ describe('Preservation Test A: No-key requests return public tier', () => {
 						requestContext: { identity: { sourceIp } }
 					};
 
-					const result = await resolveAuth(event);
+					const result = await resolveAuth(event, sourceIp);
 
 					expect(result.tier).toBe('public');
 					expect(result.isAuthenticated).toBe(false);
-					expect(result.identity).toBe(sourceIp);
+					expect(result.identity).toBe(toBucketKey(sourceIp));
 					expect(result.degraded).toBe(false);
 				}
 			),

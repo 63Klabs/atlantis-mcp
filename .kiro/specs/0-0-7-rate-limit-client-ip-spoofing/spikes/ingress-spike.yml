@@ -1,0 +1,351 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  TEMPORARY spike stack for spec 0-0-7-rate-limit-client-ip-spoofing (spikes S2, S3, S4, S7).
+  Not part of the application. Echo API plus two CloudFront distributions. Delete after use.
+
+# >! This stack touches no resource of the atlantis-mcp application stacks and sends no request to
+# >! the MCP Lambda functions. The echo API is an API Gateway mock integration, so it needs no IAM role.
+
+Parameters:
+  Prefix:
+    Type: String
+    Default: prod63k
+  ProjectId:
+    Type: String
+    Default: atlantis-mcp
+  StageId:
+    Type: String
+    Default: spk
+  MarkerVersion:
+    Type: String
+    Default: v1
+    Description: Value of the X-Spike-Marker origin header. Change it to time how fast an origin header change reaches the edge (S3).
+
+Resources:
+
+  # >! S4: the secret is created in this stack and read back by a dynamic reference in OriginCustomHeaders.
+  # >! The name follows the planned convention Prefix-ProjectId-StageId-OriginSecret.
+  OriginSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub '${Prefix}-${ProjectId}-${StageId}-OriginSecret'
+      Description: Temporary spike secret. Safe to delete.
+      GenerateSecretString:
+        SecretStringTemplate: '{}'
+        GenerateStringKey: secret
+        PasswordLength: 64
+        ExcludePunctuation: true
+
+  # >! Edge-optimized, like the application's WebApi, so the AWS-managed CloudFront distribution is in the path.
+  EchoApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Sub '${Prefix}-${ProjectId}-${StageId}-EchoApi'
+      EndpointConfiguration:
+        Types:
+          - EDGE
+
+  EchoMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref EchoApi
+      ResourceId: !GetAtt EchoApi.RootResourceId
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates:
+              application/json: |
+                #set($p = $input.params())
+                {
+                "sourceIp": "$context.identity.sourceIp",
+                "headers": {
+                #foreach($name in $p.header.keySet())
+                "$name": "$util.escapeJavaScript($p.header.get($name))"#if($foreach.hasNext),#end
+                #end
+                }
+                }
+      MethodResponses:
+        - StatusCode: '200'
+
+  EchoDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn: EchoMethod
+    Properties:
+      RestApiId: !Ref EchoApi
+      StageName: spk
+
+  # --- Function that stands in for the planned template-owned function (S2) ---
+  ViewerIpFunction:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: !Sub '${Prefix}-${ProjectId}-${StageId}-ViewerIp'
+      AutoPublish: true
+      FunctionConfig:
+        Comment: Spike. Writes the viewer address into x-atlantis-viewer-ip, replacing any viewer value.
+        Runtime: cloudfront-js-2.0
+      FunctionCode: |
+        function handler(event) {
+          var request = event.request;
+          // Assigning a new object replaces the header, including any multiValue the viewer sent.
+          request.headers['x-atlantis-viewer-ip'] = { value: event.viewer.ip };
+          return request;
+        }
+
+  # --- Function that stands in for a client's own edge function that rewrites X-Forwarded-For (S7) ---
+  ForeignRewriteFunction:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: !Sub '${Prefix}-${ProjectId}-${StageId}-ForeignRewrite'
+      AutoPublish: true
+      FunctionConfig:
+        Comment: Spike. Plays a third party who rewrites X-Forwarded-For at their own edge.
+        Runtime: cloudfront-js-2.0
+      FunctionCode: |
+        function handler(event) {
+          var request = event.request;
+          request.headers['x-forwarded-for'] = { value: '192.0.2.99' };
+          return request;
+        }
+
+  # --- D1: built like the planned Atlantis distribution with ApiOriginProtection=true ---
+  ProtectedDistribution:
+    Type: AWS::CloudFront::Distribution
+    DependsOn:
+      - OriginSecret
+      - EchoDeployment
+    Properties:
+      DistributionConfig:
+        Comment: !Sub '${Prefix}-${ProjectId}-${StageId}-Protected'
+        Enabled: true
+        IPV6Enabled: true
+        HttpVersion: http2
+        PriceClass: PriceClass_100
+        Origins:
+          - Id: ApiGatewayOrigin
+            DomainName: !Sub '${EchoApi}.execute-api.${AWS::Region}.amazonaws.com'
+            OriginPath: /spk
+            OriginCustomHeaders:
+              - HeaderName: X-Atlantis-Origin-Secret
+                HeaderValue: !Sub '{{resolve:secretsmanager:${Prefix}-${ProjectId}-${StageId}-OriginSecret:SecretString:secret}}'
+              - HeaderName: X-Spike-Marker
+                HeaderValue: !Ref MarkerVersion
+            CustomOriginConfig:
+              HTTPSPort: 443
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols:
+                - TLSv1.2
+        DefaultCacheBehavior:
+          TargetOriginId: ApiGatewayOrigin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
+          CachedMethods: [HEAD, GET]
+          Compress: true
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+          OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt ViewerIpFunction.FunctionARN
+
+  # --- D2: someone else's distribution in front of the same raw URL: no secret, no Atlantis function (S7) ---
+  ForeignDistribution:
+    Type: AWS::CloudFront::Distribution
+    DependsOn: EchoDeployment
+    Properties:
+      DistributionConfig:
+        Comment: !Sub '${Prefix}-${ProjectId}-${StageId}-Foreign'
+        Enabled: true
+        IPV6Enabled: true
+        HttpVersion: http2
+        PriceClass: PriceClass_100
+        Origins:
+          - Id: ApiGatewayOrigin
+            DomainName: !Sub '${EchoApi}.execute-api.${AWS::Region}.amazonaws.com'
+            OriginPath: /spk
+            CustomOriginConfig:
+              HTTPSPort: 443
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols:
+                - TLSv1.2
+        DefaultCacheBehavior:
+          TargetOriginId: ApiGatewayOrigin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
+          CachedMethods: [HEAD, GET]
+          Compress: true
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+          OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt ForeignRewriteFunction.FunctionARN
+
+  # --- S5 (mock): the same echo API as a Regional endpoint, behind a protected distribution ---
+  RegionalEchoApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Sub '${Prefix}-${ProjectId}-${StageId}-RegionalEchoApi'
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+
+  RegionalEchoMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RegionalEchoApi
+      ResourceId: !GetAtt RegionalEchoApi.RootResourceId
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates:
+              application/json: |
+                #set($p = $input.params())
+                {
+                "sourceIp": "$context.identity.sourceIp",
+                "headers": {
+                #foreach($name in $p.header.keySet())
+                "$name": "$util.escapeJavaScript($p.header.get($name))"#if($foreach.hasNext),#end
+                #end
+                }
+                }
+      MethodResponses:
+        - StatusCode: '200'
+
+  RegionalEchoDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn: RegionalEchoMethod
+    Properties:
+      RestApiId: !Ref RegionalEchoApi
+      StageName: spk
+
+  ProtectedRegionalDistribution:
+    Type: AWS::CloudFront::Distribution
+    DependsOn:
+      - OriginSecret
+      - RegionalEchoDeployment
+    Properties:
+      DistributionConfig:
+        Comment: !Sub '${Prefix}-${ProjectId}-${StageId}-ProtectedRegional'
+        Enabled: true
+        IPV6Enabled: true
+        HttpVersion: http2
+        PriceClass: PriceClass_100
+        Origins:
+          - Id: ApiGatewayOrigin
+            DomainName: !Sub '${RegionalEchoApi}.execute-api.${AWS::Region}.amazonaws.com'
+            OriginPath: /spk
+            OriginCustomHeaders:
+              - HeaderName: X-Atlantis-Origin-Secret
+                HeaderValue: !Sub '{{resolve:secretsmanager:${Prefix}-${ProjectId}-${StageId}-OriginSecret:SecretString:secret}}'
+            CustomOriginConfig:
+              HTTPSPort: 443
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols:
+                - TLSv1.2
+        DefaultCacheBehavior:
+          TargetOriginId: ApiGatewayOrigin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
+          CachedMethods: [HEAD, GET]
+          Compress: true
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+          OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt ViewerIpFunction.FunctionARN
+
+  # --- S7 (chained): a third party uses OUR protected Regional distribution as the origin of their own (two CloudFront layers in all; three, with an edge-optimized API, is refused by CloudFront) ---
+  ChainedDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Comment: !Sub '${Prefix}-${ProjectId}-${StageId}-Chained'
+        Enabled: true
+        IPV6Enabled: true
+        HttpVersion: http2
+        PriceClass: PriceClass_100
+        Origins:
+          - Id: FrontDoorOrigin
+            DomainName: !GetAtt ProtectedRegionalDistribution.DomainName
+            CustomOriginConfig:
+              HTTPSPort: 443
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols:
+                - TLSv1.2
+        DefaultCacheBehavior:
+          TargetOriginId: FrontDoorOrigin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
+          CachedMethods: [HEAD, GET]
+          Compress: true
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+          OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt ForeignRewriteFunction.FunctionARN
+
+  # --- S7 (Regional): a third party's own distribution, with an edge function that rewrites X-Forwarded-For, in front of the Regional raw URL ---
+  ForeignRegionalDistribution:
+    Type: AWS::CloudFront::Distribution
+    DependsOn: RegionalEchoDeployment
+    Properties:
+      DistributionConfig:
+        Comment: !Sub '${Prefix}-${ProjectId}-${StageId}-ForeignRegional'
+        Enabled: true
+        IPV6Enabled: true
+        HttpVersion: http2
+        PriceClass: PriceClass_100
+        Origins:
+          - Id: ApiGatewayOrigin
+            DomainName: !Sub '${RegionalEchoApi}.execute-api.${AWS::Region}.amazonaws.com'
+            OriginPath: /spk
+            CustomOriginConfig:
+              HTTPSPort: 443
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols:
+                - TLSv1.2
+        DefaultCacheBehavior:
+          TargetOriginId: ApiGatewayOrigin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
+          CachedMethods: [HEAD, GET]
+          Compress: true
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+          OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt ForeignRewriteFunction.FunctionARN
+
+Outputs:
+  RawUrl:
+    Description: Raw execute-api URL of the echo API
+    Value: !Sub 'https://${EchoApi}.execute-api.${AWS::Region}.amazonaws.com/spk/'
+  ProtectedDomain:
+    Description: Distribution built like the planned Atlantis one
+    Value: !GetAtt ProtectedDistribution.DomainName
+  ForeignDomain:
+    Description: Distribution that plays a third party
+    Value: !GetAtt ForeignDistribution.DomainName
+  SecretName:
+    Description: Name of the spike secret (the value is never output)
+    Value: !Sub '${Prefix}-${ProjectId}-${StageId}-OriginSecret'
+  RegionalRawUrl:
+    Description: Raw execute-api URL of the Regional echo API
+    Value: !Sub 'https://${RegionalEchoApi}.execute-api.${AWS::Region}.amazonaws.com/spk/'
+  ProtectedRegionalDomain:
+    Description: Protected distribution in front of the Regional echo API
+    Value: !GetAtt ProtectedRegionalDistribution.DomainName
+  ChainedDomain:
+    Description: Third-party distribution whose origin is the protected Regional distribution
+    Value: !GetAtt ChainedDistribution.DomainName
+  ForeignRegionalDomain:
+    Description: Third-party distribution in front of the Regional echo API
+    Value: !GetAtt ForeignRegionalDistribution.DomainName

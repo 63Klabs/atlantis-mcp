@@ -204,7 +204,6 @@ Edit `config-mcp-server-test.json` with your deployment parameters:
     "StageId": "test",
     "AtlantisS3Buckets": "acme-atlantis-templates-us-east-1,acme-finance-templates-us-east-1",
     "AtlantisGitHubUserOrgs": "63klabs,acme-org",
-    "PublicRateLimit": "100",
     "GitHubToken": "/atlantis/mcp/github-token",
     "LogLevel": "INFO",
     "ReadLambdaExecRoleIncludeManagedPolicyArns": "",
@@ -234,7 +233,6 @@ Edit `config-mcp-server-test.json` with your deployment parameters:
 - **StageId**: Environment stage (test, beta, stage, prod)
 - **AtlantisS3Buckets**: Comma-delimited list of S3 buckets containing templates and starters
 - **AtlantisGitHubUserOrgs**: Comma-delimited list of GitHub users/organizations
-- **PublicRateLimit**: Requests per hour per IP (default: 100)
 - **GitHubToken**: SSM Parameter Store path for GitHub token
 - **LogLevel**: Logging level (ERROR, WARN, INFO, DEBUG, DIAG)
 - **ReadLambdaExecRoleIncludeManagedPolicyArns**: Additional managed policy ARNs (comma-delimited)
@@ -421,9 +419,9 @@ Common issues:
 - Invalid S3 bucket names
 - GitHub token not found in SSM Parameter Store
 
-### API Gateway Returns 429 (Rate Limit Exceeded)
+### Requests Return 429 (Rate Limit Exceeded)
 
-**Solution**: Increase the `PublicRateLimit` parameter in your configuration and redeploy.
+**Solution**: The Read function enforces the limit. The public limit is the `MCP_PUBLIC_RATE_LIMIT` environment variable (default: 50 requests per 60 minutes per client address). It is not a CloudFormation parameter. See [Public rate limit](./cloudformation-parameters.md#public-rate-limit-mcp_public_rate_limit).
 
 ### Templates Not Found
 

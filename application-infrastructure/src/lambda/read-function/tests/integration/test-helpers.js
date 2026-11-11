@@ -54,7 +54,8 @@ function createMockEvent(options = {}) {
     path: options.path || '/mcp',
     headers: {
       'Content-Type': 'application/json',
-      'X-Forwarded-For': sourceIp,
+      // >! Deliberately different from sourceIp: a test that reads this header picks the wrong bucket
+      'X-Forwarded-For': '203.0.113.200',
       ...options.headers
     },
     body: options.body ? JSON.stringify(options.body) : null,

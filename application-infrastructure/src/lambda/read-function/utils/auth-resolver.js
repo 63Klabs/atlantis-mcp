@@ -21,6 +21,8 @@ const crypto = require('crypto');
 const { tools: { DebugAndLog, AWS, CachedSsmParameter } } = require('@63klabs/cache-data');
 // >! Loaded from the tier-common layer; a missing layer fails the cold start (no local copy)
 const TierCommon = require('./tier-common');
+// >! The only place a client address becomes a rate-limit bucket key (validated and normalized)
+const { toBucketKey } = require('./client-address');
 
 const { EXPIRY_STATE } = TierCommon;
 
@@ -119,27 +121,6 @@ function extractApiKey(event) {
  */
 function computeEffectiveTier(storedTier, tierExpiresAt, fallback) {
   return TierCommon.computeEffectiveTier(storedTier, tierExpiresAt, undefined, fallback).tier;
-}
-
-/**
- * Extract source IP from the API Gateway event.
- *
- * Checks `X-Forwarded-For` header first (first IP in chain),
- * then falls back to `requestContext.identity.sourceIp`.
- *
- * @private
- * @param {Object} event - API Gateway event object
- * @returns {string} Client IP address or 'unknown'
- * @example
- * // In tests only via TestHarness
- * const { extractSourceIp } = TestHarness.getInternals();
- * const ip = extractSourceIp({ headers: { 'X-Forwarded-For': '1.2.3.4, 5.6.7.8' } });
- * // ip: '1.2.3.4'
- */
-function extractSourceIp(event) {
-  return event.headers?.['X-Forwarded-For']?.split(',')[0]?.trim()
-    || event.requestContext?.identity?.sourceIp
-    || 'unknown';
 }
 
 /**
@@ -299,6 +280,7 @@ function maintainUserRecord(pk, record, resolution) {
  * Resolve authentication from an incoming API Gateway event.
  *
  * Flow:
+ * 0. Normalize the client address into the public rate-limit identity (`toBucketKey`)
  * 1. Extract API key from headers (Bearer or X-API-Key)
  * 2. No key → return public tier result
  * 3. Key present → retrieve hash salt from SSM
@@ -314,12 +296,15 @@ function maintainUserRecord(pk, record, resolution) {
  * @async
  * @param {Object} event - API Gateway event object
  * @param {Object} [event.headers] - Request headers
- * @param {Object} [event.requestContext] - Request context
- * @param {Object} [event.requestContext.identity] - Identity information
- * @param {string} [event.requestContext.identity.sourceIp] - Client IP address
+ * @param {*} [clientAddress] - The client address cache-data resolved, from `clientRequest.getClientIp()`
+ *   (with `CACHE_DATA_TRUSTED_PROXY_HOPS=0` this is API Gateway's `sourceIp`). Any value is accepted;
+ *   it is validated and normalized by `toBucketKey`. The event is not read for the address.
  * @returns {Promise<Object>} Auth result object
  * @returns {string} returns.tier - Effective tier: 'public', 'registered', 'paid', or 'private'
- * @returns {string} returns.identity - Rate limit identity (IP for public, cognitoSub for authenticated)
+ * @returns {string|null} returns.identity - Rate limit identity: the normalized client address for public
+ *   results (IPv4, or an IPv6 /64 prefix), or cognitoSub for authenticated results. `null` is possible only on
+ *   the public paths (no key, salt unavailable, salt empty, Users table read failure) and means no usable
+ *   identity; the rate limiter refuses such a request
  * @returns {boolean} returns.isAuthenticated - Whether the request is authenticated
  * @returns {string} [returns.userId] - DynamoDB partition key (only for authenticated)
  * @returns {boolean} returns.degraded - Whether auth fell back to public due to infrastructure issues
@@ -328,28 +313,36 @@ function maintainUserRecord(pk, record, resolution) {
  *
  * @example
  * // No API key — public tier
- * const result = await resolveAuth({ headers: {}, requestContext: { identity: { sourceIp: '1.2.3.4' } } });
+ * const result = await resolveAuth({ headers: {} }, '1.2.3.4');
  * // { tier: 'public', identity: '1.2.3.4', isAuthenticated: false, degraded: false }
  *
  * @example
- * // Valid API key — authenticated
- * const result = await resolveAuth({ headers: { authorization: 'Bearer atl_abc...' } });
+ * // No API key and no usable client address — identity is null (the rate limiter refuses it)
+ * const result = await resolveAuth({ headers: {} }, 'not-an-ip');
+ * // { tier: 'public', identity: null, isAuthenticated: false, degraded: false }
+ *
+ * @example
+ * // Valid API key — authenticated (the address is not used)
+ * const result = await resolveAuth({ headers: { authorization: 'Bearer atl_abc...' } }, '1.2.3.4');
  * // { tier: 'registered', identity: 'cognito-sub-123', isAuthenticated: true, userId: 'KEY#hash', degraded: false }
  *
  * @example
  * // Invalid API key — 401 error
- * const result = await resolveAuth({ headers: { authorization: 'Bearer atl_invalid' } });
+ * const result = await resolveAuth({ headers: { authorization: 'Bearer atl_invalid' } }, '1.2.3.4');
  * // { error: true, errorResponse: { statusCode: 401, ... } }
  */
-async function resolveAuth(event) {
-  const sourceIp = extractSourceIp(event);
+async function resolveAuth(event, clientAddress) {
+  // >! The address is cache-data's resolved client address (sourceIp at count 0), validated and
+  // >! normalized here. null means "no usable identity"; the rate limiter refuses it.
+  // >! No request header is read for the address.
+  const publicIdentity = toBucketKey(clientAddress);
   const rawKey = extractApiKey(event);
 
   // >! No key present — public tier (preserves current behavior)
   if (!rawKey) {
     return {
       tier: 'public',
-      identity: sourceIp,
+      identity: publicIdentity,
       isAuthenticated: false,
       degraded: false
     };
@@ -364,7 +357,7 @@ async function resolveAuth(event) {
     DebugAndLog.error('Auth resolver: hash salt unavailable — degrading to public', err.message);
     return {
       tier: 'public',
-      identity: sourceIp,
+      identity: publicIdentity,
       isAuthenticated: false,
       degraded: true
     };
@@ -375,7 +368,7 @@ async function resolveAuth(event) {
     DebugAndLog.error('Auth resolver: hash salt is empty — degrading to public');
     return {
       tier: 'public',
-      identity: sourceIp,
+      identity: publicIdentity,
       isAuthenticated: false,
       degraded: true
     };
@@ -410,7 +403,7 @@ async function resolveAuth(event) {
     DebugAndLog.error('Auth resolver: DynamoDB lookup failed — degrading to public', err.message);
     return {
       tier: 'public',
-      identity: sourceIp,
+      identity: publicIdentity,
       isAuthenticated: false,
       degraded: true
     };
@@ -469,7 +462,7 @@ class TestHarness {
    * Get access to internal functions for testing purposes.
    * WARNING: This method is for testing only and should never be used in production.
    *
-   * @returns {{extractApiKey: Function, computeEffectiveTier: Function, refreshTtl: Function, maintainUserRecord: Function, downgradeLapsedTier: Function, onUserWriteError: Function, extractSourceIp: Function, apiKeyHashSalt: CachedSsmParameter, NINETY_DAYS_SEC: number, ONE_TWENTY_DAYS_SEC: number}} Object containing internal functions and constants
+   * @returns {{extractApiKey: Function, computeEffectiveTier: Function, refreshTtl: Function, maintainUserRecord: Function, downgradeLapsedTier: Function, onUserWriteError: Function, apiKeyHashSalt: CachedSsmParameter, NINETY_DAYS_SEC: number, ONE_TWENTY_DAYS_SEC: number}} Object containing internal functions and constants
    * @private
    * @example
    * // In tests only — DO NOT use in production
@@ -484,7 +477,6 @@ class TestHarness {
       maintainUserRecord,
       downgradeLapsedTier,
       onUserWriteError,
-      extractSourceIp,
       apiKeyHashSalt,
       NINETY_DAYS_SEC,
       ONE_TWENTY_DAYS_SEC

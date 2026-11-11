@@ -15,6 +15,7 @@ jest.mock('@63klabs/cache-data', () => {
       ...actual.tools,
       ClientRequest: jest.fn().mockImplementation((event) => ({
         getEvent: () => event,
+        getClientIp: () => event?.requestContext?.identity?.sourceIp || null,
         getProps: () => {
           const rawPath = event.path || event.requestContext?.resourcePath || '';
           // Strip leading slash to match real ClientRequest behavior

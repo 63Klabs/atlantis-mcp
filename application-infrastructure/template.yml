@@ -658,6 +658,14 @@ Resources:
     Properties: 
       Name: !Sub '${Prefix}-${ProjectId}-${StageId}-WebApi'
       StageName: !Ref ApiPathBase
+      # >! Regional, not edge-optimized. On a Regional API, API Gateway reports sourceIp as the viewer
+      # >! address whether the request comes through CloudFront or straight to the API, and a forged
+      # >! X-Forwarded-For or a third party's edge function does not change it. On an edge-optimized API
+      # >! sourceIp behind CloudFront is an edge address. This setting and CACHE_DATA_TRUSTED_PROXY_HOPS=0
+      # >! below are one change: either alone lets a client choose its rate-limit bucket or puts every
+      # >! CloudFront client in a per-edge bucket. An architecture test ties them.
+      EndpointConfiguration:
+        Type: REGIONAL
 
       Cors: # MCP server accepts POST requests from any origin
         AllowMethods: "'POST,OPTIONS'"
@@ -886,6 +894,9 @@ Resources:
 
           # Cache-Data Settings
           CACHE_DATA_TIME_ZONE_FOR_INTERVAL: !Ref CacheDataTimeZoneForInterval
+          # >! Count 0: cache-data's getClientIp() returns requestContext.identity.sourceIp and reads no
+          # >! forwarding header. Correct only because WebApi is REGIONAL (see WebApi).
+          CACHE_DATA_TRUSTED_PROXY_HOPS: '0'
           # Read by BOTH @63klabs/cache-data's AWS helper and this project's xray-capture
           # helper (spec 0-0-6); removing it silently disables downstream subsegments for
           # DynamoDB/S3/Bedrock/S3 Vectors even though Tracing stays Active below.
@@ -1156,6 +1167,10 @@ Resources:
           # tracing-off mismatch does not surface as an error (Requirement 7.2).
           CACHE_DATA_AWS_X_RAY_ON: true
           AWS_XRAY_CONTEXT_MISSING: IGNORE_ERROR
+
+          # >! Count 0: cache-data's getClientIp() returns requestContext.identity.sourceIp and reads no
+          # >! forwarding header. Correct only because WebApi is REGIONAL (see WebApi).
+          CACHE_DATA_TRUSTED_PROXY_HOPS: '0'
 
           # Rate limit configuration (must match Read Lambda settings)
           MCP_PUBLIC_RATE_LIMIT: 50
