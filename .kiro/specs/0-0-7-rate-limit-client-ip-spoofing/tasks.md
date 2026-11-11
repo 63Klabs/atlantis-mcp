@@ -174,7 +174,7 @@ Do not commit unless the owner asks. Do not edit `ISSUE.md`, the other spec fold
     - _Requirements: 11.6, 14.3_
 
 - [ ] 12. Promote through `beta` and `main` (Phase 2)
-  - [ ] 12.1 `beta`
+  - [-] 12.1 `beta`
     - After the pipeline deploys `beta` (the owner merges), run G3 and the G4 loop against `beta`'s custom domain and its raw URL. Ask before sending traffic. G1 and G2 only if the owner raises `beta`'s log level for the check and restores it. Record the results
     - _Requirements: 11.5, 11.9_
   - [ ] 12.2 `main`
