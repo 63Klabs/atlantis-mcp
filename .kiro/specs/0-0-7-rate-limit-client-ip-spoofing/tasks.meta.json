@@ -471,6 +471,94 @@
         "chatSessionId": "sess_c05cf9b7-7555-45d0-8738-221cd8efe4da",
         "timestamp": 1794358674446
       }
+    ],
+    "10. Checkpoint before the rollout": [
+      {
+        "executionId": "f9a7f682-2072-446e-b20c-fee9eb3201df",
+        "chatSessionId": "sess_c05cf9b7-7555-45d0-8738-221cd8efe4da",
+        "timestamp": 1794368633117
+      }
+    ],
+    "11.1 Start the change probe": [
+      {
+        "executionId": "f9a7f682-2072-446e-b20c-fee9eb3201df",
+        "chatSessionId": "sess_c05cf9b7-7555-45d0-8738-221cd8efe4da",
+        "timestamp": 1794368711819
+      },
+      {
+        "executionId": "f9a7f682-2072-446e-b20c-fee9eb3201df",
+        "chatSessionId": "sess_c05cf9b7-7555-45d0-8738-221cd8efe4da",
+        "timestamp": 1794368760302
+      }
+    ],
+    "11.2 Confirm the pipeline": [
+      {
+        "executionId": "f9a7f682-2072-446e-b20c-fee9eb3201df",
+        "chatSessionId": "sess_c05cf9b7-7555-45d0-8738-221cd8efe4da",
+        "timestamp": 1794368760844
+      },
+      {
+        "executionId": "f9a7f682-2072-446e-b20c-fee9eb3201df",
+        "chatSessionId": "sess_c05cf9b7-7555-45d0-8738-221cd8efe4da",
+        "timestamp": 1794368817682
+      }
+    ],
+    "11.3 G1 and G2: `sourceIp` is the caller": [
+      {
+        "executionId": "f9a7f682-2072-446e-b20c-fee9eb3201df",
+        "chatSessionId": "sess_c05cf9b7-7555-45d0-8738-221cd8efe4da",
+        "timestamp": 1794368818368
+      },
+      {
+        "executionId": "f9a7f682-2072-446e-b20c-fee9eb3201df",
+        "chatSessionId": "sess_c05cf9b7-7555-45d0-8738-221cd8efe4da",
+        "timestamp": 1794369061915
+      }
+    ],
+    "11.4 G3: the rate-limit probe": [
+      {
+        "executionId": "f9a7f682-2072-446e-b20c-fee9eb3201df",
+        "chatSessionId": "sess_c05cf9b7-7555-45d0-8738-221cd8efe4da",
+        "timestamp": 1794369062355
+      },
+      {
+        "executionId": "f9a7f682-2072-446e-b20c-fee9eb3201df",
+        "chatSessionId": "sess_c05cf9b7-7555-45d0-8738-221cd8efe4da",
+        "timestamp": 1794369101050
+      }
+    ],
+    "11.5 G5: IPv6": [
+      {
+        "executionId": "f9a7f682-2072-446e-b20c-fee9eb3201df",
+        "chatSessionId": "sess_c05cf9b7-7555-45d0-8738-221cd8efe4da",
+        "timestamp": 1794369386824
+      },
+      {
+        "executionId": "f9a7f682-2072-446e-b20c-fee9eb3201df",
+        "chatSessionId": "sess_c05cf9b7-7555-45d0-8738-221cd8efe4da",
+        "timestamp": 1794369442092
+      }
+    ],
+    "11.6 Check Kiro against the Test stage": [
+      {
+        "executionId": "f9a7f682-2072-446e-b20c-fee9eb3201df",
+        "chatSessionId": "sess_c05cf9b7-7555-45d0-8738-221cd8efe4da",
+        "timestamp": 1794369442810
+      }
+    ],
+    "11.7 Decide": [
+      {
+        "executionId": "f9a7f682-2072-446e-b20c-fee9eb3201df",
+        "chatSessionId": "sess_c05cf9b7-7555-45d0-8738-221cd8efe4da",
+        "timestamp": 1794369443625
+      }
+    ],
+    "11. Deploy Part A to `test` and run the gates (Phase 2)": [
+      {
+        "executionId": "f9a7f682-2072-446e-b20c-fee9eb3201df",
+        "chatSessionId": "sess_c05cf9b7-7555-45d0-8738-221cd8efe4da",
+        "timestamp": 1794369444000
+      }
     ]
   }
 }

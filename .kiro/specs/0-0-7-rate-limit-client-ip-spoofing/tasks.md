@@ -147,29 +147,29 @@ Do not commit unless the owner asks. Do not edit `ISSUE.md`, the other spec fold
     - Summarize the results of tasks 1 to 9 with the counts. Do not commit. The owner commits to `dev`, then merges to `test`
     - _Requirements: 15.8_
 
-- [ ] 10. Checkpoint before the rollout
+- [x] 10. Checkpoint before the rollout
   - Ensure all tests pass and ask the owner for approval to deploy Part A to `test` through the pipeline.
 
-- [ ] 11. Deploy Part A to `test` and run the gates (Phase 2)
-  - [ ] 11.1 Start the change probe
+- [x] 11. Deploy Part A to `test` and run the gates (Phase 2)
+  - [x] 11.1 Start the change probe
     - Before the pipeline reaches the Deploy stage, start the G4 loop of Design, V-D against both Test URLs and keep it running until PostDeploy passes. Lengthen the sleep if the 429s begin early
     - _Requirements: 11.3_
-  - [ ] 11.2 Confirm the pipeline
+  - [x] 11.2 Confirm the pipeline
     - After the deploy, confirm the PostDeploy stage passes with 47 sub-checks (Part A does not change the verifier). Record the result. Stop the loop and record whether any `5xx` appeared
     - _Requirements: 11.3, 14.3_
-  - [ ] 11.3 G1 and G2: `sourceIp` is the caller
+  - [x] 11.3 G1 and G2: `sourceIp` is the caller
     - Run the requests and the log search of Design, V-D (G1 and G2). Compare each event's `requestContext.identity.sourceIp` with the caller's address and record only `equal` or `different` for the CloudFront domain and for the raw URL. Delete the temporary files
     - _Requirements: 11.1_
-  - [ ] 11.4 G3: the rate-limit probe
+  - [x] 11.4 G3: the rate-limit probe
     - Run the probe of Design, V-D (G3). Record the six `X-RateLimit-Remaining` values. Pass: they fall on every request
     - _Requirements: 11.2_
-  - [ ] 11.5 G5: IPv6
+  - [x] 11.5 G5: IPv6
     - From a host with an IPv6 address, run the requests of Design, V-D (G5) and record the outcome. If no such host is available, ask the owner whether to accept the gap and record the answer
     - _Requirements: 11.4_
-  - [ ] 11.6 Check Kiro against the Test stage
+  - [x] 11.6 Check Kiro against the Test stage
     - Point Kiro at the Test stage's CloudFront domain and confirm that the tools load. If they do not, capture the Kiro MCP log
     - _Requirements: 11.8_
-  - [ ] 11.7 Decide
+  - [x] 11.7 Decide
     - If G1, G2, and G3 pass, record the results and ask the owner for approval to promote to `beta`. If any fails, stop: record the observed role of `sourceIp`, do not edit the plans, and ask the owner whether to fall back (D16)
     - _Requirements: 11.6, 14.3_
 

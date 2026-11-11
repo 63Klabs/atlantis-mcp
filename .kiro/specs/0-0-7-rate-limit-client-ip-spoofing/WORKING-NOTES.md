@@ -326,3 +326,141 @@ Spec folder `.kiro/specs/0-0-7-rate-limit-client-ip-spoofing/`
 - Modified: `PLAN.md`, `CROSS-RESOURCE-PLAN.md` (planning-session changes; the owner decides whether they belong in this commit)
 
 Expectations from task 9.2 hold: nothing under `AF` apart from the dependency files, and nothing under `application-infrastructure/tests/postdeploy-verify`.
+
+## Task 11.1 result
+
+The change probe was not run. The owner pushed and deployed Part A to the Test stage before this run started, so a probe loop could not be running during the deploy. No HTTP traffic was sent for this task.
+
+G4 (no 5xx during the switch) is therefore NOT verified by a probe for the Test stage. The fallback evidence is the PostDeploy result (task 11.2) and the read-only CloudWatch metrics below.
+
+Read-only CloudWatch evidence (profile `release`, region `us-east-2`, stack prefix `prod63k-atlantis-mcp-test`, account number not recorded). Window 2026-11-11T00:50:00Z to 01:40:00Z (pipeline execution 01:07Z to 01:15Z), period 60, statistic Sum. REST API id `nj1sciuyka` (physical id of `WebApi` in `prod63k-atlantis-mcp-test-application`).
+
+| Metric | Dimensions | Datapoints | Max per minute | Total |
+|---|---|---|---|---|
+| `AWS/ApiGateway` `5XXError` | ApiName=`prod63k-atlantis-mcp-test-WebApi`, Stage=`atlantis-mcp-test` | 1 | 0 | 0 |
+| `AWS/ApiGateway` `5XXError` | ApiName only | 1 | 0 | 0 |
+| `AWS/ApiGateway` `Count` (context) | ApiName + Stage | 1 | 26 | 26 |
+| `AWS/Lambda` `Errors` | FunctionName=`prod63k-atlantis-mcp-test-ReadFunction` | 1 | 0 | 0 |
+| `AWS/Lambda` `Invocations` (context) | FunctionName | 1 | 24 | 24 |
+
+Reading: no 5xx and no Lambda errors in the window. Limit of this evidence: each metric has a single one-minute datapoint (26 API requests, 24 invocations), which looks like the PostDeploy verification run only. There was no steady traffic across the switch, so the zero-error result shows the requests that happened to occur succeeded, and does not show a gap-free switch. G4 stays "not verified by a probe"; the metrics are supporting evidence only.
+
+## Task 11.2 result
+Read-only AWS access (profile `release`, region `us-east-2`). No HTTP request was sent to any stage. Account numbers are not recorded.
+Pipeline `prod63k-atlantis-mcp-test-Pipeline`, execution `ec1f012b-d06b-4c5c-a817-9e440c36fff6` (started 2026-11-11T01:07Z): Source, Build, Deploy (GenerateChangeSet, ExecuteChangeSet) and PostDeploy all `Succeeded`. Source commit `29c35d96cdaa2f84553e259882338dfb53b19f1f`.
+PostDeploy build: CodeBuild `prod63k-atlantis-mcp-test-PostDeploy:8225e7fe-aebd-498b-a9ef-8db2be6e4ccf`, `SUCCEEDED`, 2026-11-11T01:14:19Z to 01:14:52Z. Log group `/aws/codebuild/prod63k-atlantis-mcp-test-PostDeploy`, stream `8225e7fe-aebd-498b-a9ef-8db2be6e4ccf`. Every build phase succeeded. The verifier's own tests (`tests/postdeploy-verify`) ran in the same build before `05-verify-deployment.sh` and passed.
+`VERIFY_REPORT` line (schemaVersion 1): `outcome: passed`, `exitCode: 0`, `failedCore: []`, `skippedCore: []`, `warnings: []`, `error: null`, `rateLimit: null`, `requests: {posts: 24, preflights: 1, retries: 0}`, `durationMs: 3496`.
+| Item | Result |
+|---|---|
+| Sub-checks | 47 (matches the expected count; Part A does not change the verifier) |
+| Core | 37 passed, 0 failed, 0 skipped |
+| Advisory | 5 passed, 0 warned, 5 skipped (47 = 37 + 5 + 5) |
+| Failures | none |
+| Warnings | none |
+| Skipped advisory | X2.1, X2.2, X2.3, X2.4, X2.5: "no custom domain for this stage". The edge target is `none`, so the checks through CloudFront do not run on the Test stage |
+| Stored verification key | present and used; S2.1, S2.2 passed; S2.3 passed (limit 6000 against 50 for the public tier) |
+| Release version | expected `0.0.7`; `server/discover` reported `0.0.7` (V1.1) and `initialize` reported `0.0.7` (V1.2). CHANGELOG.md top header is `[v0.0.7] (unreleased)`. They match |
+| Supported revisions | `2024-11-05`, `2025-11-25`, `2026-07-28` |
+Requirement 11.3 (PostDeploy passes with 47 sub-checks): met on the Test stage.
+5xx: no probe loop ran (see task 11.1), so there was nothing to stop. The PostDeploy run itself saw no 5xx: all 37 core checks passed, and the CloudWatch metrics recorded under task 11.1 show 0 `5XXError` and 0 Lambda `Errors` in the window. G4 remains "not verified by a probe".
+Limits of this evidence:
+- The 5 skipped X2 checks mean the CloudFront path was not verified on Test. G1 to G3 and G5 (tasks 11.3 to 11.5) are separate and not covered here.
+- `S2.3` shows the keyed path works, but nothing in this run exercised the keyless per-client-address bucket that Part A changes.
+
+## Task 11.3 result (G1, G2)
+Test stage only. Two keyless `POST tools/list` requests were sent, one to the CloudFront domain and one to the raw `execute-api` URL, each with its own `X-Gate-Marker` header. Nothing was sent to `beta` or `prod`. No address is recorded here. Temporary files were deleted.
+| URL | HTTP status | `X-RateLimit-Remaining` | Log event found | `sourceIp` vs caller | `X-Forwarded-For` (header present, entries) |
+|---|---|---|---|---|---|
+| CloudFront domain | 200 | present, `49` | no | not compared (no event) | not observed |
+| Raw URL | 200 | present, `48` | no | not compared (no event) | not observed |
+Log search: `/aws/lambda/prod63k-atlantis-mcp-test-ReadFunction`, filter pattern `"EVENT RECEIVED" "X-Gate-Marker"`, last 10 minutes. Searched about 12 seconds after the requests and again after a further 30 seconds (the one allowed retry). Both searches returned zero events, with no AWS error.
+Result: G1 and G2 are **not established**. Neither is `equal` and neither is `different`. The observed role of `sourceIp` is **missing**, because there was no event to read. This is a failure to find the evidence, not evidence of a wrong address. Stopped as instructed; no plan was edited.
+Supporting observation: the two requests were served and counted (HTTP 200, remaining 49 then 48). The count dropped by one across the two URLs, so both requests were counted against one allowance. That is consistent with both URLs seeing the same client address, but it is not G1 or G2 evidence.
+Possible reasons the event is absent, not yet checked: `index.js` logs the event with `DebugAndLog.debug("EVENT RECEIVED:", event)`, so the line may not be written at the Test stage's effective cache-data log level, or the header name may be logged in a different case or on separate log lines than the filter pattern assumes.
+
+## Task 11.3 follow-up (G1, G2 completed from the existing log)
+Read-only AWS access (profile `release`, region `us-east-2`) to the Test log group and Lambda/API configuration. No new request was sent to any stage and no configuration or code was changed. No address is recorded. Temporary files in `/tmp` were deleted. Account numbers are masked.
+Why the first search found nothing: the event line is emitted on Test. The earlier filter `"EVENT RECEIVED" "X-Gate-Marker"` is case-sensitive, and the marker header is logged in lowercase (`x-gate-marker`) in both events. A search for `"g1-"` and one for `"EVENT RECEIVED"` over the last 30 minutes each returned exactly the two events of the earlier requests (2026-11-11T03:47:23Z).
+How the event is logged: one CloudWatch event per request, text log format, tag `[DEBUG] EVENT RECEIVED: | ` followed by the event as multi-line `util.inspect` output (unquoted keys, single-quoted strings, about 65 to 111 lines), not JSON. A parser must match `sourceIp: '...'` inside `requestContext.identity`, not parse JSON. `X-Forwarded-For` is spelled `X-Forwarded-For` in both events; the marker header is lowercase; other header names keep the case the caller or CloudFront sent.
+Effective log level on Test: Lambda environment variable names that matter are `LOG_LEVEL=DEBUG`, `AWS_LAMBDA_LOG_LEVEL=DEBUG`, `DEPLOY_ENVIRONMENT=TEST`, `NODE_ENV=production`, `CACHE_DATA_TRUSTED_PROXY_HOPS=0`. `CACHE_DATA_LOG_LEVEL` is not set. cache-data's `DebugAndLog` checks the names in the order `CACHE_DATA_LOG_LEVEL`, `LOG_LEVEL`, and so on, so `LOG_LEVEL=DEBUG` gives level 5 and the DEBUG line is written. The production cap to level 2 applies only to a production `DEPLOY_ENVIRONMENT`, which Test is not. Lambda `LoggingConfig` is `Text`.
+API Gateway `prod63k-atlantis-mcp-test-WebApi` endpoint type: `REGIONAL`.
+| URL | Marker | `sourceIp` vs caller | `X-Forwarded-For` entries | Other signs of the path |
+|---|---|---|---|---|
+| CloudFront domain | `g1-<epoch>-cdn` | `equal` | 2 (the caller is the first entry) | `Via` shows CloudFront; `CloudFront-*` headers present |
+| Raw `execute-api` URL | `g1-<epoch>-raw` | `equal` | 1 (the caller) | no `Via`, no `CloudFront-*` headers |
+The caller's address was taken from `curl -4 -s https://checkip.amazonaws.com`, as IPv4; both `sourceIp` values are IPv4. `multiValueHeaders` is present in both events and carries `X-Forwarded-For` as a single element.
+Result: **G1 (CloudFront domain) passes and G2 (raw URL) passes**: `sourceIp` is the caller on both URLs, so it is the viewer's address, not an edge address. The G1/G2 failure path (observed role `edge`, `other`, or `missing`) is not triggered.
+Points for the owner to read:
+- The CloudFront-path event shows the request came through CloudFront (`Via`, two `X-Forwarded-For` entries) and still has the caller as `sourceIp`. This matches the changelog statement that on a Regional API the viewer's address is `sourceIp`. It was observed once per URL, over IPv4 only; G5 (IPv6) is task 11.5 and is not covered.
+- Both requests were seen as the same client, which fits the earlier counter observation (49 then 48).
+- G3 (a spoofed `X-Forwarded-For` does not change the bucket) and G4 are not covered here.
+- The RESPONSE-line fallback and the "minimal extra step" paths of the instructions were not needed.
+- `tasks.md` was not edited; marking 11.3 is left to the orchestrator.
+
+## Task 11.4 result (G3)
+
+Probe of Design V-D (G3), run against the Test stage only. Six keyless `tools/list` POSTs with a forged `X-Forwarded-For` (documentation-range addresses), three to the raw URL and three to the CloudFront domain, in the order shown. Nothing was sent to beta or prod. No retries. The caller's address was not looked up and is not recorded.
+
+| # | URL | `X-Forwarded-For` sent | HTTP status | `X-RateLimit-Remaining` |
+|---|-----|------------------------|-------------|-------------------------|
+| 1 | raw (`execute-api`) | 192.0.2.10 | 200 | 47 |
+| 2 | raw (`execute-api`) | 192.0.2.10 | 200 | 46 |
+| 3 | raw (`execute-api`) | 192.0.2.11 | 200 | 45 |
+| 4 | CloudFront domain | 192.0.2.20 | 200 | 44 |
+| 5 | CloudFront domain | 192.0.2.20 | 200 | 43 |
+| 6 | CloudFront domain | 192.0.2.21 | 200 | 42 |
+
+- Remaining values in order: 47, 46, 45, 44, 43, 42. Status codes: 200 for all six.
+- Result: **PASS**. The count fell by exactly one on every request, continuing from the 49 and 48 seen in G1/G2. The third request of each trio (a changed `X-Forwarded-For`) did not reset the count, and the count carried across the two URLs, so the forged header did not choose the bucket and both entry points resolve to the same client bucket.
+- Requirement 11.2. `tasks.md` was not edited; marking 11.4 is left to the orchestrator.
+
+## Tasks 11.5 to 11.7: owner decisions and gate summary (Test stage)
+
+No traffic was sent for task 11.5 and none for 11.6 or 11.7. Nothing was sent to beta or prod. No address is recorded here. `tasks.md` was not edited.
+
+### Task 11.5 (G5, IPv6): NOT verified, gap accepted by the owner
+
+The machine has no IPv6 route, so G5 cannot be run from it. Requirement 11.4 required asking the owner. The owner answered on 2026-11-11: "Accept the G5 gap; Kiro check not needed now".
+
+What stays unverified on the live Test stage:
+
+- That API Gateway reports an IPv6 viewer's address as `sourceIp` on the Regional API, for both the CloudFront domain and the raw `execute-api` URL. G1 and G2 were observed over IPv4 only.
+- The /64 bucket rule on the live stage. It is covered only by unit and property tests: `tests/unit/utils/client-address.test.js` and `tests/property/client-address.property.test.js` (both under `application-infrastructure/src/lambda/read-function`).
+
+Risk if the assumption is wrong. This was checked against the code before writing it:
+
+- `utils/client-address.js`, `toBucketKey`: returns `null` for a value that is not a string, is empty or too long, contains a zone id (`%`), or is not an address. A valid IPv6 address becomes its /64 key, and an IPv4-mapped IPv6 address becomes its IPv4 key.
+- `utils/auth-resolver.js`, `resolveAuth`: with no API key, the public `identity` is `toBucketKey(clientAddress)`, so it is `null` for such a value.
+- `utils/rate-limiter.js`, `checkRateLimit`: a missing or `null` `identity` returns `failClosed(...)` with `allowed: false` before the salt is read and before any counter is written.
+- `index.js` (line 147 onward): `!rateLimitCheck.allowed` produces the 429 response.
+
+So a missing or unusable `sourceIp` for IPv6 clients (keyless requests only) would refuse those clients with HTTP 429. It fails closed, not open, and it cannot let a client choose its bucket. A `sourceIp` that is odd but parseable would not be refused. It would be bucketed as an IPv4 address or by its /64, which could be a different grouping from the one intended. Requests with an API key are limited by account and are not affected.
+
+### Task 11.6 (Kiro check): skipped by the owner
+
+The owner skipped it with the same answer ("Kiro check not needed now"). Requirement 11.8 is not satisfied yet. Recommendation: run the Kiro check before the v0.0.7 release.
+
+### Gate summary, Test stage
+
+| Gate | Result | Evidence |
+|---|---|---|
+| PostDeploy (task 11.2) | Passed | 47 sub-checks: 37 core passed, 5 advisory passed, 5 advisory skipped (X2.1 to X2.5, no custom domain on Test), 0 failed |
+| G1 (CloudFront domain) | Equal | `sourceIp` is the caller's address; the event shows the CloudFront path and two `X-Forwarded-For` entries (task 11.3 follow-up) |
+| G2 (raw `execute-api` URL) | Equal | `sourceIp` is the caller's address; one `X-Forwarded-For` entry, no CloudFront headers (task 11.3 follow-up) |
+| G3 (forged `X-Forwarded-For`) | Pass | `X-RateLimit-Remaining` 47, 46, 45, 44, 43, 42 over six requests, all HTTP 200, one bucket across both URLs (task 11.4) |
+| G4 (no 5xx during the switch) | Not verified by a probe | CloudWatch: 0 `5XXError` and 0 Lambda `Errors` in the deploy window, but one datapoint only (task 11.1) |
+| G5 (IPv6) | Gap accepted by the owner | No IPv6 host; see above |
+| Kiro check (11.6) | Skipped by the owner | Requirement 11.8 open |
+
+### Decision (task 11.7)
+
+G1, G2 and G3 pass. The owner is asked for approval to promote to beta.
+
+Conditions and reminders for the beta step:
+
+- The owner merges test to beta. Ask before sending any traffic to beta.
+- Beta logs at INFO, so the event line used for G1 and G2 is not readable there. On beta, run G3 and the G4 loop only.
+- Start the G4 loop before the owner merges, so the PROD gradual-deployment window is observed. On Test no loop ran, which is why G4 stays unverified.
+- In PROD, CloudFormation updates the REST API after the Read function's gradual shift (about 30 minutes by default). For that time the new function runs behind the still edge-optimized API, so G3 results during that window can differ from the final state. Run G3 again once the API update has finished.
+
+Open items carried to the release: G4 not probed on Test, G5 not verified, and the Kiro check (requirement 11.8).
