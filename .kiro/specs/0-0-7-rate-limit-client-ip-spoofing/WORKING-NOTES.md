@@ -522,3 +522,91 @@ G3 on beta, after the API update finished (run well after the pipeline finished,
 All six returned the same `X-RateLimit-Reset` (2026-11-12 02:00:00Z). The count fell by one on every request, the third request of each trio did not reset to a high number, and the single bucket was shared by both URLs. G3: pass on beta. Starting at 49 means the bucket was fresh (the earlier hourly window had expired), so there is no earlier-loop usage in it.
 
 Open items after this step: G4 on beta has no probe data (see above); G5 and the Kiro check (requirement 11.8) are unchanged; the `main` step still needs G3 and G4 again.
+
+### Task 12.2 part 1 (prod G4 loop started)
+The owner approved (2026-11-11) sending keyless `tools/list` requests to prod for the G4 loop now and for G3 later. Nothing else was sent to prod. AWS reads were read-only (`--profile release --region us-east-2`). All times UTC. No caller address is recorded.
+- Hosts: raw `gy3gpv7n1k.execute-api.us-east-2.amazonaws.com`, path `/atlantis-mcp-prod/mcp/v1` (stage name from the `ApiEndpoint` output of `prod63k-atlantis-mcp-prod-application`). Custom domain `mcp.atlantis.63klabs.net`, path `/mcp/v1` (the only alias of distribution `E3RAOR5OWPIYP4`; the `cloudfront.net` domain is not used).
+- Confirmation: one `tools/list` POST to each URL returned HTTP 200. `X-RateLimit-Remaining` was 49 (raw) then 48 (CDN), so both URLs share one bucket and the loop uses 2 of the 50 hourly allowance per 45 s pair after that (429s will appear and are expected; 5xx or `000` are failures).
+- State at 01:09 (before the prod deploy reached the Deploy stage):
+
+| Item | State |
+|---|---|
+| REST API `prod63k-atlantis-mcp-prod-WebApi` (`gy3gpv7n1k`) endpoint type | EDGE |
+| Read function `CACHE_DATA_TRUSTED_PROXY_HOPS`, unqualified (`$LATEST`, last modified 2026-11-07 04:49:50) | not set |
+| Same variable on the version `live` points to | not set (version 53) |
+| Alias `live` | version 53, no weighted routing |
+| Application stack | `UPDATE_COMPLETE` (last updated 2026-11-07 04:49:18) |
+| CodeDeploy deployment in progress | none (latest is `d-LI09P9IEL`, Succeeded, created 2026-11-07 04:50:00, `CodeDeployDefault.LambdaLinear10PercentEvery3Minutes`) |
+| Pipeline `prod63k-atlantis-mcp-prod-Pipeline` current execution | `6f4a9106-d7e4-42dc-b012-c3b1cf5f5bd9`, started 2026-11-12 01:07:34 (trigger: source event), InProgress; Source Succeeded, Build (`PackageExport`) InProgress; Deploy and PostDeploy still show the previous execution `732626e6-...` (Succeeded) |
+
+- Loop: `$HOME/atlantis-g4-prod/g4-prod.sh`, PID in `$HOME/atlantis-g4-prod/g4-prod.pid` (script PID 48953), log `$HOME/atlantis-g4-prod/g4-prod.log` (`HH:MM:SS <RAW|CDN> <http_code>`, one pair every 45 s, failures logged as `000`). Started 2026-11-12 01:09:28. It stops itself after 3 hours or when `$HOME/atlantis-g4-prod/g4-prod.stop` exists. It lives under `$HOME`, not `/tmp`, because the host reboot during the beta run cleared `/tmp`. The loop is left running; part 2 stops it and evaluates it against the shift and API-update times.
+
+### Task 12.2 part 2 (prod results)
+All times UTC, 2026-11-12. AWS reads were read-only (`--profile release --region us-east-2`). No caller address is recorded. Traffic sent to prod in part 2, besides the loop: 7 keyless `tools/list` requests (one that returned 429 and was not counted for G3, then the six G3 requests). Nothing else.
+
+**Loop stopped.** At the start the log existed and the last line was 02:49:31 (same second as the host clock), so the loop had been running until then. `g4-prod.stop` was created at about 02:49:41; the script wrote `END 02:50:16` and exited (about 35 s). No `g4-prod` process remained.
+
+**G4: pass (only 200 and 429; no 5xx, no `000`).** Loop `START 01:09:28`, last request 02:49:31, `END 02:50:16`. 266 requests (133 pairs, one pair every 45 s).
+
+| URL | 200 | 429 | other (5xx / 000) | total |
+|---|---|---|---|---|
+| RAW (`execute-api`) | 66 | 67 | 0 | 133 |
+| CDN (`mcp.atlantis.63klabs.net`) | 68 | 65 | 0 | 133 |
+
+By period (pairs are RAW+CDN):
+| Period | RAW | CDN |
+|---|---|---|
+| Before the shift, 01:09:28 to 01:13:04 | 5 x 200 | 5 x 200 |
+| Shift, 01:13:04 to 01:40:21 (WebApi update start) | 33 x 200, 3 x 429 | 36 x 200 |
+| After the WebApi update start, 01:40:21 to 02:49:31 | 28 x 200, 64 x 429 | 27 x 200, 65 x 429 |
+
+When the 429s began: RAW 01:33:46 (during the shift; 01:33:46, 01:34:31, 01:35:17; RAW returned 200 again from 01:36:02 and to 01:42:06 while CDN also returned 200 until 01:41:20). Both URLs 429 from 01:42:51 (CDN from 01:42:06) until the top of the hour. At 02:00:16 both returned 200 again (new hourly window); 50 x 200 in the 02:00 hour (25 pairs, last 200 at 02:18:28), then 429 from 02:19:13 to the end. The hour 01 had 84 x 200 against a limit of 50 per hour, so for that hour the two URLs did not draw on one count (see the observations below); in the 02:00 hour the count was 50, one shared bucket.
+
+**Timeline (pipeline `prod63k-atlantis-mcp-prod-Pipeline`, execution `6f4a9106-d7e4-42dc-b012-c3b1cf5f5bd9`, Succeeded, 01:07:34 to 01:42:18):**
+| Item | Start | End |
+|---|---|---|
+| Source | 01:07:34 | 01:07:37 |
+| Build / PackageExport | 01:07:37 | 01:11:44 |
+| Deploy / GenerateChangeSet | 01:11:44 | 01:12:19 |
+| Deploy / ExecuteChangeSet (Deploy stage action) | 01:12:20 | 01:40:44 |
+| Stack `prod63k-atlantis-mcp-prod-application` | UPDATE_IN_PROGRESS 01:12:21 | UPDATE_COMPLETE 01:40:30 |
+| Read function new version 54 (`$LATEST` last modified, `CACHE_DATA_TRUSTED_PROXY_HOPS=0`) | published 01:12:54 | |
+| CodeDeploy `d-OD4HLHPHL`, config `CodeDeployDefault.LambdaLinear10PercentEvery3Minutes`, Succeeded, rollbackInfo null | created 01:13:03.6 | complete 01:40:08.0 |
+| `BeforeAllowTraffic` | 01:13:04.4 | 01:13:04.5 |
+| `AllowTraffic` (the shift, alias `live` 53 to 54) | 01:13:04.5 | 01:40:07.5 |
+| `AfterAllowTraffic` | 01:40:07.7 | 01:40:07.8 |
+| CloudFormation `WebApi` (RestApi) | UPDATE_IN_PROGRESS 01:40:21.7 | UPDATE_COMPLETE 01:40:25.2 |
+| PostDeploy / PackageExport (CodeBuild `d8f1e4e8-cb3c-453a-94da-53787947a566`) | 01:40:45 | 01:42:17 |
+
+- (a) The shift finished at 01:40:07.5 (27 min 03 s after it started at 01:13:04.5).
+- (b) The `WebApi` update ran 01:40:21.7 to 01:40:25.2 (3.5 s). It started 14.2 s after the shift ended.
+- (c) The new function (version 54, from the first 10% step) ran behind the still edge-optimized API from 01:13:04.5 to 01:40:21.7: 27 min 17 s. Only a share of traffic reached version 54 until 01:40:07.5.
+- Answer: as on beta, CloudFormation updated the REST API after the shift (14.2 s after it), not before or during.
+
+**Current state (read after the deploy):**
+| Item | Before | Now |
+|---|---|---|
+| REST API `prod63k-atlantis-mcp-prod-WebApi` (`gy3gpv7n1k`) endpoint type | EDGE | REGIONAL |
+| `CACHE_DATA_TRUSTED_PROXY_HOPS`, unqualified (`$LATEST`, last modified 01:12:54) | not set | `0` |
+| Same variable on the version `live` points to (54, last modified 01:12:54) | not set (53) | `0` |
+| Alias `live` | version 53 | version 54, routing config none (no weighted routing) |
+
+**PostDeploy:** CodeBuild `prod63k-atlantis-mcp-prod-PostDeploy:d8f1e4e8-cb3c-453a-94da-53787947a566`, SUCCEEDED, 01:40:45 to 01:42:16. `VERIFY_REPORT`: outcome `passed`, exit code 0, expected version `0.0.7`, reported versions `0.0.7` for discover, initialize and edge, core 37 passed / 0 failed / 0 skipped, advisory 10 passed / 0 warned / 0 skipped (47 sub-checks, the X2.x CloudFront checks ran against `https://mcp.atlantis.63klabs.net/mcp/v1`), stored verification key present and used, skip flag `false`, 27 POSTs, 2 preflights, 0 retries, `rateLimit` null.
+
+**Loop log against the shift and the API update (observations only):** There was no `000` or 5xx anywhere. No loop request fell inside the shift end (01:40:07.5) or the `WebApi` update (01:40:21.7 to 01:40:25.2): the nearest probes were 01:39:49 and 01:40:35, all 200. During the shift, RAW returned three 429s (01:33:46 to 01:35:17) while CDN returned 200 at the same seconds, and RAW returned 200 again from 01:36:02; both URLs were 429 only after 01:42. This matches a period when the two URLs and the two function versions did not share one count (the new version buckets by `sourceIp`, the old one by the first `X-Forwarded-For` entry); the cause was not verified further. After the API update the two URLs shared one count of 50 per hour.
+
+**G3 on prod: pass.** The first attempt at 02:51:57 (one request, RAW) returned 429 with `X-RateLimit-Remaining` 0, `X-RateLimit-Reset` 1794452400 (03:00:00) and `Retry-After` 483, as expected after the loop used the allowance. The remaining five were not sent. One retry was made after waiting until 03:00:06 (the reset was 8 min away). Six counted requests, `tools/list`, no API key, forged `X-Forwarded-For` (documentation addresses 192.0.2.x, as in design.md):
+| URL | Request | HTTP | `X-RateLimit-Remaining` |
+|---|---|---|---|
+| raw `execute-api` | 1 (address A) | 200 | 49 |
+| raw `execute-api` | 2 (address A) | 200 | 48 |
+| raw `execute-api` | 3 (address B) | 200 | 47 |
+| CloudFront `mcp.atlantis.63klabs.net` | 4 (address C) | 200 | 46 |
+| CloudFront | 5 (address C) | 200 | 45 |
+| CloudFront | 6 (address D) | 200 | 44 |
+
+All six returned `X-RateLimit-Reset` 1794456000 (04:00:00). The count fell by one per request, the third request of each trio did not reset to a high number, and one bucket served both URLs. Starting at 49 shows a fresh hourly window.
+
+**Cleanup:** `$HOME/atlantis-g4-prod/` (log, script, stop file) was deleted after recording the counts above. The loop log held no lines other than 200 and 429 (plus the START and END lines).
+
+Open items after this step (unchanged by it): G5 (IPv6, no host) and the Kiro check (requirement 11.8). G4 now has data for prod; beta G4 still has none.

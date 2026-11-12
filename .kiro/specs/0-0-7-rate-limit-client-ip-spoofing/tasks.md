@@ -173,11 +173,11 @@ Do not commit unless the owner asks. Do not edit `ISSUE.md`, the other spec fold
     - If G1, G2, and G3 pass, record the results and ask the owner for approval to promote to `beta`. If any fails, stop: record the observed role of `sourceIp`, do not edit the plans, and ask the owner whether to fall back (D16)
     - _Requirements: 11.6, 14.3_
 
-- [ ] 12. Promote through `beta` and `main` (Phase 2)
+- [x] 12. Promote through `beta` and `main` (Phase 2)
   - [x] 12.1 `beta`
     - After the pipeline deploys `beta` (the owner merges), run G3 and the G4 loop against `beta`'s custom domain and its raw URL. Ask before sending traffic. G1 and G2 only if the owner raises `beta`'s log level for the check and restores it. Record the results
     - _Requirements: 11.5, 11.9_
-  - [ ] 12.2 `main`
+  - [x] 12.2 `main`
     - After the pipeline deploys `main`, run G3 and the G4 loop against the production domain. Note whether CloudFormation updated the REST API after the Read function's gradual shift, and the length of the window in which the new function ran behind the still edge-optimized API. Record both
     - _Requirements: 11.5, 11.7_
 
@@ -185,7 +185,7 @@ Do not commit unless the owner asks. Do not edit `ISSUE.md`, the other spec fold
   - [ ] 13.1 The registry switch
     - When cache-data 1.4.1 is on npm: switch both `package.json` files to `^1.4.1`, delete both `.npmrc` files, regenerate the lockfiles, rerun both suites and the scratch installs (without `--allow-git`). Tick the `TODO.md` line
     - _Requirements: 4.4_
-  - [ ] 13.2 Confirm the changelog
+  - [x] 13.2 Confirm the changelog
     - Confirm the affected range against the release tags and fill it in. Confirm no other text changed
     - _Requirements: 13.3, 13.6_
   - [ ] 13.3 Release
