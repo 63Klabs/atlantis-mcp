@@ -840,3 +840,149 @@ The Cognito deny statement in `RELEASE63K-ProjectPipeline-CognitoCrud` is limite
 4. Lint: Auth `index.js` gains 13 `indent` errors from the guard lines (tabs), and the totals are above the 9.1 numbers only through `indent`. Unchanged decision: leave or reindent.
 5. `shellcheck` is not installed; `1.2.3.4` in one verifier test is the only non-RFC 5737 IP in the added lines.
 Not committed. No code, `tasks.md`, or AWS resource was changed.
+
+## Task 14.6 (test stage rollout results)
+
+Run 2026-11-12, 19:17 UTC, against the `test` stage only (nothing sent to beta or prod). AWS reads only (`--profile release --region us-east-2`), account masked as `<ACCT>`. `get-secret-value` was never called. No caller address, secret value, or any part of it is recorded here. Not committed; no code or `tasks.md` change.
+
+### 1. State of the stack
+| Item | Observed |
+| --- | --- |
+| `prod63k-atlantis-mcp-test-application` | `UPDATE_COMPLETE` (2026-11-12 19:09:42Z), `ApiIsBehindCloudFront` = `true` |
+| `prod63k-atlantis-mcp-test-network` | `UPDATE_COMPLETE` (2026-11-12 19:00:48Z), `ApiOriginProtection` = `true`, `ApiOriginSecretRevision` = (empty) |
+| `CACHE_DATA_INGRESS_SECRET_NAME`, ReadFunction, unqualified | set: `arn:aws:secretsmanager:us-east-2:<ACCT>:secret:prod63k-atlantis-mcp-test-OriginSecret-<6-char suffix>` |
+| same, ReadFunction `live` alias (version 216) | set, same ARN |
+| same, AuthFunction, unqualified | set, same ARN |
+| AuthFunction `live` alias | none exists (`list-aliases` is empty), so there is nothing to check; only the Read function has the alias in this template |
+
+### 2. Tags (ABAC) and where the secret could leak
+- Secret `prod63k-atlantis-mcp-test-OriginSecret`: `KmsKeyId` null (AWS managed key `aws/secretsmanager`), `RotationEnabled` null, version stages: one version, `AWSCURRENT` only (no `AWSPREVIOUS`, as expected for a never-rotated secret).
+- **`atlantis:ApplicationDeploymentId` = `prod63k-atlantis-mcp-test`: present.** CloudFormation stack-tag propagation to the secret worked, so the ABAC condition matches the PostDeploy role's principal tag.
+- Tag keys (21): `aws:cloudformation:stack-name`, `aws:cloudformation:stack-id`, `aws:cloudformation:logical-id`, `Owner`, `atlantis:Application`, `Provisioner`, `AlarmNotificationEmail`, `Creator`, `Atlantis`, `atlantis:ApplicationDeploymentId`, `Name`, `RepositoryBranch`, `Project`, `Department`, `Repository`, `CostCenter`, `atlantis:Prefix`, `Environment`, `Stage`, `DeployedUsing`, `Application`.
+- Stack outputs (names only). Application: `CloudWatchReadLambdaExecutionLogGroup`, `ParameterStore`, `ApiEndpoint`, `ReadLambdaWebConsole`, `CloudWatchApiGatewayExecutionLogGroup`, `CloudWatchApiGatewayAccessLogGroup`. Network: `S3Origin`, `CustomURLForApi`, `CloudFrontDistributionId`, `CloudFrontLoggingMode`, `ApiGatewayOrigin`, `CloudFrontDomain`, `CustomURLForStatic`. None is named for the secret, and no output was printed with its value (Requirement 6.6: the value is not an output).
+
+### 3. Requests (6 sent of a budget of 8; all as expected)
+| # | Request | Expected | Observed |
+| --- | --- | --- | --- |
+| a | RAW `POST tools/list`, no extra header | 401, JSON, `no-store`, message body | **401**, `content-type: application/json`, `cache-control: no-store`, body `{"message":"Requests must use the service endpoint."}`; no `X-RateLimit-*` headers |
+| b | CDN `POST tools/list` | 200 and `X-RateLimit-Remaining` | **200**, `X-RateLimit-Limit: 50`, `X-RateLimit-Remaining: 49`, `cache-control: max-age=3600`, `x-cache: Miss from cloudfront`, JSON body (33562 bytes) |
+| c | RAW `POST` with `X-Atlantis-Origin-Secret: not-the-secret` | 401 | **401**, same headers and body as (a) |
+| d | RAW `GET` | 405, `Allow: POST` | **405**, `allow: POST`, `cache-control: no-store`, JSON body `{"message": "Method not allowed. This endpoint accepts POST only."}` (mock, guard not involved) |
+| e | RAW `OPTIONS` preflight (Origin `https://example.com`, request headers `content-type,mcp-protocol-version,x-api-key`) | 2xx, as before | **200**, `access-control-allow-origin: *`, `-methods: POST,OPTIONS`, `-max-age: 86400`, `-headers: Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,Mcp-Protocol-Version,Mcp-Method,Mcp-Name` |
+| f | CDN `POST server/discover`, `MCP-Protocol-Version: 2026-07-28` | 200 JSON-RPC result | **200**, `X-RateLimit-Remaining: 48`, result with `supportedVersions` `["2024-11-05","2025-11-25","2026-07-28"]`, `capabilities`, `instructions` |
+
+Findings from the table:
+- **Requirement 14.9 is shown on `test`:** the raw URL without the secret gets `401` (a) and with a wrong secret `401` (c); the CloudFront domain is served (b, f).
+- **S4 gap closed: the plain-string secret form works end to end.** The distribution sends the secret through the `{{resolve:secretsmanager:...}}` dynamic reference, and cache-data (reading the secret as a plain string via the extension) accepted the header: (b) and (f) were verified and counted by the rate limiter.
+- The guard `401` runs before the rate limiter. Remaining went 49 after (b) and 48 after (f), so (a), (c) did not consume allowance, as designed (Requirement 6.9).
+- The preflight (e) and the `405` (d) are answered by API Gateway and are unchanged.
+
+### 4. Logs and metric (Read function log group `/aws/lambda/prod63k-atlantis-mcp-test-ReadFunction`, last 15 minutes)
+- `INGRESS_UNVERIFIED` lines in the window: 3.
+  - 19:11:56Z `{"reason":"missing-header"}` (the PostDeploy O1.1 probe)
+  - 19:17:26Z `{"reason":"missing-header"}` (request a)
+  - 19:17:36Z `{"reason":"mismatch"}` (request c)
+  - Each line is only the tag and the reason code. No header value, secret, or address appears in them. The INFO line carries the request id as its second tab field, as for every Lambda log line.
+- **Finding (secret in the Lambda log): the header name appears only in DEBUG `EVENT RECEIVED` lines** (27 lines in the window: 24 from the PostDeploy run at 19:11, 3 from my requests at 19:17; the 19:17 ones are (b), (c), (f)). No other line type (`RESPONSE`, `INGRESS_UNVERIFIED`, others) contains the header name. In every one of those lines the header value is **masked** by the platform's debug logger: asterisks plus the last four characters of the value (shown as `******xxxx`), for the real secret and for the wrong test value alike. It is **not in clear**, but the last four characters of the 48-character secret are logged at DEBUG on `test`. Decision for the owner: the leak is 4 of 48 characters, only at DEBUG (the `test` log level), and the logger's masking comes from cache-data; whether to ask for full masking of `x-atlantis-origin-secret` is open. The same lines also contain the forwarded client address headers (existing behavior at DEBUG, not recorded here).
+- Auth function log group: no events in the window (no request was sent to an Auth route), so nothing to report there.
+- Metric `UnverifiedRequestCount`, namespace `prod63k-atlantis-mcp/Ingress` (no dimensions): Sum over the last hour = **3.0** (1.0 in the 19:08 to 19:13 bucket, 2.0 in the 19:13 to 19:18 bucket). It matches the three log lines above and is greater than zero after (a) and (c).
+
+### 5. PostDeploy (latest `test` build, `prod63k-atlantis-mcp-test-PostDeploy:5f983209-...`)
+- Status `SUCCEEDED`; 19:11:18Z to 19:11:56Z (about 38 s: PROVISIONING 3 s, INSTALL 2 s, PRE_BUILD 18 s, BUILD 12 s). The verifier itself took 3465 ms.
+- `[05-verify-deployment] INFO: Core: 38 passed, 0 failed, 0 skipped. Advisory: 5 passed, 0 warned, 5 skipped`, `Outcome: passed`. 43 passed plus 5 skipped (X2.1 to X2.5, no custom domain) = **48 sub-checks, 38 core, 10 advisory**, as expected.
+- `VERIFY_REPORT` line: `outcome` `passed`, `exitCode` 0, `expectedVersion` `0.0.7`, empty `failedCore`/`skippedCore`/`warnings`, stage `prod63k`/`atlantis-mcp`/`test`.
+- `PASS  O1.1   a request without the origin secret header is rejected with HTTP 401 and a JSON body`.
+- Secret in the build log: a case-insensitive search for `secret`, `x-atlantis`, `secretsmanager`, and `ApiIsBehindCloudFront` finds only the O1.1 title, the `secret-redaction-property-tests` suite name, and nothing else. No secret name, ARN, or value is printed by the wrapper or the verifier. (The value itself was not searched for.)
+
+### 6. S4 spike: deploy-role permission facts
+- Managed policy attached to the PostDeploy role `sam-apps/prod63k-Worker-atlantis-mcp-test-PostDeployServiceRole` (the only attached policy): `RELEASE63K-ManagedPolicyForPipeline-SecretsReadDeployment` (path `sam-apps/`, account `<ACCT>`).
+- Its single statement `SecretsReadDeploymentReadSecretTagMatch` allows `secretsmanager:GetSecretValue` and `secretsmanager:DescribeSecret` on `arn:aws:secretsmanager:*:<ACCT>:secret:*` with the condition `aws:ResourceTag/atlantis:ApplicationDeploymentId` equals `${aws:PrincipalTag/atlantis:ApplicationDeploymentId}` and both tags present (`Null` = `false`). This is an ABAC policy, not a name pattern; it depends on the secret carrying the stack tag (section 2: it does) and on the role carrying the same tag.
+- O1.1 passing proves the wrapper read the secret (it is the only way the verifier knew whether to run O1.1 and which header to withhold), so the policy, the tag, and the key access (`aws/secretsmanager`, no extra KMS statement needed) work together on `test`.
+- Not verified here: the same on beta and prod (their network stacks are still v0.1.0, see the 14.6 preparation section), and the role's tag value (not read).
+
+### 7. Spike S7: the `401` through the real stack
+Confirmed on `test`: the raw `execute-api` URL without the secret (and with a wrong one) answers `401` with a JSON `message` and `no-store`, not `403` or `404`, so the distribution's rewrite to the landing page would not apply to it. This was the S7 open point ("the `401` seen through the real stack").
+
+### Left for the remaining stages of 14.6
+`beta` and `main` are untouched: their network stacks need the v0.2.0 template update (flag `false`) first, each stage needs the managed policy on its pipeline stack, and the rollout order (application flag `false`, network `ApiOriginProtection=true`, application flag `true`) applies per stage. The 4-character DEBUG log finding above should be decided before `beta`.
+
+## Task 14.6 preparation for beta and prod
+
+Read-only (`--profile release --region us-east-2`). Nothing was changed, no request was sent to any stage, `get-secret-value` was never called. Account masked as `<ACCT>`; no secret value or secret ARN suffix is recorded. `test` is the reference.
+
+### Facts per stage
+
+| Item | test (reference) | beta | prod |
+| --- | --- | --- | --- |
+| Pipeline stack last update | 2026-11-12 18:48Z | 2026-08-31 18:52Z | 2026-08-31 19:10Z |
+| Pipeline `atlantis:TemplateVersion` (stack tag, and the same tag on the CloudFormation and PostDeploy roles) | `v2.0.24/2026-11-09 0e2a2a` | `v2.0.23/2026-08-15 0ab90d` | `v2.0.23/2026-08-15 0ab90d` |
+| Pipeline `atlantis:TemplateFile` | `s3://63klabz/atlantis/templates/v2/pipeline/template-pipeline.yml` | same | same |
+| Published pipeline template in S3 | version id equals test's (`.xsoJNaAK...`): **v2.0.24 is current** | needs update | needs update |
+| `CloudFormationSvcRoleIncludeManagedPolicyArns` | `RELEASE63K-ProjectPipeline-CognitoCrud` | same | same |
+| `PostDeploySvcRoleIncludeManagedPolicyArns` | `RELEASE63K-ManagedPolicyForPipeline-SecretsReadDeployment` | **empty** | **empty** |
+| CloudFormation role, inline `CloudFormationRolePolicy` | 30 statements incl. `SecretsManagerCRUDThisDeploymentOnly` and `SecretsManagerGetRandomPassword` | 28 statements, **no Secrets Manager statement** | 28 statements, **no Secrets Manager statement** |
+| CloudFormation role, attached | CognitoCrud | CognitoCrud (no Secrets Manager text in it) | same |
+| PostDeploy role, attached | SecretsReadDeployment | **none** | **none** |
+| PostDeploy role tag `atlantis:ApplicationDeploymentId` | `prod63k-atlantis-mcp-test` | `prod63k-atlantis-mcp-beta` | `prod63k-atlantis-mcp-prod` |
+| Permissions boundary on both roles | none | none | none |
+| Network stack last update / status | 2026-11-12 19:00Z, `UPDATE_COMPLETE` | 2026-09-27 03:02Z, `UPDATE_COMPLETE` | 2026-09-27 03:15Z, `UPDATE_COMPLETE` |
+| Network `atlantis:TemplateVersion` | `v0.2.0/2026-11-09 8de849` | `v0.1.0/2026-09-26 eaa687` | `v0.1.0/2026-09-26 eaa687` |
+| Network `atlantis:TemplateFile` | `s3://63klabz/atlantis/templates/v2/network/template-network-route53-cloudfront-s3-apigw.yml` | same | same |
+| `ApiOriginProtection` / `ApiOriginSecretRevision` params | `true` / empty | **absent** | **absent** |
+| `ApiGatewayId` / `PathApi` | `nj1sciuyka` / `mcp` | `i17st3itv0` / `mcp` | `gy3gpv7n1k` / `mcp` |
+| `DomainForApiGateway` | empty | empty | empty |
+| Distribution alias | none (default CloudFront domain `d16wymzfzyj9xi.cloudfront.net`) | `mcp-beta.atlantis.63klabs.net` (id `E17NYIDF8EMVG8`) | `mcp.atlantis.63klabs.net` (id `E3RAOR5OWPIYP4`) |
+| Distribution API origin custom header names | `X-Atlantis-Origin-Secret` | none | none |
+| Viewer certificate minimum protocol | `TLSv1` (default certificate) | `TLSv1` (custom ACM cert, SNI) | `TLSv1` (custom ACM cert, SNI) |
+| `CloudFrontLoggingVersion` | `v2` | `v1` | `v1` |
+| Network stack CloudFormation role | `PROD63K-CloudFormation-Service-Role-Network-Full-Mgmt` (shared by all three) | same | same |
+| Network role `SecretsManagerOriginSecretRead` (`GetSecretValue` on `arn:aws:secretsmanager:us-east-2:<ACCT>:secret:prod63k-*-OriginSecret-??????`), in managed policy `PROD63K-CfnSvcRole-Network-CloudFront-Mgmt` (updated 2026-11-09 23:14Z) | present | present (same role) | present (same role) |
+| Published network template in S3 | version id `GAdxNwWy...`, MD5 `a45abe41...`, header `v0.2.0/2026-11-09`: **v0.2.0 is current** | needs update | needs update |
+| App stack last update | 2026-11-12 19:09Z | 2026-11-12 01:12Z | 2026-11-12 03:13Z |
+| App `ApiIsBehindCloudFront` | `true` | **absent** (Part B not deployed) | **absent** |
+| Read function `CACHE_DATA_INGRESS_SECRET_NAME` | set | absent | absent |
+| `CACHE_DATA_TRUSTED_PROXY_HOPS` (Read and Auth) | `0` | `0` (Part A is deployed) | `0` |
+| Read function alias `live` | version 216 | version 62 | version 55 |
+| `OriginSecret` exists (by name listing) | yes | **no** | **no** |
+| Read `LOG_LEVEL` | `DEBUG` | `INFO` | `INFO` |
+| App stack tag `atlantis:ApplicationDeploymentId` | present | `prod63k-atlantis-mcp-beta` | `prod63k-atlantis-mcp-prod` |
+
+Shared policy `RELEASE63K-ManagedPolicyForPipeline-SecretsReadDeployment` (path `sam-apps/`, one attachment today, the test PostDeploy role): one ABAC statement, `secretsmanager:GetSecretValue` and `DescribeSecret` on `arn:aws:secretsmanager:*:<ACCT>:secret:*` when the secret's `atlantis:ApplicationDeploymentId` tag equals the caller's principal tag (both tags required). It is generic, so the same policy serves beta and prod with no new policy. The sibling policies `...SecretsReadPrefix` and `...SecretsReadApplication` also exist (0 attachments).
+
+### Hand evaluation of the CloudFormation role (beta and prod)
+
+The inline policy has no statement with a `secretsmanager:` action, no `secretsmanager:*`, and no `*` action; the one attached managed policy (CognitoCrud) has no `secretsmanager` text. So `CreateSecret`, `UpdateSecret`, `DeleteSecret`, `PutSecretValue`, `DescribeSecret`, `TagResource`, `UntagResource` on `arn:aws:secretsmanager:us-east-2:<ACCT>:secret:prod63k-atlantis-mcp-<stage>-*` and `GetRandomPassword` on `*` are all implicit deny. An application deploy that creates the `OriginSecret` would fail (rollback) until the pipeline stack is updated to v2.0.24. Pipeline v2.0.23 to v2.0.24 has no added or removed parameters, resources, or outputs (checked on the template bodies); the change is in resource properties (the policy statements), which I did not diff line by line.
+
+Not seen: organization SCPs, the `aws/secretsmanager` key policy, and `iam:SimulatePrincipalPolicy` (denied), so the evaluation is by reading the policies.
+
+### Differences from the test result
+
+1. **Network update changes the viewer minimum TLS on beta and prod.** v0.2.0 adds `ViewerMinimumTlsVersion` (default `TLSv1.2_2021`) and applies it only when the distribution has a custom domain and ACM certificate, which beta and prod have. Their distributions are on `TLSv1` today. On test it had no effect (default CloudFront certificate). Updating with defaults stops clients that cannot negotiate TLS 1.2 from connecting to `mcp-beta.atlantis.63klabs.net` and `mcp.atlantis.63klabs.net`. To keep today's behavior set `ViewerMinimumTlsVersion=TLSv1` on the update; this is an owner decision and is not an origin-protection requirement.
+2. The same update marks the four `CloudFrontApi/StaticFunctionOriginRequest/Response` parameters as deprecated and ignored; all four are empty on beta and prod, so no effect. `CloudFrontLoggingVersion` stays `v1` (default `v1`), unlike test (`v2`), so logging does not change.
+3. Beta and prod have custom domains. The test stage used the default CloudFront domain, so the CloudFront-side check (header through the alias, `X2.*` advisory checks) runs for the first time on a custom domain. The raw `execute-api` target is still what O1.1 probes.
+4. The test finding "4 characters of the secret logged at DEBUG" does not occur on beta or prod while `LOG_LEVEL` is `INFO` (the header only appears in DEBUG `EVENT RECEIVED` lines). It would if someone raised the level.
+5. PROD gradual deployment (`Linear10PercentEvery3Minutes`, about 30 min) applies to the Read function on both application deploys (flag `false`, then `true`); `test` was immediate. Two versions answer API traffic during a shift; both are compatible (flag `false` adds only a secret and the guard code, which is a no-op without `CACHE_DATA_INGRESS_SECRET_NAME`).
+6. Nothing else differs: Part A (`CACHE_DATA_TRUSTED_PROXY_HOPS=0`, Regional API) is already on both.
+
+### Order of operations per stage (beta first, then prod; each fully done and checked before the next)
+
+| Step | Action | Needed before | beta | prod |
+| --- | --- | --- | --- | --- |
+| 1 | Update the pipeline stack to template v2.0.24 and set `PostDeploySvcRoleIncludeManagedPolicyArns` to the `...SecretsReadDeployment` policy (keep CognitoCrud in `CloudFormationSvcRoleIncludeManagedPolicyArns`). Both in one update | step 3 (CloudFormation role must be able to create the secret); step 5 (PostDeploy must read it) | missing | missing |
+| 2 | Update the network stack to v0.2.0 with `ApiOriginProtection=false`; decide `ViewerMinimumTlsVersion` (see difference 1) | step 4 | missing | missing |
+| 3 | Deploy the application with `ApiIsBehindCloudFront=false` (merge the Part B commit through `dev`, `test`, `beta`, `main`; flag is `false` by default). Creates `OriginSecret`; Read and Auth get no ingress variable and no secret permission. Confirm the secret exists (names only) and the stack tag is on it | step 4 | missing (Part B is uncommitted, not deployed) | missing |
+| 4 | Set the network stack to `ApiOriginProtection=true` (dynamic reference needs the secret from step 3, otherwise the update rolls back; `ApiGatewayId` is set, so the template rule is satisfied). Wait for the distribution to be `Deployed` | step 5 | after 1 to 3 | after 1 to 3 |
+| 5 | Set the application `ApiIsBehindCloudFront=true` and deploy. PostDeploy runs O1.1 with the secret | none | after 4 | after 4 |
+| 6 | Check as on test: raw URL without the secret gives `401`, the alias gives `200` (one request per case), PostDeploy `Outcome: passed` with 48 sub-checks, metric `UnverifiedRequestCount` counts the raw `401`s | next stage | after 5 | after 5 |
+
+Step 1 and step 2 are independent of each other and of the application code, so they can be done for beta and prod ahead of the code promotion. Steps 1 to 3 do not change client-visible behavior except the TLS item in step 2. Rollback is the reverse order (flag `false`, then network `ApiOriginProtection=false`).
+
+### Status summary
+
+| Stage | Pipeline v2.0.24 | Managed policy on PostDeploy | CFN role Secrets statements | Network v0.2.0 | Secret exists | Part B deployed | Ready for flag `true` |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| beta | missing | missing | missing | missing | no | no | no |
+| prod | missing | missing | missing | missing | no | no | no |
+
+Unknown for both: SCP and key policy effects; whether a pipeline execution is in progress (not read); the line-by-line content of the v2.0.24 pipeline change beyond the Secrets Manager statements seen on test.
+Not committed. No code, `tasks.md`, or AWS resource was changed.
