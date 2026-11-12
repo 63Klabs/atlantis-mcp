@@ -464,3 +464,61 @@ Conditions and reminders for the beta step:
 - In PROD, CloudFormation updates the REST API after the Read function's gradual shift (about 30 minutes by default). For that time the new function runs behind the still edge-optimized API, so G3 results during that window can differ from the final state. Run G3 again once the API update has finished.
 
 Open items carried to the release: G4 not probed on Test, G5 not verified, and the Kiro check (requirement 11.8).
+
+### Task 12.1 part 1 (beta G4 loop started)
+The owner approved sending keyless `tools/list` requests to beta for G3 and the G4 loop only. Nothing was sent to prod. The loop was started before the owner merges test to beta, so the PROD gradual-deployment window is observed.
+- Hosts: raw `i17st3itv0.execute-api.us-east-2.amazonaws.com`, path `/atlantis-mcp-beta/mcp/v1` (stage name from the `ApiEndpoint` output of `prod63k-atlantis-mcp-beta-application`). Custom domain `mcp-beta.atlantis.63klabs.net`, path `/mcp/v1` (the only alias of the beta distribution). The `cloudfront.net` domain is not used.
+- One `tools/list` POST to each URL returned HTTP 200 with an `X-RateLimit-Remaining` header, so both are real paths.
+- BEFORE state (read-only, `--profile release --region us-east-2`):
+  | Item | Value |
+  |---|---|
+  | REST API endpoint type | EDGE |
+  | Read function `CACHE_DATA_TRUSTED_PROXY_HOPS` (unqualified and `live` alias configuration) | not set |
+  | Alias `live` version | 60 |
+- Loop: `/tmp/g4-beta.sh`, PID in `/tmp/g4-beta.pid`, log `/tmp/g4-beta.log` (`HH:MM:SS <RAW|CDN> <http_code>`, one pair every 45 seconds). It stops itself after 3 hours or when `/tmp/g4-beta.stop` exists. 429s are expected once the 50-per-hour allowance is used and are not a failure; 5xx or `000` are.
+- The loop is left running. The owner can now merge test to beta.
+
+### Task 12.1 part 2 (beta results)
+All times UTC. Read-only AWS calls (`--profile release --region us-east-2`). Nothing was sent to prod. The only beta traffic in part 2 was the six G3 requests.
+
+**G4: not evaluated, no data.** `/tmp/g4-beta.sh`, `/tmp/g4-beta.pid` and `/tmp/g4-beta.log` no longer existed when part 2 started (`/tmp` had been re-created at boot; the host reported about 1 h 39 min of uptime). No loop process was running and nothing was found with `find / -name 'g4-beta*'`. There was nothing to stop and no log to count, so there are no per-code counts, first/last timestamps, or 5xx/000 lists, and step 3 (compare codes with the shift and API-update times) could not be done. The loop's coverage of the gradual-deployment window is therefore missing. Part 1 recorded a loop that ran; the machine restarted at some point before part 2. The AWS-side evidence for the window is below. A rerun of G4 would need a new beta deploy window (for example the `main` step, where the plan already calls for G3 and G4 again).
+
+| Item | Value |
+|---|---|
+| Pipeline execution (beta, trigger: source event) | `babc5a5f-878d-4442-9a88-c5812d71d9fd`, Succeeded, 2026-11-11 03:59:48 to 04:35:29 |
+| Build / PackageExport | 03:59:51 to 04:03:58 |
+| Deploy / GenerateChangeSet | 04:03:58 to 04:04:38 |
+| Deploy / ExecuteChangeSet | 04:04:38 to 04:32:54 |
+| PostDeploy / PackageExport | 04:32:54 to 04:35:28 |
+| CodeDeploy `d-8IP62D4HL` | Succeeded, no rollback, `CodeDeployDefault.LambdaLinear10PercentEvery3Minutes`; created 04:05:22.9; `BeforeAllowTraffic` 04:05:23.8 to 04:05:23.9; `AllowTraffic` (the shift) 04:05:23.9 to 04:32:26.8; `AfterAllowTraffic` 04:32:27.0 to 04:32:27.1 |
+| CloudFormation `WebApi` (RestApi) | `UPDATE_IN_PROGRESS` 04:32:41.3, `UPDATE_COMPLETE` 04:32:45.2 |
+| Stack `prod63k-atlantis-mcp-beta-application` | `UPDATE_IN_PROGRESS` 04:04:40.2, `UPDATE_COMPLETE` 04:32:51.0 |
+
+Window arithmetic:
+- (a) The alias `live` finished moving from version 60 to 61 at 04:32:26.8 (end of the shift; the shift started 04:05:23.9 and took 27 min 03 s).
+- (b) CloudFormation updated `WebApi` from 04:32:41.3 to 04:32:45.2 (3.9 s).
+- (c) The new function ran behind the still edge-optimized API from the start of the shift (04:05:23.9) to the start of the `WebApi` update (04:32:41.3): 27 min 17 s. Counted to the end of the update (04:32:45.2): 27 min 21 s. The gap between the end of the alias shift and the start of the `WebApi` update was 14.5 s. During the first part of the window only a share of traffic (10% per 3 minutes, rising) reached version 61; from 04:32:26.8 all of it did.
+
+PostDeploy (CodeBuild `prod63k-atlantis-mcp-beta-PostDeploy:2804852c-2b47-4467-b7bb-1219f87623ff`, SUCCEEDED, 04:32:54 to 04:35:14): `VERIFY_REPORT` outcome `passed`, exit code 0, expected version `0.0.7`, reported versions `0.0.7` for discover, initialize and edge, core 37 passed / 0 failed / 0 skipped, advisory 10 passed / 0 warned / 0 skipped (47 sub-checks; the X2.x CloudFront checks ran, with edge target `https://mcp-beta.atlantis.63klabs.net/mcp/v1`), stored verification key present and used, skip flag `false`, 27 POSTs, 2 preflights, 0 retries, no rate-limit exhaustion.
+
+Current state (read after the deploy):
+| Item | Before | Now |
+|---|---|---|
+| REST API `prod63k-atlantis-mcp-beta-WebApi` (`i17st3itv0`) endpoint type | EDGE | REGIONAL |
+| Read function `CACHE_DATA_TRUSTED_PROXY_HOPS` (unqualified / `$LATEST`, last modified 04:05:12) | not set | `0` |
+| Same variable on the version `live` points to | not set | `0` (version 61) |
+| Alias `live` version, routing config | 60 | 61, no weighted routing left |
+
+G3 on beta, after the API update finished (run well after the pipeline finished, about 20 hours later by the `X-RateLimit-Reset` header's hour boundary; the host clock readings earlier in the session were inconsistent, so AWS timestamps were used for all durations). Six counted requests, `tools/list`, no API key, forged `X-Forwarded-For` values (documentation addresses 192.0.2.x):
+| URL | Request | HTTP | `X-RateLimit-Remaining` |
+|---|---|---|---|
+| raw `execute-api` | 1 (address A) | 200 | 49 |
+| raw `execute-api` | 2 (address A) | 200 | 48 |
+| raw `execute-api` | 3 (address B) | 200 | 47 |
+| CloudFront `mcp-beta.atlantis.63klabs.net` | 4 (address C) | 200 | 46 |
+| CloudFront | 5 (address C) | 200 | 45 |
+| CloudFront | 6 (address D) | 200 | 44 |
+
+All six returned the same `X-RateLimit-Reset` (2026-11-12 02:00:00Z). The count fell by one on every request, the third request of each trio did not reset to a high number, and the single bucket was shared by both URLs. G3: pass on beta. Starting at 49 means the bucket was fresh (the earlier hourly window had expired), so there is no earlier-loop usage in it.
+
+Open items after this step: G4 on beta has no probe data (see above); G5 and the Kiro check (requirement 11.8) are unchanged; the `main` step still needs G3 and G4 again.
