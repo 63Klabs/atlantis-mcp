@@ -9,7 +9,7 @@
     "CacheDataDynamoDbTableName": "",
     "EnableDocAi": "true",
     "DocAiRetrievalMode": "semantic-assisted",
-    "ApiIsBehindCloudFront": "true"
+    "ApiIsBehindCloudFront": "false"
   },
   "Tags": {
 
