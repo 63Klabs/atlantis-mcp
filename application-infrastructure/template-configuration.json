@@ -8,7 +8,8 @@
     "CacheDataS3BucketName": "",
     "CacheDataDynamoDbTableName": "",
     "EnableDocAi": "true",
-    "DocAiRetrievalMode": "semantic-assisted"
+    "DocAiRetrievalMode": "semantic-assisted",
+    "ApiIsBehindCloudFront": "true"
   },
   "Tags": {
 
