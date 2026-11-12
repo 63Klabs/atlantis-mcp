@@ -602,6 +602,73 @@
         "chatSessionId": "sess_c05cf9b7-7555-45d0-8738-221cd8efe4da",
         "timestamp": 1794452538982
       }
+    ],
+    "14.1 Bind the provisional names against cache-data `main`": [
+      {
+        "executionId": "1ac88a2b-7f3f-4a3b-ad28-2b7276abcf09",
+        "chatSessionId": "sess_c05cf9b7-7555-45d0-8738-221cd8efe4da",
+        "timestamp": 1794455313243
+      },
+      {
+        "executionId": "1ac88a2b-7f3f-4a3b-ad28-2b7276abcf09",
+        "chatSessionId": "sess_c05cf9b7-7555-45d0-8738-221cd8efe4da",
+        "timestamp": 1794455724038
+      }
+    ],
+    "14.2 Template: secret, flag, environment, permission, metric filter": [
+      {
+        "executionId": "1ac88a2b-7f3f-4a3b-ad28-2b7276abcf09",
+        "chatSessionId": "sess_c05cf9b7-7555-45d0-8738-221cd8efe4da",
+        "timestamp": 1794455724593
+      },
+      {
+        "executionId": "1ac88a2b-7f3f-4a3b-ad28-2b7276abcf09",
+        "chatSessionId": "sess_c05cf9b7-7555-45d0-8738-221cd8efe4da",
+        "timestamp": 1794456229298
+      }
+    ],
+    "14.3 The guard in the Read and Auth functions": [
+      {
+        "executionId": "1ac88a2b-7f3f-4a3b-ad28-2b7276abcf09",
+        "chatSessionId": "sess_c05cf9b7-7555-45d0-8738-221cd8efe4da",
+        "timestamp": 1794456229852
+      },
+      {
+        "executionId": "1ac88a2b-7f3f-4a3b-ad28-2b7276abcf09",
+        "chatSessionId": "sess_c05cf9b7-7555-45d0-8738-221cd8efe4da",
+        "timestamp": 1794457100712
+      }
+    ],
+    "14.4 Verifier, fake server, and their tests": [
+      {
+        "executionId": "1ac88a2b-7f3f-4a3b-ad28-2b7276abcf09",
+        "chatSessionId": "sess_c05cf9b7-7555-45d0-8738-221cd8efe4da",
+        "timestamp": 1794456234850
+      },
+      {
+        "executionId": "1ac88a2b-7f3f-4a3b-ad28-2b7276abcf09",
+        "chatSessionId": "sess_c05cf9b7-7555-45d0-8738-221cd8efe4da",
+        "timestamp": 1794457101166
+      }
+    ],
+    "14.5 Documentation and changelog for Part B": [
+      {
+        "executionId": "1ac88a2b-7f3f-4a3b-ad28-2b7276abcf09",
+        "chatSessionId": "sess_c05cf9b7-7555-45d0-8738-221cd8efe4da",
+        "timestamp": 1794457101646
+      },
+      {
+        "executionId": "1ac88a2b-7f3f-4a3b-ad28-2b7276abcf09",
+        "chatSessionId": "sess_c05cf9b7-7555-45d0-8738-221cd8efe4da",
+        "timestamp": 1794457464679
+      }
+    ],
+    "14.6 Roll out per stage": [
+      {
+        "executionId": "1ac88a2b-7f3f-4a3b-ad28-2b7276abcf09",
+        "chatSessionId": "sess_c05cf9b7-7555-45d0-8738-221cd8efe4da",
+        "timestamp": 1794457465200
+      }
     ]
   }
 }

@@ -117,9 +117,19 @@ In PROD stages (`beta` and `prod`) the Read function deploys gradually, and Clou
 
 The endpoint type and the proxy hop count are one change. See [Ingress and client address](docs/admin-ops/ingress-and-client-address.md) before changing either.
 
+### Origin protection rollout
+
+The application stack creates the secret `Prefix-ProjectId-StageId-OriginSecret` in every stage. The first deploy that includes it adds that one resource and, with the template parameter `ApiIsBehindCloudFront` at its default `false`, changes nothing else for callers. To make the CloudFront distribution the only way in, do this for each stage in turn (`test`, then `beta`, then `main`), and start the next stage only after PostDeploy passes on the previous one:
+
+1. Deploy the application with `ApiIsBehindCloudFront` set to `false`.
+2. Deploy the stage's network stack (Atlantis network template v0.2.0) with `ApiOriginProtection=true`.
+3. Set `ApiIsBehindCloudFront` to `true` and deploy the application.
+
+Roll back in the reverse order. Before step 3, grant the PostDeploy role `secretsmanager:GetSecretValue` on the stage's `OriginSecret` through `PostDeploySvcRoleIncludeManagedPolicyArns` on the pipeline stack, so sub-check `O1.1` can read the secret. After step 3, a request to the raw `execute-api` URL without the secret gets `401`. See [Ingress and client address](docs/admin-ops/ingress-and-client-address.md#origin-protection) and [CloudFormation parameters](docs/admin-ops/deployment/cloudformation-parameters.md#apiisbehindcloudfront).
+
 ### Pinned cache-data dependency
 
-`read-function` and `auth-function` install `@63klabs/cache-data` from a pinned GitHub commit (see the `dependencies` of each `package.json`) until the registry release `^1.4.1` is used. The Atlantis build runs on the latest Node.js, whose npm refuses git dependencies by default. A `.npmrc` containing `allow-git=root` in each of the two function directories allows the install of that one direct git dependency and no transitive one.
+`read-function` and `auth-function` install `@63klabs/cache-data` from a pinned GitHub commit (`d9cc35d`, still the 1.4.1 code, which includes the ingress verification used by origin protection; see the `dependencies` of each `package.json`) until the registry release `^1.4.1` is used. The Atlantis build runs on the latest Node.js, whose npm refuses git dependencies by default. A `.npmrc` containing `allow-git=root` in each of the two function directories allows the install of that one direct git dependency and no transitive one.
 
 Both `.npmrc` files are deleted when the dependency moves to `^1.4.1` on the registry. The task is tracked in [TODO.md](TODO.md).
 
@@ -190,6 +200,7 @@ The same Post Deploy stage also verifies each deployment. After the documentatio
 
 - **No setup:** Verification needs nothing beyond enabling the Post Deploy stage above. The main build creates the two SSM parameters it uses (the verification API key, stored as `BLANK`, and the skip switch) and never overwrites a value you have stored.
 - **Higher rate limit (optional):** Store a private-tier API key in the `Mcp_PostDeployTestVerifyApiKey` parameter to give the run a higher request limit than the public tier. Without a key, the run uses the public tier.
+- **Origin protection (optional):** On a stage whose `ApiIsBehindCloudFront` parameter is `true`, verification also reads the stage's origin secret and checks that a request without it is refused (sub-check `O1.1`). The PostDeploy role then needs `secretsmanager:GetSecretValue` on that secret, granted through `PostDeploySvcRoleIncludeManagedPolicyArns`. While the parameter is `false`, nothing extra is needed. See [Origin protection rollout](#origin-protection-rollout).
 - **Failures block promotion:** A failed or inconclusive run (for example, HTTP `429` on a core check) fails the PostDeploy stage. When promotion is enabled (`PromoteTargetStageId` is set), a failed stage keeps the build from being promoted.
 - **Skipping:** The `Mcp_PostDeployTestVerifySkip` parameter turns verification off for a stage. Leave it `false` unless you have a reason to skip.
 

@@ -194,21 +194,21 @@ Do not commit unless the owner asks. Do not edit `ISSUE.md`, the other spec fold
 
 - [ ] 14. Part B: hardening (Phase 3, not started)
   - Do not start until all three preconditions in [requirements.md](requirements.md) exist: the verified-origin check in cache-data 1.4.1; the network template version with `ApiOriginProtection`; and the PostDeploy role's permission to read the secret. Then follow Design, Part B, test-first:
-  - [ ] 14.1 Bind the provisional names against cache-data `main`
+  - [x] 14.1 Bind the provisional names against cache-data `main`
     - Confirm `CACHE_DATA_ORIGIN_SECRET_NAME`, `isOriginVerified()`, `client.ingress`, and the unverified-request log token; update the design and requirements if they differ
     - _Requirements: 6.3_
-  - [ ] 14.2 Template: secret, flag, environment, permission, metric filter
+  - [x] 14.2 Template: secret, flag, environment, permission, metric filter
     - Design B1 and B4. Run the offline translation again; expected: one added resource (the secret), the role statements, the environment, and the metric filter
     - _Requirements: 5.6 to 5.11, 9.1, 14.7_
-  - [ ] 14.3 The guard in the Read and Auth functions
+  - [x] 14.3 The guard in the Read and Auth functions
     - Design B2, with the tests of Requirement 10.5 first (red), including the Cognito trigger cases in `AF`
     - _Requirements: 6.1 to 6.10, 10.5_
-  - [ ] 14.4 Verifier, fake server, and their tests
+  - [x] 14.4 Verifier, fake server, and their tests
     - Design B3 and Requirement 8: `O1.1`, the 48/38/10 counts, the fake server's guard and faults, the pinned ID list, the budget tests, the redaction test. Run `cd VT && timeout 600s npm test`
     - _Requirements: 7.1 to 7.9, 8.1 to 8.8_
-  - [ ] 14.5 Documentation and changelog for Part B
+  - [x] 14.5 Documentation and changelog for Part B
     - The Part B items of Requirements 12 and 13, including the in-place correction of the sub-check counts (13.1) if the owner agrees
     - _Requirements: 12.2, 12.4, 13.1, 13.5_
-  - [ ] 14.6 Roll out per stage
+  - [-] 14.6 Roll out per stage
     - Design B5 and Requirement 14.9 on `test`, then `beta`, then `main`; record spikes S1, S4 (deploy-role permission), and S7's `401`
     - _Requirements: 14.7 to 14.9_

@@ -17,11 +17,11 @@ This document covers the atlantis-mcp side only, in two parts. **v0.0.7 is held 
 
 These are outside this repository. Part A needs none of them.
 
-1. `@63klabs/cache-data` 1.4.1 provides the verified-origin check: `CACHE_DATA_ORIGIN_SECRET_NAME`, `client.sourceIp`, `client.ingress`, and `isOriginVerified()`. Until 1.4.1 is on npm it is installed from GitHub.
+1. `@63klabs/cache-data` 1.4.1 provides the verified-origin check: `CACHE_DATA_INGRESS_SECRET_NAME`, `client.sourceIp`, `client.ingress`, `isIngressVerified()`, and `ClientRequest.prime()`. Until 1.4.1 is on npm it is installed from GitHub (bound against commit `d9cc35da22c024bb433a8774bf2a7ba13df09811`).
 2. The Atlantis network template version that adds `ApiOriginProtection` can be deployed to the stage's network stack.
 3. The PostDeploy role can read the origin secret, through a managed policy attached with the pipeline stack's `PostDeploySvcRoleIncludeManagedPolicyArns`.
 
-The exact cache-data method and field names are bound in design once the check is on cache-data `main`. The names used here are the ones in the cross-resource plan.
+The cache-data method, field, and variable names were bound in task 14.1 against cache-data `main` (see design, Part B). They differ from the provisional names of the cross-resource plan (`CACHE_DATA_ORIGIN_SECRET_NAME`, `isOriginVerified()`).
 
 ### Fallback
 
@@ -47,7 +47,7 @@ If the verification gates G1 to G3 (Requirement 11) fail on the real stage, Part
 | D2 | The upstream Atlantis template is not edited from this repository | 15 |
 | D3, D4 | A small module in `read-function/utils/` validates the address, normalizes IPv4-mapped IPv6 to IPv4, and buckets other IPv6 addresses by /64 | 2 |
 | D5 | The hash input format and the table schema do not change | 3 |
-| D6 | A metric filter on cache-data's unverified-request line; no alarm (Part B) | 9 |
+| D6 | A metric filter on cache-data's `INGRESS_UNVERIFIED` line; no alarm (Part B) | 9 |
 | D7 | No new npm dependency apart from the cache-data version | 4 |
 | D8 | New tests are `*.test.js` with `fast-check`; the two v0.0.1 property suites are replaced; skipped suites stay skipped | 10 |
 | D9 | The documentation corrections from PLAN.md Section 5 are part of this feature | 12 |
@@ -87,8 +87,8 @@ Small refinements made while writing these requirements. Strike any you disagree
 
 - **System**: This feature as a whole: the application changes, the template changes, the tests, the verifier changes, the documentation and changelog, and the rollout verification.
 - **Ingress** (Part B): How a request reached the function, as cache-data reports it: `direct`, `cloudfront`, or `unverified`.
-- **Origin secret**: The shared secret that the Atlantis distribution sends in `X-Atlantis-Origin-Secret` on every API origin request. It is stored in a Secrets Manager secret named `${Prefix}-${ProjectId}-${StageId}-OriginSecret` and read by cache-data through `CACHE_DATA_ORIGIN_SECRET_NAME`.
-- **Verified-origin check** (Part B): The cache-data behavior of Section 3 of the cross-resource plan: `client.sourceIp`, `client.ingress`, and `isOriginVerified()`.
+- **Origin secret**: The shared secret that the Atlantis distribution sends in `X-Atlantis-Origin-Secret` on every API origin request. It is stored in a Secrets Manager secret named `${Prefix}-${ProjectId}-${StageId}-OriginSecret` and read by cache-data through `CACHE_DATA_INGRESS_SECRET_NAME`. Its value is a plain generated string, because the distribution sends the entire `SecretString` as the header.
+- **Verified-origin check** (Part B): The cache-data behavior of Section 3 of the cross-resource plan: `client.sourceIp`, `client.ingress`, and `isIngressVerified()`.
 - **Flag** (Part B): The template parameter `ApiIsBehindCloudFront` (`"true"` or `"false"`, default `"false"`).
 - **Count**: The environment variable `CACHE_DATA_TRUSTED_PROXY_HOPS`, the number of trusted proxies cache-data counts from the right of `X-Forwarded-For`. At `0` cache-data returns `sourceIp` and reads no forwarding header.
 - **`sourceIp`**: `requestContext.identity.sourceIp`, the client address API Gateway reports.
@@ -182,9 +182,9 @@ Requirements 1 to 4, 5 (Part A items), 10 to 12, and 14 to 15 are **Part A**. Re
 
 **Part B**
 
-6. `template.yml` SHALL define an `AWS::SecretsManager::Secret` named `${Prefix}-${ProjectId}-${StageId}-OriginSecret`, with a generated value of at least 256 bits, in every stage. IT SHALL carry the stack's standard tags and SHALL be deleted with the stack. ITS value SHALL NOT appear in any output, parameter, or environment variable.
+6. `template.yml` SHALL define an `AWS::SecretsManager::Secret` named `${Prefix}-${ProjectId}-${StageId}-OriginSecret`, with a generated value of at least 256 bits that is a plain string, not JSON, in every stage. IT SHALL carry the stack's standard tags and SHALL be deleted with the stack. ITS value SHALL NOT appear in any output, parameter, or environment variable.
 7. `template.yml` SHALL define the parameter `ApiIsBehindCloudFront` (`"true"` or `"false"`, default `"false"`), a matching condition, and a description that states the Part B rollout order of Requirement 14.9.
-8. WHEN the flag is `true`, THE Read Function and the Auth Function SHALL receive `CACHE_DATA_ORIGIN_SECRET_NAME` with the secret's name. WHEN it is `false`, THEY SHALL NOT receive it, and the behavior of every request SHALL be as in Part A.
+8. WHEN the flag is `true`, THE Read Function and the Auth Function SHALL receive `CACHE_DATA_INGRESS_SECRET_NAME` with the secret's ARN (cache-data accepts the name or the ARN). WHEN it is `false`, THEY SHALL NOT receive it, and the behavior of every request SHALL be as in Part A.
 9. THE execution roles of the Read Function and the Auth Function SHALL each gain `secretsmanager:GetSecretValue` on the origin secret only, with no wildcard resource and no other action.
 10. WITH the flag `false`, THE change set for a stage that already runs SHALL create the secret and change the two functions' roles, and SHALL change nothing else.
 11. THE parameter SHALL be added to `docs/admin-ops/deployment/cloudformation-parameters.md` (Requirement 12.1) and to the parameter groups of the template's metadata where the neighbouring parameters are grouped.
@@ -197,7 +197,7 @@ Requirements 1 to 4, 5 (Part A items), 10 to 12, and 14 to 15 are **Part A**. Re
 
 1. WHEN the flag is `true` and a request's ingress is `unverified`, THE Read Function and the Auth Function SHALL answer HTTP `401` with `Content-Type: application/json` and a JSON object body with a non-empty string `message` member. THE message SHALL NOT contain the secret, a stage name, an identifier, an ARN, or any address.
 2. THE guard SHALL run before `resolveAuth`, the rate limiter, and the router. AN unverified request SHALL read no Users record, SHALL write no rate-limit counter, and SHALL reach no controller.
-3. THE guard SHALL decide from cache-data's verified-origin result only (`isOriginVerified()` or `client.ingress`). THE application SHALL NOT compare the secret or read the header itself.
+3. THE guard SHALL decide from cache-data's verified-origin result only (`isIngressVerified()`, which is `true` only for ingress `cloudfront`, or `client.ingress`). THE application SHALL NOT compare the secret or read the header itself.
 4. THE `401` SHALL carry `Cache-Control: no-store` and SHALL carry no `max-age`. IT SHALL carry the `Access-Control-Allow-Origin` header the function's other responses carry.
 5. THE status SHALL be neither `403` nor `404`, and a test SHALL guard it.
 6. IN the Auth Function THE guard SHALL run only inside the branch for API Gateway events (`event.httpMethod && event.path`). A Cognito trigger event (`event.triggerSource` present) SHALL never be rejected or altered by it, and a test SHALL show that a `PostConfirmation_ConfirmSignUp` event and an unlisted trigger event are handled as they are today with the flag `true`.
@@ -243,7 +243,7 @@ Requirements 1 to 4, 5 (Part A items), 10 to 12, and 14 to 15 are **Part A**. Re
 
 #### Acceptance Criteria
 
-1. WHEN the flag is `true`, THE System SHALL count the unverified-request line that cache-data emits with a CloudWatch metric filter on the Read Function's log group, in the existing `${Prefix}-${ProjectId}/...` namespace pattern. THE System SHALL NOT add an alarm.
+1. WHEN the flag is `true`, THE System SHALL count the `INGRESS_UNVERIFIED` line that cache-data emits with a CloudWatch metric filter on the Read Function's log group, in the existing `${Prefix}-${ProjectId}/...` namespace pattern. THE System SHALL NOT add an alarm.
 2. THE application SHALL emit no new log line that contains the secret or any client address at INFO or above.
 3. THE existing `RESPONSE` log line and the dashboard queries that parse it by position SHALL NOT change.
 

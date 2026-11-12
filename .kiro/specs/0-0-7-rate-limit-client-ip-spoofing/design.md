@@ -31,7 +31,7 @@ The evidence is in [PLAN.md](PLAN.md) and [SPIKES.md](SPIKES.md). The decision t
 |-------|--------|----------------|
 | API Gateway | `WebApi` is Regional. `sourceIp` is the viewer address on both URLs | Unchanged |
 | Atlantis distribution | Unchanged | Adds `X-Atlantis-Origin-Secret` (template `v0.2.0`, outside this repository) |
-| cache-data (in the function) | `getClientIp()` returns `sourceIp` because the count is `0` | Also reports `client.ingress` and `isOriginVerified()` |
+| cache-data (in the function) | `getClientIp()` returns `sourceIp` because the count is `0` | Also reports `client.ingress` and `isIngressVerified()` |
 | Application | Validates and normalizes the address; refuses a request with none; buckets by it | Guard: `401` for an unverified request, before any data access |
 | Verifier | Unchanged | Sends the secret to the raw target; sub-check `O1.1` |
 
@@ -251,10 +251,10 @@ The 14 non-skipped two-argument calls are the only ones that relied on the fallb
 For `RF/package.json` and `AF/package.json`:
 
 ```json
-"@63klabs/cache-data": "git+https://github.com/63Klabs/cache-data.git#386c2f97bac518c59785251c973f7034bb4510b2"
+"@63klabs/cache-data": "git+https://github.com/63Klabs/cache-data.git#d9cc35da22c024bb433a8774bf2a7ba13df09811"
 ```
 
-(`#main` is replaced by the commit hash that the lockfile already records.) Each directory gets an `.npmrc`:
+(`#main` is replaced by a commit hash. Part B needs the verified-ingress check, which is first in `d9cc35d`.) Each directory gets an `.npmrc`:
 
 ```ini
 # >! The Atlantis build runs on nodejs: latest, which is npm 12. npm 12 refuses git dependencies by
@@ -312,7 +312,7 @@ Part B adds, when it ships: `Added` (the secret, the flag, the metric filter, th
 
 ## Part B: the origin secret, guard, and verifier check
 
-Designed now, built when the preconditions in [requirements.md](requirements.md) exist. Names marked **provisional** are bound after the verified-origin check is on cache-data `main`.
+Designed now, built when the preconditions in [requirements.md](requirements.md) exist. The cache-data names below were bound in task 14.1 against cache-data `main` at `d9cc35da22c024bb433a8774bf2a7ba13df09811` (version 1.4.1, not yet on npm): `CACHE_DATA_INGRESS_SECRET_NAME`, `ClientRequest.isIngressVerified()`, `ClientRequest.prime()`, `getProps().client.ingress` (`direct`, `cloudfront`, `unverified`), `getProps().client.sourceIp`, and the log tag `INGRESS_UNVERIFIED`.
 
 ### B1. Template (Requirements 5.6 to 5.11)
 
@@ -334,13 +334,11 @@ Resources:
       Name: !Sub '${Prefix}-${ProjectId}-${StageId}-OriginSecret'
       Description: Shared secret the Atlantis distribution sends in X-Atlantis-Origin-Secret
       GenerateSecretString:
-        SecretStringTemplate: '{}'
-        GenerateStringKey: secret
-        PasswordLength: 64
+        PasswordLength: 48
         ExcludePunctuation: true
 ```
 
-The generated secret was verified in the spike: 64 alphanumeric characters, absent from every CloudFormation surface, and resolvable from another stack by `{{resolve:secretsmanager:<name>:SecretString:secret}}`. The two functions get, when the flag is `true`, `CACHE_DATA_ORIGIN_SECRET_NAME: !Ref OriginSecret` (the secret's name or ARN as cache-data expects; **provisional**), and each execution role gets one statement:
+The secret is a **plain generated string**, with no `SecretStringTemplate` and no `GenerateStringKey`. The Atlantis network template (`v0.2.0`) sets the header value with the versionless reference `{{resolve:secretsmanager:${Prefix}-${ProjectId}-${StageId}-OriginSecret}}`, which has no JSON key, so the header is the entire `SecretString`. cache-data compares the header with the entire `SecretString` (SHA-256 digests, `timingSafeEqual`, no trimming). A JSON secret would make the header the whole JSON text and is not used. 48 characters of upper case, lower case, and digits are about 285 bits, above the 256 bits of Requirement 5.6, and match the platform's own example in `api-ingress-standard.md`. cache-data rejects a secret that is empty, whitespace, or `BLANK` in any case (reason `secret-unusable`) and applies no other character or length rule. The spike's earlier 64-character JSON secret, resolved with `:SecretString:secret`, does not apply to the template. Spike S4 found the value absent from every CloudFormation surface, using the JSON-key form; the plain form has the same surfaces but was not run in the spike, so task 14.6 checks that the header value equals the generated string on `test`. cache-data reads both `AWSCURRENT` and `AWSPREVIOUS` and accepts a header equal to either, so rotation needs no application change (Requirement 12.2 documents the sequence). The two functions get, when the flag is `true`, `CACHE_DATA_INGRESS_SECRET_NAME: !Ref OriginSecret`. `!Ref` gives the full ARN, which cache-data accepts as well as the name (letters, digits, and `_ . + = @ : / -`, at most 2048 characters). `CACHE_DATA_INGRESS_SECRET_REFRESH_SECONDS` is left unset (default 3600; accepted range 60 to 86400). Each execution role gets one statement. No `kms:Decrypt` is needed because the secret uses the default `aws/secretsmanager` key:
 
 ```yaml
             - Effect: Allow
@@ -359,7 +357,7 @@ In `RF/index.js`, immediately after `new ClientRequest` and before `resolveAuth`
     // >! landing page with HTTP 200, so a misconfiguration would look like a working site.
     // >! The guard runs first so a request that is not from the distribution reads no Users record
     // >! and writes no rate-limit counter. The check itself is cache-data's (one implementation).
-    if (originProtectionIsOn && !clientRequest.isOriginVerified()) {   // provisional name
+    if (originProtectionIsOn && !clientRequest.isIngressVerified()) {
       response.setStatusCode(401);
       response.addHeader('Cache-Control', 'no-store');
       response.setBody({ message: 'Requests must use the service endpoint.' });
@@ -367,7 +365,9 @@ In `RF/index.js`, immediately after `new ClientRequest` and before `resolveAuth`
     }
 ```
 
-`originProtectionIsOn` is true when `process.env.CACHE_DATA_ORIGIN_SECRET_NAME` is set, which the template does only when the flag is `true`. The message contains no secret, identifier, or address. `Response.finalize()` applies CORS and the other standard headers.
+`originProtectionIsOn` is true when `process.env.CACHE_DATA_INGRESS_SECRET_NAME` is set (trimmed, non-empty), which the template does only when the flag is `true`. The condition is needed because `isIngressVerified()` is `true` only for ingress `cloudfront`: with the variable unset every request reports `direct` and the method returns `false`, so an unconditional guard would reject all traffic. The message contains no secret, identifier, or address. `Response.finalize()` applies CORS and the other standard headers.
+
+The secret must be loaded before the first `new ClientRequest`, because the constructor is synchronous and cannot wait for a read. `Config.prime()` in both functions already calls `CachedParameterSecrets.prime()`, and cache-data registers the ingress readers there when it is first loaded, so the handlers' existing `await Config.prime()` is enough. `await ClientRequest.prime()` is the equivalent call if that ever changes. It resolves `true` when the check is off or the current value is loaded, `false` otherwise, and never rejects. A request created before the secret has loaded, or when it cannot be read, is `unverified` with reason `secret-not-primed` or `secret-unavailable`, so the guard fails closed with the `401` (Requirement 6.8). cache-data logs the failure once per episode with `DebugAndLog.error`. After a failed read it waits 30 seconds before it tries again, so a container that starts during a Secrets Manager outage rejects requests for at least that long. A container that already holds a value keeps it while a later read fails. cache-data reads REST API (payload format version 1) events only, which is what both functions receive.
 
 In `AF/index.js` the same block goes inside the `event.httpMethod && event.path` branch, after `new Response(clientRequest)` and before `Routes.process`. The Cognito branch (`event.triggerSource`) returns earlier (line 67) and never reaches it.
 
@@ -379,7 +379,7 @@ In `AF/index.js` the same block goes inside the `event.httpMethod && event.path`
 
 ### B4. Observability (Requirement 9)
 
-One metric filter, in the pattern of the existing `DocAiSemanticAssistedUsageMetricFilter` (`template.yml` line 2092): `Condition: ApiIsBehindCloudFrontIsTrue`, `LogGroupName: !Ref ReadLambdaLogGroup`, `FilterPattern` set to cache-data's unverified-request token (**provisional**), `MetricNamespace: !Sub '${Prefix}-${ProjectId}/Ingress'`, `MetricName: UnverifiedRequestCount`. No alarm.
+One metric filter, in the pattern of the existing `DocAiSemanticAssistedUsageMetricFilter` (`template.yml` line 2092): `Condition: ApiIsBehindCloudFrontIsTrue`, `LogGroupName: !Ref ReadLambdaLogGroup`, `FilterPattern: '"INGRESS_UNVERIFIED"'`, `MetricNamespace: !Sub '${Prefix}-${ProjectId}/Ingress'`, `MetricName: UnverifiedRequestCount`. No alarm. cache-data writes one line per unverified request with `DebugAndLog.log(JSON.stringify({ reason }), "INGRESS_UNVERIFIED")`, which prints `[INGRESS_UNVERIFIED] {"reason":"mismatch"}`. `log` is written at every log level, so the line appears in PROD (`LOG_LEVEL=INFO`) too. The reason is one of `missing-header`, `mismatch`, `secret-not-primed`, `secret-unavailable`, `secret-unusable`, `bad-configuration`. The line holds no address, header value, or secret name. The filter reads the Read Function's log group only; the Auth Function's lines are not counted.
 
 ### B5. Rollout (Requirement 14.9)
 
@@ -555,8 +555,8 @@ Each step leaves the suites green.
 
 ## Open points carried into implementation
 
-- **Hash pinning.** The pinned commit is `386c2f97bac518c59785251c973f7034bb4510b2`, newer than the `f746cde…` that the lockfile first recorded. Part A needs only count semantics that exist at that commit.
+- **Hash pinning.** The pinned commit is `d9cc35da22c024bb433a8774bf2a7ba13df09811` (cache-data `main`, version 1.4.1, not on npm). It is newer than the `f746cde…` that the lockfile first recorded and the `386c2f97…` that Part A shipped with. Part A needs only count semantics that exist at all three. The owner sets `package.json` back to the npm release after cache-data is released (task 13.1).
 - **G5 host.** Part A is not promoted past `test` until the owner decides what to do if no IPv6 host is available.
-- **Provisional names.** `isOriginVerified`, `CACHE_DATA_ORIGIN_SECRET_NAME`, and the unverified-request log token are bound when the check is on cache-data `main` (Part B only).
+- **Names bound (task 14.1).** `CACHE_DATA_INGRESS_SECRET_NAME`, `isIngressVerified()`, `client.ingress`, and the `INGRESS_UNVERIFIED` tag were confirmed against cache-data `d9cc35d`. The earlier provisional names (`CACHE_DATA_ORIGIN_SECRET_NAME`, `isOriginVerified()`) do not exist there.
 - **The changelog's affected range** is confirmed against the release tags before the entry is committed.
 - **S1.** The change-set check for the network template needs the modified template (Part B).

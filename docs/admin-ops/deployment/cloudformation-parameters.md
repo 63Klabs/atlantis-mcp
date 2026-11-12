@@ -12,10 +12,11 @@ Parameters are organized into the following categories:
 2. [S3 Configuration Parameters](#s3-configuration-parameters)
 3. [GitHub Configuration Parameters](#github-configuration-parameters)
 4. [Rate Limiting Parameters](#rate-limiting-parameters)
-5. [Deployment Parameters](#deployment-parameters)
-6. [Cache TTL Parameters](#cache-ttl-parameters)
-7. [IAM Configuration Parameters](#iam-configuration-parameters)
-8. [Logging Parameters](#logging-parameters)
+5. [Origin Protection Parameters](#origin-protection-parameters)
+6. [Deployment Parameters](#deployment-parameters)
+7. [Cache TTL Parameters](#cache-ttl-parameters)
+8. [IAM Configuration Parameters](#iam-configuration-parameters)
+9. [Logging Parameters](#logging-parameters)
 
 ---
 
@@ -208,6 +209,42 @@ There is no `PublicRateLimit` CloudFormation parameter. The public limit is the 
 - Includes `Retry-After` header in response
 
 Requests with an API key are limited by the account and tier, not by address.
+
+---
+
+## Origin Protection Parameters
+
+### ApiIsBehindCloudFront
+
+**Type:** String  
+**Required:** No  
+**Default:** `false`  
+**Allowed Values:** `true`, `false`
+
+**Description:** Turns on origin protection for the stage. When `true`, the Read and Auth functions answer HTTP `401` to a request that does not carry the origin secret in the `X-Atlantis-Origin-Secret` header, for example a request sent straight to the raw `execute-api` URL. A request through the stage's CloudFront distribution carries the header and is served. When `false`, the functions behave as they did before: they are not given the secret and accept every request.
+
+**Requires:** The Atlantis network template version that adds `ApiOriginProtection` (`v0.2.0`). Set the flag to `true` only after the stage's network stack has been deployed with `ApiOriginProtection=true`, because until the distribution sends the header, every request would be rejected.
+
+**The secret:** The template creates a Secrets Manager secret named `Prefix-ProjectId-StageId-OriginSecret` in every stage, whatever the flag is, so the network stack can resolve it before enforcement starts. Its value is a generated string. It is not an output of the stack and is not written to logs. When the flag is `true`, the two functions receive the secret's ARN and each execution role may read that one secret.
+
+**Rollout order for each stage:**
+
+1. Deploy the application stack with `ApiIsBehindCloudFront` set to `false`. This creates the secret.
+2. Deploy the stage's network stack with `ApiOriginProtection=true`. The distribution starts sending the header.
+3. Set `ApiIsBehindCloudFront` to `true` and deploy the application stack.
+
+Roll back in the reverse order: set the flag to `false` and deploy, then turn the network stack's protection off. Do `test` first, then `beta`, then `main`, and confirm on each stage that a request to the raw URL without the header gets `401` and a request through the CloudFront domain is served.
+
+**Example Values:**
+
+```yaml
+ApiIsBehindCloudFront: false # Default: no origin protection
+ApiIsBehindCloudFront: true  # After the network stack sends the origin secret
+```
+
+**Observability:** While the flag is `true`, the metric `UnverifiedRequestCount` in the `Prefix-ProjectId/Ingress` CloudWatch namespace counts the requests the Read function rejected. No alarm is created.
+
+> **Warning**: Once the flag is `true`, the CloudFront distribution is the only supported way in. Callers that use the raw `execute-api` URL receive `401`.
 
 ---
 

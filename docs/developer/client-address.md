@@ -4,7 +4,7 @@
 
 ## Overview
 
-Public-tier requests (no API key) are limited per client address. The address comes from `@63klabs/cache-data`, which with `CACHE_DATA_TRUSTED_PROXY_HOPS=0` returns `requestContext.identity.sourceIp` and reads no forwarding header. That is only correct on a Regional API. The operator view, including the measured `sourceIp` table, is in [Ingress and client address](../admin-ops/ingress-and-client-address.md).
+Public-tier requests (no API key) are limited per client address. A separate guard, described in [The origin guard](#the-origin-guard), refuses requests that skip the distribution when origin protection is on. The address comes from `@63klabs/cache-data`, which with `CACHE_DATA_TRUSTED_PROXY_HOPS=0` returns `requestContext.identity.sourceIp` and reads no forwarding header. That is only correct on a Regional API. The operator view, including the measured `sourceIp` table, is in [Ingress and client address](../admin-ops/ingress-and-client-address.md).
 
 ## The address pipeline
 
@@ -78,14 +78,74 @@ Tests and documentation use only RFC 5737 addresses (`192.0.2.0/24`, `198.51.100
 
 The handler logs the received event at DEBUG, which includes `requestContext.identity.sourceIp`. Only stages that log at DEBUG (TEST) show it. `beta` and `prod` log at INFO. The log line for a refused request carries no address.
 
+## The origin guard
+
+When origin protection is on, the Read function and the Auth function refuse a request that did not come through the Atlantis distribution. The operator view (the secret, the flag, the rollout, rotation) is in [Ingress and client address](../admin-ops/ingress-and-client-address.md#origin-protection). This section is for the code.
+
+### Where it lives
+
+Both functions have a file `utils/ingress-guard.js`, and the two files are identical. They are duplicated on purpose: each function is self-contained, no source is shared between functions, and a layer for one small helper would cost one of the Read function's five layer slots (the Lambda maximum). Change both together.
+
+| Export | What it does |
+|--------|--------------|
+| `isIngressGuardOn(env)` | `true` when `CACHE_DATA_INGRESS_SECRET_NAME` is a non-empty string after trimming. The template sets that variable only while `ApiIsBehindCloudFront` is `true` |
+| `shouldRefuse(clientRequest, env)` | `false` when the guard is off, and then cache-data is not consulted. When it is on, `true` unless `clientRequest.isIngressVerified() === true` |
+| `buildRefusal(response)` | Sets status `401`, `Cache-Control: no-store`, and the body `{ message: 'Requests must use the service endpoint.' }`, then returns `response.finalize()` |
+
+The guard is off when the variable is unset because cache-data then reports every request as ingress `direct`, and `isIngressVerified()` is `false` for `direct`. An unconditional guard would refuse all traffic.
+
+### Where it runs
+
+- Read function (`index.js`): right after `new Response(clientRequest)`, before `AuthResolver.resolveAuth`. An unverified request reads no Users record and writes no rate-limit counter.
+- Auth function (`index.js`): inside the branch for API Gateway events (`event.httpMethod && event.path`), before `Routes.process`. The Cognito trigger branch (`event.triggerSource`) returns earlier and never reaches the guard.
+
+### cache-data names
+
+| Name | Meaning |
+|------|---------|
+| `CACHE_DATA_INGRESS_SECRET_NAME` | Environment variable. The secret's name or ARN. Unset or blank turns the check off. The template passes the ARN |
+| `CACHE_DATA_INGRESS_SECRET_REFRESH_SECONDS` | Optional. How often a warm function reloads the secret, 60 to 86400 seconds. The template leaves it unset (3600) |
+| `clientRequest.isIngressVerified()` | `true` only for ingress `cloudfront`. `false` for `direct` and `unverified` |
+| `clientRequest.getProps().client.ingress` | `direct`, `cloudfront`, or `unverified`. The application does not read it |
+| `[INGRESS_UNVERIFIED] {"reason":"..."}` | The log line cache-data writes for each unverified request, counted by the metric filter |
+| `X-Atlantis-Origin-Secret` | The header cache-data reads. No application code reads it or compares the secret |
+
+`Config.prime()` in both functions already calls cache-data's priming, which loads the secret before the first request is checked.
+
+### Fail-closed cases
+
+The guard refuses (`401`) when the guard is on and any of these holds:
+
+- cache-data reports the request unverified: no header, a header that equals neither the current nor the previous secret, the secret not loaded yet, unreadable, or unusable (empty, blank, or `BLANK`), or a variable that is not a usable secret name.
+- `isIngressVerified` is missing on the request object, throws, or returns anything other than `true`.
+
+It is never `403` or `404`: the Atlantis distribution rewrites those to the landing page with HTTP `200`.
+
+### Testing the guard
+
+Run Jest directly from each function directory, with a timeout.
+
+```bash
+cd application-infrastructure/src/lambda/read-function
+timeout 120s npx jest tests/unit/utils/ingress-guard.test.js tests/unit/lambda/read-handler-ingress-guard.test.js tests/unit/architecture/origin-secret-template.test.js
+
+cd ../auth-function
+timeout 120s npx jest tests/unit/ingress-guard.test.js tests/unit/handler-ingress-guard.test.js
+```
+
+The helper tests also run the real cache-data `ClientRequest` and `Response` to pin the `401` shape. The handler tests assert that an unverified request calls no `resolveAuth`, rate limiter, or router, and that nothing from the request or the secret appears in the response. The Auth handler tests cover Cognito trigger events with the variable set and the request unverified. `origin-secret-template.test.js` reads `template.yml` and checks the secret (no output, no export, no JSON key), the parameter and its default, the variable only under the condition, the permission on that one secret, and the metric filter.
+
+To run the verifier's check against a stage or a fake server, see [Post-deploy verification](post-deploy-verification.md#origin-protection-o1).
+
 ## Dependency
 
-The `read-function` and `auth-function` `package.json` files pin `@63klabs/cache-data` to a git commit, because the release that supplies the resolver behavior used here is not yet on the registry. Each function directory has an `.npmrc` with `allow-git=root`. The Atlantis build uses a current npm that refuses git dependencies by default; `root` allows only the package's own direct git dependency and no transitive one.
+The `read-function` and `auth-function` `package.json` files pin `@63klabs/cache-data` to a git commit (`d9cc35d`, which is the 1.4.1 code and includes the ingress verification), because the release that supplies the resolver and ingress behavior used here is not yet on the registry. Each function directory has an `.npmrc` with `allow-git=root`. The Atlantis build uses a current npm that refuses git dependencies by default; `root` allows only the package's own direct git dependency and no transitive one.
 
 When cache-data `1.4.1` is installed from the registry, change the dependency to the registry version and delete both `.npmrc` files.
 
 ## Related pages
 
 - [Ingress and client address (operators)](../admin-ops/ingress-and-client-address.md)
+- [Post-deploy verification](post-deploy-verification.md)
 - [Testing guide](testing.md)
 - [Gradual deployment](gradual-deployment.md)

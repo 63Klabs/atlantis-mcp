@@ -30,7 +30,10 @@ import {
   DEFAULT_SUPPORTED_VERSIONS,
   DEFAULT_TOOL_NAMES,
   DEFAULT_RATE_LIMITS,
-  TOOLS_LIST_TTL_MS
+  TOOLS_LIST_TTL_MS,
+  FAKE_ORIGIN_SECRET,
+  ORIGIN_SECRET_HEADER,
+  ORIGIN_GUARD_MESSAGE
 } from './helpers/fake-mcp-server.mjs';
 
 // No real network: any accidental use of the global fetch fails loudly.
@@ -1390,5 +1393,169 @@ describe('Fake MCP server: each option changes only the behavior it names', () =
     await rejection(post(server, rpc('tools/call', { name: 'list_tools' }, 3)));
     const list = await post(server, rpc('tools/list', undefined, 2), { 'MCP-Protocol-Version': '2026-07-28' });
     expect(list.json.result.resultType).toBe('complete');
+  });
+});
+
+describe('origin guard (Part B, Requirements 8.1 and 8.2)', () => {
+  const body = rpc('tools/list');
+
+  /**
+   * Send a GET to the fake server.
+   *
+   * @param {Object} server - Fake server
+   * @param {string} [url] - Target (default: the raw URL)
+   * @returns {Promise<Response>} The answer
+   */
+  function get(server, url = server.rawUrl) {
+    return server.fetch(url, { method: 'GET', headers: { Accept: 'text/event-stream' } });
+  }
+
+  it('defines a 48-character secret of letters and digits, in a fixed header', () => {
+    expect(FAKE_ORIGIN_SECRET).toMatch(/^[A-Za-z0-9]{48}$/);
+    expect(ORIGIN_SECRET_HEADER).toBe('x-atlantis-origin-secret');
+  });
+
+  it('does not guard anything when originSecret is not set', async () => {
+    const server = createFakeMcpServer();
+    const answer = await post(server, body);
+
+    expect(answer.status).toBe(200);
+    expect(server.calls[0].guarded).toBeUndefined();
+  });
+
+  it('answers a raw POST without the header 401, no-store, with the JSON message', async () => {
+    const server = createFakeMcpServer({ originSecret: FAKE_ORIGIN_SECRET });
+    const answer = await post(server, body);
+
+    expect(answer.status).toBe(401);
+    expect(answer.response.headers.get('cache-control')).toBe('no-store');
+    expect(answer.response.headers.get('content-type')).toBe('application/json');
+    expect(answer.json).toEqual({ message: ORIGIN_GUARD_MESSAGE });
+    expect(server.calls[0]).toMatchObject({ guarded: true, status: 401 });
+  });
+
+  it('answers 401 for a wrong value and for an empty value', async () => {
+    const server = createFakeMcpServer({ originSecret: FAKE_ORIGIN_SECRET });
+
+    expect((await post(server, body, { 'X-Atlantis-Origin-Secret': `${FAKE_ORIGIN_SECRET}x` })).status).toBe(401);
+    expect((await post(server, body, { 'X-Atlantis-Origin-Secret': '' })).status).toBe(401);
+  });
+
+  it('is not an MCP response: the 401 body is not JSON-RPC, so no MCP schema applies to it', async () => {
+    const server = createFakeMcpServer({ originSecret: FAKE_ORIGIN_SECRET });
+    const answer = await post(server, body);
+
+    expect(answer.json).not.toHaveProperty('jsonrpc');
+    expect(answer.json).not.toHaveProperty('error');
+    expect(Object.keys(answer.json)).toEqual(['message']);
+  });
+
+  it('serves a raw POST that carries the correct header as it would without protection', async () => {
+    const plain = await post(createFakeMcpServer(), body);
+    const guarded = createFakeMcpServer({ originSecret: FAKE_ORIGIN_SECRET });
+    const answer = await post(guarded, body, { 'X-Atlantis-Origin-Secret': FAKE_ORIGIN_SECRET });
+
+    expect(answer.status).toBe(200);
+    expect(answer.text).toBe(plain.text);
+    expect(guarded.calls[0].guarded).toBeUndefined();
+  });
+
+  it('refuses before authentication and the rate limiter: no key lookup, no allowance used', async () => {
+    const server = createFakeMcpServer({
+      originSecret: FAKE_ORIGIN_SECRET,
+      rateLimits: { public: { limitPerWindow: 1, windowInMinutes: 60 } },
+      now: fixedNow
+    });
+
+    // A bad key gets the guard's answer, not -32001
+    const withBadKey = await post(server, body, { 'X-API-Key': 'not-a-key' });
+    expect(withBadKey.json).toEqual({ message: ORIGIN_GUARD_MESSAGE });
+    // Refused requests did not use the one allowance of the window
+    await post(server, body);
+    const first = await post(server, body, { 'X-Atlantis-Origin-Secret': FAKE_ORIGIN_SECRET });
+    const second = await post(server, body, { 'X-Atlantis-Origin-Secret': FAKE_ORIGIN_SECRET });
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(429);
+  });
+
+  it('serves the edge target as it is served today', async () => {
+    const server = createFakeMcpServer({ originSecret: FAKE_ORIGIN_SECRET });
+    const answer = await post(server, body, {}, server.edgeUrl);
+
+    expect(answer.status).toBe(200);
+    expect(answer.json.result.tools.length).toBeGreaterThan(0);
+  });
+
+  it('does not guard the preflight or the 405 answer, which API Gateway gives', async () => {
+    const server = createFakeMcpServer({ originSecret: FAKE_ORIGIN_SECRET });
+
+    expect((await preflight(server)).status).toBe(200);
+    const notAllowed = await get(server);
+    expect(notAllowed.status).toBe(405);
+    expect(notAllowed.headers.get('allow')).toBe('POST');
+  });
+
+  describe('faults for the unprotected request', () => {
+    it('open: the request is served with a normal result', async () => {
+      const server = createFakeMcpServer({ originSecret: FAKE_ORIGIN_SECRET, originGuardFault: 'open' });
+      const answer = await post(server, body);
+
+      expect(answer.status).toBe(200);
+      expect(answer.json.result.tools.length).toBeGreaterThan(0);
+      expect(server.calls[0].guarded).toBe(true);
+    });
+
+    it('non-json: HTTP 401 with a plain-text body', async () => {
+      const server = createFakeMcpServer({ originSecret: FAKE_ORIGIN_SECRET, originGuardFault: 'non-json' });
+      const response = await server.fetch(server.rawUrl, { method: 'POST', body: JSON.stringify(body) });
+
+      expect(response.status).toBe(401);
+      expect(response.headers.get('content-type')).toBe('text/plain');
+      expect(await response.text()).toBe(ORIGIN_GUARD_MESSAGE);
+    });
+
+    it('forbidden: HTTP 403 with a JSON message', async () => {
+      const server = createFakeMcpServer({ originSecret: FAKE_ORIGIN_SECRET, originGuardFault: 'forbidden' });
+      const response = await server.fetch(server.rawUrl, { method: 'POST', body: JSON.stringify(body) });
+
+      expect(response.status).toBe(403);
+      expect(await response.json()).toEqual({ message: ORIGIN_GUARD_MESSAGE });
+    });
+
+    it('no-message: HTTP 401 with a JSON body that has no message', async () => {
+      const server = createFakeMcpServer({ originSecret: FAKE_ORIGIN_SECRET, originGuardFault: 'no-message' });
+      const response = await server.fetch(server.rawUrl, { method: 'POST', body: JSON.stringify(body) });
+
+      expect(response.status).toBe(401);
+      expect(await response.json()).not.toHaveProperty('message');
+    });
+
+    it('landing-page: HTTP 200 with an HTML page', async () => {
+      const server = createFakeMcpServer({ originSecret: FAKE_ORIGIN_SECRET, originGuardFault: 'landing-page' });
+      const response = await server.fetch(server.rawUrl, { method: 'POST', body: JSON.stringify(body) });
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get('content-type')).toBe('text/html');
+    });
+
+    it.each(['open', 'non-json', 'forbidden', 'no-message', 'landing-page'])(
+      '%s leaves a request with the correct header, the edge, and the preflight unchanged',
+      async (fault) => {
+        const server = createFakeMcpServer({ originSecret: FAKE_ORIGIN_SECRET, originGuardFault: fault });
+        const plain = createFakeMcpServer();
+        const withHeader = await post(server, body, { 'X-Atlantis-Origin-Secret': FAKE_ORIGIN_SECRET });
+        const onEdge = await post(server, body, {}, server.edgeUrl);
+
+        expect(withHeader.text).toBe((await post(plain, body)).text);
+        expect(onEdge.status).toBe(200);
+        expect((await preflight(server)).status).toBe(200);
+      }
+    );
+
+    it('is ignored without originSecret', async () => {
+      const server = createFakeMcpServer({ originGuardFault: 'forbidden' });
+
+      expect((await post(server, body)).status).toBe(200);
+    });
   });
 });

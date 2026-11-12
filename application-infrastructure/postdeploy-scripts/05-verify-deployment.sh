@@ -40,6 +40,64 @@ read_ssm_parameter() {
 }
 
 add_config_error() { config_error="${config_error:+${config_error}; }$1"; }
+# Read one Secrets Manager secret into secret_value, and the read result into secret_status:
+# "ok", the AWS error code (for example AccessDeniedException), "empty", or "error".
+# >! Never prints the value. Standard error goes to a temporary file so a CLI
+# >! warning cannot end up inside the value; only the AWS error code is kept.
+read_secret_string() {
+  local secret_id="$1" err_file
+  err_file="$(mktemp)"
+  if secret_value="$(aws secretsmanager get-secret-value --secret-id "${secret_id}" \
+      --query 'SecretString' --output text 2>"${err_file}")"; then
+    secret_status="ok"
+    # >! A secret with no string value prints as "None" with --output text; it is not a usable secret
+    if [[ -z "${secret_value}" || "${secret_value}" == "None" ]]; then
+      secret_value=""
+      secret_status="empty"
+    fi
+  else
+    secret_value=""
+    secret_status="$(sed -n 's/.*An error occurred (\([A-Za-z0-9]*\)).*/\1/p' "${err_file}")"
+    secret_status="${secret_status%%$'\n'*}"
+    secret_status="${secret_status:-error}"
+  fi
+  # >! Remove the temporary file right away: exec at the end skips any EXIT trap
+  rm -f "${err_file}"
+}
+# Learn whether the stage protects its API with the origin secret (Requirements 7.3 and 7.4).
+# Sets origin_protection ("true" or "false") and, when it is "true", origin_secret. A problem is
+# added to config_error, so the Verifier reports it and the run fails; it never falls back to
+# sending no header, which would test nothing.
+read_origin_protection() {
+  local stack_name="${PREFIX}-${PROJECT_ID}-${STAGE_ID}-application"
+  local secret_name="${PREFIX}-${PROJECT_ID}-${STAGE_ID}-OriginSecret"
+  local flag
+  if ! flag="$(aws cloudformation describe-stacks --stack-name "${stack_name}" \
+      --query "Stacks[0].Parameters[?ParameterKey=='ApiIsBehindCloudFront'].ParameterValue" \
+      --output text 2>/dev/null)"; then
+    add_config_error "could not read the ApiIsBehindCloudFront parameter of stack ${stack_name}; the PostDeploy role needs cloudformation:DescribeStacks on it. Fix it and retry the PostDeploy stage"
+    return 0
+  fi
+  flag="${flag//[[:space:]]/}"
+  case "${flag}" in
+    true) ;;
+    # An older stack has no such parameter: protection is off
+    false|None|"") return 0 ;;
+    *)
+      add_config_error "the ApiIsBehindCloudFront parameter of stack ${stack_name} is neither true nor false"
+      return 0
+      ;;
+  esac
+  origin_protection="true"
+  read_secret_string "${secret_name}"
+  if [[ "${secret_status}" != "ok" ]]; then
+    secret_value=""
+    add_config_error "origin protection is on (ApiIsBehindCloudFront is true) but the origin secret ${secret_name} could not be read (${secret_status}); grant secretsmanager:GetSecretValue on it to the PostDeploy role through PostDeploySvcRoleIncludeManagedPolicyArns on the pipeline stack, then retry the PostDeploy stage"
+    return 0
+  fi
+  origin_secret="${secret_value}"
+  secret_value=""
+}
 
 # 1. Skip switch, before any other input is gathered (Requirement 12.3)
 skip_status="hierarchy-unset"
@@ -91,9 +149,17 @@ if [[ -n "${STAGE_ID:-}" ]]; then
   edge_url="$(node "${VERIFIER}" edge-url "${SETTINGS_FILE}" "${STAGE_ID}")" \
     || add_config_error "could not read the custom domain from ${SETTINGS_FILE}"
 fi
+# >! Origin protection is read only when the stack can be named; a missing variable is already a configuration error
+origin_protection="false"
+origin_secret=""
+if [[ -n "${PREFIX:-}" && -n "${PROJECT_ID:-}" && -n "${STAGE_ID:-}" ]]; then
+  read_origin_protection
+fi
 log_info "Raw target: ${raw_url:-unknown}"
 log_info "Edge target: ${edge_url:-none (no custom domain for this stage)}"
 log_info "Expected release version: ${expected_version:-unknown}"
+# >! Only the flag is logged, never the secret
+log_info "Origin protection: ${origin_protection}"
 
 # 5. Verification key, read only when there is no configuration problem
 key_value=""
@@ -107,6 +173,7 @@ fi
 # 6. Run. >! The key reaches the Verifier only through its environment, never as an argument
 MCP_URL="${raw_url}" MCP_EDGE_URL="${edge_url}" EXPECTED_VERSION="${expected_version}" \
   MCP_API_KEY="${key_value}" MCP_KEY_STATUS="${key_status}" \
+  MCP_ORIGIN_PROTECTION="${origin_protection}" MCP_ORIGIN_SECRET="${origin_secret}" \
   VERIFY_SKIP_SSM_STATUS="${skip_status}" VERIFY_SKIP_SSM_VALUE="${skip_value}" \
   VERIFY_CONFIG_ERROR="${config_error}" \
   exec node "${VERIFIER}" run

@@ -22,6 +22,10 @@
  * - the CORS preflight answer, read from the `Cors` stanza of `template.yml`
  * - HTTP 405 with `Allow: POST` for a method other than POST and OPTIONS on the endpoint path, and
  *   HTTP 400 for any request to another path
+ * - the origin guard (Part B): with `originSecret` set, a POST to the raw target that lacks the correct
+ *   `X-Atlantis-Origin-Secret` header gets HTTP 401, `Cache-Control: no-store`, and a JSON `message`, before
+ *   authentication and the rate limiter. The edge target is served as it always is (the distribution adds the
+ *   header), and the preflight and the 405 answer come from API Gateway, which the guard does not reach
  * - a raw API Gateway host and a separate edge (custom domain) host
  *
  * Every option changes one behavior, so a test can break exactly one thing.
@@ -62,6 +66,18 @@ export const TOOLS_LIST_TTL_MS = 10 * 60 * 1000;
  * (`"public"` or `"private"`), not imported from the Read Function.
  */
 export const CACHE_SCOPE = 'public';
+
+/**
+ * A well-formed fake origin secret: 48 letters and digits, like the generated Secrets Manager
+ * value, built at run time so the source holds no literal that a secret scanner would flag.
+ */
+export const FAKE_ORIGIN_SECRET = ['Mx2Rk9Tb', 'Lw8Hc5Vn', 'Jd6Pf1Sg', 'Ya0Ue7Xo', 'Bi4Kt3Qz', 'Wn5Fr8Dc'].join('');
+
+/** Header (lower case) that carries the origin secret. Written here, not imported from the Read Function. */
+export const ORIGIN_SECRET_HEADER = 'x-atlantis-origin-secret';
+
+/** Body `message` of the guard's `401`. Written here, not imported from the Read Function. */
+export const ORIGIN_GUARD_MESSAGE = 'Requests must use the service endpoint.';
 
 /** Default release version reported by the fake server. */
 export const DEFAULT_VERSION = '0.0.7';
@@ -447,6 +463,15 @@ function rpcError(id, code, message, data) {
  * @param {Object<string, {limitPerWindow: number, windowInMinutes: number}>} [options.rateLimits] - Per-tier limits that replace the defaults
  * @param {boolean|FaultOption} [options.degradedAuth] - Requests that carry a key are served at the public
  *   tier with `X-MCP-Auth-Status: degraded`, as when the hash salt or the Users table is unavailable
+ * @param {string} [options.originSecret] - Turns origin protection on: a POST to the raw target without this value in
+ *   `X-Atlantis-Origin-Secret` gets HTTP 401, `no-store`, and `{"message":"Requests must use the service endpoint."}`
+ *   before authentication and the rate limiter. The edge target, the preflight, and the 405 answer are not guarded
+ * @param {('open'|'non-json'|'forbidden'|'no-message'|'landing-page')} [options.originGuardFault] - Breaks the answer to the
+ *   unprotected request only (a POST to the raw target without the correct header); requests that carry the correct
+ *   secret are served as usual. `open`: the request is served (HTTP 200, a normal result), as an API with no guard;
+ *   `non-json`: HTTP 401 with a `text/plain` body; `forbidden`: HTTP 403 with a JSON `message` (the status the guard
+ *   must never use); `no-message`: HTTP 401 with a JSON body that has no string `message`; `landing-page`: HTTP 200
+ *   with an HTML page (a 401 rewritten by the distribution). Ignored without `originSecret`
  * @param {boolean} [options.edgeDropsMcpHeaders] - The edge does not forward `MCP-Protocol-Version`, `Mcp-Method`, or `Mcp-Name`
  * @param {Object} [options.preflight] - Overrides for the raw preflight (`status`, `allowOrigin`, `allowMethods`, `allowHeaders`)
  * @param {Object} [options.edgePreflight] - The same overrides for the edge preflight
@@ -847,6 +872,40 @@ export function createFakeMcpServer(options = {}) {
   }
 
   /**
+   * Answer a request that does not prove its origin, as the guard does: HTTP 401, `no-store`, and a
+   * JSON `message`. The `originGuardFault` option replaces the healthy answer with one broken answer, or
+   * (`open`) lets the request through.
+   *
+   * @param {Object} call - The recorded call
+   * @returns {Response|null} The answer, or null when the fault is `open` and the request is served normally
+   * @example
+   * // POST https://abc123.execute-api.us-east-1.amazonaws.com/atlantis-mcp-test/mcp/v1 without the header
+   * // -> 401, cache-control: no-store, {"message":"Requests must use the service endpoint."}
+   */
+  function originGuardResponse(call) {
+    const healthyHeaders = {
+      'content-type': 'application/json',
+      'cache-control': 'no-store',
+      'access-control-allow-origin': '*'
+    };
+    switch (options.originGuardFault) {
+      case 'open':
+        return null;
+      case 'non-json':
+        return respondText(call, 401, { ...healthyHeaders, 'content-type': 'text/plain' }, ORIGIN_GUARD_MESSAGE);
+      case 'forbidden':
+        return respond(call, 403, healthyHeaders, { message: ORIGIN_GUARD_MESSAGE });
+      case 'no-message':
+        return respond(call, 401, healthyHeaders, { error: 'Unauthorized' });
+      case 'landing-page':
+        return respondText(call, 200, { 'content-type': 'text/html' },
+          '<!DOCTYPE html><html><head><title>Fake landing page</title></head><body><h1>Fake landing page</h1></body></html>');
+      default:
+        return respond(call, 401, healthyHeaders, { message: ORIGIN_GUARD_MESSAGE });
+    }
+  }
+
+  /**
    * Answer a CORS preflight from the template's `Cors` stanza, as API Gateway does.
    *
    * @param {Object} call - The recorded call
@@ -1079,6 +1138,18 @@ export function createFakeMcpServer(options = {}) {
 
       if (httpMethod === 'OPTIONS') {
         return preflightResponse(call, (target === 'raw' ? options.preflight : options.edgePreflight) ?? {});
+      }
+
+      // The guard runs first, in the Lambda, so a POST to the raw target that does not prove its origin is
+      // refused before authentication and the rate limiter. The edge adds the header itself, so it is not guarded
+      if (target === 'raw' && typeof options.originSecret === 'string' && options.originSecret !== ''
+        && call.headersLower[ORIGIN_SECRET_HEADER] !== options.originSecret) {
+        call.guarded = true;
+        const guardAnswer = originGuardResponse(call);
+        if (guardAnswer !== null) {
+          return guardAnswer;
+        }
+        // The `open` fault: no guard, so the request goes on to authentication and the router
       }
 
       // POST: an edge that drops the MCP headers does not forward them to the Lambda

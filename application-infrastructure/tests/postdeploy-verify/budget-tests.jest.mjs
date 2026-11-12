@@ -3,12 +3,14 @@
  *
  * Design sections 5, 7, and 11; Requirements 13.1, 13.4, and 16.4. A "counted"
  * request is a POST other than S1 (the invalid-key probe, answered 401 before the
- * rate limiter). Preflights are OPTIONS and the 405 probes (M1.1, X2.5) are GETs;
+ * rate limiter) and other than O1.1 (the request without the origin secret, which the
+ * guard refuses with 401 before authentication and the rate limiter, Requirements 7.7
+ * and 8.6). Preflights are OPTIONS and the 405 probes (M1.1, X2.5) are GETs;
  * API Gateway answers both before the rate limiter, so neither is counted. No real
  * network request is made.
  */
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
-import { createFakeMcpServer, FAKE_API_KEY } from './helpers/fake-mcp-server.mjs';
+import { createFakeMcpServer, FAKE_API_KEY, FAKE_ORIGIN_SECRET } from './helpers/fake-mcp-server.mjs';
 import { runVerifier, guardRealFetch } from './helpers/run-verifier.mjs';
 
 /** Expected counted POSTs without an edge target (design section 5). */
@@ -19,6 +21,9 @@ const COUNTED_WITH_EDGE = 24;
 
 /** Request order of the check families, by first request (design section 5). */
 const FAMILY_ORDER = ['P1', 'S1', 'S2', 'P2', 'P3', 'P4', 'P5', 'P6', 'M1', 'T1', 'X1', 'X2'];
+
+/** The same order on a protected stage, where O1 runs between M1 and T1. */
+const FAMILY_ORDER_PROTECTED = ['P1', 'S1', 'S2', 'P2', 'P3', 'P4', 'P5', 'P6', 'M1', 'O1', 'T1', 'X1', 'X2'];
 
 let restoreFetch;
 
@@ -37,14 +42,20 @@ afterAll(() => {
  * @param {boolean} [settings.hasEdge=false] - Pass an edge target (`MCP_EDGE_URL`)
  * @param {boolean} [settings.hasKey=false] - Store an accepted key (private tier)
  * @param {Array.<string>} [settings.extraRevisions=[]] - Extra revisions the server advertises
+ * @param {boolean} [settings.isProtected=false] - The server guards the raw target and the run is told so
  * @returns {Promise.<{result: Object, server: Object}>} The run result and the server
  */
-async function runHealthy({ hasEdge = false, hasKey = false, extraRevisions = [] } = {}) {
+async function runHealthy({ hasEdge = false, hasKey = false, extraRevisions = [], isProtected = false } = {}) {
   const server = createFakeMcpServer({
     extraRevisions,
-    validKeys: hasKey ? { [FAKE_API_KEY]: 'private' } : {}
+    validKeys: hasKey ? { [FAKE_API_KEY]: 'private' } : {},
+    ...(isProtected ? { originSecret: FAKE_ORIGIN_SECRET } : {})
   });
   const env = { MCP_URL: server.rawUrl, EXPECTED_VERSION: '0.0.7' };
+  if (isProtected) {
+    env.MCP_ORIGIN_PROTECTION = 'true';
+    env.MCP_ORIGIN_SECRET = FAKE_ORIGIN_SECRET;
+  }
   if (hasEdge) {
     env.MCP_EDGE_URL = server.edgeUrl;
   }
@@ -67,23 +78,33 @@ function hasKeyHeader(call) {
 }
 
 /**
- * Whether a call is S1, the invalid-key probe (a POST rejected with 401).
+ * Whether a call is O1.1's request: a POST the origin guard refused (it carried no origin secret).
+ *
+ * @param {Object} call - A recorded fake-server call
+ * @returns {boolean} True for O1.1
+ */
+function isO1(call) {
+  return call.method === 'POST' && call.guarded === true && call.status === 401;
+}
+
+/**
+ * Whether a call is S1, the invalid-key probe (a POST rejected with 401 by the key check).
  *
  * @param {Object} call - A recorded fake-server call
  * @returns {boolean} True for S1
  */
 function isS1(call) {
-  return call.method === 'POST' && call.status === 401;
+  return call.method === 'POST' && call.status === 401 && !isO1(call);
 }
 
 /**
- * The POSTs that count against a budget: every POST except S1.
+ * The POSTs that count against a budget: every POST except S1 and O1.1.
  *
  * @param {Array.<Object>} calls - Recorded calls
  * @returns {Array.<Object>} The counted calls
  */
 function countedPosts(calls) {
-  return calls.filter((call) => call.method === 'POST' && !isS1(call));
+  return calls.filter((call) => call.method === 'POST' && !isS1(call) && !isO1(call));
 }
 
 /**
@@ -103,6 +124,9 @@ function familyOf(call, position, hasKey) {
   }
   if (call.method === 'GET') {
     return 'M1';
+  }
+  if (isO1(call)) {
+    return 'O1';
   }
   if (position === 0) {
     return 'P1';
@@ -152,6 +176,60 @@ function collapse(families) {
 }
 
 describe('Verifier request budget on a healthy stage', () => {
+  it('does not count O1.1: 21 counted POSTs without an edge target and 24 with one, on a protected stage', async () => {
+    const withoutEdge = await runHealthy({ isProtected: true });
+    const withEdge = await runHealthy({ isProtected: true, hasEdge: true });
+
+    expect(withoutEdge.result.exitCode).toBe(0);
+    expect(withEdge.result.exitCode).toBe(0);
+    expect(countedPosts(withoutEdge.server.calls)).toHaveLength(COUNTED_NO_EDGE);
+    expect(countedPosts(withEdge.server.calls)).toHaveLength(COUNTED_WITH_EDGE);
+    // O1.1 sent exactly one more POST, refused with 401 by the guard, and S1 is the other 401
+    for (const run of [withoutEdge, withEdge]) {
+      expect(run.server.calls.filter(isO1)).toHaveLength(1);
+      expect(run.server.calls.filter(isS1)).toHaveLength(1);
+      expect(run.server.calls.filter((call) => call.method === 'POST')).toHaveLength(
+        countedPosts(run.server.calls).length + 2
+      );
+    }
+  });
+
+  it('sends nothing for O1.1 on a stage that is not protected, so the totals are as before', async () => {
+    const { server } = await runHealthy();
+
+    expect(server.calls.filter(isO1)).toHaveLength(0);
+    expect(server.calls.filter((call) => call.method === 'POST')).toHaveLength(COUNTED_NO_EDGE + 1);
+  });
+
+  it('uses no counted request of the public tier for O1.1: the guard answers before the rate limiter', async () => {
+    const server = createFakeMcpServer({
+      originSecret: FAKE_ORIGIN_SECRET,
+      rateLimits: { public: { limitPerWindow: COUNTED_NO_EDGE, windowInMinutes: 60 } }
+    });
+    const result = await runVerifier({
+      command: 'run',
+      env: {
+        MCP_URL: server.rawUrl,
+        EXPECTED_VERSION: '0.0.7',
+        MCP_ORIGIN_PROTECTION: 'true',
+        MCP_ORIGIN_SECRET: FAKE_ORIGIN_SECRET
+      },
+      server
+    });
+
+    // A public limit of exactly 21 is enough: no request is answered 429
+    expect(result.exitCode).toBe(0);
+    expect(server.calls.some((call) => call.status === 429)).toBe(false);
+  });
+
+  it('sends the checks in the documented order with O1 between M1 and T1 on a protected stage', async () => {
+    const { server } = await runHealthy({ isProtected: true, hasKey: true, hasEdge: true });
+    const families = collapse(server.calls.map((call, position) => familyOf(call, position, true)));
+
+    expect(families).toEqual(FAMILY_ORDER_PROTECTED);
+    expect(server.stats.maxInFlight).toBeLessThanOrEqual(1);
+  });
+
   it('sends 21 counted POSTs with no edge target and no key', async () => {
     const { result, server } = await runHealthy();
 

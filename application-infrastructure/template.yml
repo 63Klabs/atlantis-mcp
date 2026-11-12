@@ -67,6 +67,7 @@ Metadata:
           - LogRetentionInDaysForPROD
           - LogRetentionInDaysForDEVTEST
           - ApiGatewayLoggingEnabled
+          - ApiIsBehindCloudFront
       -
         Label:
           default: "MCP Server Configuration"
@@ -280,6 +281,12 @@ Parameters:
     Description: "An administrator must enable API Gateway logging account-wide prior to setting this to TRUE. See https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-logging.html"
     Default: "FALSE"
     AllowedValues: ["TRUE", "FALSE"]
+
+  ApiIsBehindCloudFront:
+    Type: String
+    Description: "Set to true only after this stage's Atlantis network stack sends the origin secret (network template v0.2.0 with ApiOriginProtection=true). When true, the Read and Auth functions answer HTTP 401 to a request that does not carry the secret in the X-Atlantis-Origin-Secret header, such as a request sent straight to the raw execute-api URL. Rollout order for each stage: (1) deploy this stack with the flag false (the secret Prefix-ProjectId-StageId-OriginSecret is created in every stage); (2) deploy the network stack with ApiOriginProtection=true; (3) set this flag to true and deploy this stack. Roll back in the reverse order."
+    Default: "false"
+    AllowedValues: ["true", "false"]
 
   # ---------------------------------------------------------------------------
   # Cache-Data Parameters
@@ -593,6 +600,10 @@ Conditions:
   HasPermissionsBoundaryArn: !Not [!Equals [!Ref PermissionsBoundaryArn, ""]]
   IsArmArch: !Equals [!Ref FunctionArchitecture, "arm64"]
   ApiGatewayLoggingIsEnabled: !Equals [!Ref ApiGatewayLoggingEnabled, "TRUE"]
+  # Origin protection (spec 0-0-7-rate-limit-client-ip-spoofing, Part B). Gates the secret
+  # environment variable, the secret-read permission, and the unverified-request metric filter.
+  # The secret itself is created whatever this is.
+  ApiIsBehindCloudFrontIsTrue: !Equals [!Ref ApiIsBehindCloudFront, "true"]
   HasCacheDataDynamoDbTableName: !Not [!Equals [!Ref CacheDataDynamoDbTableName, ""]]
   HasCacheDataS3BucketName: !Not [!Equals [!Ref CacheDataS3BucketName, ""]]
   HasCacheDataStorageStack: !Not [!And [!Condition HasCacheDataDynamoDbTableName, !Condition HasCacheDataS3BucketName]]
@@ -897,6 +908,13 @@ Resources:
           # >! Count 0: cache-data's getClientIp() returns requestContext.identity.sourceIp and reads no
           # >! forwarding header. Correct only because WebApi is REGIONAL (see WebApi).
           CACHE_DATA_TRUSTED_PROXY_HOPS: '0'
+          # >! Setting this variable turns cache-data's verified-origin check ON, and
+          # >! isIngressVerified() is false for ingress "direct" (the check off). It must therefore be
+          # >! set only while ApiIsBehindCloudFront is true, when the network stack sends the secret;
+          # >! otherwise every request would be treated as unverified. The value is the secret's ARN
+          # >! (cache-data accepts a name or an ARN), never the secret itself.
+          # >! CACHE_DATA_INGRESS_SECRET_REFRESH_SECONDS is left unset (default 3600).
+          CACHE_DATA_INGRESS_SECRET_NAME: !If [ApiIsBehindCloudFrontIsTrue, !Ref OriginSecret, !Ref 'AWS::NoValue']
           # Read by BOTH @63klabs/cache-data's AWS helper and this project's xray-capture
           # helper (spec 0-0-6); removing it silently disables downstream subsegments for
           # DynamoDB/S3/Bedrock/S3 Vectors even though Tracing stays Active below.
@@ -1171,6 +1189,13 @@ Resources:
           # >! Count 0: cache-data's getClientIp() returns requestContext.identity.sourceIp and reads no
           # >! forwarding header. Correct only because WebApi is REGIONAL (see WebApi).
           CACHE_DATA_TRUSTED_PROXY_HOPS: '0'
+          # >! Setting this variable turns cache-data's verified-origin check ON, and
+          # >! isIngressVerified() is false for ingress "direct" (the check off). It must therefore be
+          # >! set only while ApiIsBehindCloudFront is true, when the network stack sends the secret;
+          # >! otherwise every request would be treated as unverified. The value is the secret's ARN
+          # >! (cache-data accepts a name or an ARN), never the secret itself.
+          # >! CACHE_DATA_INGRESS_SECRET_REFRESH_SECONDS is left unset (default 3600).
+          CACHE_DATA_INGRESS_SECRET_NAME: !If [ApiIsBehindCloudFrontIsTrue, !Ref OriginSecret, !Ref 'AWS::NoValue']
 
           # Rate limit configuration (must match Read Lambda settings)
           MCP_PUBLIC_RATE_LIMIT: 50
@@ -1285,6 +1310,16 @@ Resources:
             Effect: Allow
             Resource:
             - !Sub "arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/*"
+          # >! Origin secret read, only while the flag is true. The Resource is the secret's own ARN
+          # >! (!Ref returns it), with no wildcard, and the one action cache-data needs. Cognito
+          # >! trigger invocations use this role too and never read the secret.
+          - !If
+            - ApiIsBehindCloudFrontIsTrue
+            - Sid: OriginSecretRead
+              Action: secretsmanager:GetSecretValue
+              Effect: Allow
+              Resource: !Ref OriginSecret
+            - !Ref 'AWS::NoValue'
 
   # -- Lambda permissions allowing API Gateway to execute Auth Lambda --
 
@@ -1903,6 +1938,27 @@ Resources:
               - VectorBucketName: !If [HasDocAiS3VectorBucketOverride, !Ref DocAiS3VectorBucket, !Sub '${Prefix}-${ProjectId}-${StageId}-docvec']
                 IndexName: !If [HasDocAiS3VectorIndexOverride, !Ref DocAiS3VectorIndex, !Sub '${Prefix}-${ProjectId}-${StageId}-docidx']
 
+  # -- Origin secret (0-0-7-rate-limit-client-ip-spoofing, Part B) --
+  # The shared secret the Atlantis distribution sends in X-Atlantis-Origin-Secret on every API
+  # origin request. The network template (v0.2.0, ApiOriginProtection=true) resolves it by this
+  # exact name, with no JSON key, so the header is the ENTIRE SecretString. It is therefore a
+  # PLAIN generated string: no SecretStringTemplate and no GenerateStringKey.
+  # Created in every stage, whatever ApiIsBehindCloudFront is, so the network stack can resolve
+  # it before enforcement starts. 48 letters and digits are about 285 bits.
+  # Tags: the stack's tags propagate to the secret. No DeletionPolicy is set, so the CloudFormation
+  # default applies and the secret is deleted with the stack (Requirement 5.6).
+  #
+  # >! The value never leaves Secrets Manager and the function: there is no Output, Export, or
+  # >! Parameter for it, and nothing logs it. Only the two functions (as the secret ARN in an
+  # >! environment variable) and their two execution roles (GetSecretValue) refer to it.
+  OriginSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub '${Prefix}-${ProjectId}-${StageId}-OriginSecret'
+      Description: "Shared secret the Atlantis distribution sends in the X-Atlantis-Origin-Secret header"
+      GenerateSecretString:
+        PasswordLength: 48
+        ExcludePunctuation: true
   # -- Read Lambda Execution Role --
   # Minimal permissions: S3 GetObject/ListBucket/GetObjectVersion, DynamoDB read, SSM GetParameter
 
@@ -2046,6 +2102,16 @@ Resources:
                 - fallbackExpiresAt
               StringEqualsIfExists:
                 dynamodb:ReturnValues: NONE
+          # >! Origin secret read, only while the flag is true. The Resource is the secret's own ARN
+          # >! (!Ref returns it), with no wildcard, and the one action cache-data needs. The secret
+          # >! uses the default aws/secretsmanager key, so no kms:Decrypt is granted.
+          - !If
+            - ApiIsBehindCloudFrontIsTrue
+            - Sid: OriginSecretRead
+              Action: secretsmanager:GetSecretValue
+              Effect: Allow
+              Resource: !Ref OriginSecret
+            - !Ref 'AWS::NoValue'
 
   # -- Lambda permissions allowing API Gateway to Execute Read Lambda --
   # >! The /mcp/v1 integration invokes the "live" alias (see template-openapi-spec.yml).
@@ -2190,6 +2256,34 @@ Resources:
       MetricTransformations:
         - MetricNamespace: !Sub '${Prefix}-${ProjectId}/Discovery'
           MetricName: SearchZeroResultCount
+          MetricValue: '1'
+          DefaultValue: 0
+
+  # ---------------------------------------------------------------------------
+  # Ingress metric filter (0-0-7-rate-limit-client-ip-spoofing, Part B, Req 9.1)
+  #
+  # COUNT of requests that @63klabs/cache-data classified as "unverified" (the request did not
+  # prove it came from the Atlantis distribution). cache-data writes one line per such request:
+  # [INGRESS_UNVERIFIED] {"reason":"mismatch"}. The reason is one of missing-header, mismatch,
+  # secret-not-primed, secret-unavailable, secret-unusable, bad-configuration.
+  #
+  # Created only when the flag is true, because with the flag false the secret variable is not
+  # set and cache-data never writes the line. No alarm: a few unverified requests are expected
+  # while a stage is switched over.
+  #
+  # >! The read-function runs with AWS_LAMBDA_LOG_FORMAT=text, so the pattern is a quoted
+  # >! literal token. The line is written at every log level, so it counts in PROD as well.
+  # >! The line holds no address, header value, or secret name.
+  # >! Only the Read function's log group is counted; the Auth function's lines are not.
+  IngressUnverifiedMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Condition: ApiIsBehindCloudFrontIsTrue
+    Properties:
+      LogGroupName: !Ref ReadLambdaLogGroup
+      FilterPattern: '"INGRESS_UNVERIFIED"'
+      MetricTransformations:
+        - MetricNamespace: !Sub '${Prefix}-${ProjectId}/Ingress'
+          MetricName: UnverifiedRequestCount
           MetricValue: '1'
           DefaultValue: 0
 

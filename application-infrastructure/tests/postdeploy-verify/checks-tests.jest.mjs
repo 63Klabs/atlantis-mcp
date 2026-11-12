@@ -6,7 +6,7 @@
  * opened and no real network request is made.
  *
  * Coverage:
- * - a healthy stage passes all 47 sub-checks, with and without an edge target, with and without a key
+ * - a healthy stage passes all 48 sub-checks, with and without an edge target, with and without a key
  * - for every sub-check, at least one fake-server fault fails it with the documented reason
  *   (report `checks` entry and the sub-check line on standard output)
  * - the owner and "no usable response; see <owner>" reasons
@@ -23,7 +23,7 @@
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import { loadVerifier } from './helpers/load-verifier.mjs';
 import { runVerifier, guardRealFetch } from './helpers/run-verifier.mjs';
-import { createFakeMcpServer, FAKE_API_KEY } from './helpers/fake-mcp-server.mjs';
+import { createFakeMcpServer, FAKE_API_KEY, FAKE_ORIGIN_SECRET } from './helpers/fake-mcp-server.mjs';
 
 const { SUB_CHECKS } = loadVerifier();
 
@@ -177,16 +177,19 @@ function makeServer({ mutations = [], statusOverrides = [], ...options } = {}) {
  * @param {Object} [options.server] - Options of {@link makeServer}
  * @param {Object.<string, string>} [options.env] - Extra environment variables
  * @param {boolean} [options.edge=true] - Whether the run has an edge target
+ * @param {boolean} [options.isProtected=true] - Whether the API is protected by the origin secret (the guard is modelled and the
+ *   run is told so); `false` is a stage that has not turned `ApiIsBehindCloudFront` on, where O1.1 is skipped
  * @returns {Promise.<Object>} The `runVerifier` result plus `server` and `check(id)`
  */
-async function runStage({ server: serverOptions = {}, env = NO_KEY_ENV, edge = true } = {}) {
-  const server = makeServer(serverOptions);
+async function runStage({ server: serverOptions = {}, env = NO_KEY_ENV, edge = true, isProtected = true } = {}) {
+  const server = makeServer(isProtected ? { originSecret: FAKE_ORIGIN_SECRET, ...serverOptions } : serverOptions);
   const result = await runVerifier({
     command: 'run',
     env: {
       MCP_URL: server.rawUrl,
       MCP_EDGE_URL: edge ? server.edgeUrl : '',
       EXPECTED_VERSION,
+      ...(isProtected ? { MCP_ORIGIN_PROTECTION: 'true', MCP_ORIGIN_SECRET: FAKE_ORIGIN_SECRET } : {}),
       ...env
     },
     server
@@ -320,13 +323,13 @@ const ALL_IDS = SUB_CHECKS.map((definition) => definition.id);
 /* ------------------------------------------------------------------ */
 
 describe('healthy stage', () => {
-  it('has 47 sub-checks, 37 core and 10 advisory', () => {
-    expect(SUB_CHECKS).toHaveLength(47);
-    expect(SUB_CHECKS.filter((definition) => definition.severity === 'core')).toHaveLength(37);
+  it('has 48 sub-checks, 38 core and 10 advisory', () => {
+    expect(SUB_CHECKS).toHaveLength(48);
+    expect(SUB_CHECKS.filter((definition) => definition.severity === 'core')).toHaveLength(38);
     expect(SUB_CHECKS.filter((definition) => definition.severity === 'advisory')).toHaveLength(10);
   });
 
-  it('passes all 47 sub-checks with a key and an edge target', async () => {
+  it('passes all 48 sub-checks with a key and an edge target', async () => {
     const run = await runStage({ server: ACCEPT_KEY, env: KEY_ENV, edge: true });
 
     expect(run.exitCode).toBe(0);
@@ -338,7 +341,7 @@ describe('healthy stage', () => {
       expect(entry.reason).toBeNull();
     }
     expect(run.report.counts).toEqual({
-      core: { passed: 37, failed: 0, skipped: 0 },
+      core: { passed: 38, failed: 0, skipped: 0 },
       advisory: { passed: 10, warned: 0, skipped: 0 }
     });
     expect(run.report.failedCore).toEqual([]);
@@ -347,7 +350,7 @@ describe('healthy stage', () => {
 
     // One PASS line per sub-check, in catalog order
     const passLines = run.stdout.split('\n').filter((line) => line.startsWith('PASS'));
-    expect(passLines).toHaveLength(47);
+    expect(passLines).toHaveLength(48);
     expect(passLines.map((line) => line.split(/\s+/)[1])).toEqual(ALL_IDS);
   });
 
@@ -361,7 +364,7 @@ describe('healthy stage', () => {
       expect(entry.outcome).toBe(entry.id.startsWith('X2.') ? 'skip' : 'pass');
     }
     expect(run.report.counts).toEqual({
-      core: { passed: 37, failed: 0, skipped: 0 },
+      core: { passed: 38, failed: 0, skipped: 0 },
       advisory: { passed: 5, warned: 0, skipped: 5 }
     });
     expect(run.calls.some((call) => call.target === 'edge')).toBe(false);
@@ -377,7 +380,7 @@ describe('healthy stage', () => {
       expect(entry.outcome).toBe(entry.id.startsWith('S2.') ? 'skip' : 'pass');
     }
     expect(run.report.counts).toEqual({
-      core: { passed: 37, failed: 0, skipped: 0 },
+      core: { passed: 38, failed: 0, skipped: 0 },
       advisory: { passed: 7, warned: 0, skipped: 3 }
     });
     expectSkipped(run, 'S2.1', /placeholder BLANK/);
@@ -396,11 +399,27 @@ describe('healthy stage', () => {
       expect(entry.outcome).toBe(isSkipped ? 'skip' : 'pass');
     }
     expect(run.report.counts).toEqual({
-      core: { passed: 37, failed: 0, skipped: 0 },
+      core: { passed: 38, failed: 0, skipped: 0 },
       advisory: { passed: 2, warned: 0, skipped: 8 }
     });
   });
 
+  it('passes the run and skips only O1.1 (and S2) when the stage does not protect its API', async () => {
+    const run = await runStage({ env: NO_KEY_ENV, edge: true, isProtected: false });
+    expect(run.exitCode).toBe(0);
+    expect(run.report.outcome).toBe('passed');
+    expect(run.report.checks.map((entry) => entry.id)).toEqual(ALL_IDS);
+    for (const entry of run.report.checks) {
+      expect(entry.outcome).toBe(entry.id.startsWith('S2.') || entry.id === 'O1.1' ? 'skip' : 'pass');
+    }
+    expectSkipped(run, 'O1.1', /^origin protection is off for this stage \(ApiIsBehindCloudFront is false\)$/);
+    expect(run.report.counts).toEqual({
+      core: { passed: 37, failed: 0, skipped: 1 },
+      advisory: { passed: 7, warned: 0, skipped: 3 }
+    });
+    // A skip that says the check does not apply is not a missing answer
+    expect(run.report.skippedCore).toEqual([]);
+  });
   it('notes "none advertised" on P5.9 when the server advertises no extra revision', async () => {
     const run = await runStage();
 
@@ -892,14 +911,43 @@ const FAILURES = [
     server: { methodNotAllowed: { fault: 'not-json' } },
     reason: /^content-type is "text\/plain", expected application\/json; body is not a JSON object with a string "message"$/,
     only: true
+  },
+  // O1 (the stage is protected by the origin secret; each fault breaks the answer to the unprotected request only)
+  {
+    id: 'O1.1',
+    name: 'the API serves a request that carries no origin secret (an open API, HTTP 200)',
+    server: { originGuardFault: 'open' },
+    reason: /^HTTP 200, expected 401; the request was served without proof of origin; body: /,
+    only: true
+  },
+  {
+    id: 'O1.1',
+    name: 'the guard answers 403, the status it must never use',
+    server: { originGuardFault: 'forbidden' },
+    reason: /^HTTP 403, expected 401; the guard must answer 401: the distribution rewrites 403 and 404 to the landing page; body: /,
+    only: true
+  },
+  {
+    id: 'O1.1',
+    name: 'the 401 body is plain text, not JSON',
+    server: { originGuardFault: 'non-json' },
+    reason: /^content-type is "text\/plain", expected application\/json; body is not a JSON object with a string "message"$/,
+    only: true
+  },
+  {
+    id: 'O1.1',
+    name: 'the 401 body has no string message',
+    server: { originGuardFault: 'no-message' },
+    reason: /^body is not a JSON object with a string "message"$/,
+    only: true
   }
 ];
 
 describe('every sub-check can fail with its documented reason', () => {
-  it('has a failing fault for each of the 47 sub-checks', () => {
+  it('has a failing fault for each of the 48 sub-checks', () => {
     const covered = new Set(FAILURES.map((row) => row.id));
     expect([...ALL_IDS].filter((id) => !covered.has(id))).toEqual([]);
-    expect(covered.size).toBe(47);
+    expect(covered.size).toBe(48);
   });
 
   it.each(FAILURES.map((row) => [`${row.id}: ${row.name}`, row]))('%s', async (_name, row) => {
@@ -1099,7 +1147,7 @@ describe('rate limited (Requirements 10.4, 10.6)', () => {
       }
       expect(entry.outcome).toBe(entry.id.startsWith('S2.') ? 'skip' : 'pass');
     }
-    expect(run.report.checks).toHaveLength(47);
+    expect(run.report.checks).toHaveLength(48);
 
     // A skipped core sub-check makes the run inconclusive, never failed or passed
     expect(run.report.outcome).toBe('inconclusive');
@@ -1124,7 +1172,8 @@ describe('rate limited (Requirements 10.4, 10.6)', () => {
     expectSkipped(run, 'S2.3', NO_BASELINE);
 
     const bearerIndex = indexOfBearerCall(run.calls);
-    const later = run.calls.slice(bearerIndex + 1).filter((call) => call.method === 'POST');
+    // O1.1's request never carries a key: it must go as an unprotected, anonymous request
+    const later = run.calls.slice(bearerIndex + 1).filter((call) => call.method === 'POST' && !call.guarded);
     expect(later.length).toBeGreaterThan(15);
     for (const call of later) {
       expect(call.headersLower['x-api-key']).toBe(FAKE_API_KEY);
@@ -1171,7 +1220,10 @@ describe('S2 and the key (Requirements 9.4, 9.5)', () => {
     const run = await runStage({ server: ACCEPT_KEY, env: KEY_ENV });
 
     const posts = run.calls.filter((call) => call.method === 'POST');
-    const [p1, s1, s2a, s2b, ...rest] = posts;
+    // O1.1's request never carries a key: it must go as an unprotected, anonymous request
+    const [p1, s1, s2a, s2b, ...restWithGuard] = posts;
+    const rest = restWithGuard.filter((call) => !call.guarded);
+    expect(restWithGuard.filter((call) => call.guarded)).toHaveLength(1);
     expect(p1.headersLower['x-api-key']).toBeUndefined();
     expect(s1.headersLower['x-api-key']).toBe('postdeploy-verify-invalid-key');
     expect(s2a.headersLower['x-api-key']).toBe(FAKE_API_KEY);
@@ -1209,7 +1261,8 @@ describe('S2 and the key (Requirements 9.4, 9.5)', () => {
     const bearerIndex = indexOfBearerCall(run.calls);
     expect(bearerIndex).toBeGreaterThan(0);
     expect(callsWithKey(run.calls.slice(bearerIndex + 1))).toHaveLength(0);
-    const later = run.calls.slice(bearerIndex + 1).filter((call) => call.method === 'POST');
+    // O1.1's request never carries a key: it must go as an unprotected, anonymous request
+    const later = run.calls.slice(bearerIndex + 1).filter((call) => call.method === 'POST' && !call.guarded);
     expect(later.length).toBeGreaterThan(15);
 
     // Every other sub-check passed at the public tier
@@ -1321,8 +1374,8 @@ describe('revisions beyond the floor', () => {
     const run = await runStage();
 
     const tools = run.calls.filter((call) => call.rpcMethod === 'tools/list' && call.target === 'raw');
-    // P3a, P3b, P4a, P4d, P4e, and P5a to P5e
-    expect(tools).toHaveLength(10);
+    // P3a, P3b, P4a, P4d, P4e, O1, and P5a to P5e
+    expect(tools).toHaveLength(11);
     expect(run.report.supportedVersions).toEqual(['2024-11-05', '2025-11-25', '2026-07-28']);
   });
 });

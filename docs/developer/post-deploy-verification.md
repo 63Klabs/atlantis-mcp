@@ -16,7 +16,7 @@ The requirements and design are in the [spec](../../.kiro/specs/0-0-7-postdeploy
 
 ## What it checks
 
-The Verifier evaluates 47 sub-checks (37 core and 10 advisory) with stable IDs of the form `<check>.<n>`. Core checks fail the build. Advisory checks print `WARN` and never change the outcome.
+The Verifier evaluates 48 sub-checks (38 core and 10 advisory) with stable IDs of the form `<check>.<n>`. Core checks fail the build. Advisory checks print `WARN` and never change the outcome.
 
 | Check | Severity | What it proves | Sub-checks |
 |-------|----------|----------------|------------|
@@ -28,15 +28,18 @@ The Verifier evaluates 47 sub-checks (37 core and 10 advisory) with stable IDs o
 | P5 | Core | `tools/list` per revision: modern cacheable fields (`cacheScope` must be `public` or `private`), legacy results without them, titles and annotations on `2025-11-25` and later, the same tools on every revision, and every extra advertised revision accepted | P5.1 to P5.9 |
 | P6 | Core | `tools/call` for `list_tools` with the modern envelope on `2026-07-28` and without it on `2025-11-25` | P6.1, P6.2 |
 | M1 | Core | A `GET` with `Accept: text/event-stream` and no key gets HTTP 405, `Allow: POST`, a JSON content type, and a JSON object body with a string `message` (the wording of the message is not checked). Judged by `judgeMethodNotAllowed`, which X2.5 shares | M1.1 |
+| O1 | Core | A request to the raw target without the `X-Atlantis-Origin-Secret` header gets HTTP 401, a JSON content type, and a JSON object body with a string `message` (the wording is not checked). A `403` or `404` fails: the guard must use `401` because the distribution rewrites those two to the landing page. SKIP when the stage does not protect its API (see [Origin protection](#origin-protection-o1)) | O1.1 |
 | X1 | Core | The CORS preflight on the API Gateway endpoint | X1.1 to X1.3 |
 | T1 | Advisory | `list_templates` returns template data, which needs the backends | T1.1 |
 | S1 | Advisory | An invalid key is rejected with HTTP 401 | S1.1 |
 | S2 | Advisory | The stored key is accepted in `X-API-Key` and as a Bearer token, and gets a higher rate limit than the public tier | S2.1 to S2.3 |
 | X2 | Advisory | The preflight and the `-32020` behavior (HTTP 400 with `-32020` in X2.3 and X2.4) also work through the stage's custom domain, which shows CloudFront forwards the headers and passes the 400 status on unchanged. X2.5 sends the M1 `GET` through the edge and expects the same `405`, which shows the edge does not replace it with the landing page | X2.1 to X2.5 |
 
-Without a stored key, S2.1 to S2.3 are SKIP. Without a custom domain (`test`), X2.1 to X2.5 are SKIP.
+Without a stored key, S2.1 to S2.3 are SKIP. Without a custom domain (`test`), X2.1 to X2.5 are SKIP. While `ApiIsBehindCloudFront` is `false`, O1.1 is SKIP.
 
-The `GET` probes (M1.1 and X2.5) are answered by an API Gateway mock and never reach the Read Function. The Verifier counts them in neither `requests.posts` nor `requests.preflights`, so the request counts in [Running it locally](#running-it-locally) and the operator guide's [request budget](../admin-ops/post-deploy-verification.md#request-budget) do not change. Like a preflight, a `GET` carries no key, no body, no `Content-Type`, and no JSON-RPC `id`. The full catalog, with each request and its pass conditions, is in the [design](../../.kiro/specs/0-0-7-postdeploy-smoke-verification/design.md#7-check-catalog). The P3, P4, and X2 conditions above are the current ones, set by [schema validation of modern results](../../.kiro/specs/0-0-7-schema-validation-of-modern-results/design.md).
+The checks run in this order: P1, S1, S2, P2, P3, P4, P5, P6, M1, O1, T1, X1, X2 (`CHECK_ORDER` in `verify-deployment.js`).
+
+The `GET` probes (M1.1 and X2.5) are answered by an API Gateway mock and never reach the Read Function. The Verifier counts them in neither `requests.posts` nor `requests.preflights`, so the request counts in [Running it locally](#running-it-locally) and the operator guide's [request budget](../admin-ops/post-deploy-verification.md#request-budget) do not change. O1.1 is a `POST` that the guard refuses before the rate limiter, so it is not counted either (the budget tests assert it). Like a preflight, a `GET` carries no key, no body, no `Content-Type`, and no JSON-RPC `id`. The full catalog, with each request and its pass conditions, is in the [design](../../.kiro/specs/0-0-7-postdeploy-smoke-verification/design.md#7-check-catalog). The P3, P4, and X2 conditions above are the current ones, set by [schema validation of modern results](../../.kiro/specs/0-0-7-schema-validation-of-modern-results/design.md).
 
 ### Failure reasons for P3, P4, and X2
 
@@ -108,10 +111,12 @@ With no command name, the Verifier decides the skip switch from `VERIFY_SKIP`, l
 | `VERIFY_SKIP` | No | `false` | `true` skips verification and exits 0. Any other value runs it; a non-empty value other than `true` or `false` also prints a `WARN` |
 | `VERIFY_REQUEST_TIMEOUT_MS` | No | `30000` | Timeout of each attempt, as a positive whole number |
 | `VERIFY_REPORT_PATH` | No | `build/verify/report.json` | Report file. A path inside `build/final/`, which is published, is refused |
+| `MCP_ORIGIN_PROTECTION` | No | none | `true` or `false`, the stack's `ApiIsBehindCloudFront`. `true` turns on the origin-secret header and O1.1. `false` skips O1.1 and sends no header even when `MCP_ORIGIN_SECRET` is set. Unset: protection is on only when `MCP_ORIGIN_SECRET` is non-empty. Any other value is a configuration error |
+| `MCP_ORIGIN_SECRET` | No | none | The value of the stage's origin secret. Required when `MCP_ORIGIN_PROTECTION` is `true`. Sent as `X-Atlantis-Origin-Secret` to the raw target only. Never printed or reported |
 | `PREFIX`, `PROJECT_ID`, `STAGE_ID` | No | none | Recorded in the report. With all three set, the retry command in an `inconclusive` run names the real pipeline |
 | `PARAM_STORE_HIERARCHY` | No | none | Used only to name the key parameter in messages |
 
-The Wrapper also sets `MCP_KEY_STATUS`, `VERIFY_SKIP_SSM_STATUS`, `VERIFY_SKIP_SSM_VALUE`, and `VERIFY_CONFIG_ERROR` for the Verifier. They exist only between the two and are not needed for a local run.
+The Wrapper also sets `MCP_KEY_STATUS`, `VERIFY_SKIP_SSM_STATUS`, `VERIFY_SKIP_SSM_VALUE`, and `VERIFY_CONFIG_ERROR` for the Verifier. They exist only between the two and are not needed for a local run. The Wrapper also sets `MCP_ORIGIN_PROTECTION` and `MCP_ORIGIN_SECRET` from the stack and Secrets Manager (see below).
 
 ### Commands and exit codes
 
@@ -130,7 +135,7 @@ An unknown command prints the usage to standard error and exits 1.
 | `passed` | 0 | Every core sub-check passed. Warnings and skips are listed |
 | `skipped` | 0 | The skip switch was on. No request was sent |
 | `failed` | 1 | A core sub-check failed |
-| `inconclusive` | 1 | A core sub-check got no answer because of HTTP `429` or a missing baseline |
+| `inconclusive` | 1 | A core sub-check got no answer because of HTTP `429` or a missing baseline. A core SKIP of O1.1 because origin protection is off is the one exception and does not make a run inconclusive |
 | `error` | 1 | A configuration problem or an internal error, with no request sent for a configuration problem |
 
 ### Running the tests
@@ -144,6 +149,48 @@ npm test
 ```
 
 The post-deploy buildspec runs the same package in its `pre_build` phase. A failing test stops the build before the site is built or published. See the [testing guide](testing.md) for the other test packages.
+
+## Origin protection (O1)
+
+O1.1 proves that the stage's API refuses a request that does not carry the origin secret. It only means something on a stage where the application stack's `ApiIsBehindCloudFront` parameter is `true`. The guard is described in [How the address is resolved](client-address.md#the-origin-guard), and the rollout in [Ingress and client address](../admin-ops/ingress-and-client-address.md#origin-protection).
+
+### How the Wrapper decides
+
+`05-verify-deployment.sh` reads the parameter with `aws cloudformation describe-stacks` on the stack `${PREFIX}-${PROJECT_ID}-${STAGE_ID}-application`, using the CloudFormation read access that script `01-export-api-spec.sh` already needs. It then sets the two variables for the Verifier.
+
+| `ApiIsBehindCloudFront` | What the Wrapper does |
+|-------------------------|-----------------------|
+| `false`, empty, or no such parameter (an older stack) | Sets `MCP_ORIGIN_PROTECTION=false`, reads no secret. O1.1 is SKIP |
+| `true` | Reads the secret `${PREFIX}-${PROJECT_ID}-${STAGE_ID}-OriginSecret` with `aws secretsmanager get-secret-value` and sets `MCP_ORIGIN_PROTECTION=true` and `MCP_ORIGIN_SECRET` |
+| Any other value, or `describe-stacks` fails | Reports a configuration error through `VERIFY_CONFIG_ERROR`. The run ends `error` and exit code 1 |
+| `true`, but the secret cannot be read | Reports a configuration error that names the secret, the AWS error code, the `secretsmanager:GetSecretValue` permission, and `PostDeploySvcRoleIncludeManagedPolicyArns`. The run ends `error`. The Verifier never falls back to sending no header |
+
+The Wrapper logs `Origin protection: true` or `false`. It never prints the secret, and the Verifier redacts it from every report line, body excerpt, and error, as it does the API key.
+
+### What the Verifier sends
+
+With protection on, every request to the raw target carries `X-Atlantis-Origin-Secret`, and no request to the edge target does. The one exception is the O1.1 request, a keyless `tools/list` that deliberately omits the header. `NEVER_SENT_HEADERS` still lists only `x-forwarded-for` and `cookie`, because the origin header is sent on purpose to one target.
+
+O1.1 passes only for HTTP 401, a JSON content type, and a JSON object body with a string `message`. When the answer is HTTP 200 with a JSON-RPC result, the reason says the request was served without proof of origin. When it is `403` or `404`, the reason says the guard must answer `401`.
+
+When protection is off, O1.1 is SKIP with the reason `origin protection is off for this stage (ApiIsBehindCloudFront is false)`. The outcome rule ignores a core SKIP with exactly that reason: without it, every stage would be `inconclusive` until its flag is turned on. Any other core SKIP, and any HTTP 429, still gives `inconclusive`. The report format is unchanged, so on an unprotected stage `counts.core.skipped` is 1 while `skippedCore` is empty.
+
+### Running it locally
+
+```bash
+# The stage's origin secret, typed without echo so it stays out of shell history
+read -rs -p "Origin secret: " MCP_ORIGIN_SECRET; echo
+export MCP_ORIGIN_SECRET
+export MCP_ORIGIN_PROTECTION="true"
+node application-infrastructure/postdeploy-scripts/verify-deployment.js
+unset MCP_ORIGIN_SECRET
+```
+
+Leave both variables unset (or set `MCP_ORIGIN_PROTECTION=false`) to skip O1.1.
+
+### Tests
+
+`origin-protection-tests.jest.mjs` covers O1.1 against the fake server and its faults, and `wrapper-origin-protection-tests.jest.mjs` runs the Wrapper's two reader functions with a stub `aws` command. The fake server (`helpers/fake-mcp-server.mjs`) models the guard with its `originSecret` option and the faults `open`, `non-json`, `forbidden`, `no-message`, and `landing-page` (`originGuardFault`). It imports nothing from the Read function.
 
 ## Getting a verification key for a stage
 
@@ -217,7 +264,7 @@ To add or change a check:
 2. Teach the fake server in `tests/postdeploy-verify/helpers/fake-mcp-server.mjs` the new request, using the response shapes in [supported protocol revisions](../end-user/supported-protocol-revisions.md) and [CORS and response headers](../admin-ops/cors-and-response-headers.md). `fake-mcp-server-tests.jest.mjs` keeps the fake honest, and `fake-mcp-server-schema-conformance.jest.mjs` checks its responses against the vendored schemas, so a new response shape must pass both.
 3. In `checks-tests.jest.mjs`, show that a healthy server passes the sub-check and that a change to the fake fails it with the documented reason.
 4. In `budget-tests.jest.mjs`, update the expected counted requests if the check sends a new one.
-5. In `outcome-and-report-tests.jest.mjs`, update the fixed list of sub-check IDs and the counts (47 sub-checks, 37 core, 10 advisory).
+5. In `outcome-and-report-tests.jest.mjs`, update the fixed list of sub-check IDs and the counts (48 sub-checks, 38 core, 10 advisory).
 6. Update the check table in the [operator guide](../admin-ops/post-deploy-verification.md), the table above, and the mapping from manual items to sub-checks in [`TODO-MANUAL-VERIFY.md`](../../.kiro/specs/0-0-7-mcp-protocol-dual-era/TODO-MANUAL-VERIFY.md).
 7. Run the package's tests as described above.
 

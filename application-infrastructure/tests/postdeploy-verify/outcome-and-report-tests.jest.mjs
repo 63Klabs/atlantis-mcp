@@ -19,7 +19,7 @@ import path from 'node:path';
 import { describe, it, expect, beforeAll, afterAll, afterEach } from '@jest/globals';
 import { loadVerifier } from './helpers/load-verifier.mjs';
 import { runVerifier, guardRealFetch, FIXED_NOW } from './helpers/run-verifier.mjs';
-import { createFakeMcpServer, FAKE_API_KEY } from './helpers/fake-mcp-server.mjs';
+import { createFakeMcpServer, FAKE_API_KEY, FAKE_ORIGIN_SECRET } from './helpers/fake-mcp-server.mjs';
 
 const {
   computeOutcome,
@@ -98,6 +98,12 @@ function envFor(server, extra = {}) {
   };
 }
 
+/** Fake-server options and environment of a stage whose API is protected by the origin secret. */
+const PROTECTED = Object.freeze({
+  server: Object.freeze({ originSecret: FAKE_ORIGIN_SECRET }),
+  env: Object.freeze({ MCP_ORIGIN_PROTECTION: 'true', MCP_ORIGIN_SECRET: FAKE_ORIGIN_SECRET })
+});
+
 /**
  * Run the `run` command against a fresh fake server.
  *
@@ -127,7 +133,7 @@ function countReportLines(result) {
   return (`${result.stdout}\n${result.stderr}`.match(/VERIFY_REPORT /g) || []).length;
 }
 
-/** The 47 sub-check IDs in catalog order. A change here must be deliberate (Requirement 10.2). */
+/** The 48 sub-check IDs in catalog order. A change here must be deliberate (Requirement 10.2). */
 const EXPECTED_SUB_CHECK_IDS = Object.freeze([
   'P1.1', 'P1.2', 'P1.3', 'P1.4', 'P1.5', 'V1.1',
   'S1.1', 'S2.1', 'S2.2', 'S2.3',
@@ -137,6 +143,7 @@ const EXPECTED_SUB_CHECK_IDS = Object.freeze([
   'P5.1', 'P5.2', 'P5.3', 'P5.4', 'P5.5', 'P5.6', 'P5.7', 'P5.8', 'P5.9',
   'P6.1', 'P6.2',
   'M1.1',
+  'O1.1',
   'T1.1',
   'X1.1', 'X1.2', 'X1.3',
   'X2.1', 'X2.2', 'X2.3', 'X2.4', 'X2.5'
@@ -164,9 +171,9 @@ const EXPECTED_CHECK_ENTRY_KEYS = Object.freeze([
 /* ------------------------------------------------------------------ */
 
 describe('Sub-check ID stability (Requirement 10.2)', () => {
-  it('lists exactly the 47 fixed IDs, in order', () => {
+  it('lists exactly the 48 fixed IDs, in order', () => {
     expect(SUB_CHECKS.map((definition) => definition.id)).toEqual([...EXPECTED_SUB_CHECK_IDS]);
-    expect(EXPECTED_SUB_CHECK_IDS).toHaveLength(47);
+    expect(EXPECTED_SUB_CHECK_IDS).toHaveLength(48);
   });
 
   it('never reuses an ID', () => {
@@ -174,11 +181,11 @@ describe('Sub-check ID stability (Requirement 10.2)', () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it('has 37 core and 10 advisory sub-checks, the advisory ones being the fixed ten', () => {
+  it('has 38 core and 10 advisory sub-checks, the advisory ones being the fixed ten', () => {
     const advisory = SUB_CHECKS.filter((definition) => definition.severity === 'advisory').map((definition) => definition.id);
     const core = SUB_CHECKS.filter((definition) => definition.severity === 'core');
     expect(advisory).toEqual([...EXPECTED_ADVISORY_IDS]);
-    expect(core).toHaveLength(37);
+    expect(core).toHaveLength(38);
   });
 
   it('gives every sub-check a check group, a title, and a plain ID shape', () => {
@@ -224,7 +231,7 @@ describe('Run outcomes and exit codes (Requirement 10.5)', () => {
       expect(result.exitCode).toBe(0);
       expect(result.report.outcome).toBe('passed');
       expect(result.report.targets.edge).toBeNull();
-      expect(result.report.checks).toHaveLength(47);
+      expect(result.report.checks).toHaveLength(48);
     });
 
     it('keeps an advisory failure out of the outcome and lists it in warnings', async () => {
@@ -536,12 +543,21 @@ describe('Summary counts (Requirement 14.1)', () => {
   it('prints the counts of a healthy run without a key', async () => {
     const result = await runAgainstFake();
     expect(result.stdout).toContain(
-      `${LOG_PREFIX} INFO: Core: 37 passed, 0 failed, 0 skipped. Advisory: 7 passed, 0 warned, 3 skipped`
+      `${LOG_PREFIX} INFO: Core: 37 passed, 0 failed, 1 skipped. Advisory: 7 passed, 0 warned, 3 skipped`
     );
+    // O1.1 is skipped because the stage is not protected; that skip is not a missing answer, so the run passes
     expect(result.report.counts).toEqual({
-      core: { passed: 37, failed: 0, skipped: 0 },
+      core: { passed: 37, failed: 0, skipped: 1 },
       advisory: { passed: 7, warned: 0, skipped: 3 }
     });
+    expect(result.report.outcome).toBe('passed');
+  });
+  it('counts all 38 core sub-checks as passed when the stage is protected', async () => {
+    const result = await runAgainstFake(PROTECTED.server, PROTECTED.env);
+    expect(result.stdout).toContain(
+      `${LOG_PREFIX} INFO: Core: 38 passed, 0 failed, 0 skipped. Advisory: 7 passed, 0 warned, 3 skipped`
+    );
+    expect(result.report.counts.core).toEqual({ passed: 38, failed: 0, skipped: 0 });
   });
 
   it('counts every advisory sub-check as passed when a key is accepted', async () => {
@@ -549,7 +565,7 @@ describe('Summary counts (Requirement 14.1)', () => {
       { validKeys: { [FAKE_API_KEY]: 'private' } },
       { MCP_API_KEY: FAKE_API_KEY }
     );
-    expect(result.stdout).toContain('Core: 37 passed, 0 failed, 0 skipped. Advisory: 10 passed, 0 warned, 0 skipped');
+    expect(result.stdout).toContain('Core: 37 passed, 0 failed, 1 skipped. Advisory: 10 passed, 0 warned, 0 skipped');
     expect(result.report.counts.advisory).toEqual({ passed: 10, warned: 0, skipped: 0 });
   });
 
@@ -561,11 +577,15 @@ describe('Summary counts (Requirement 14.1)', () => {
   });
 
   it('counts failed and skipped core sub-checks', async () => {
-    const failed = await runAgainstFake({ version: '0.0.6' });
+    const failed = await runAgainstFake({ ...PROTECTED.server, version: '0.0.6' }, PROTECTED.env);
     expect(failed.report.counts.core.failed).toBe(failed.report.failedCore.length);
     expect(failed.stdout).toMatch(/Core: \d+ passed, [1-9]\d* failed, 0 skipped/);
 
-    const inconclusive = await runAgainstFake({ rateLimited: { select: { target: 'raw', rpcMethod: 'server/discover' } } });
+    // Protected, so O1.1 runs and the skips are all from the 429
+    const inconclusive = await runAgainstFake(
+      { ...PROTECTED.server, rateLimited: { select: { target: 'raw', rpcMethod: 'server/discover' } } },
+      PROTECTED.env
+    );
     expect(inconclusive.report.counts.core.skipped).toBe(inconclusive.report.skippedCore.length);
     expect(inconclusive.report.counts.core.skipped).toBeGreaterThan(0);
   });
@@ -619,7 +639,7 @@ describe('Report (Requirements 14.2, 14.3, 14.4, 14.5, 14.6)', () => {
 
     it('has the fixed keys in every check entry', async () => {
       const result = await runAgainstFake({ edgeDropsMcpHeaders: true });
-      expect(result.report.checks).toHaveLength(47);
+      expect(result.report.checks).toHaveLength(48);
       for (const entry of result.report.checks) {
         expect(Object.keys(entry)).toEqual([...EXPECTED_CHECK_ENTRY_KEYS]);
       }

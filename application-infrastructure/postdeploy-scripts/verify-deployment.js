@@ -20,6 +20,13 @@
  *   EXPECTED_VERSION=0.0.7 MCP_API_KEY="$YOUR_KEY" node verify-deployment.js
  *
  * @example
+ * // Local run against a stage whose API is protected by the origin secret. The secret is sent as
+ * // X-Atlantis-Origin-Secret to the raw target only, and O1.1 checks that a request without it gets 401.
+ * // MCP_ORIGIN_PROTECTION=false (or leaving both variables unset) skips O1.1
+ * MCP_URL=https://abc123.execute-api.us-east-1.amazonaws.com/test/mcp/v1 EXPECTED_VERSION=0.0.7 \
+ *   MCP_ORIGIN_PROTECTION=true MCP_ORIGIN_SECRET="$ORIGIN_SECRET" node verify-deployment.js
+ *
+ * @example
  * // Wrapper, step 1: decide and log the skip switch (exit 20 means skipped)
  * node verify-deployment.js skip-check
  *
@@ -88,6 +95,39 @@ const LOG_PREFIX = '[05-verify-deployment]';
 // >! It is sent only by S2 to prove the server rejects an unknown key.
 /** Made-up API key that must be rejected. */
 const INVALID_TEST_KEY = 'postdeploy-verify-invalid-key';
+
+/**
+ * Header that carries the origin secret to the raw target.
+ *
+ * >! Restated here on purpose. The verifier must not read the Lambda functions' or
+ * >! cache-data's definition: a check that shares the server's reading of the contract
+ * >! cannot catch the server misreading it. It is sent only to the raw target (never
+ * >! the edge, whose distribution adds it) and is not in `NEVER_SENT_HEADERS`, which
+ * >! lists headers that are refused whatever a request spec says.
+ *
+ * @type {string}
+ */
+const ORIGIN_SECRET_HEADER = 'X-Atlantis-Origin-Secret';
+
+/**
+ * HTTP status a request without the origin secret must be refused with.
+ *
+ * >! It is 401, never 403 or 404: the Atlantis distribution rewrites those two to the
+ * >! site's landing page with HTTP 200, so a misconfiguration would look like a working
+ * >! site. Restated here, not read from Lambda code.
+ *
+ * @type {number}
+ */
+const ORIGIN_REJECTION_STATUS = 401;
+
+/**
+ * Reason `O1.1` is skipped when the stage does not protect its API (`ApiIsBehindCloudFront` is not
+ * `true`). {@link computeOutcome} recognizes it: this skip says the check does not apply, not that an
+ * answer is missing, so it does not make the run inconclusive.
+ *
+ * @type {string}
+ */
+const ORIGIN_PROTECTION_OFF_REASON = 'origin protection is off for this stage (ApiIsBehindCloudFront is false)';
 
 /**
  * Process exit codes. `SKIP_CHECK_SKIPPED` is internal to the Wrapper, which
@@ -374,6 +414,8 @@ function readEnvText(env, name) {
  *
  * Values are trimmed. Unset variables become empty strings, except
  * `MCP_ORIGIN`, the timeout, and the report path, which take their defaults.
+ * `MCP_ORIGIN_PROTECTION` (`true` or `false`, from the stack's `ApiIsBehindCloudFront`) is
+ * lower-cased; `MCP_ORIGIN_SECRET` is the value of the origin secret.
  * The raw timeout text is kept in `timeoutText` so an invalid value can still
  * be reported; `timeoutMs` is the number to use (the default when the text is
  * unset or invalid).
@@ -384,9 +426,10 @@ function readEnvText(env, name) {
  *   verifySkip: string, skipSsmStatus: string, skipSsmValue: string,
  *   mcpUrl: string, mcpEdgeUrl: string, expectedVersion: string,
  *   apiKey: string, keyStatus: string,
+ *   originProtection: string, originSecret: string,
  *   origin: string, timeoutMs: number, timeoutText: string, reportPath: string,
  *   configError: string
- * }} Inputs. `apiKey` holds the key itself, so never log this object
+ * }} Inputs. `apiKey` and `originSecret` hold the secrets themselves, so never log this object
  * @example
  * const inputs = readInputs({ MCP_URL: 'https://abc.execute-api.us-east-1.amazonaws.com/test/mcp/v1', EXPECTED_VERSION: '0.0.7' });
  * // inputs.origin === 'https://example.com', inputs.timeoutMs === 30000
@@ -418,6 +461,10 @@ function readInputs(env) {
     // >! message built from these inputs may ever include it
     apiKey: readEnvText(source, 'MCP_API_KEY'),
     keyStatus: readEnvText(source, 'MCP_KEY_STATUS'),
+    // >! The origin protection flag is read from the application stack's ApiIsBehindCloudFront parameter by the
+    // >! Wrapper. The secret is carried to the check context only; no message built from these inputs may include it
+    originProtection: readEnvText(source, 'MCP_ORIGIN_PROTECTION').toLowerCase(),
+    originSecret: readEnvText(source, 'MCP_ORIGIN_SECRET'),
     origin: readEnvText(source, 'MCP_ORIGIN') || DEFAULT_ORIGIN,
     timeoutMs: isUsableTimeout ? Number(timeoutText) : DEFAULT_TIMEOUT_MS,
     timeoutText,
@@ -488,6 +535,7 @@ function isInsideDirectory(directory, candidate) {
  * | `configError`               | Empty; otherwise its text is a problem |
  * | `mcpUrl`                    | Present, parses, `https:` (`http:` only for `localhost` / `127.0.0.1`) |
  * | `mcpEdgeUrl`                | Empty, or the same rule as `mcpUrl` |
+ * | `originProtection`          | Empty, `true`, or `false`; `true` also needs a non-empty `originSecret` |
  * | `expectedVersion`           | Matches `^\d+\.\d+\.\d+$` |
  * | `timeoutText`               | Empty, or a positive whole number |
  * | `origin`                    | An `http:` or `https:` URL |
@@ -539,6 +587,17 @@ function validateConfig(inputs, { cwd = process.cwd() } = {}) {
     }
   }
 
+  const originProtection = text(config.originProtection).trim().toLowerCase();
+  if (originProtection !== '' && originProtection !== 'true' && originProtection !== 'false') {
+    problems.push(`MCP_ORIGIN_PROTECTION must be true or false, got ${quoteExcerpt(originProtection)}`);
+  } else if (originProtection === 'true' && text(config.originSecret).trim() === '') {
+    // >! Protection on with no secret never falls back to sending no header: that would test nothing
+    problems.push(
+      'origin protection is on (ApiIsBehindCloudFront is true) but MCP_ORIGIN_SECRET is empty; '
+      + 'the run does not fall back to sending no header'
+    );
+  }
+
   const expectedVersion = text(config.expectedVersion).trim();
   if (!VERSION_PATTERN.test(expectedVersion)) {
     problems.push(
@@ -584,6 +643,38 @@ function validateConfig(inputs, { cwd = process.cwd() } = {}) {
   }
 
   return problems;
+}
+
+/**
+ * Whether the run sends the origin secret and checks that an unprotected request is refused.
+ *
+ * `MCP_ORIGIN_PROTECTION` decides when it is set: `true` is on, `false` is off (a secret that is also
+ * present is then neither sent nor used). When it is unset, as in a local run, a non-empty secret turns
+ * protection on.
+ *
+ * @param {Object} [config] - Result of {@link readInputs}
+ * @returns {boolean} True when protection is on
+ * @example
+ * isOriginProtectionOn({ originProtection: 'true', originSecret: 'abc' }); // true
+ *
+ * @example
+ * isOriginProtectionOn({ originProtection: 'false', originSecret: 'abc' }); // false
+ *
+ * @example
+ * // A local run that only sets the secret
+ * isOriginProtectionOn({ originProtection: '', originSecret: 'abc' }); // true
+ */
+function isOriginProtectionOn(config) {
+  const source = config !== null && typeof config === 'object' ? config : {};
+  const flag = typeof source.originProtection === 'string' ? source.originProtection.trim().toLowerCase() : '';
+  const secret = typeof source.originSecret === 'string' ? source.originSecret.trim() : '';
+  if (flag === 'true') {
+    return secret !== '';
+  }
+  if (flag === 'false') {
+    return false;
+  }
+  return secret !== '';
 }
 
 // ---------------------------------------------------------------------------
@@ -1173,6 +1264,9 @@ function readBaselineFields(entry) {
  *   one throws).
  * - Once `ctx.rawTargetDown` is set, a raw-target spec gets a `not-attempted`
  *   exchange and `fetch` is not called (Requirement 4.6). Edge requests still go.
+ * - When origin protection is on ({@link isOriginProtectionOn}), a request to the raw target carries
+ *   `X-Atlantis-Origin-Secret` with `config.originSecret`, unless the spec sets `omitOriginSecret` (O1.1's
+ *   request, which must go without it). A request to the edge target never carries it.
  * - The key rides on a POST by `spec.apiKey`: `undefined` means "the effective
  *   key", which is `ctx.effectiveKey` (null until S2 accepts the key); a string
  *   is sent as given (S1's made-up key, S2's key); `null` means no key. A
@@ -1237,6 +1331,12 @@ function createContext({ config, http, output, key = null, secrets = [], subChec
   if (keyInfo !== null && typeof keyInfo.key === 'string' && keyInfo.key !== '' && !secretList.includes(keyInfo.key)) {
     secretList.push(keyInfo.key);
   }
+  // >! The origin secret is redacted from the first line on, whether or not protection turns out to be on
+  const originSecret = typeof config.originSecret === 'string' ? config.originSecret.trim() : '';
+  if (originSecret !== '' && !secretList.includes(originSecret)) {
+    secretList.push(originSecret);
+  }
+  const sendsOriginSecret = isOriginProtectionOn(config);
 
   const ctx = {
     config,
@@ -1281,11 +1381,18 @@ function createContext({ config, http, output, key = null, secrets = [], subChec
       }
     }
 
+    // >! The origin secret goes to the raw target only, on every request but the one that proves a request
+    // >! without it is refused. The edge target is never sent it: the distribution adds it, and the Verifier
+    // >! has no business handing it to a host that is not the API
+    const headers = spec.target === 'raw' && sendsOriginSecret && spec.omitOriginSecret !== true
+      ? { ...spec.headers, [ORIGIN_SECRET_HEADER]: originSecret }
+      : spec.headers;
+
     const exchange = await http.send({
       key: spec.key,
       url,
       method: spec.method,
-      headers: spec.headers,
+      headers,
       body: spec.body,
       apiKey
     });
@@ -1536,6 +1643,7 @@ const SUB_CHECK_ROWS = [
   ['P6.1', 'P6', 'C', 'modern tools/call carries resultType and _meta'],
   ['P6.2', 'P6', 'C', 'legacy tools/call carries neither resultType nor _meta'],
   ['M1.1', 'M1', 'C', 'GET answers 405 with Allow: POST and a JSON body'],
+  ['O1.1', 'O1', 'C', 'a request without the origin secret header is rejected with HTTP 401 and a JSON body'],
   ['T1.1', 'T1', 'A', 'list_templates returns template data'],
   ['X1.1', 'X1', 'C', 'preflight answers HTTP 200 for the origin'],
   ['X1.2', 'X1', 'C', 'preflight allows MCP-Protocol-Version, Mcp-Method, and Mcp-Name'],
@@ -1549,8 +1657,8 @@ const SUB_CHECK_ROWS = [
 
 /**
  * Every sub-check's definition, in the order of the design section 7 table:
- * `{ id, check, severity, title }` with `severity` `core` or `advisory`. 47
- * entries (37 core, 10 advisory). `check` is the group the sub-check belongs to;
+ * `{ id, check, severity, title }` with `severity` `core` or `advisory`. 48
+ * entries (38 core, 10 advisory). `check` is the group the sub-check belongs to;
  * V1.1 and V1.2 belong to `V1` although they are recorded by the P1 and P2
  * check functions. The context looks a sub-check up here by ID when it records
  * a result. A test fixes the ID list, so changing or reusing an ID is a
@@ -1570,13 +1678,13 @@ const SUB_CHECKS = Object.freeze(
 /**
  * Names of the checks, in the order `runChecks` runs them: P1 (which records
  * V1.1 right after its own sub-checks), S1, S2, P2 (which records V1.2 right
- * after its own), P3, P4, P5, P6, M1, T1, X1, X2.
+ * after its own), P3, P4, P5, P6, M1, O1, T1, X1, X2.
  *
  * @type {ReadonlyArray<string>}
  * @example
  * CHECK_ORDER[0]; // 'P1'
  */
-const CHECK_ORDER = Object.freeze(['P1', 'S1', 'S2', 'P2', 'P3', 'P4', 'P5', 'P6', 'M1', 'T1', 'X1', 'X2']);
+const CHECK_ORDER = Object.freeze(['P1', 'S1', 'S2', 'P2', 'P3', 'P4', 'P5', 'P6', 'M1', 'O1', 'T1', 'X1', 'X2']);
 
 /**
  * Check functions by check name: `async function(ctx)`. Each sends its requests
@@ -1624,6 +1732,7 @@ const PREFLIGHT_REQUEST_HEADERS = 'MCP-Protocol-Version,Mcp-Method,Mcp-Name,Cont
  * @property {Object.<string, string>} headers - Headers, names exactly as the design lists them
  * @property {Object} [body] - JSON-RPC request without `id` (POST only)
  * @property {(string|null)} [apiKey] - `undefined` (property absent): the effective key; `null`: never a key; a string: sent as `X-API-Key`
+ * @property {boolean} [omitOriginSecret] - True (O1 only): the request goes to the raw target without `X-Atlantis-Origin-Secret`, whatever the run's protection setting
  */
 
 /**
@@ -1917,6 +2026,9 @@ const REQUEST_BUILDERS = Object.freeze({
 
   // M1: a GET with Accept: text/event-stream, never a key; X2e is the same against the edge
   M1: () => getSpec('M1', 'raw'),
+
+  // O1: a keyless tools/list to the raw target WITHOUT the origin secret header; the guard must refuse it
+  O1: () => ({ ...postSpec('O1', 'raw', {}, jsonRpcBody('tools/list'), null), omitOriginSecret: true }),
 
   // T1: one real tool call that reads template data
   T1: () =>
@@ -3436,6 +3548,108 @@ async function checkM1(ctx) {
 CHECK_FUNCTIONS.M1 = checkM1;
 
 // ---------------------------------------------------------------------------
+// Check O1: a request that does not prove its origin is refused
+// ---------------------------------------------------------------------------
+
+/**
+ * Judge the answer to a request that carried no origin secret. Runs after the gate has
+ * confirmed HTTP 401. Problems are collected the way M1.1 collects them and joined with `; `:
+ * - the content type is not `application/json`
+ * - the body is not a JSON object with a string `message` member
+ *
+ * The wording of `message` is never read, and neither is its length.
+ *
+ * @private
+ * @param {ExchangeEntry} entry - The O1 entry, which passed its gate for HTTP 401
+ * @param {Array.<*>} secrets - Values to redact
+ * @returns {Verdict} `{ ok: true }`, or a failure whose reason lists every problem
+ * @example
+ * judgeOriginRejection(entry, []);
+ * // { ok: false, reason: 'content-type is "text/plain", expected application/json' } for a plain-text 401
+ */
+function judgeOriginRejection(entry, secrets) {
+  const problems = [];
+
+  const contentType = headerText(entry.exchange, 'content-type');
+  const mediaType = contentType === null ? '' : contentType.split(';')[0].trim().toLowerCase();
+  if (mediaType !== 'application/json') {
+    problems.push(`content-type is ${formatValue(contentType === null ? undefined : contentType, secrets)}, expected application/json`);
+  }
+
+  const json = entry.exchange.json;
+  const hasMessage = json !== null && typeof json === 'object' && !Array.isArray(json) && typeof json.message === 'string';
+  if (!hasMessage) {
+    problems.push('body is not a JSON object with a string "message"');
+  }
+
+  return problems.length === 0 ? { ok: true } : failVerdict(problems.join('; '));
+}
+
+/**
+ * Build the `statusHint` of the O1 request. HTTP 200 with a JSON-RPC result means the API served a
+ * request that carried no proof of origin, which is exactly what origin protection exists to stop.
+ * HTTP 403 or 404 gets a hint that the guard must answer 401, because the Atlantis distribution
+ * rewrites those two to the landing page. Any other answer gets no hint.
+ *
+ * @private
+ * @param {Exchange} exchange - The O1 exchange, with a status other than 401
+ * @returns {(string|null)} The hint, or null
+ * @example
+ * originStatusHint({ status: 200, json: { jsonrpc: '2.0', id: 'verify-9', result: { tools: [] } } });
+ * // 'the request was served without proof of origin'
+ */
+function originStatusHint(exchange) {
+  const json = exchange.json;
+  const isResult = json !== null && typeof json === 'object' && !Array.isArray(json)
+    && json.result !== null && typeof json.result === 'object';
+  if (exchange.status === 200 && isResult) {
+    return 'the request was served without proof of origin';
+  }
+  if (exchange.status === 403 || exchange.status === 404) {
+    return `the guard must answer ${ORIGIN_REJECTION_STATUS}: the distribution rewrites 403 and 404 to the landing page`;
+  }
+  return null;
+}
+
+/**
+ * Check O1 (core): a request to the raw target without the origin secret is refused.
+ *
+ * Sends a keyless `tools/list` to the raw target **without** `X-Atlantis-Origin-Secret` and records
+ * O1.1: HTTP 401, a JSON content type, and a body that is a JSON object with a string `message`. The
+ * guard answers before authentication and the rate limiter, so the request is not counted against the
+ * budget (the counted POSTs stay 21 without an edge target and 24 with one). HTTP 200 with a JSON-RPC
+ * result adds the reason that the request was served without proof of origin.
+ *
+ * When origin protection is off (`MCP_ORIGIN_PROTECTION` is `false`, or nothing is set) nothing is
+ * sent and O1.1 is SKIP with {@link ORIGIN_PROTECTION_OFF_REASON}; {@link computeOutcome} does not
+ * treat that skip as a missing answer. When the raw target did not answer P1 the request is not sent
+ * and O1.1 FAILs with the "not attempted" reason (Requirement 4.6).
+ *
+ * @async
+ * @param {CheckContext} ctx - The check context
+ * @returns {Promise<void>} Resolves once O1.1 is recorded
+ * @example
+ * await checkO1(ctx);
+ * // PASS O1.1 a request without the origin secret header is rejected with HTTP 401 and a JSON body
+ */
+async function checkO1(ctx) {
+  if (!isOriginProtectionOn(ctx.config)) {
+    ctx.record('O1.1', 'skip', { reason: ORIGIN_PROTECTION_OFF_REASON });
+    return;
+  }
+
+  const o1 = await ctx.request(buildRequest('O1'), {
+    status: ORIGIN_REJECTION_STATUS,
+    jsonRpc: false,
+    statusHint: originStatusHint
+  });
+
+  ctx.evaluate('O1.1', [o1], () => judgeOriginRejection(o1, ctx.secrets));
+}
+
+CHECK_FUNCTIONS.O1 = checkO1;
+
+// ---------------------------------------------------------------------------
 // Checks X1 and X2
 // ---------------------------------------------------------------------------
 
@@ -3849,7 +4063,7 @@ function buildInconclusiveMessages({ rateLimit = null, stage = {}, now = Date.no
  * | `skipped` flag is set | `skipped` | 0 |
  * | any input problem, or an internal error | `error` | 1 |
  * | a core sub-check has outcome `fail` | `failed` | 1 |
- * | a core sub-check has outcome `skip` | `inconclusive` | 1 |
+ * | a core sub-check has outcome `skip` (except O1.1 skipped because origin protection is off) | `inconclusive` | 1 |
  * | otherwise | `passed` | 0 |
  *
  * Advisory sub-checks never change the outcome; an advisory fail only appears in
@@ -3903,7 +4117,11 @@ function computeOutcome({
     .map((result) => String(result.id));
 
   const failedCore = idsWhere('core', 'fail');
-  const skippedCore = idsWhere('core', 'skip');
+  // >! A core skip that says the check does not apply (origin protection is off) is not a missing answer, so it
+  // >! must not make the run inconclusive; a skip for any other reason, HTTP 429 included, still does
+  const skippedCore = list
+    .filter((result) => result.severity === 'core' && result.outcome === 'skip' && result.reason !== ORIGIN_PROTECTION_OFF_REASON)
+    .map((result) => String(result.id));
   // >! Advisory results only feed this list; they never reach the outcome rules below
   const warnings = idsWhere('advisory', 'fail');
 
@@ -4778,6 +4996,10 @@ function createRunState({ env, stdout, stderr, now, cwd }) {
   if (inputs.apiKey !== '') {
     secrets.push(inputs.apiKey);
   }
+  // >! The origin secret is redacted from the first line on, too
+  if (inputs.originSecret !== '' && !secrets.includes(inputs.originSecret)) {
+    secrets.push(inputs.originSecret);
+  }
   const clock = typeof now === 'function' ? now : Date.now;
   return {
     inputs,
@@ -5248,8 +5470,10 @@ module.exports = {
   checkP5,
   checkP6,
   checkT1,
+  checkO1,
   checkX1,
   checkX2,
+  isOriginProtectionOn,
   REQUEST_BUILDERS,
   REQUEST_KEYS,
   buildRequest,
@@ -5277,6 +5501,9 @@ module.exports = {
   USER_AGENT,
   LOG_PREFIX,
   INVALID_TEST_KEY,
+  ORIGIN_SECRET_HEADER,
+  ORIGIN_REJECTION_STATUS,
+  ORIGIN_PROTECTION_OFF_REASON,
   EXIT_CODES,
   DEFAULT_ORIGIN,
   DEFAULT_TIMEOUT_MS,

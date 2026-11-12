@@ -27,17 +27,41 @@ A **core** check fails the build when it fails or gets no answer. An **advisory*
 | P5 `tools/list` | Core | P5.1 to P5.9 | Each revision gets the fields it should have and none it should not (`ttlMs`, `cacheScope`, `resultType`, `_meta`, tool `title` and `annotations`), a modern `cacheScope` is `public` or `private`, every revision lists the same tools in the same order, and any extra advertised revision is accepted |
 | P6 `tools/call` | Core | P6.1, P6.2 | The `list_tools` call returns the modern envelope for `2026-07-28` and the legacy shape for `2025-11-25` |
 | M1 method | Core | M1.1 | A `GET` that asks for `text/event-stream`, sent with no key, gets HTTP 405, `Allow: POST`, a JSON content type, and a JSON body with a `message`. This is the request Kiro sends after it connects. An answer of HTTP 200 with HTML means the site's landing page is answering for the API |
+| O1 origin protection | Core | O1.1 | A request to the raw API endpoint without the origin secret header gets HTTP 401, a JSON content type, and a JSON body with a `message`. SKIP while the stage's `ApiIsBehindCloudFront` parameter is `false` (see [Origin protection](#origin-protection)) |
 | X1 CORS preflight | Core | X1.1 to X1.3 | The `OPTIONS` preflight on the API Gateway endpoint answers 200 and allows the origin, `POST`, and the `MCP-Protocol-Version`, `Mcp-Method`, and `Mcp-Name` headers |
 | T1 backend | Advisory | T1.1 | `list_templates` returns template data, so the S3 backend works |
 | S1 invalid key | Advisory | S1.1 | A made-up API key is rejected with HTTP 401 |
 | S2 stored key | Advisory | S2.1 to S2.3 | The stored key works in `X-API-Key` and as a Bearer token, and gets a higher rate limit than the public tier. Skipped when no key is stored |
 | X2 edge | Advisory | X2.1 to X2.5 | The same preflight, version, `-32020`, and `GET` behavior through the stage's custom domain (CloudFront). The two `-32020` sub-checks (X2.3, X2.4) expect HTTP 400 with `-32020`. X2.5 expects the same `405` as M1.1, which shows the edge does not turn it into the landing page. Skipped when the stage has no custom domain |
 
-In total there are 37 core and 10 advisory sub-checks.
+In total there are 48 sub-checks: 38 core and 10 advisory.
 
-Requests go to the raw API Gateway endpoint (`https://<restApiId>.execute-api.<region>.amazonaws.com/<apiStage>/mcp/v1`). The X2 sub-checks go to the stage's custom domain, `https://<domain>/mcp/v1`, and only exist on stages whose `settings.json` entry has a `domain` (`beta` and `prod` today). Requests are sent one at a time, in the order P1, S1, S2, P2, P3, P4, P5, P6, M1, T1, X1, X2.
+Requests go to the raw API Gateway endpoint (`https://<restApiId>.execute-api.<region>.amazonaws.com/<apiStage>/mcp/v1`). The X2 sub-checks go to the stage's custom domain, `https://<domain>/mcp/v1`, and only exist on stages whose `settings.json` entry has a `domain` (`beta` and `prod` today). Requests are sent one at a time, in the order P1, S1, S2, P2, P3, P4, P5, P6, M1, O1, T1, X1, X2.
 
 Advisory checks are advisory because their answers depend on something other than this repository's code. A T1 warning points to a backend, an X2 warning to the edge, and an S1 or S2 warning to the key or the authentication path.
+
+## Origin protection
+
+O1.1 checks that the stage's API refuses a request that does not carry the origin secret. The secret and the flag are described in [Ingress and client address](./ingress-and-client-address.md#origin-protection).
+
+The script reads the `ApiIsBehindCloudFront` parameter of the stage's application stack (`${PREFIX}-${PROJECT_ID}-${STAGE_ID}-application`), using the CloudFormation read access the pipeline already has.
+
+| `ApiIsBehindCloudFront` | What the run does |
+|-------------------------|-------------------|
+| `false` (or an older stack without the parameter) | Reads no secret, sends no origin header. O1.1 is `SKIP` with the reason `origin protection is off for this stage (ApiIsBehindCloudFront is false)`. The run can still be `passed`: this skip does not make it `inconclusive` |
+| `true` | Reads the secret `${PREFIX}-${PROJECT_ID}-${STAGE_ID}-OriginSecret`, sends it as `X-Atlantis-Origin-Secret` on every request to the raw endpoint (never to the custom domain), and checks that one request without it gets `401` |
+
+**Permission.** With the flag `true`, the PostDeploy role needs `secretsmanager:GetSecretValue` on the stage's `OriginSecret`. Grant it through a managed policy named in `PostDeploySvcRoleIncludeManagedPolicyArns` on the pipeline stack, scoped to that secret's ARN. Until the flag is `true`, no new permission is needed.
+
+**What a failure looks like.**
+
+| Log | Meaning |
+|-----|---------|
+| Outcome `error` with a message that says the origin secret could not be read, names the AWS error code (for example `AccessDeniedException`) and `secretsmanager:GetSecretValue` | The permission above is missing. Fix the policy and retry the PostDeploy stage. The run does not fall back to sending no header |
+| Outcome `error` with a message about reading the `ApiIsBehindCloudFront` parameter | The role cannot describe the stack, or the parameter is neither `true` nor `false` |
+| `FAIL O1.1` with `the request was served without proof of origin` | The raw endpoint answered a request without the secret with HTTP 200. The flag is `true` but the functions are not enforcing it. Check the stage's deployed parameter and the functions' `CACHE_DATA_INGRESS_SECRET_NAME` variable |
+| `FAIL O1.1` with HTTP 403 or 404, or a non-JSON body | Something other than the application's guard answered. The guard uses `401` because the distribution rewrites `403` and `404` to the landing page |
+| `FAIL` on many sub-checks, with HTTP 401 and `Requests must use the service endpoint.` | The functions reject the Verifier's own header. The secret value the Verifier read does not match what the functions hold, for example after a rotation before the functions reloaded it. See [rotation](./ingress-and-client-address.md#rotating-the-secret) |
 
 ## Reading a run
 
@@ -52,17 +76,18 @@ Lines from the script are prefixed `[05-verify-deployment]` and carry a level. `
 [05-verify-deployment] INFO: Raw target: https://abc123.execute-api.us-east-1.amazonaws.com/<apiStage>/mcp/v1
 [05-verify-deployment] INFO: Edge target: https://mcp-beta.atlantis.63klabs.net/mcp/v1
 [05-verify-deployment] INFO: Expected release version: 0.0.7
+[05-verify-deployment] INFO: Origin protection: true
 [05-verify-deployment] INFO: Verification key: no key configured: placeholder BLANK. Running at the public tier
 PASS  P1.1   server/discover answers without a key
 SKIP  S2.1   the stored key is accepted in X-API-Key (no key configured: placeholder BLANK)
 WARN  X2.4   edge returns -32020 for a mismatched Mcp-Name (HTTP 200, expected 400; the edge may not be forwarding the MCP-Protocol-Version or Mcp-* headers; body: ...)
-[05-verify-deployment] INFO: Core: 37 passed, 0 failed, 0 skipped. Advisory: 6 passed, 1 warned, 3 skipped
+[05-verify-deployment] INFO: Core: 38 passed, 0 failed, 0 skipped. Advisory: 6 passed, 1 warned, 3 skipped
 [05-verify-deployment] INFO: Outcome: passed
 [05-verify-deployment] INFO: Report: build/verify/report.json
 VERIFY_REPORT {"tool":"atlantis-mcp-postdeploy-verify","schemaVersion":1,"outcome":"passed","exitCode":0,...}
 ```
 
-Most sub-check lines are left out above. The ones shown illustrate each label.
+Most sub-check lines are left out above. The ones shown illustrate each label. On a stage whose `ApiIsBehindCloudFront` is `false`, the log shows `Origin protection: false`, O1.1 is a `SKIP`, and the core counts are `37 passed, 0 failed, 1 skipped`.
 
 ### Sub-check lines
 
@@ -101,7 +126,7 @@ The outcome is the first rule below that applies. The exit code of the script is
 | `skipped` | The skip switch is on | 0 | A `WARN` that verification was skipped (see [Skipping verification](#skipping-verification)) |
 | `error` | An input problem or an unexpected internal error: a missing pipeline variable, a missing `env.sh`, a failed `write_release_version.py`, an invalid URL | 1 | One `ERROR` line per problem. No request is sent for an input problem |
 | `failed` | Any core sub-check failed | 1 | `ERROR: Core sub-checks failed: <IDs>` |
-| `inconclusive` | No core sub-check failed, but at least one was skipped. This happens only after HTTP 429 or when the baseline from P1 is missing | 1 | Five `WARN` lines with the reset time and the retry commands (see [Retrying the stage](#retrying-the-stage)) |
+| `inconclusive` | No core sub-check failed, but at least one was skipped. This happens only after HTTP 429 or when the baseline from P1 is missing. The one core skip that does not count is O1.1 skipped because origin protection is off | 1 | Five `WARN` lines with the reset time and the retry commands (see [Retrying the stage](#retrying-the-stage)) |
 | `passed` | Everything else, with any warnings and skips listed | 0 | Nothing |
 
 A green stage therefore always means the core was verified. A stage with outcome `passed` can still contain `WARN` and `SKIP` lines, so read them after changes to the edge or the key.
@@ -231,7 +256,7 @@ For a `failed` run, fix the cause first. Redeploying through the pipeline (a new
 
 ## Request budget
 
-Verification is designed to stay small. These counts are for POST requests that reach the Read Function's rate limiter, not counting retries. The invalid-key request (S1) is rejected before the rate limiter, and API Gateway answers the preflights.
+Verification is designed to stay small. These counts are for POST requests that reach the Read Function's rate limiter, not counting retries. The invalid-key request (S1) and the O1.1 request (when the stage is protected) are rejected before the rate limiter, and API Gateway answers the preflights.
 
 | Run | Counted against the client IP | Counted against the key's tier |
 |-----|-------------------------------|--------------------------------|
@@ -245,6 +270,7 @@ Verification is designed to stay small. These counts are for POST requests that 
 - A request that fails with a network error, a timeout, or HTTP 502, 503, or 504 is retried once after one second. Any other response, including 429 and other 4xx statuses, is not retried.
 - Each extra revision that the server advertises beyond the three it must have adds one `tools/list` request, against whichever budget the run is using.
 - The `GET` probes of M1.1 and X2.5 are answered by an API Gateway mock, not by the Read Function. They are counted in neither `requests.posts` nor `requests.preflights` of the report, and they count against neither budget.
+- O1.1 sends one more `POST` than these counts when the stage is protected. The Read Function refuses it before the rate limiter, so it is in neither column.
 - Every request has a timeout of 30 seconds by default.
 
 ## How verification traffic appears in the logs
@@ -253,7 +279,7 @@ Verification is designed to stay small. These counts are for POST requests that 
 - **User agent.** Every request carries `User-Agent: atlantis-mcp-postdeploy-verify`. The Read Function logs the full incoming event at DEBUG level, which non-production stages enable, so the user agent shows there.
 - **API Gateway access logs.** These record the address of the CodeBuild host and not the user agent, so an access-log line cannot be tied to verification by its user agent. Use the address and the time of the build instead.
 - **Read-only.** The server receives only `server/discover`, `initialize`, `tools/list`, `tools/call` for `list_tools` and `list_templates`, and CORS preflights. The `GET` probes never reach the Read Function. Nothing creates, changes, or deletes data, and nothing calls Amazon Bedrock.
-- **Secrets.** The key travels only in the process environment and in the `X-API-Key` and `Authorization` request headers. It is never written to the build log, the report, or the report line, and request headers are never logged.
+- **Secrets.** The key travels only in the process environment and in the `X-API-Key` and `Authorization` request headers. It is never written to the build log, the report, or the report line, and request headers are never logged. On a protected stage the origin secret travels the same way, in the `X-Atlantis-Origin-Secret` header to the raw endpoint only, and is redacted from the log and the report in the same way.
 
 ## Known limits
 

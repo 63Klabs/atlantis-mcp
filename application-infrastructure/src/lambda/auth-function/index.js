@@ -7,7 +7,9 @@
  *   handlers/post-confirmation.js; any other trigger source is echoed back
  *   unmodified so Cognito can complete the operation (e.g. ConfirmForgotPassword)
  * - API Gateway proxy → Config.promise/prime, ClientRequest/Response,
- *   Routes.process, response.finalize()
+ *   origin-protection guard (401 when CACHE_DATA_INGRESS_SECRET_NAME is set and the
+ *   request is not verified; never applied to Cognito triggers), Routes.process,
+ *   response.finalize()
  * - Unrecognized event → 400 error via response.finalize()
  *
  * Config.init() is called outside the handler for cold start optimization.
@@ -22,6 +24,7 @@ const { tools: { DebugAndLog, ClientRequest, Response, Timer } } = require('@63k
 const { Config } = require('./config');
 const Routes = require('./routes');
 const postConfirmationHandler = require('./handlers/post-confirmation');
+const IngressGuard = require('./utils/ingress-guard');
 
 // >! Load the tier-common layer at module scope. Controllers are lazy-loaded, so without
 // >! this a missing layer would surface on the first profile or voucher request. A missing
@@ -96,6 +99,20 @@ async function handler(event, context) {
 		if (event.httpMethod && event.path) {
 			clientRequest = new ClientRequest(event, context);
 			response = new Response(clientRequest);
+
+			// >! Origin protection (Part B). Rejections are 401, never 403 or 404: the Atlantis
+			// >! distribution rewrites those two to the landing page with HTTP 200, so a
+			// >! misconfiguration would look like a working site.
+			// >! The guard runs first so a request that is not from the distribution reaches no
+			// >! controller, reads no Users record, and changes no state.
+			// >! The application does not read the origin-secret header or compare the secret
+			// >! itself: there is one implementation, in cache-data (isIngressVerified). The guard
+			// >! applies only when CACHE_DATA_INGRESS_SECRET_NAME is set; an unreadable secret is
+			// >! unverified. It sits inside this API Gateway branch only: Cognito trigger events
+			// >! returned above carry no CloudFront header and must never be refused here.
+			if (IngressGuard.shouldRefuse(clientRequest)) {
+				return IngressGuard.buildRefusal(response);
+			}
 
 			await Routes.process(clientRequest, response);
 			return response.finalize();

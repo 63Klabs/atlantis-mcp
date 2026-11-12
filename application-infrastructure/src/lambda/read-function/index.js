@@ -25,6 +25,7 @@ const { Config } = require("./config");
 const Routes = require('./routes');
 const RateLimiter = require('./utils/rate-limiter');
 const AuthResolver = require('./utils/auth-resolver');
+const IngressGuard = require('./utils/ingress-guard');
 
 // >! Log a cold start and time it using Timer - stop Timer in finally block
 const coldStartInitTimer = new Timer("coldStartTimer", true);
@@ -47,6 +48,10 @@ Config.init(); // >! we will await completion in the handler
  *    - Creates a ClientRequest from the event and context
  *    - Creates a Response linked to the ClientRequest
  * 
+ * 2a. Origin Protection (only when CACHE_DATA_INGRESS_SECRET_NAME is set):
+ *    - Refuses a request cache-data did not verify as coming from the distribution
+ *    - Returns 401 (Cache-Control: no-store) before auth, rate limiting, or routing
+ *
  * 3. Rate Limiting:
  *    - Checks rate limits using Config.settings().rateLimits
  *    - Returns 429 Too Many Requests if limit exceeded
@@ -127,6 +132,18 @@ exports.handler = async (event, context) => {
     // >! Create ClientRequest and Response from event/context
     clientRequest = new ClientRequest(event, context);
     response = new Response(clientRequest);
+
+    // >! Origin protection (Part B). Rejections are 401, never 403 or 404: the Atlantis
+    // >! distribution rewrites those two to the landing page with HTTP 200, so a
+    // >! misconfiguration would look like a working site.
+    // >! The guard runs first so a request that is not from the distribution reads no Users
+    // >! record and writes no rate-limit counter, and reaches no router.
+    // >! The application does not read the origin-secret header or compare the secret itself:
+    // >! there is one implementation, in cache-data (isIngressVerified). The guard applies
+    // >! only when CACHE_DATA_INGRESS_SECRET_NAME is set; an unreadable secret is unverified.
+    if (IngressGuard.shouldRefuse(clientRequest)) {
+      return IngressGuard.buildRefusal(response);
+    }
 
     // >! Resolve authentication from request headers
     // >! No key = public tier; valid key = authenticated tier; invalid key = 401
