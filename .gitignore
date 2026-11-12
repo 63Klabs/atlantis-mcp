@@ -1,7 +1,5 @@
 # Ignore the git, ve, and zip files and directories
 .*
-# Track the per-function .npmrc (pins npm install behavior for the Lambda builds)
-!application-infrastructure/src/lambda/*/.npmrc
 *.zip
 venv*
 .venv*

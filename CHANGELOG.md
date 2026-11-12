@@ -5,7 +5,7 @@ All notable changes to the 63Klabs Atlantis MCP Server will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [v0.0.7] (unreleased)
+## [v0.0.7] (2026-11-12)
 
 ### Breaking Changes
 - **Auth function: "User not found" is now HTTP 422, and unmatched routes are now HTTP 400** [Spec: 0-0-7-get-on-mcp-v1-returns-html-landing-page-200](../.kiro/specs/0-0-7-get-on-mcp-v1-returns-html-landing-page-200/) - `GET /mcp/auth/profile`, `POST /mcp/auth/key/regenerate`, and `POST /mcp/auth/voucher/redeem` answer `422` instead of `404` when the token is valid but the account has no user record. CloudFront rewrites every 403 and 404 to the site's landing page with HTTP 200, so a 404 never reached the page as a 404
@@ -144,8 +144,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Dependencies
 - Dev-only: `minimatch` 10.2.6 and 9.0.9 to 11.0.5 in all 11 projects with a lockfile, through an `overrides` entry. This removes the nested `minimatch@9.0.9`, `brace-expansion`, and `balanced-match` and adds `@isaacs/nonrecursive-glob-match`. `babel-plugin-istanbul` moved from 8.0.0 to 8.0.2 in 7 of the projects when the lockfiles were re-resolved. No production dependency changed
-- **`@63klabs/cache-data`** [Spec: 0-0-7-rate-limit-client-ip-spoofing](../.kiro/specs/0-0-7-rate-limit-client-ip-spoofing/) - The Read and Auth functions install it from a pinned GitHub commit (`d9cc35d`, still the 1.4.1 code, which also includes the ingress verification that origin protection uses) until the registry release, because the client-address handling this fix relies on is not yet published
-  - Each function directory has an `.npmrc` with `allow-git=root`, which lets npm 12 install that one direct git dependency and no transitive one; `.gitignore` has a negation so the files are tracked. Delete both `.npmrc` files and switch to `^1.4.1` when the registry release exists
+- **`@63klabs/cache-data`** [Spec: 0-0-7-rate-limit-client-ip-spoofing](../.kiro/specs/0-0-7-rate-limit-client-ip-spoofing/) - The Read and Auth functions require `^1.4.1` from the npm registry. This release supplies the client-address handling (`getClientIp()`) and the ingress verification (`isIngressVerified()`) that the client-address fix and origin protection rely on
 
 ## [v0.0.6] (2026-09-02)
 

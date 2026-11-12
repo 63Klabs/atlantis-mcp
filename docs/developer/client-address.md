@@ -139,9 +139,7 @@ To run the verifier's check against a stage or a fake server, see [Post-deploy v
 
 ## Dependency
 
-The `read-function` and `auth-function` `package.json` files pin `@63klabs/cache-data` to a git commit (`d9cc35d`, which is the 1.4.1 code and includes the ingress verification), because the release that supplies the resolver and ingress behavior used here is not yet on the registry. Each function directory has an `.npmrc` with `allow-git=root`. The Atlantis build uses a current npm that refuses git dependencies by default; `root` allows only the package's own direct git dependency and no transitive one.
-
-When cache-data `1.4.1` is installed from the registry, change the dependency to the registry version and delete both `.npmrc` files.
+The `read-function` and `auth-function` `package.json` files require `@63klabs/cache-data` `^1.4.1` from the npm registry. That release supplies the client-address resolver (`getClientIp()`) and the ingress verification (`isIngressVerified()`) used here.
 
 ## Related pages
 

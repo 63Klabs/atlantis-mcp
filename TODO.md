@@ -12,8 +12,8 @@ Target: November 2026
 - [x] address static site generation issue for API specs
 - [x] dependabot findings (beta to prod)
 - [x] [GET returns html](.kiro/specs/0-0-7-get-on-mcp-v1-returns-html-landing-page-200)
-- [ ] rate-limit-client-ip-spoofing (re-evaluate PLAN, use github/@63klabs/cache-data)
-- [ ] rate-limit-client-ip-spoofing registry switch - once @63klabs/cache-data 1.4.1 is on npm: switch the read-function and auth-function `package.json` files to `^1.4.1`, delete both `.npmrc` files (and remove the `!application-infrastructure/src/lambda/*/.npmrc` negation in the root `.gitignore`), regenerate the lockfiles, rerun both suites and the scratch installs without `--allow-git` (see specs/0-0-7-rate-limit-client-ip-spoofing)
+- [x] rate-limit-client-ip-spoofing (re-evaluate PLAN, use github/@63klabs/cache-data)
+- [x] rate-limit-client-ip-spoofing registry switch - once @63klabs/cache-data 1.4.1 is on npm: switch the read-function and auth-function `package.json` files to `^1.4.1`, delete both `.npmrc` files (and remove the `!application-infrastructure/src/lambda/*/.npmrc` negation in the root `.gitignore`), regenerate the lockfiles, rerun both suites and the scratch installs without `--allow-git` (see specs/0-0-7-rate-limit-client-ip-spoofing)
 
 ## 0-0-8
 

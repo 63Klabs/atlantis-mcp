@@ -27,26 +27,17 @@ The Cache-Data stack:
 - Is deployed per `Prefix` per AWS Account.
 - Is shared among all applications under the same prefix within an account's region.
 
-Check for a stack with the name `<Prefix>-cache-data-storage`
+Check for a stack with the name `<prefix>-cache-data-<acct_id>-<region>-an`
 
-This can be done by running the following command (be sure to replace `PREFIX` and `YOUR_PROFILE`):
-
-```bash
-aws cloudformation list-exports --query "Exports[?Name=='PREFIX-CacheDataS3Bucket'].Value" --output text --profile YOUR_PROFILE
-```
-
-This command will return the bucket name configured for caching. If no bucket is returned for your `PREFIX` then the cache data stack has not yet been deployed.
-
-If a Cache-Data stack does not yet exist, then one can be created by an account admin, operations, or cloud engineer from the Atlantis SAM Config repository:
+This can be done by running the following command (be sure to replace `PREFIX_LOWER` and `YOUR_PROFILE`):
 
 ```bash
-# configure
-./cli/config.py storage PREFIX cache-data
-# choose cache-data from the list of available templates
-
-# deploy
-./cli/deploy.py storage PREFIX cache-data
+aws cloudformation list-exports --query "Exports[?Name=='PREFIX_LOWER-CacheDataS3Bucket'].Value" --output text --profile YOUR_PROFILE
 ```
+
+This command will return the bucket name configured for caching. If no bucket is returned for your `PREFIX` then the `*-Atlantis-Prefix-Based-Infra` stack for the prefix did not have `EnableCacheData` set to `true`. 
+
+> Cache-Data is REQUIRED for this workload. Please have your administrator enable it for the prefix in this account, or move your workload to another account where it may be enabled. See [Atlantis Platform Administration: Account-Wide Set-Up Stack Deployment](https://github.com/63Klabs/atlantis-platform-admin/blob/main/account-wide-set-up/README.md)
 
 ## Create Repository and Initialize with this Code
 
@@ -62,19 +53,6 @@ Using the Atlantis SAM Config scripts in your organization's central infrastruct
 
 # Deploy the pipeline
 ./cli/deploy.py pipeline PREFIX YOUR_PROJECT_ID test
-```
-
-Clone the repository to your local machine and perform your first merge:
-
-```bash
-git clone HTTPS_CLONE_URL
-
-cd YOUR_CLONED_REPO
-
-git switch dev
-git switch test
-git merge dev
-git push
 ```
 
 This will now kick off your first deployment. Make sure it deploys without errors before going back to `dev` and making changes.
@@ -126,12 +104,6 @@ The application stack creates the secret `Prefix-ProjectId-StageId-OriginSecret`
 3. Set `ApiIsBehindCloudFront` to `true` and deploy the application.
 
 Roll back in the reverse order. Before step 3, grant the PostDeploy role `secretsmanager:GetSecretValue` on the stage's `OriginSecret` through `PostDeploySvcRoleIncludeManagedPolicyArns` on the pipeline stack, so sub-check `O1.1` can read the secret. After step 3, a request to the raw `execute-api` URL without the secret gets `401`. See [Ingress and client address](docs/admin-ops/ingress-and-client-address.md#origin-protection) and [CloudFormation parameters](docs/admin-ops/deployment/cloudformation-parameters.md#apiisbehindcloudfront).
-
-### Pinned cache-data dependency
-
-`read-function` and `auth-function` install `@63klabs/cache-data` from a pinned GitHub commit (`d9cc35d`, still the 1.4.1 code, which includes the ingress verification used by origin protection; see the `dependencies` of each `package.json`) until the registry release `^1.4.1` is used. The Atlantis build runs on the latest Node.js, whose npm refuses git dependencies by default. A `.npmrc` containing `allow-git=root` in each of the two function directories allows the install of that one direct git dependency and no transitive one.
-
-Both `.npmrc` files are deleted when the dependency moves to `^1.4.1` on the registry. The task is tracked in [TODO.md](TODO.md).
 
 ### Setting Up Pipelines
 
