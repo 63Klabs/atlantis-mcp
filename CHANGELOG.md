@@ -5,7 +5,7 @@ All notable changes to the 63Klabs Atlantis MCP Server will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [v0.0.7] (2026-11-12)
+## v0.0.7 (2026-11-12)
 
 ### Breaking Changes
 - **Auth function: "User not found" is now HTTP 422, and unmatched routes are now HTTP 400** [Spec: 0-0-7-get-on-mcp-v1-returns-html-landing-page-200](../.kiro/specs/0-0-7-get-on-mcp-v1-returns-html-landing-page-200/) - `GET /mcp/auth/profile`, `POST /mcp/auth/key/regenerate`, and `POST /mcp/auth/voucher/redeem` answer `422` instead of `404` when the token is valid but the account has no user record. CloudFront rewrites every 403 and 404 to the site's landing page with HTTP 200, so a 404 never reached the page as a 404
@@ -146,7 +146,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dev-only: `minimatch` 10.2.6 and 9.0.9 to 11.0.5 in all 11 projects with a lockfile, through an `overrides` entry. This removes the nested `minimatch@9.0.9`, `brace-expansion`, and `balanced-match` and adds `@isaacs/nonrecursive-glob-match`. `babel-plugin-istanbul` moved from 8.0.0 to 8.0.2 in 7 of the projects when the lockfiles were re-resolved. No production dependency changed
 - **`@63klabs/cache-data`** [Spec: 0-0-7-rate-limit-client-ip-spoofing](../.kiro/specs/0-0-7-rate-limit-client-ip-spoofing/) - The Read and Auth functions require `^1.4.1` from the npm registry. This release supplies the client-address handling (`getClientIp()`) and the ingress verification (`isIngressVerified()`) that the client-address fix and origin protection rely on
 
-## [v0.0.6] (2026-09-02)
+## v0.0.6 (2026-09-02)
 
 Big enhancements:
 
@@ -212,7 +212,7 @@ Big enhancements:
 - **`doc-ai-common` Lambda Layer** [Spec: 0-0-6-bedrock-documentation-semantic-search](../.kiro/specs/0-0-6-bedrock-documentation-semantic-search/) — Bundles `@aws-sdk/client-s3vectors` as its single production dependency for the `s3-vectors` path (that client is not yet guaranteed in the Lambda runtime); all other AWS SDK clients remain dev-only and are provided by the runtime
 - **`aws-xray-sdk-core@3.12.0`** [Spec: 0-0-6-xray-downstream-tracing](../.kiro/specs/0-0-6-xray-downstream-tracing/) — Added as a pinned production dependency to `read-function`, `auth-function`, `doc-indexer`, and the `doc-ai-common` layer, because the AWS Lambda managed Node.js runtime does not provide it
 
-## [v0.0.5] (2026-05-07)
+## v0.0.5 (2026-05-07)
 
 ### Fixed
 - **CI/CD: Test suite OOM in CodeBuild** — Resolved JavaScript heap out-of-memory crash during `npm test` in constrained build environments
@@ -242,7 +242,7 @@ Big enhancements:
   - Query parameter support (`?verify=<email>`) for cross-page verification flow
   - Accessibility compliance: aria-live regions, aria-describedby associations, focus management with fallback
 
-## [v0.0.4] (2026-05-04)
+## v0.0.4 (2026-05-04)
 
 ### Security
 - **Key Hashing Upgrade** [Spec: 0-0-4-key-hashing-for-auth](../.kiro/specs/0-0-4-key-hashing-for-auth/) — Replaced HMAC-SHA256 with scrypt (N=16384, r=8, p=1) for API key hashing in auth and read lambdas, resolving GitHub security code scanning alerts #5, #6, #7, #8 (CWE-916)
@@ -250,7 +250,7 @@ Big enhancements:
 ### Breaking Changes
 - **API Key Hashing Algorithm Change** — Existing API key hashes in DynamoDB are invalidated by the switch from HMAC-SHA256 to scrypt. Pre-production: test users must regenerate their API keys. No migration script needed.
 
-## [v0.0.3] (2026-05-03)
+## v0.0.3 (2026-05-03)
 
 ### Added
 - **Modules Nested Directory Support** [Spec: 0-0-3-modules-nested-directory-support](../.kiro/specs/0-0-3-modules-nested-directory-support/)
@@ -269,50 +269,12 @@ Big enhancements:
   - Subscription to Paid tier coming later.
   - Uses Amazon Cognito
 
-## [v0.0.2] (2026-04-09)
+## v0.0.2 (2026-04-09)
 
 ### Changed
 
 - Updated logs better record request and response metrics such as tool usage.
 
-## [v0.0.1] (2026-04-02)
+## v0.0.1 (2026-04-02)
 
 Initial release.
-
----
-
-## Release Notes Format
-
-Each release should include changes under these categories:
-
-- **Added**: New features, tools, or capabilities
-- **Changed**: Modifications to existing functionality
-- **Deprecated**: Features marked for removal (with sunset date)
-- **Removed**: Features removed in this version
-- **Fixed**: Bug fixes and corrections
-- **Security**: Security-related changes or fixes
-
-### Breaking Changes
-
-Breaking changes should be clearly marked and include:
-- Description of the breaking change
-- Migration guide link
-- Deprecation timeline for old version
-
-Example:
-```markdown
-### Breaking Changes
-- **Tool: list_templates** - Renamed parameter `buckets` to `s3Buckets`
-  - **Migration Guide**: [docs/migration/v1-to-v2.md](docs/migration/v1-to-v2.md)
-  - **Deprecation**: v1.x deprecated with 6-month support period ending 2026-12-31
-```
-
-### Version Links
-
-[Unreleased]: https://github.com/63klabs/atlantis-mcp/
-[v0.0.6]: https://github.com/63klabs/atlantis-mcp/releases/tag/v0.0.6
-[v0.0.5]: https://github.com/63klabs/atlantis-mcp/releases/tag/v0.0.5
-[v0.0.4]: https://github.com/63klabs/atlantis-mcp/releases/tag/v0.0.4
-[v0.0.3]: https://github.com/63klabs/atlantis-mcp/releases/tag/v0.0.3
-[v0.0.2]: https://github.com/63klabs/atlantis-mcp/releases/tag/v0.0.2
-[v0.0.1]: https://github.com/63klabs/atlantis-mcp/releases/tag/v0.0.1
